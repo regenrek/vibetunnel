@@ -49,7 +49,7 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.about)
         }
-        .frame(minWidth: 600, idealWidth: 700, minHeight: 400, idealHeight: 500)
+        .frame(minWidth: 400, idealWidth: 400, minHeight: 400, idealHeight: 500)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
