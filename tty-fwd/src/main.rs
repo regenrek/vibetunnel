@@ -1,12 +1,14 @@
 mod protocol;
 mod tty_spawn;
 
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use anyhow::anyhow;
 use argument_parser::Parser;
+use serde_json;
 use uuid::Uuid;
 
 use tty_spawn::TtySpawn;
@@ -14,6 +16,46 @@ use tty_spawn::TtySpawn;
 use crate::protocol::SessionInfo;
 
 fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
+    let mut sessions = HashMap::new();
+
+    if !control_path.exists() {
+        println!("{}", serde_json::to_string(&sessions)?);
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(control_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            let session_id = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+
+            let session_json_path = path.join("session.json");
+            let stream_out_path = path.join("stream-out");
+            let stdin_path = path.join("stdin");
+
+            if session_json_path.exists() {
+                let status = if stream_out_path.exists() && stdin_path.exists() {
+                    "running"
+                } else {
+                    "stopped"
+                };
+
+                let session_data = serde_json::json!({
+                    "status": status,
+                    "stream-out": stream_out_path.to_string_lossy(),
+                    "stdin": stdin_path.to_string_lossy()
+                });
+
+                sessions.insert(session_id.to_string(), session_data);
+            }
+        }
+    }
+
+    println!("{}", serde_json::to_string(&sessions)?);
     Ok(())
 }
 
