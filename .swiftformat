@@ -1,0 +1,98 @@
+# SwiftFormat configuration for Swift 6
+# Avoids self-rewrite conflicts and maintains modern Swift patterns
+
+# Format options
+--swiftversion 6.0
+
+# Indentation
+--indent 4
+--indentcase false
+--indentstrings false
+--tabwidth 4
+
+# Line breaks
+--linebreaks lf
+--maxwidth 120
+
+# Wrapping
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--wrapreturntype if-multiline
+--wrapeffects if-multiline
+--wrapconditions after-first
+
+# Spacing
+--nospaceoperators ...,..<
+--trimwhitespace always
+--emptybraces no-space
+
+# Organization
+--organizetypes actor,class,struct,enum,extension
+--extensionacl on-declarations
+--groupedextension true
+
+# Swift 6 specific - IMPORTANT: Disable self-related rules
+--disable redundantSelf
+
+# Modern Swift patterns
+--self init-only
+--selfrequired 
+--importgrouping testable-last
+--patternlet inline
+--stripunusedargs closure-only
+--elseposition same-line
+--guardelse auto
+
+# Lifecycle
+
+# Other preferences
+--semicolons never
+--commas inline
+--decimalgrouping 3,4
+--hexgrouping 4,8
+--hexliteralcase uppercase
+--exponentcase lowercase
+--operatorfunc spaced
+--symlinks follow
+--fragment false
+
+# Header
+--header strip
+
+# Rules to enable
+--enable blankLineAfterImports
+--enable blockComments
+--enable docComments
+--enable isEmpty
+--enable redundantReturn
+--enable sortImports
+--enable strongifiedSelf
+--enable todos
+--enable wrapArguments
+--enable wrapEnumCases
+--enable wrapMultilineStatementBraces
+
+# Rules to disable (avoiding conflicts)
+--disable andOperator
+--disable redundantBackticks
+--disable redundantBreak
+--disable redundantExtensionACL
+--disable redundantObjc
+--disable redundantPattern
+--disable redundantRawValues
+--disable redundantType
+--disable redundantVoidReturnType
+--disable unusedArguments
+--disable void
+
+# Exclude paths
+--exclude .build
+--exclude .swiftpm
+--exclude build
+--exclude Carthage
+--exclude Pods
+--exclude DerivedData
+--exclude VibeTunnelTests
+--exclude VibeTunnelUITests
+--exclude SourcePackages

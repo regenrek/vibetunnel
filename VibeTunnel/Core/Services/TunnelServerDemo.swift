@@ -13,7 +13,7 @@ class TunnelServerDemo {
     
     static func runDemo() async {
         // Get the API key (in production, this should be managed securely)
-        let apiKeys = AuthenticationMiddleware.loadStoredAPIKeys()
+        let apiKeys = APIKeyManager.loadStoredAPIKeys()
         guard let apiKey = apiKeys.first else {
             print("No API key found")
             return
@@ -57,7 +57,7 @@ class TunnelServerDemo {
     }
     
     static func runWebSocketDemo() async {
-        let apiKeys = AuthenticationMiddleware.loadStoredAPIKeys()
+        let apiKeys = APIKeyManager.loadStoredAPIKeys()
         guard let apiKey = apiKeys.first else {
             print("No API key found")
             return

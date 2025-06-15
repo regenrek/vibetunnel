@@ -1,0 +1,130 @@
+# SwiftLint configuration for Swift 6 compatibility
+# Focuses on modern Swift best practices without conflicting self rules
+
+included:
+  - VibeTunnel
+
+excluded:
+  - Carthage
+  - Pods
+  - DerivedData
+  - .build
+  - .swiftpm
+  - VibeTunnelTests
+  - VibeTunnelUITests
+
+# Rule configuration
+opt_in_rules:
+  - array_init
+  - attributes
+  - closure_end_indentation
+  - closure_spacing
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - convenience_type
+  - discouraged_object_literal
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - enum_case_associated_values_count
+  - explicit_init
+  - fallthrough
+  - fatal_error_message
+  - file_header
+  - first_where
+  - flatmap_over_map_reduce
+  - force_unwrapping
+  - identical_operands
+  - implicit_return
+  - joined_default_parameter
+  - last_where
+  - legacy_multiple
+  - legacy_random
+  - literal_expression_end_indentation
+  - lower_acl_than_parent
+  - modifier_order
+  - multiline_arguments
+  - multiline_function_chains
+  - multiline_literal_brackets
+  - multiline_parameters
+  - operator_usage_whitespace
+  - overridden_super_call
+  - prefer_self_in_static_references
+  - prefer_self_type_over_type_of_self
+  - private_action
+  - private_outlet
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - sorted_first_last
+  - static_operator
+  - toggle_bool
+  - trailing_closure
+  - unavailable_function
+  - unneeded_parentheses_in_closure_argument
+  - unowned_variable_capture
+  - untyped_error_in_catch
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+  - yoda_condition
+
+disabled_rules:
+  # Disable rules that might be too restrictive
+  - line_length
+  - file_length
+  - type_body_length
+  - function_body_length
+  - cyclomatic_complexity
+  - nesting
+  - function_parameter_count
+  - large_tuple
+  - todo
+
+# Rule parameters
+type_name:
+  min_length: 3
+  max_length: 50
+  
+identifier_name:
+  min_length: 2
+  max_length: 60
+  excluded:
+    - id
+    - x
+    - y
+    - z
+    - i
+    - j
+    - k
+    - dx
+    - dy
+    - dz
+
+trailing_whitespace:
+  ignores_empty_lines: true
+  
+force_cast: error
+force_try: error
+
+custom_rules:
+  no_print_statements:
+    name: "No print statements"
+    regex: '\bprint\('
+    message: "Use proper logging instead of print statements"
+    severity: warning
+    excluded: 
+      - "VibeTunnelTests/*"
+      - "VibeTunnelUITests/*"
+    
+  prefer_async_await:
+    name: "Prefer async/await"
+    regex: '\.flatMap\s*\{\s*\$0\s*\}\s*\.eraseToAnyPublisher'
+    message: "Consider using async/await instead of Combine for simple cases"
+    severity: info
+
+analyzer_rules:
+  - unused_import
+  - unused_declaration

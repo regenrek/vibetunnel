@@ -6,16 +6,17 @@
 //
 
 import Foundation
+import Hummingbird
 
 /// Represents a terminal session that can be controlled remotely
-struct TunnelSession: Identifiable, Codable {
-    let id: UUID
-    let createdAt: Date
-    var lastActivity: Date
-    let processID: Int32?
-    var isActive: Bool
+public struct TunnelSession: Identifiable, Codable {
+    public let id: UUID
+    public let createdAt: Date
+    public var lastActivity: Date
+    public let processID: Int32?
+    public var isActive: Bool
     
-    init(id: UUID = UUID(), processID: Int32? = nil) {
+    public init(id: UUID = UUID(), processID: Int32? = nil) {
         self.id = id
         self.createdAt = Date()
         self.lastActivity = Date()
@@ -23,50 +24,87 @@ struct TunnelSession: Identifiable, Codable {
         self.isActive = true
     }
     
-    mutating func updateActivity() {
+    public mutating func updateActivity() {
         self.lastActivity = Date()
     }
 }
 
 /// Request to create a new terminal session
-struct CreateSessionRequest: Codable {
-    let workingDirectory: String?
-    let environment: [String: String]?
-    let shell: String?
+public struct CreateSessionRequest: Codable {
+    public let workingDirectory: String?
+    public let environment: [String: String]?
+    public let shell: String?
+    
+    public init(workingDirectory: String? = nil, environment: [String: String]? = nil, shell: String? = nil) {
+        self.workingDirectory = workingDirectory
+        self.environment = environment
+        self.shell = shell
+    }
 }
 
 /// Response after creating a session
-struct CreateSessionResponse: Codable {
-    let sessionId: String
-    let createdAt: Date
+public struct CreateSessionResponse: Codable, ResponseEncodable {
+    public let sessionId: String
+    public let createdAt: Date
+    
+    public init(sessionId: String, createdAt: Date) {
+        self.sessionId = sessionId
+        self.createdAt = createdAt
+    }
 }
 
 /// Command execution request
-struct CommandRequest: Codable {
-    let sessionId: String
-    let command: String
-    let args: [String]?
-    let environment: [String: String]?
+public struct CommandRequest: Codable {
+    public let sessionId: String
+    public let command: String
+    public let args: [String]?
+    public let environment: [String: String]?
+    
+    public init(sessionId: String, command: String, args: [String]? = nil, environment: [String: String]? = nil) {
+        self.sessionId = sessionId
+        self.command = command
+        self.args = args
+        self.environment = environment
+    }
 }
 
 /// Command execution response
-struct CommandResponse: Codable {
-    let sessionId: String
-    let output: String?
-    let error: String?
-    let exitCode: Int32?
-    let timestamp: Date
+public struct CommandResponse: Codable, ResponseEncodable {
+    public let sessionId: String
+    public let output: String?
+    public let error: String?
+    public let exitCode: Int32?
+    public let timestamp: Date
+    
+    public init(sessionId: String, output: String? = nil, error: String? = nil, exitCode: Int32? = nil, timestamp: Date = Date()) {
+        self.sessionId = sessionId
+        self.output = output
+        self.error = error
+        self.exitCode = exitCode
+        self.timestamp = timestamp
+    }
 }
 
 /// Session information
-struct SessionInfo: Codable {
-    let id: String
-    let createdAt: Date
-    let lastActivity: Date
-    let isActive: Bool
+public struct SessionInfo: Codable, ResponseEncodable {
+    public let id: String
+    public let createdAt: Date
+    public let lastActivity: Date
+    public let isActive: Bool
+    
+    public init(id: String, createdAt: Date, lastActivity: Date, isActive: Bool) {
+        self.id = id
+        self.createdAt = createdAt
+        self.lastActivity = lastActivity
+        self.isActive = isActive
+    }
 }
 
 /// List sessions response
-struct ListSessionsResponse: Codable {
-    let sessions: [SessionInfo]
+public struct ListSessionsResponse: Codable, ResponseEncodable {
+    public let sessions: [SessionInfo]
+    
+    public init(sessions: [SessionInfo]) {
+        self.sessions = sessions
+    }
 }

@@ -9,11 +9,11 @@ import Foundation
 import Hummingbird
 import HummingbirdCore
 import NIOCore
-import NIOWebSocket
+// import NIOWebSocket // TODO: This is available in swift-nio package
 import Logging
 
 /// WebSocket message types for terminal communication
-enum WSMessageType: String, Codable {
+public enum WSMessageType: String, Codable {
     case connect = "connect"
     case command = "command"
     case output = "output"
@@ -24,13 +24,13 @@ enum WSMessageType: String, Codable {
 }
 
 /// WebSocket message structure
-struct WSMessage: Codable {
-    let type: WSMessageType
-    let sessionId: String?
-    let data: String?
-    let timestamp: Date
+public struct WSMessage: Codable {
+    public let type: WSMessageType
+    public let sessionId: String?
+    public let data: String?
+    public let timestamp: Date
     
-    init(type: WSMessageType, sessionId: String? = nil, data: String? = nil) {
+    public init(type: WSMessageType, sessionId: String? = nil, data: String? = nil) {
         self.type = type
         self.sessionId = sessionId
         self.data = data
@@ -38,6 +38,8 @@ struct WSMessage: Codable {
     }
 }
 
+// TODO: Enable when HummingbirdWebSocket package is added
+/*
 /// Handles WebSocket connections for real-time terminal communication
 final class WebSocketHandler {
     private let terminalManager: TerminalManager
@@ -194,3 +196,4 @@ extension RouterBuilder {
         }
     }
 }
+*/

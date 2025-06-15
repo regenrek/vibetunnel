@@ -12,16 +12,25 @@ import Logging
 import os
 import Hummingbird
 import HummingbirdCore
-import HummingbirdWebSocket
+import HTTPTypes
 import NIOCore
-import NIOHTTP1
+
+// MARK: - Response Models
+
+/// Server info response
+struct ServerInfoResponse: Codable, ResponseEncodable {
+    let name: String
+    let version: String
+    let uptime: TimeInterval
+    let sessions: Int
+}
 
 /// Main tunnel server implementation using Hummingbird
 @MainActor
 final class TunnelServer: ObservableObject {
     private let port: Int
     private let logger = Logger(label: "VibeTunnel.TunnelServer")
-    private var app: Application<some Router>?
+    private var app: Application<Router<BasicRequestContext>.Responder>?
     private let terminalManager = TerminalManager()
     
     @Published var isRunning = false
@@ -58,30 +67,34 @@ final class TunnelServer: ObservableObject {
     func stop() async {
         logger.info("Stopping tunnel server")
         
-        if let app = app {
-            await app.stop()
-            self.app = nil
-        }
+        // In Hummingbird 2.x, the application lifecycle is managed differently
+        // Setting app to nil will trigger cleanup when it's deallocated
+        self.app = nil
         
         await MainActor.run {
             self.isRunning = false
         }
     }
     
-    private func buildApplication() async throws -> Application<some Router> {
+    private func buildApplication() async throws -> Application<Router<BasicRequestContext>.Responder> {
         // Create router
-        var router = RouterBuilder()
+        let router = Router<BasicRequestContext>()
         
         // Add middleware
-        router.middlewares.add(LogRequestsMiddleware(logLevel: .info))
-        router.middlewares.add(CORSMiddleware())
-        router.middlewares.add(AuthenticationMiddleware(apiKeys: AuthenticationMiddleware.loadStoredAPIKeys()))
+        router.add(middleware: LogRequestsMiddleware(.info))
+        router.add(middleware: CORSMiddleware(
+            allowOrigin: .all,
+            allowHeaders: [.contentType, .authorization],
+            allowMethods: [.get, .post, .delete, .options]
+        ))
+        router.add(middleware: AuthenticationMiddleware(apiKeys: APIKeyManager.loadStoredAPIKeys()))
         
         // Configure routes
-        configureRoutes(&router)
+        configureRoutes(router)
         
         // Add WebSocket routes
-        router.addWebSocketRoutes(terminalManager: terminalManager)
+        // TODO: Uncomment when HummingbirdWebSocket package is added
+        // router.addWebSocketRoutes(terminalManager: terminalManager)
         
         // Create application configuration
         let configuration = ApplicationConfiguration(
@@ -91,37 +104,45 @@ final class TunnelServer: ObservableObject {
         
         // Create and configure the application
         let app = Application(
-            router: router.buildRouter(),
+            responder: router.buildResponder(),
             configuration: configuration,
             logger: logger
         )
         
         // Add cleanup task
-        app.services.add(CleanupService(terminalManager: terminalManager))
+        // Start cleanup task
+        Task {
+            while !Task.isCancelled {
+                await terminalManager.cleanupInactiveSessions(olderThan: 30)
+                try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000) // 5 minutes
+            }
+        }
         
         return app
     }
     
-    private func configureRoutes(_ router: inout RouterBuilder) {
+    private func configureRoutes(_ router: Router<BasicRequestContext>) {
         // Health check endpoint
         router.get("/health") { request, context -> HTTPResponse.Status in
             return .ok
         }
         
         // Server info endpoint
-        router.get("/info") { request, context -> [String: Any] in
-            return [
-                "name": "VibeTunnel",
-                "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0",
-                "uptime": ProcessInfo.processInfo.systemUptime,
-                "sessions": await self.terminalManager.listSessions().count
-            ]
+        router.get("/info") { request, context async -> ServerInfoResponse in
+            let sessionCount = await self.terminalManager.listSessions().count
+            return ServerInfoResponse(
+                name: "VibeTunnel",
+                version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0",
+                uptime: ProcessInfo.processInfo.systemUptime,
+                sessions: sessionCount
+            )
         }
         
         // Session management endpoints
-        router.group("sessions") { sessions in
-            // List all sessions
-            sessions.get("/") { request, context -> ListSessionsResponse in
+        let sessions = router.group("sessions")
+        
+        // List all sessions
+        sessions.get("/") { request, context async -> ListSessionsResponse in
                 let sessions = await self.terminalManager.listSessions()
                 let sessionInfos = sessions.map { session in
                     SessionInfo(
@@ -132,10 +153,10 @@ final class TunnelServer: ObservableObject {
                     )
                 }
                 return ListSessionsResponse(sessions: sessionInfos)
-            }
-            
-            // Create new session
-            sessions.post("/") { request, context -> CreateSessionResponse in
+        }
+        
+        // Create new session
+        sessions.post("/") { request, context async throws -> CreateSessionResponse in
                 let createRequest = try await request.decode(as: CreateSessionRequest.self, context: context)
                 let session = try await self.terminalManager.createSession(request: createRequest)
                 
@@ -143,11 +164,11 @@ final class TunnelServer: ObservableObject {
                     sessionId: session.id.uuidString,
                     createdAt: session.createdAt
                 )
-            }
-            
-            // Get session info
-            sessions.get(":sessionId") { request, context -> SessionInfo in
-                guard let sessionIdString = request.parameters.get("sessionId"),
+        }
+        
+        // Get session info
+        sessions.get(":sessionId") { request, context async throws -> SessionInfo in
+                guard let sessionIdString = context.parameters.get("sessionId", as: String.self),
                       let sessionId = UUID(uuidString: sessionIdString),
                       let session = await self.terminalManager.getSession(id: sessionId) else {
                     throw HTTPError(.notFound)
@@ -159,22 +180,21 @@ final class TunnelServer: ObservableObject {
                     lastActivity: session.lastActivity,
                     isActive: session.isActive
                 )
-            }
-            
-            // Close session
-            sessions.delete(":sessionId") { request, context -> HTTPResponse.Status in
-                guard let sessionIdString = request.parameters.get("sessionId"),
+        }
+        
+        // Close session
+        sessions.delete(":sessionId") { request, context async throws -> HTTPResponse.Status in
+                guard let sessionIdString = context.parameters.get("sessionId", as: String.self),
                       let sessionId = UUID(uuidString: sessionIdString) else {
                     throw HTTPError(.badRequest)
                 }
                 
-                await self.terminalManager.closeSession(id: sessionId)
-                return .noContent
-            }
+            await self.terminalManager.closeSession(id: sessionId)
+            return .noContent
         }
         
         // Command execution endpoint
-        router.post("/execute") { request, context -> CommandResponse in
+        router.post("/execute") { request, context async throws -> CommandResponse in
             let commandRequest = try await request.decode(as: CommandRequest.self, context: context)
             
             guard let sessionId = UUID(uuidString: commandRequest.sessionId) else {
@@ -200,33 +220,6 @@ final class TunnelServer: ObservableObject {
         }
     }
     
-    // Service for periodic cleanup
-    struct CleanupService: Service {
-        let terminalManager: TerminalManager
-        
-        func run() async throws {
-            // Run cleanup every 5 minutes
-            while !Task.isCancelled {
-                await terminalManager.cleanupInactiveSessions(olderThan: 30)
-                try await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000) // 5 minutes
-            }
-        }
-    }
-}
-
-// MARK: - Middleware
-
-/// CORS middleware for browser-based clients
-struct CORSMiddleware: RouterMiddleware {
-    func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
-        var response = try await next(request, context)
-        
-        response.headers[.accessControlAllowOrigin] = "*"
-        response.headers[.accessControlAllowMethods] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers[.accessControlAllowHeaders] = "Content-Type, Authorization"
-        
-        return response
-    }
 }
 
 // MARK: - Integration with AppDelegate

@@ -89,9 +89,10 @@ public class TunnelClient {
     // MARK: - WebSocket Connection
     
     public func connectWebSocket(sessionId: String? = nil) -> TunnelWebSocketClient {
-        var wsURL = baseURL
-        wsURL.scheme = wsURL.scheme == "https" ? "wss" : "ws"
-        wsURL = wsURL.appendingPathComponent("ws/terminal")
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        components.path = components.path + "/ws/terminal"
+        let wsURL = components.url!
         
         return TunnelWebSocketClient(url: wsURL, apiKey: apiKey, sessionId: sessionId)
     }
@@ -159,7 +160,7 @@ public class TunnelWebSocketClient: NSObject {
         messageSubject.eraseToAnyPublisher()
     }
     
-    init(url: URL, apiKey: String, sessionId: String? = nil) {
+    public init(url: URL, apiKey: String, sessionId: String? = nil) {
         self.url = url
         self.apiKey = apiKey
         self.sessionId = sessionId

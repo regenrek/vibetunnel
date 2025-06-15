@@ -7,20 +7,61 @@
 
 import SwiftUI
 
+enum SettingsTab: String, CaseIterable {
+    case general
+    case advanced
+    case about
+    
+    var displayName: String {
+        switch self {
+        case .general: return "General"
+        case .advanced: return "Advanced"
+        case .about: return "About"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .general: return "gear"
+        case .advanced: return "gearshape.2"
+        case .about: return "info.circle"
+        }
+    }
+}
+
+extension Notification.Name {
+    static let openSettingsTab = Notification.Name("openSettingsTab")
+}
+
 struct SettingsView: View {
+    @State private var selectedTab: SettingsTab = .general
+    
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             GeneralSettingsView()
                 .tabItem {
-                    Label("General", systemImage: "gear")
+                    Label(SettingsTab.general.displayName, systemImage: SettingsTab.general.icon)
                 }
+                .tag(SettingsTab.general)
             
             AdvancedSettingsView()
                 .tabItem {
-                    Label("Advanced", systemImage: "gearshape.2")
+                    Label(SettingsTab.advanced.displayName, systemImage: SettingsTab.advanced.icon)
                 }
+                .tag(SettingsTab.advanced)
+            
+            AboutView()
+                .tabItem {
+                    Label(SettingsTab.about.displayName, systemImage: SettingsTab.about.icon)
+                }
+                .tag(SettingsTab.about)
         }
         .frame(minWidth: 600, idealWidth: 700, minHeight: 400, idealHeight: 500)
+        .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
+            if let tab = notification.object as? SettingsTab {
+                selectedTab = tab
+            }
+        }
     }
 }
 

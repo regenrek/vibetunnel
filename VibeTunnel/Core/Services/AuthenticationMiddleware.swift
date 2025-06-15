@@ -8,39 +8,52 @@
 import Foundation
 import Hummingbird
 import HummingbirdCore
+import HTTPTypes
 import Logging
 import CryptoKit
 
+// Custom HTTP header name for API key
+extension HTTPField.Name {
+    static let xAPIKey = Self("X-API-Key")!
+}
+
 /// Simple authentication middleware for the tunnel server
-struct AuthenticationMiddleware: RouterMiddleware {
+struct AuthenticationMiddleware<Context: RequestContext>: RouterMiddleware {
     private let logger = Logger(label: "VibeTunnel.AuthMiddleware")
-    private let apiKeyHeader = "X-API-Key"
     private let bearerPrefix = "Bearer "
     
     // In production, this should be stored securely and configurable
     private let validApiKeys: Set<String>
     
     init() {
-        // Generate a default API key for development
-        // In production, this should be configurable via settings
-        let defaultKey = Self.generateAPIKey()
-        self.validApiKeys = [defaultKey]
+        // Load API keys from storage
+        var apiKeys = APIKeyManager.loadStoredAPIKeys()
         
-        logger.info("Authentication initialized. Default API key: \(defaultKey)")
+        if apiKeys.isEmpty {
+            // Generate a default API key for development
+            let defaultKey = Self.generateAPIKey()
+            apiKeys = [defaultKey]
+            APIKeyManager.saveAPIKeys(apiKeys)
+            logger.info("Authentication initialized with new API key: \(defaultKey)")
+        } else {
+            logger.info("Authentication initialized with \(apiKeys.count) stored API key(s)")
+        }
+        
+        self.validApiKeys = apiKeys
     }
     
     init(apiKeys: Set<String>) {
         self.validApiKeys = apiKeys
     }
     
-    func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
+    public func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
         // Skip authentication for health check and WebSocket upgrade
         if request.uri.path == "/health" || request.headers[.upgrade] == "websocket" {
             return try await next(request, context)
         }
         
         // Check for API key in header
-        if let apiKey = request.headers[apiKeyHeader] {
+        if let apiKey = request.headers[.xAPIKey] {
             if validApiKeys.contains(apiKey) {
                 return try await next(request, context)
             }
@@ -71,15 +84,15 @@ struct AuthenticationMiddleware: RouterMiddleware {
     }
 }
 
-/// Extension to store and retrieve API keys from UserDefaults
-extension AuthenticationMiddleware {
+/// API Key management utilities
+enum APIKeyManager {
     static let apiKeyStorageKey = "VibeTunnel.APIKeys"
     
     static func loadStoredAPIKeys() -> Set<String> {
         guard let data = UserDefaults.standard.data(forKey: apiKeyStorageKey),
               let keys = try? JSONDecoder().decode(Set<String>.self, from: data) else {
             // Generate and store a default key if none exists
-            let defaultKey = generateAPIKey()
+            let defaultKey = AuthenticationMiddleware<BasicRequestContext>.generateAPIKey()
             let keys = Set([defaultKey])
             saveAPIKeys(keys)
             return keys

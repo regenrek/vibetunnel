@@ -19,23 +19,20 @@ struct AboutView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    appInfoSection
-                    descriptionSection
-                    linksSection
+        ScrollView {
+            VStack(spacing: 24) {
+                appInfoSection
+                descriptionSection
+                linksSection
 
-                    Spacer(minLength: 40)
+                Spacer(minLength: 40)
 
-                    copyrightSection
-                }
-                .frame(maxWidth: .infinity)
-                .standardPadding()
+                copyrightSection
             }
-            .scrollContentBackground(.hidden)
-            .navigationTitle("About \(appName)")
+            .frame(maxWidth: .infinity)
+            .standardPadding()
         }
+        .scrollContentBackground(.hidden)
     }
 
     private var appInfoSection: some View {

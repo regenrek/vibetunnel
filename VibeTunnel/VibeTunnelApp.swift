@@ -21,7 +21,7 @@ struct VibeTunnelApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("About VibeTunnel") {
-                    AboutWindowController.shared.showWindow()
+                    showAboutInSettings()
                 }
             }
         }
@@ -177,7 +177,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc private func showAbout() {
-        AboutWindowController.shared.showWindow()
-        NSApp.activate(ignoringOtherApps: true)
+        showAboutInSettings()
     }
+}
+
+/// Shows the About section in the Settings window
+private func showAboutInSettings() {
+    NSApp.openSettings()
+    Task {
+        // Small delay to ensure the settings window is fully initialized
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        NotificationCenter.default.post(
+            name: .openSettingsTab,
+            object: SettingsTab.about
+        )
+    }
+    NSApp.activate(ignoringOtherApps: true)
 }
