@@ -29,12 +29,12 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
     }
     
     /// The Sparkle appcast URL for this update channel
-    public var appcastURL: String {
+    public var appcastURL: URL {
         switch self {
         case .stable:
-            "https://vibetunnel.sh/appcast.xml"
+            URL(string: "https://vibetunnel.sh/appcast.xml")!
         case .prerelease:
-            "https://vibetunnel.sh/appcast-prerelease.xml"
+            URL(string: "https://vibetunnel.sh/appcast-prerelease.xml")!
         }
     }
     
@@ -46,6 +46,20 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
         case .prerelease:
             true
         }
+    }
+    
+    /// The current update channel based on user defaults
+    public static var current: UpdateChannel {
+        if let rawValue = UserDefaults.standard.string(forKey: "updateChannel"),
+           let channel = UpdateChannel(rawValue: rawValue) {
+            return channel
+        }
+        return defaultChannel
+    }
+    
+    /// The default update channel based on the current app version
+    public static var defaultChannel: UpdateChannel {
+        defaultChannel(for: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
     }
     
     /// Determines if the current app version suggests this channel should be default

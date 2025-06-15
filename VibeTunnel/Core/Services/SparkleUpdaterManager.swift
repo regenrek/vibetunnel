@@ -1,10 +1,6 @@
 import os
-#if canImport(Sparkle)
 import Sparkle
-#endif
 import UserNotifications
-
-#if canImport(Sparkle)
 
 /// Manages the Sparkle auto-update framework integration for VibeTunnel.
 ///
@@ -14,27 +10,31 @@ import UserNotifications
 /// - Delegate callbacks for update lifecycle events
 /// - Configuration of update channels and behavior
 ///
-/// This manager wraps Sparkle's functionality to provide a clean
-/// interface for the rest of the application while handling all
-/// update-related delegate callbacks and UI presentation.
+/// ## Features
+/// - Automatic update checks based on configured interval
+/// - Background downloads with gentle reminders
+/// - Support for stable and pre-release update channels
+/// - Critical update handling
+/// - User notification integration
+///
+/// ## Usage
+/// ```swift
+/// let updaterManager = SparkleUpdaterManager()
+/// updaterManager.checkForUpdates() // Manual check
+/// updaterManager.setUpdateChannel(.preRelease) // Switch channels
+/// ```
 @MainActor
 @Observable
-public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate,
-    UNUserNotificationCenterDelegate {
-    // MARK: - Static Logger for nonisolated methods
+public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
+    // MARK: Initialization
     
-    private nonisolated static let staticLogger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
+    private static let staticLogger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
     
-    // MARK: Lifecycle
-    
+    /// Initializes the updater manager and configures Sparkle
     override init() {
         super.init()
         
-        // Skip Sparkle initialization in test environment to avoid dialogs
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
-            Self.staticLogger.info("SparkleUpdaterManager initialized in test mode - Sparkle disabled")
-            return
-        }
+        Self.staticLogger.info("Initializing SparkleUpdaterManager")
         
         // Initialize the updater controller
         initializeUpdaterController()
@@ -92,7 +92,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         }
         
         let oldFeedURL = updater.feedURL
-        let newFeedURL = channel.feedURL
+        let newFeedURL = channel.appcastURL
         
         guard oldFeedURL != newFeedURL else {
             logger.info("Update channel unchanged")
@@ -102,7 +102,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         logger.info("Changing update channel from \(oldFeedURL?.absoluteString ?? "nil") to \(newFeedURL)")
         
         // Update the feed URL
-        updater.feedURL = newFeedURL
+        updater.setFeedURL(newFeedURL)
         
         // Force a new update check with the new feed
         checkForUpdates()
@@ -130,7 +130,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             updater.automaticallyDownloadsUpdates = true
             
             // Set the feed URL based on current channel
-            updater.feedURL = UpdateChannel.current.feedURL
+            updater.setFeedURL(UpdateChannel.defaultChannel.appcastURL)
             
             logger.info("""
                 Updater configured:
@@ -233,21 +233,21 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     // MARK: - SPUUpdaterDelegate
     
-    nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
+    @objc public nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         Self.staticLogger.info("Appcast loaded successfully: \(appcast.items.count) items")
     }
     
-    nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
+    @objc public nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
         Self.staticLogger.info("No update found: \(error.localizedDescription)")
     }
     
-    nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+    @objc public nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         Self.staticLogger.error("Update aborted with error: \(error.localizedDescription)")
     }
     
     // MARK: - SPUStandardUserDriverDelegate
     
-    nonisolated func standardUserDriverWillHandleShowingUpdate(
+    @objc public nonisolated func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool,
         forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState
@@ -260,7 +260,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         """)
     }
     
-    func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+    @objc public func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
         logger.info("User gave attention to update: \(update.displayVersionString ?? "unknown")")
         updateInProgress = true
         
@@ -269,14 +269,14 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         gentleReminderTimer = nil
     }
     
-    func standardUserDriverWillFinishUpdateSession() {
+    @objc public func standardUserDriverWillFinishUpdateSession() {
         logger.info("Update session finishing")
         updateInProgress = false
     }
     
     // MARK: - Background update handling
     
-    func updater(
+    @objc public func updater(
         _ updater: SPUUpdater,
         willDownloadUpdate item: SUAppcastItem,
         with request: NSMutableURLRequest
@@ -284,7 +284,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         logger.info("Will download update: \(item.displayVersionString ?? "unknown")")
     }
     
-    func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
+    @objc public func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
         logger.info("Update downloaded: \(item.displayVersionString ?? "unknown")")
         
         // For background downloads, schedule gentle reminders
@@ -293,7 +293,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         }
     }
     
-    func updater(
+    @objc public func updater(
         _ updater: SPUUpdater,
         willInstallUpdate item: SUAppcastItem
     ) {
@@ -302,7 +302,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     // MARK: - UNUserNotificationCenterDelegate
     
-    func userNotificationCenter(
+    @objc public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
@@ -319,7 +319,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     // MARK: - KVO
     
-    override func observeValue(
+    public override func observeValue(
         forKeyPath keyPath: String?,
         of object: Any?,
         change: [NSKeyValueChangeKey: Any]?,
@@ -327,7 +327,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     ) {
         if keyPath == "updateChannel" {
             logger.info("Update channel changed via UserDefaults")
-            setUpdateChannel(UpdateChannel.current)
+            setUpdateChannel(UpdateChannel.defaultChannel)
         }
     }
     
@@ -338,31 +338,3 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         gentleReminderTimer?.invalidate()
     }
 }
-
-#else
-
-// MARK: - Stub implementation when Sparkle is not available
-
-/// Stub implementation of SparkleUpdaterManager when Sparkle framework is not available
-@MainActor
-@Observable
-public class SparkleUpdaterManager: NSObject {
-    static let shared = SparkleUpdaterManager()
-    
-    private let logger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
-    
-    override init() {
-        super.init()
-        logger.warning("SparkleUpdaterManager initialized without Sparkle framework")
-    }
-    
-    func checkForUpdates() {
-        logger.warning("checkForUpdates called but Sparkle framework is not available")
-    }
-    
-    func setUpdateChannel(_ channel: UpdateChannel) {
-        logger.warning("setUpdateChannel called but Sparkle framework is not available")
-    }
-}
-
-#endif

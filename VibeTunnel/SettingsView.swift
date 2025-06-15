@@ -103,6 +103,12 @@ struct AdvancedSettingsView: View {
     @AppStorage("updateChannel") private var updateChannelRaw = UpdateChannel.stable.rawValue
     
     @State private var isCheckingForUpdates = false
+    @StateObject private var tunnelServer: TunnelServer
+    
+    init() {
+        let port = Int(UserDefaults.standard.string(forKey: "serverPort") ?? "8080") ?? 8080
+        _tunnelServer = StateObject(wrappedValue: TunnelServer(port: port))
+    }
     
     var updateChannel: UpdateChannel {
         UpdateChannel(rawValue: updateChannelRaw) ?? .stable
@@ -154,11 +160,36 @@ struct AdvancedSettingsView: View {
                 }
                 
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Debug mode", isOn: $debugMode)
-                        Text("Enable additional logging and debugging features.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    // Tunnel Server
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("Tunnel Server")
+                                    if tunnelServer.isRunning {
+                                        Circle()
+                                            .fill(.green)
+                                            .frame(width: 8, height: 8)
+                                    }
+                                }
+                                Text(tunnelServer.isRunning ? "Server is running on port \(serverPort)" : "Server is stopped")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(tunnelServer.isRunning ? "Stop" : "Start") {
+                                toggleServer()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(tunnelServer.isRunning ? .red : .blue)
+                        }
+                        
+                        if tunnelServer.isRunning {
+                            Link("Open in Browser", destination: URL(string: "http://localhost:\(serverPort)")!)
+                                .font(.caption)
+                        }
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
@@ -166,8 +197,22 @@ struct AdvancedSettingsView: View {
                             Text("Server port:")
                             TextField("", text: $serverPort)
                                 .frame(width: 80)
+                                .disabled(tunnelServer.isRunning)
                         }
-                        Text("The port used for the local tunnel server.")
+                        Text("The port used for the local tunnel server. Restart server to apply changes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 8)
+                } header: {
+                    Text("Server")
+                        .font(.headline)
+                }
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Debug mode", isOn: $debugMode)
+                        Text("Enable additional logging and debugging features.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -204,6 +249,27 @@ struct AdvancedSettingsView: View {
         Task {
             try? await Task.sleep(for: .seconds(2))
             isCheckingForUpdates = false
+        }
+    }
+    
+    private func toggleServer() {
+        Task {
+            if tunnelServer.isRunning {
+                await tunnelServer.stop()
+            } else {
+                do {
+                    try await tunnelServer.start()
+                } catch {
+                    // Show error alert
+                    await MainActor.run {
+                        let alert = NSAlert()
+                        alert.messageText = "Failed to Start Server"
+                        alert.informativeText = error.localizedDescription
+                        alert.alertStyle = .critical
+                        alert.runModal()
+                    }
+                }
+            }
         }
     }
 }
