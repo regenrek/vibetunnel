@@ -1,12 +1,13 @@
 use std::ffi::{CString, OsStr, OsString};
 use std::fs::File;
-use std::io::Write;
 use std::os::fd::{AsFd, BorrowedFd, IntoRawFd, OwnedFd};
 use std::os::unix::prelude::{AsRawFd, OpenOptionsExt, OsStrExt};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{env, io};
+
+use crate::protocol::{AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, StreamWriter};
 
 use nix::errno::Errno;
 use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
@@ -34,7 +35,7 @@ impl TtySpawn {
             options: Some(SpawnOptions {
                 command: vec![cmd.as_ref().to_os_string()],
                 stdin_file: None,
-                stdout_file: None,
+                stream_writer: None,
                 script_mode: false,
                 no_flush: false,
                 no_echo: false,
@@ -106,12 +107,6 @@ impl TtySpawn {
         ))
     }
 
-    /// Sets an output file for stdout.
-    pub fn stdout_file(&mut self, f: File) -> &mut Self {
-        self.options_mut().stdout_file = Some(f);
-        self
-    }
-
     /// Sets a path as output file for stdout.
     ///
     /// If the `truncate` flag is set to `true` the file will be truncated
@@ -121,7 +116,7 @@ impl TtySpawn {
         path: P,
         truncate: bool,
     ) -> Result<&mut Self, io::Error> {
-        Ok(self.stdout_file(if !truncate {
+        let file = if !truncate {
             File::options().append(true).create(true).open(path)?
         } else {
             File::options()
@@ -129,7 +124,24 @@ impl TtySpawn {
                 .truncate(true)
                 .write(true)
                 .open(path)?
-        }))
+        };
+
+        // Create a basic asciinema header with default terminal size
+        let header = AsciinemaHeader {
+            version: 2,
+            width: 80,  // Default width
+            height: 24, // Default height
+            timestamp: None,
+            duration: None,
+            command: None,
+            title: None,
+            env: None,
+            theme: None,
+        };
+
+        let stream_writer = StreamWriter::new(file, header)?;
+        self.options_mut().stream_writer = Some(stream_writer);
+        Ok(self)
     }
 
     /// Enables script mode.
@@ -194,7 +206,7 @@ impl TtySpawn {
 struct SpawnOptions {
     command: Vec<OsString>,
     stdin_file: Option<File>,
-    stdout_file: Option<File>,
+    stream_writer: Option<StreamWriter>,
     script_mode: bool,
     no_flush: bool,
     no_echo: bool,
@@ -282,7 +294,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             pty.master,
             child,
             term_attrs.is_some(),
-            opts.stdout_file.as_mut(),
+            opts.stream_writer.as_mut(),
             opts.stdin_file.as_mut(),
             stderr_pty,
             !opts.no_flush,
@@ -322,7 +334,7 @@ fn communication_loop(
     master: OwnedFd,
     child: Pid,
     is_tty: bool,
-    mut out_file: Option<&mut File>,
+    mut stream_writer: Option<&mut StreamWriter>,
     in_file: Option<&mut File>,
     stderr: Option<OwnedFd>,
     flush: bool,
@@ -400,7 +412,7 @@ fn communication_loop(
                 match read(fd.as_raw_fd(), &mut buf) {
                     Ok(0) | Err(_) => {}
                     Ok(n) => {
-                        forward_and_log(io::stderr().as_fd(), &mut out_file, &buf[..n], flush)?;
+                        forward_and_log(io::stderr().as_fd(), &mut None, &buf[..n], flush)?;
                     }
                 }
             }
@@ -411,7 +423,9 @@ fn communication_loop(
                 Ok(0) | Err(Errno::EIO) => {
                     done = true;
                 }
-                Ok(n) => forward_and_log(io::stdout().as_fd(), &mut out_file, &buf[..n], flush)?,
+                Ok(n) => {
+                    forward_and_log(io::stdout().as_fd(), &mut stream_writer, &buf[..n], flush)?
+                }
                 Err(Errno::EAGAIN | Errno::EINTR) => {}
                 Err(err) => return Err(err),
             };
@@ -427,19 +441,26 @@ fn communication_loop(
 
 fn forward_and_log(
     fd: BorrowedFd,
-    out_file: &mut Option<&mut File>,
+    stream_writer: &mut Option<&mut StreamWriter>,
     buf: &[u8],
-    flush: bool,
+    _flush: bool,
 ) -> Result<(), Errno> {
-    if let Some(logfile) = out_file {
-        logfile.write_all(buf).map_err(|x| match x.raw_os_error() {
-            Some(errno) => Errno::from_raw(errno),
-            None => Errno::EINVAL,
-        })?;
-        if flush {
-            logfile.flush().ok();
-        }
+    if let Some(writer) = stream_writer {
+        let time = writer.elapsed_time();
+        let data = String::from_utf8_lossy(buf).to_string();
+        let event = AsciinemaEvent {
+            time,
+            event_type: AsciinemaEventType::Output,
+            data,
+        };
+        writer
+            .write_event(event)
+            .map_err(|x| match x.raw_os_error() {
+                Some(errno) => Errno::from_raw(errno),
+                None => Errno::EINVAL,
+            })?;
     }
+
     write_all(fd, buf)?;
     Ok(())
 }

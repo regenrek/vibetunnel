@@ -84,14 +84,14 @@ fn main() -> Result<(), anyhow::Error> {
     let session_info_str = serde_json::to_string(&session_info)?;
     fs::write(session_info_path, session_info_str)?;
 
-    // Set up stdout and stdin paths
-    let stdout_path = session_path.join("stdout");
+    // Set up stream-out and stdin paths
+    let stream_out_path = session_path.join("stream-out");
     let stdin_path = session_path.join("stdin");
 
     // Create and configure TtySpawn
     let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| s.as_os_str()));
     tty_spawn
-        .stdout_path(&stdout_path, true)?
+        .stdout_path(&stream_out_path, true)?
         .stdin_path(&stdin_path)?;
 
     // Spawn the process

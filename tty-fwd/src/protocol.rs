@@ -56,3 +56,48 @@ pub struct AsciinemaEvent {
     pub event_type: AsciinemaEventType,
     pub data: String,
 }
+
+pub struct StreamWriter {
+    file: std::fs::File,
+    start_time: std::time::Instant,
+}
+
+impl StreamWriter {
+    pub fn new(mut file: std::fs::File, header: AsciinemaHeader) -> Result<Self, std::io::Error> {
+        use std::io::Write;
+
+        let header_json = serde_json::to_string(&header)?;
+        writeln!(file, "{}", header_json)?;
+        file.flush()?;
+
+        Ok(Self {
+            file,
+            start_time: std::time::Instant::now(),
+        })
+    }
+
+    pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), std::io::Error> {
+        use std::io::Write;
+
+        let event_array = [
+            serde_json::json!(event.time),
+            serde_json::json!(match event.event_type {
+                AsciinemaEventType::Output => "o",
+                AsciinemaEventType::Input => "i",
+                AsciinemaEventType::Marker => "m",
+                AsciinemaEventType::Resize => "r",
+            }),
+            serde_json::json!(event.data),
+        ];
+
+        let event_json = serde_json::to_string(&event_array)?;
+        writeln!(self.file, "{}", event_json)?;
+        self.file.flush()?;
+
+        Ok(())
+    }
+
+    pub fn elapsed_time(&self) -> f64 {
+        self.start_time.elapsed().as_secs_f64()
+    }
+}
