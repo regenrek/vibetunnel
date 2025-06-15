@@ -13,7 +13,7 @@ use argument_parser::Parser;
 use serde_json;
 use uuid::Uuid;
 
-use tty_spawn::TtySpawn;
+use tty_spawn::{create_session_info, TtySpawn};
 
 use crate::protocol::SessionInfo;
 
@@ -49,6 +49,7 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                             "pid": session_info.pid,
                             "status": session_info.status,
                             "exit_code": session_info.exit_code,
+                            "started_at": session_info.started_at,
                             "stream-out": stream_out_path.to_string_lossy(),
                             "stdin": stdin_path.to_string_lossy()
                         })
@@ -327,20 +328,16 @@ fn main() -> Result<(), anyhow::Error> {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
-    let session_info = SessionInfo {
-        cmdline: cmdline
+    let session_info_path = session_path.join("session.json");
+    create_session_info(
+        &session_info_path,
+        cmdline
             .iter()
             .map(|s| s.to_string_lossy().to_string())
             .collect(),
-        name: session_name.unwrap_or(executable_name),
-        cwd: current_dir,
-        pid: None,
-        status: "starting".to_string(),
-        exit_code: None,
-    };
-    let session_info_path = session_path.join("session.json");
-    let session_info_str = serde_json::to_string(&session_info)?;
-    fs::write(&session_info_path, session_info_str)?;
+        session_name.unwrap_or(executable_name),
+        current_dir,
+    )?;
 
     // Set up stream-out and stdin paths
     let stream_out_path = session_path.join("stream-out");

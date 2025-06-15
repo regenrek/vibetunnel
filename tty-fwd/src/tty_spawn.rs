@@ -11,6 +11,7 @@ use tempfile::NamedTempFile;
 use crate::protocol::{
     AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, SessionInfo, StreamWriter,
 };
+use chrono::Utc;
 
 use nix::errno::Errno;
 use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
@@ -132,6 +133,34 @@ struct SpawnOptions {
     stdin_file: Option<File>,
     stream_writer: Option<StreamWriter>,
     session_json_path: Option<PathBuf>,
+}
+
+/// Creates a new session JSON file with the provided information
+pub fn create_session_info(
+    session_json_path: &Path,
+    cmdline: Vec<String>,
+    name: String,
+    cwd: String,
+) -> Result<(), io::Error> {
+    let session_info = SessionInfo {
+        cmdline,
+        name,
+        cwd,
+        pid: None,
+        status: "starting".to_string(),
+        exit_code: None,
+        started_at: Some(Utc::now()),
+    };
+
+    let session_info_str = serde_json::to_string(&session_info)?;
+
+    // Write to temporary file first, then move to final location
+    let temp_file =
+        NamedTempFile::new_in(session_json_path.parent().unwrap_or_else(|| Path::new(".")))?;
+    std::fs::write(temp_file.path(), session_info_str)?;
+    temp_file.persist(session_json_path)?;
+
+    Ok(())
 }
 
 /// Updates the session status in the JSON file
