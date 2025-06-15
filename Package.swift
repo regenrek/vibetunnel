@@ -14,8 +14,8 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/realm/SwiftLint.git", from: "0.57.0"),
-        .package(url: "https://github.com/nicklockwood/SwiftFormat.git", from: "0.55.0")
+        .package(url: "https://github.com/realm/SwiftLint.git", from: "0.59.1"),
+        .package(url: "https://github.com/nicklockwood/SwiftFormat.git", from: "0.56.4")
     ],
     targets: [
         .target(
