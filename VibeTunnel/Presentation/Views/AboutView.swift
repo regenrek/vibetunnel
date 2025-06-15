@@ -86,7 +86,7 @@ struct HoverableLink: View {
     let icon: String
 
     @State private var isHovering = false
-    
+
     private var destinationURL: URL {
         URL(string: url) ?? URL(fileURLWithPath: "/")
     }

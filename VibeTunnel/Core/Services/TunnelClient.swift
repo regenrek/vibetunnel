@@ -2,6 +2,32 @@ import Combine
 import Foundation
 import Logging
 
+/// WebSocket message types for terminal communication
+public enum WSMessageType: String, Codable {
+    case connect
+    case command
+    case output
+    case error
+    case ping
+    case pong
+    case close
+}
+
+/// WebSocket message structure
+public struct WSMessage: Codable {
+    public let type: WSMessageType
+    public let sessionId: String?
+    public let data: String?
+    public let timestamp: Date
+
+    public init(type: WSMessageType, sessionId: String? = nil, data: String? = nil) {
+        self.type = type
+        self.sessionId = sessionId
+        self.data = data
+        self.timestamp = Date()
+    }
+}
+
 /// Client SDK for interacting with the VibeTunnel server
 public class TunnelClient {
     private let baseURL: URL
@@ -9,9 +35,19 @@ public class TunnelClient {
     private var session: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+    private let logger = Logger(label: "VibeTunnel.TunnelClient")
 
-    public init(baseURL: URL = URL(string: "http://localhost:8080")!, apiKey: String) {
-        self.baseURL = baseURL
+    /// Default base URL for the tunnel server
+    private static let defaultBaseURL: URL = {
+        guard let url = URL(string: "http://localhost:8080") else {
+            fatalError("Invalid default base URL - this should never happen with a hardcoded URL")
+        }
+        return url
+    }()
+
+    public init(baseURL: URL? = nil, apiKey: String) {
+        // Use a static default URL that we know is valid
+        self.baseURL = baseURL ?? Self.defaultBaseURL
         self.apiKey = apiKey
 
         let config = URLSessionConfiguration.default
@@ -42,7 +78,8 @@ public class TunnelClient {
         environment: [String: String]? = nil,
         shell: String? = nil
     )
-        async throws -> CreateSessionResponse {
+        async throws -> CreateSessionResponse
+    {
         let url = baseURL.appendingPathComponent("sessions")
         let request = CreateSessionRequest(
             workingDirectory: workingDirectory,
@@ -76,7 +113,8 @@ public class TunnelClient {
         command: String,
         args: [String]? = nil
     )
-        async throws -> CommandResponse {
+        async throws -> CommandResponse
+    {
         let url = baseURL.appendingPathComponent("execute")
         let request = CommandRequest(
             sessionId: sessionId,
@@ -90,11 +128,19 @@ public class TunnelClient {
 
     // MARK: - WebSocket Connection
 
-    public func connectWebSocket(sessionId: String? = nil) -> TunnelWebSocketClient {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+    public func connectWebSocket(sessionId: String? = nil) -> TunnelWebSocketClient? {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            logger.error("Failed to create URL components from baseURL: \(baseURL)")
+            return nil
+        }
+
         components.scheme = components.scheme == "https" ? "wss" : "ws"
         components.path += "/ws/terminal"
-        let wsURL = components.url!
+
+        guard let wsURL = components.url else {
+            logger.error("Failed to create WebSocket URL from components")
+            return nil
+        }
 
         return TunnelWebSocketClient(url: wsURL, apiKey: apiKey, sessionId: sessionId)
     }
@@ -221,7 +267,8 @@ public class TunnelWebSocketClient: NSObject {
                 switch message {
                 case .string(let text):
                     if let data = text.data(using: .utf8),
-                       let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data) {
+                       let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data)
+                    {
                         self?.messageSubject.send(wsMessage)
                     }
                 case .data(let data):

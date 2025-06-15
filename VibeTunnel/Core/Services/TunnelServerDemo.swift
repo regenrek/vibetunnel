@@ -5,14 +5,11 @@ import Logging
 /// Demo code showing how to use the VibeTunnel server
 enum TunnelServerDemo {
     private static let logger = Logger(label: "VibeTunnel.TunnelServerDemo")
-    
+
     static func runDemo() async {
         // Get the API key (in production, this should be managed securely)
-        let apiKeys = APIKeyManager.loadStoredAPIKeys()
-        guard let apiKey = apiKeys.first else {
-            logger.error("No API key found")
-            return
-        }
+        // For demo purposes, using a hardcoded key
+        let apiKey = "demo-api-key-12345"
 
         logger.info("Using API key: [REDACTED]")
 
@@ -51,11 +48,8 @@ enum TunnelServerDemo {
     }
 
     static func runWebSocketDemo() async {
-        let apiKeys = APIKeyManager.loadStoredAPIKeys()
-        guard let apiKey = apiKeys.first else {
-            logger.error("No API key found")
-            return
-        }
+        // For demo purposes, using a hardcoded key
+        let apiKey = "demo-api-key-12345"
 
         let client = TunnelClient(apiKey: apiKey)
 
@@ -65,7 +59,10 @@ enum TunnelServerDemo {
             logger.info("Created session for WebSocket: \(session.sessionId)")
 
             // Connect WebSocket
-            let wsClient = client.connectWebSocket(sessionId: session.sessionId)
+            guard let wsClient = client.connectWebSocket(sessionId: session.sessionId) else {
+                logger.error("Failed to create WebSocket client")
+                return
+            }
             wsClient.connect()
 
             // Subscribe to messages

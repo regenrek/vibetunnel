@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        xcodebuild -version
+        swift --version
+        
+    - name: Install Tuist
+      run: |
+        curl -Ls https://install.tuist.io | bash
+        echo "/usr/local/bin" >> $GITHUB_PATH
+        
+    - name: Generate Xcode project
+      run: ./scripts/generate-xcproj.sh
+      
+    - name: Install build tools
+      run: |
+        brew install xcbeautify
+        
+    - name: Build Debug
+      run: |
+        set -o pipefail && \
+        xcodebuild build \
+          -project VibeTunnel.xcodeproj \
+          -scheme VibeTunnel \
+          -configuration Debug \
+          -destination "platform=macOS" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          | xcbeautify
+          
+    - name: Build Release
+      run: |
+        set -o pipefail && \
+        xcodebuild build \
+          -project VibeTunnel.xcodeproj \
+          -scheme VibeTunnel \
+          -configuration Release \
+          -destination "platform=macOS" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          | xcbeautify
+          
+    - name: Run tests
+      run: |
+        set -o pipefail && \
+        xcodebuild test \
+          -project VibeTunnel.xcodeproj \
+          -scheme VibeTunnel \
+          -configuration Debug \
+          -destination "platform=macOS" \
+          -resultBundlePath TestResults \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          | xcbeautify
+          
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: TestResults
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: |
+          build/Build/Products/Debug/VibeTunnel.app
+          build/Build/Products/Release/VibeTunnel.app

@@ -15,13 +15,26 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/realm/SwiftLint.git", from: "0.59.1"),
-        .package(url: "https://github.com/nicklockwood/SwiftFormat.git", from: "0.56.4")
+        .package(url: "https://github.com/nicklockwood/SwiftFormat.git", from: "0.56.4"),
+        .package(url: "https://github.com/apple/swift-http-types.git", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0")
     ],
     targets: [
         .target(
             name: "VibeTunnel",
-            dependencies: [],
-            path: "VibeTunnel"
+            dependencies: [
+                .product(name: "HTTPTypes", package: "swift-http-types"),
+                .product(name: "HTTPTypesFoundation", package: "swift-http-types"),
+                .product(name: "Logging", package: "swift-log")
+            ],
+            path: "VibeTunnel",
+            sources: [
+                "Core/Models/TunnelSession.swift",
+                "Core/Models/UpdateChannel.swift",
+                "Core/Services/TunnelClient2.swift",
+                "Core/Services/TerminalManager.swift",
+                "Core/Services/HTTPClientProtocol.swift"
+            ]
         ),
         .testTarget(
             name: "VibeTunnelTests",

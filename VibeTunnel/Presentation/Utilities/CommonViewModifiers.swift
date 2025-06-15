@@ -78,7 +78,8 @@ extension View {
         cornerRadius: CGFloat = 10,
         material: Material = .thickMaterial
     )
-        -> some View {
+        -> some View
+    {
         modifier(MaterialBackgroundModifier(cornerRadius: cornerRadius, material: material))
     }
 
@@ -91,7 +92,8 @@ extension View {
         horizontal: CGFloat = 16,
         vertical: CGFloat = 14
     )
-        -> some View {
+        -> some View
+    {
         modifier(StandardPaddingModifier(horizontal: horizontal, vertical: vertical))
     }
 
@@ -106,7 +108,8 @@ extension View {
         horizontalPadding: CGFloat = 14,
         verticalPadding: CGFloat = 10
     )
-        -> some View {
+        -> some View
+    {
         modifier(CardStyleModifier(
             cornerRadius: cornerRadius,
             horizontalPadding: horizontalPadding,

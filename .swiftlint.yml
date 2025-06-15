@@ -82,6 +82,8 @@ disabled_rules:
   - function_parameter_count
   - large_tuple
   - todo
+  # Disable opening_brace as it conflicts with SwiftFormat's multiline wrapping
+  - opening_brace
 
 # Rule parameters
 type_name:

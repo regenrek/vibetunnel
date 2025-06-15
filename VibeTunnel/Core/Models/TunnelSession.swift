@@ -1,5 +1,4 @@
 import Foundation
-import Hummingbird
 
 /// Represents a terminal session that can be controlled remotely
 public struct TunnelSession: Identifiable, Codable, Sendable {
@@ -36,7 +35,7 @@ public struct CreateSessionRequest: Codable {
 }
 
 /// Response after creating a session
-public struct CreateSessionResponse: ResponseCodable {
+public struct CreateSessionResponse: Codable {
     public let sessionId: String
     public let createdAt: Date
 
@@ -62,7 +61,7 @@ public struct CommandRequest: Codable {
 }
 
 /// Command execution response
-public struct CommandResponse: ResponseCodable {
+public struct CommandResponse: Codable {
     public let sessionId: String
     public let output: String?
     public let error: String?
@@ -85,7 +84,7 @@ public struct CommandResponse: ResponseCodable {
 }
 
 /// Session information
-public struct SessionInfo: ResponseCodable {
+public struct SessionInfo: Codable {
     public let id: String
     public let createdAt: Date
     public let lastActivity: Date
@@ -100,7 +99,7 @@ public struct SessionInfo: ResponseCodable {
 }
 
 /// List sessions response
-public struct ListSessionsResponse: ResponseCodable {
+public struct ListSessionsResponse: Codable {
     public let sessions: [SessionInfo]
 
     public init(sessions: [SessionInfo]) {
