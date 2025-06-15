@@ -1,14 +1,73 @@
 # Hummingbird Integration Guide for VibeTunnel
 
-This guide explains how to integrate Hummingbird web framework into VibeTunnel for creating the tunnel server functionality.
+This guide explains the Hummingbird web framework integration in VibeTunnel for creating the tunnel server functionality.
 
 ## Current Status
 
-The Hummingbird dependency has been added to the project, but the actual server implementation is pending. The `TunnelServer.swift` file contains a placeholder implementation that allows the app to build.
+✅ **IMPLEMENTED** - The VibeTunnel server is now fully implemented with:
+- HTTP REST API endpoints for terminal session management
+- WebSocket support for real-time terminal communication
+- Authentication via API keys
+- Session management with automatic cleanup
+- Client SDK for easy integration
+- Comprehensive error handling
 
-## Hummingbird 2.0 Example Implementation
+## Architecture Overview
 
-Here's a working example of how to implement the tunnel server with Hummingbird 2.0:
+The VibeTunnel server is built with the following components:
+
+### Core Components
+
+1. **TunnelServer** (`/VibeTunnel/Core/Services/TunnelServer.swift`)
+   - Main server implementation using Hummingbird
+   - Manages HTTP endpoints and WebSocket connections
+   - Handles server lifecycle and configuration
+
+2. **TerminalManager** (`/VibeTunnel/Core/Services/TerminalManager.swift`)
+   - Actor-based terminal session management
+   - Handles process creation and command execution
+   - Manages pipes for stdin/stdout/stderr communication
+   - Automatic cleanup of inactive sessions
+
+3. **WebSocketHandler** (`/VibeTunnel/Core/Services/WebSocketHandler.swift`)
+   - Real-time bidirectional communication
+   - JSON-based message protocol
+   - Session-based terminal streaming
+
+4. **AuthenticationMiddleware** (`/VibeTunnel/Core/Services/AuthenticationMiddleware.swift`)
+   - API key-based authentication
+   - Secure key generation and storage
+   - Protects all endpoints except health check
+
+5. **TunnelClient** (`/VibeTunnel/Core/Services/TunnelClient.swift`)
+   - Swift SDK for server interaction
+   - Async/await based API
+   - WebSocket client for real-time communication
+
+### Data Models
+
+- **TunnelSession** - Represents a terminal session
+- **CreateSessionRequest/Response** - Session creation
+- **CommandRequest/Response** - Command execution
+- **WSMessage** - WebSocket message format
+
+## API Endpoints
+
+### REST API
+
+- `GET /health` - Health check (no auth required)
+- `GET /info` - Server information
+- `GET /sessions` - List all active sessions
+- `POST /sessions` - Create new terminal session
+- `GET /sessions/:id` - Get session details
+- `DELETE /sessions/:id` - Close a session
+- `POST /execute` - Execute command in session
+
+### WebSocket
+
+- `WS /ws/terminal` - Real-time terminal communication
+
+## Example Implementation
 
 ```swift
 import Foundation

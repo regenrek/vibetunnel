@@ -149,7 +149,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "VibeTunnel")
+            button.image = NSImage(named: "menubar")
+            button.image?.isTemplate = true
             button.action = #selector(statusItemClicked)
             button.target = self
         }
