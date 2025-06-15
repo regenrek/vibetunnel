@@ -106,3 +106,118 @@ public struct ListSessionsResponse: Codable {
         self.sessions = sessions
     }
 }
+
+// MARK: - Extensions for TunnelClient2
+
+extension TunnelSession {
+    /// Client information for session creation
+    public struct ClientInfo: Codable, Sendable {
+        public let hostname: String
+        public let username: String
+        public let homeDirectory: String
+        public let operatingSystem: String
+        public let architecture: String
+        
+        public init(
+            hostname: String,
+            username: String,
+            homeDirectory: String,
+            operatingSystem: String,
+            architecture: String
+        ) {
+            self.hostname = hostname
+            self.username = username
+            self.homeDirectory = homeDirectory
+            self.operatingSystem = operatingSystem
+            self.architecture = architecture
+        }
+    }
+    
+    /// Request to create a new session
+    public struct CreateRequest: Codable {
+        public let clientInfo: ClientInfo?
+        
+        public init(clientInfo: ClientInfo? = nil) {
+            self.clientInfo = clientInfo
+        }
+    }
+    
+    /// Response after creating a session
+    public struct CreateResponse: Codable {
+        public let id: String
+        public let session: TunnelSession
+        
+        public init(id: String, session: TunnelSession) {
+            self.id = id
+            self.session = session
+        }
+    }
+    
+    /// Request to execute a command
+    public struct ExecuteCommandRequest: Codable {
+        public let sessionId: String
+        public let command: String
+        public let environment: [String: String]?
+        public let workingDirectory: String?
+        
+        public init(
+            sessionId: String,
+            command: String,
+            environment: [String: String]? = nil,
+            workingDirectory: String? = nil
+        ) {
+            self.sessionId = sessionId
+            self.command = command
+            self.environment = environment
+            self.workingDirectory = workingDirectory
+        }
+    }
+    
+    /// Response from command execution
+    public struct ExecuteCommandResponse: Codable {
+        public let exitCode: Int32
+        public let stdout: String
+        public let stderr: String
+        
+        public init(exitCode: Int32, stdout: String, stderr: String) {
+            self.exitCode = exitCode
+            self.stdout = stdout
+            self.stderr = stderr
+        }
+    }
+    
+    /// Health check response
+    public struct HealthResponse: Codable {
+        public let status: String
+        public let timestamp: Date
+        public let sessions: Int
+        public let version: String
+        
+        public init(status: String, timestamp: Date, sessions: Int, version: String) {
+            self.status = status
+            self.timestamp = timestamp
+            self.sessions = sessions
+            self.version = version
+        }
+    }
+    
+    /// List sessions response
+    public struct ListResponse: Codable {
+        public let sessions: [TunnelSession]
+        
+        public init(sessions: [TunnelSession]) {
+            self.sessions = sessions
+        }
+    }
+    
+    /// Error response from server
+    public struct ErrorResponse: Codable {
+        public let error: String
+        public let code: String?
+        
+        public init(error: String, code: String? = nil) {
+            self.error = error
+            self.code = code
+        }
+    }
+}

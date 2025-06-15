@@ -31,6 +31,7 @@ let package = Package(
             sources: [
                 "Core/Models/TunnelSession.swift",
                 "Core/Models/UpdateChannel.swift",
+                "Core/Services/TunnelClient.swift",
                 "Core/Services/TunnelClient2.swift",
                 "Core/Services/TerminalManager.swift",
                 "Core/Services/HTTPClientProtocol.swift"

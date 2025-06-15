@@ -145,11 +145,11 @@ struct AdvancedSettingsView: View {
     private var updateChannelRaw = UpdateChannel.stable.rawValue
 
     @State private var isCheckingForUpdates = false
-    @StateObject private var tunnelServer: TunnelServer
+    @StateObject private var tunnelServer: TunnelServerDemo
 
     init() {
         let port = Int(UserDefaults.standard.string(forKey: "serverPort") ?? "8080") ?? 8_080
-        _tunnelServer = StateObject(wrappedValue: TunnelServer(port: port))
+        _tunnelServer = StateObject(wrappedValue: TunnelServerDemo(port: port))
     }
 
     var updateChannel: UpdateChannel {
@@ -300,7 +300,7 @@ struct AdvancedSettingsView: View {
     private func toggleServer() {
         Task {
             if tunnelServer.isRunning {
-                await tunnelServer.stop()
+               try await tunnelServer.stop()
             } else {
                 do {
                     try await tunnelServer.start()

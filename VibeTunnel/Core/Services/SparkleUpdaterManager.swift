@@ -1,4 +1,5 @@
-import os
+import Foundation
+import os.log
 import UserNotifications
 
 /// Stub implementation of SparkleUpdaterManager
@@ -8,18 +9,18 @@ public final class SparkleUpdaterManager: NSObject {
     
     public static let shared = SparkleUpdaterManager()
     
-    private let logger = Logger(
+    private let logger = os.Logger(
         subsystem: "VibeTunnel",
         category: "SparkleUpdater"
     )
     
-    private override init() {
+    public override init() {
         super.init()
         logger.info("SparkleUpdaterManager initialized (stub implementation)")
     }
     
     public func setUpdateChannel(_ channel: UpdateChannel) {
-        logger.info("Update channel set to: \(channel) (stub)")
+        logger.info("Update channel set to: \(channel.rawValue) (stub)")
     }
     
     public func checkForUpdatesInBackground() {

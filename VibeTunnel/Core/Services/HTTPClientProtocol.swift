@@ -37,8 +37,23 @@ enum HTTPClientError: Error {
 
 extension URLRequest {
     init(customHTTPRequest: HTTPRequest) {
-        guard let url = customHTTPRequest.url else {
-            fatalError("HTTPRequest must have a valid URL")
+        // Reconstruct URL from components
+        var urlComponents = URLComponents()
+        urlComponents.scheme = customHTTPRequest.scheme
+        
+        if let authority = customHTTPRequest.authority {
+            // Parse host and port from authority
+            let parts = authority.split(separator: ":", maxSplits: 1)
+            urlComponents.host = String(parts[0])
+            if parts.count > 1 {
+                urlComponents.port = Int(String(parts[1]))
+            }
+        }
+        
+        urlComponents.path = customHTTPRequest.path ?? "/"
+        
+        guard let url = urlComponents.url else {
+            fatalError("HTTPRequest must have valid URL components")
         }
         
         self.init(url: url)

@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Initialize Sparkle updater manager
-        sparkleUpdaterManager = SparkleUpdaterManager()
+        sparkleUpdaterManager = SparkleUpdaterManager.shared
 
         // Configure activation policy based on settings (default to menu bar only)
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")

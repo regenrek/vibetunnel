@@ -197,7 +197,7 @@ public class TunnelClient {
 }
 
 /// WebSocket client for real-time terminal communication
-public class TunnelWebSocketClient: NSObject {
+public final class TunnelWebSocketClient: NSObject, @unchecked Sendable {
     private let url: URL
     private let apiKey: String
     private var sessionId: String?

@@ -3,8 +3,8 @@ import Foundation
 import HTTPTypes
 @testable import VibeTunnel
 
-@Suite("TunnelClient Tests")
-struct TunnelClientTests {
+@Suite("TunnelClient2 Tests")
+struct TunnelClient2Tests {
     let mockClient: MockHTTPClient
     let tunnelClient: TunnelClient2
     let testURL = URL(string: "http://localhost:8080")!
@@ -52,7 +52,7 @@ struct TunnelClientTests {
         mockClient.configure(for: "/health", response: .serverError)
         
         // Act & Assert
-        await #expect(throws: TunnelClientError.httpError(statusCode: 500)) {
+        await #expect(throws: TunnelClient2Error.httpError(statusCode: 500)) {
             _ = try await tunnelClient.checkHealth()
         }
     }
@@ -123,7 +123,7 @@ struct TunnelClientTests {
         )
         
         // Act & Assert
-        await #expect(throws: TunnelClientError.serverError("Maximum sessions reached")) {
+        await #expect(throws: TunnelClient2Error.serverError("Maximum sessions reached")) {
             _ = try await tunnelClient.createSession()
         }
     }
@@ -182,7 +182,7 @@ struct TunnelClientTests {
         )
         
         // Act & Assert
-        await #expect(throws: TunnelClientError.sessionNotFound) {
+        await #expect(throws: TunnelClient2Error.sessionNotFound) {
             _ = try await tunnelClient.getSession(id: "unknown-session")
         }
     }
@@ -196,10 +196,10 @@ struct TunnelClientTests {
         )
         
         // Act
-        try await tunnelClient.deleteSession(id: "session-123")
+        try await tunnelClient.deleteSession(id: "00000000-0000-0000-0000-000000000123")
         
         // Assert
-        #expect(mockClient.wasRequested(path: "/api/sessions/session-123"))
+        #expect(mockClient.wasRequested(path: "/api/sessions/00000000-0000-0000-0000-000000000123"))
         let lastRequest = mockClient.lastRequest()!
         #expect(lastRequest.request.method == .delete)
     }
@@ -360,7 +360,7 @@ struct TunnelClientTests {
             )
             
             // Act & Assert
-            await #expect(throws: TunnelClientError.httpError(statusCode: statusCode.code)) {
+            await #expect(throws: TunnelClient2Error.httpError(statusCode: statusCode.code)) {
                 _ = try await tunnelClient.listSessions()
             }
         }
