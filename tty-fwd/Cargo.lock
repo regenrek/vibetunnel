@@ -344,12 +344,14 @@ dependencies = [
  "anyhow",
  "argument-parser",
  "chrono",
+ "libc",
  "nix",
  "serde",
  "serde_json",
  "signal-hook",
  "tempfile",
  "uuid",
+ "windows-sys",
 ]
 
 [[package]]

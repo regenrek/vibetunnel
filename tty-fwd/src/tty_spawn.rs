@@ -11,6 +11,7 @@ use tempfile::NamedTempFile;
 use crate::protocol::{
     AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, SessionInfo, StreamWriter,
 };
+use crate::utils;
 use chrono::Utc;
 
 use nix::errno::Errno;
@@ -92,11 +93,12 @@ impl TtySpawn {
                 .open(path)?
         };
 
-        // Create a basic asciinema header with default terminal size
+        // Create a basic asciinema header with actual terminal size
+        let term_size = utils::terminal_size();
         let header = AsciinemaHeader {
             version: 2,
-            width: 80,  // Default width
-            height: 24, // Default height
+            width: term_size.width as u32,
+            height: term_size.height as u32,
             timestamp: None,
             duration: None,
             command: None,

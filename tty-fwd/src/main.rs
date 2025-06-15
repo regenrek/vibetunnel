@@ -1,5 +1,6 @@
 mod protocol;
 mod tty_spawn;
+mod utils;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
