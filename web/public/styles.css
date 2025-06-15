@@ -1,0 +1,180 @@
+/* Terminal-style CSS with 1em character grid */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --char-width: 1em;
+    --char-height: 1em;
+    --terminal-bg: #000000;
+    --terminal-fg: #ffffff;
+    --terminal-green: #00ff00;
+    --terminal-blue: #0080ff;
+    --terminal-cyan: #00ffff;
+    --terminal-yellow: #ffff00;
+    --terminal-red: #ff0000;
+    --terminal-gray: #808080;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    line-height: var(--char-height);
+    background: var(--terminal-bg);
+    color: var(--terminal-fg);
+    padding: var(--char-height);
+}
+
+/* Terminal box styling */
+.terminal-box {
+    border: 1px solid var(--terminal-gray);
+    background: var(--terminal-bg);
+    padding: var(--char-height);
+    margin: var(--char-height) 0;
+}
+
+/* Input styling */
+input, textarea, select {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    line-height: var(--char-height);
+    background: var(--terminal-bg);
+    color: var(--terminal-fg);
+    border: 1px solid var(--terminal-gray);
+    padding: 0 var(--char-width);
+    height: calc(var(--char-height) * 2);
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: 1px solid var(--terminal-green);
+    border-color: var(--terminal-green);
+}
+
+/* Button styling */
+button {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    line-height: var(--char-height);
+    background: var(--terminal-gray);
+    color: var(--terminal-bg);
+    border: 1px solid var(--terminal-gray);
+    padding: 0 var(--char-width);
+    height: calc(var(--char-height) * 2);
+    cursor: pointer;
+    min-width: calc(var(--char-width) * 8);
+}
+
+button:hover {
+    background: var(--terminal-fg);
+}
+
+button.primary {
+    background: var(--terminal-green);
+    border-color: var(--terminal-green);
+}
+
+button.danger {
+    background: var(--terminal-red);
+    border-color: var(--terminal-red);
+    color: var(--terminal-fg);
+}
+
+/* Typography */
+h1, h2, h3 {
+    line-height: var(--char-height);
+    margin: var(--char-height) 0;
+}
+
+h1 { color: var(--terminal-green); }
+h2 { color: var(--terminal-cyan); }
+h3 { color: var(--terminal-yellow); }
+
+p {
+    margin: var(--char-height) 0;
+}
+
+/* Layout helpers */
+.row {
+    display: flex;
+    gap: var(--char-width);
+    margin: var(--char-height) 0;
+}
+
+.col {
+    flex: 1;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Terminal colors */
+.text-green { color: var(--terminal-green); }
+.text-blue { color: var(--terminal-blue); }
+.text-cyan { color: var(--terminal-cyan); }
+.text-yellow { color: var(--terminal-yellow); }
+.text-red { color: var(--terminal-red); }
+.text-gray { color: var(--terminal-gray); }
+
+/* Session grid */
+.session-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(40ch, 1fr));
+    gap: var(--char-height);
+    margin: var(--char-height) 0;
+}
+
+/* Asciinema player styling */
+.asciinema-player {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.asciinema-player .control-bar {
+    display: none !important;
+}
+
+/* Modal styling */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--char-height);
+}
+
+.modal-content {
+    background: var(--terminal-bg);
+    border: 1px solid var(--terminal-gray);
+    padding: var(--char-height);
+    max-width: 80ch;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+/* File browser */
+.file-item {
+    padding: 0 var(--char-width);
+    cursor: pointer;
+    line-height: var(--char-height);
+}
+
+.file-item:hover {
+    background: var(--terminal-gray);
+    color: var(--terminal-bg);
+}
+
+.file-item.directory {
+    color: var(--terminal-blue);
+}
+
+.file-item.file {
+    color: var(--terminal-fg);
+}
