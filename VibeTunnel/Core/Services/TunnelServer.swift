@@ -21,7 +21,7 @@ import NIOHTTP1
 final class TunnelServer: ObservableObject {
     private let port: Int
     private let logger = Logger(label: "VibeTunnel.TunnelServer")
-    private var app: HummingbirdApplication?
+    private var app: Application<some Router>?
     private let terminalManager = TerminalManager()
     
     @Published var isRunning = false
@@ -68,44 +68,41 @@ final class TunnelServer: ObservableObject {
         }
     }
     
-    private func buildApplication() async throws -> HummingbirdApplication {
+    private func buildApplication() async throws -> Application<some Router> {
         // Create router
-        let router = Router()
+        var router = RouterBuilder()
         
         // Add middleware
-        router.add(middleware: LogRequestsMiddleware(logLevel: .info))
-        router.add(middleware: CORSMiddleware())
-        router.add(middleware: AuthenticationMiddleware(apiKeys: AuthenticationMiddleware.loadStoredAPIKeys()))
+        router.middlewares.add(LogRequestsMiddleware(logLevel: .info))
+        router.middlewares.add(CORSMiddleware())
+        router.middlewares.add(AuthenticationMiddleware(apiKeys: AuthenticationMiddleware.loadStoredAPIKeys()))
         
         // Configure routes
-        configureRoutes(router)
+        configureRoutes(&router)
         
         // Add WebSocket routes
         router.addWebSocketRoutes(terminalManager: terminalManager)
         
         // Create application configuration
-        var configuration = ApplicationConfiguration(
+        let configuration = ApplicationConfiguration(
             address: .hostname("127.0.0.1", port: port),
             serverName: "VibeTunnel"
         )
         
-        // Enable WebSocket upgrade
-        configuration.enableWebSocketUpgrade = true
-        
         // Create and configure the application
         let app = Application(
-            router: router,
+            router: router.buildRouter(),
             configuration: configuration,
             logger: logger
         )
         
         // Add cleanup task
-        app.addLifecycleTask(CleanupTask(terminalManager: terminalManager))
+        app.services.add(CleanupService(terminalManager: terminalManager))
         
         return app
     }
     
-    private func configureRoutes(_ router: Router) {
+    private func configureRoutes(_ router: inout RouterBuilder) {
         // Health check endpoint
         router.get("/health") { request, context -> HTTPResponse.Status in
             return .ok
@@ -203,8 +200,8 @@ final class TunnelServer: ObservableObject {
         }
     }
     
-    // Lifecycle task for periodic cleanup
-    struct CleanupTask: LifecycleTask {
+    // Service for periodic cleanup
+    struct CleanupService: Service {
         let terminalManager: TerminalManager
         
         func run() async throws {

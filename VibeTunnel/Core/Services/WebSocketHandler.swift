@@ -49,7 +49,7 @@ final class WebSocketHandler {
     }
     
     /// Handle incoming WebSocket connection
-    func handle(ws: HBWebSocket, context: some RequestContext) async {
+    func handle(ws: WebSocket, context: some RequestContext) async {
         let connectionId = UUID()
         let connection = Connection(id: connectionId, websocket: ws)
         
@@ -172,11 +172,11 @@ final class WebSocketHandler {
     /// WebSocket connection wrapper
     class Connection {
         let id: UUID
-        let websocket: HBWebSocket
+        let websocket: WebSocket
         var sessionId: UUID?
         var isClosed = false
         
-        init(id: UUID, websocket: HBWebSocket) {
+        init(id: UUID, websocket: WebSocket) {
             self.id = id
             self.websocket = websocket
         }
@@ -184,8 +184,8 @@ final class WebSocketHandler {
 }
 
 /// Extension to add WebSocket routes to the router
-extension Router {
-    func addWebSocketRoutes(terminalManager: TerminalManager) {
+extension RouterBuilder {
+    mutating func addWebSocketRoutes(terminalManager: TerminalManager) {
         let wsHandler = WebSocketHandler(terminalManager: terminalManager)
         
         // WebSocket endpoint for terminal streaming
