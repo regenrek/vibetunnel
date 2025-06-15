@@ -3,6 +3,8 @@ mod tty_spawn;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
@@ -86,11 +88,68 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn send_key_to_session(
+    control_path: &Path,
+    session_id: &str,
+    key: &str,
+) -> Result<(), anyhow::Error> {
+    let session_path = control_path.join(session_id);
+    let stdin_path = session_path.join("stdin");
+
+    if !stdin_path.exists() {
+        return Err(anyhow!("Session {} not found or not running", session_id));
+    }
+
+    let key_bytes: &[u8] = match key {
+        "arrow_up" => b"\x1b[A",
+        "arrow_down" => b"\x1b[B",
+        "arrow_right" => b"\x1b[C",
+        "arrow_left" => b"\x1b[D",
+        "escape" => b"\x1b",
+        "enter" => b"\r",
+        _ => return Err(anyhow!("Unknown key: {}", key)),
+    };
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&stdin_path)?;
+    file.write_all(key_bytes)?;
+    file.flush()?;
+
+    Ok(())
+}
+
+fn send_text_to_session(
+    control_path: &Path,
+    session_id: &str,
+    text: &str,
+) -> Result<(), anyhow::Error> {
+    let session_path = control_path.join(session_id);
+    let stdin_path = session_path.join("stdin");
+
+    if !stdin_path.exists() {
+        return Err(anyhow!("Session {} not found or not running", session_id));
+    }
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&stdin_path)?;
+    file.write_all(text.as_bytes())?;
+    file.flush()?;
+
+    Ok(())
+}
+
 fn main() -> Result<(), anyhow::Error> {
     let mut parser = Parser::from_env();
 
     let mut control_path = PathBuf::from("./tty-fwd-control");
     let mut session_name = None::<String>;
+    let mut session_id = None::<String>;
+    let mut send_key = None::<String>;
+    let mut send_text = None::<String>;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -101,8 +160,17 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("list-sessions") => {
                 return list_sessions(&control_path);
             }
-            p if p.is_long("session") => {
+            p if p.is_long("session-name") => {
                 session_name = Some(parser.value()?);
+            }
+            p if p.is_long("session") => {
+                session_id = Some(parser.value()?);
+            }
+            p if p.is_long("send-key") => {
+                send_key = Some(parser.value()?);
+            }
+            p if p.is_long("send-text") => {
+                send_text = Some(parser.value()?);
             }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
@@ -111,12 +179,34 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("Usage: tty-fwd [options] <command>");
                 println!("Options:");
                 println!("  --control-path <path>   Where the control folder is located");
-                println!("  --session <name>        Names the session");
+                println!("  --session-name <name>   Names the session when creating");
                 println!("  --list-sessions         List all sessions");
+                println!("  --session <I>           Operate on this session");
+                println!("  --send-key <key>        Send key input to session");
+                println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter");
+                println!("  --send-text <text>      Send text input to session");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
             _ => return Err(parser.unexpected().into()),
+        }
+    }
+
+    // Handle send-key command
+    if let Some(key) = send_key {
+        if let Some(sid) = &session_id {
+            return send_key_to_session(&control_path, sid, &key);
+        } else {
+            return Err(anyhow!("--send-key requires --session <session_id>"));
+        }
+    }
+
+    // Handle send-text command
+    if let Some(text) = send_text {
+        if let Some(sid) = &session_id {
+            return send_text_to_session(&control_path, sid, &text);
+        } else {
+            return Err(anyhow!("--send-text requires --session <session_id>"));
         }
     }
 
