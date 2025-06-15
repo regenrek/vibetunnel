@@ -7,7 +7,7 @@ import Logging
 
 /// Custom HTTP header name for API key
 extension HTTPField.Name {
-    static let xAPIKey = Self("X-API-Key")!
+    static let xAPIKey = HTTPField.Name("X-API-Key")!
 }
 
 /// Simple authentication middleware for the tunnel server
@@ -44,22 +44,24 @@ struct AuthenticationMiddleware<Context: RequestContext>: RouterMiddleware {
         context: Context,
         next: (Request, Context) async throws -> Response
     )
-        async throws -> Response {
+        async throws -> Response
+    {
         // Skip authentication for health check and WebSocket upgrade
-        if request.uri.path == "/health" || request.headers[.upgrade] == "websocket" {
+        if request.uri.path == "/health" || request.headers[HTTPField.Name.upgrade] == "websocket" {
             return try await next(request, context)
         }
 
         // Check for API key in header
-        if let apiKey = request.headers[.xAPIKey] {
+        if let apiKey = request.headers[HTTPField.Name.xAPIKey] {
             if validApiKeys.contains(apiKey) {
                 return try await next(request, context)
             }
         }
 
         // Check for Bearer token
-        if let authorization = request.headers[.authorization],
-           authorization.hasPrefix(bearerPrefix) {
+        if let authorization = request.headers[HTTPField.Name.authorization],
+           authorization.hasPrefix(bearerPrefix)
+        {
             let token = String(authorization.dropFirst(bearerPrefix.count))
             if validApiKeys.contains(token) {
                 return try await next(request, context)

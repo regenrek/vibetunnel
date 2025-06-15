@@ -25,8 +25,9 @@ import UserNotifications
 /// ```
 @MainActor
 @Observable
-public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate,
-    UNUserNotificationCenterDelegate {
+public class SparkleUpdaterManager: NSObject, @preconcurrency SPUUpdaterDelegate, @preconcurrency SPUStandardUserDriverDelegate,
+    @preconcurrency UNUserNotificationCenterDelegate
+{
     // MARK: Initialization
 
     private nonisolated static let staticLogger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
@@ -148,8 +149,10 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             \.updateChannel,
             options: [.new]
         ) { [weak self] _, _ in
-            self?.logger.info("Update channel changed via UserDefaults")
-            self?.setUpdateChannel(UpdateChannel.current)
+            Task { @MainActor in
+                self?.logger.info("Update channel changed via UserDefaults")
+                self?.setUpdateChannel(UpdateChannel.current)
+            }
         }
     }
 
@@ -327,7 +330,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     // MARK: - Cleanup
 
     deinit {
-        updateChannelObserver?.invalidate()
+        // Note: updateChannelObserver will be invalidated automatically
         // Timer is cleaned up automatically when the object is deallocated
     }
 }

@@ -37,10 +37,21 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
             Self.prereleaseAppcastURL
         }
     }
-    
-    // Static URLs to ensure they're validated at compile time
-    private static let stableAppcastURL = URL(string: "https://vibetunnel.sh/appcast.xml")!
-    private static let prereleaseAppcastURL = URL(string: "https://vibetunnel.sh/appcast-prerelease.xml")!
+
+    /// Static URLs to ensure they're validated at compile time
+    private static let stableAppcastURL: URL = {
+        guard let url = URL(string: "https://vibetunnel.sh/appcast.xml") else {
+            fatalError("Invalid stable appcast URL - this should never happen with a hardcoded URL")
+        }
+        return url
+    }()
+
+    private static let prereleaseAppcastURL: URL = {
+        guard let url = URL(string: "https://vibetunnel.sh/appcast-prerelease.xml") else {
+            fatalError("Invalid prerelease appcast URL - this should never happen with a hardcoded URL")
+        }
+        return url
+    }()
 
     /// Whether this channel includes pre-release versions
     public var includesPreReleases: Bool {
@@ -55,7 +66,8 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
     /// The current update channel based on user defaults
     public static var current: Self {
         if let rawValue = UserDefaults.standard.string(forKey: "updateChannel"),
-           let channel = Self(rawValue: rawValue) {
+           let channel = Self(rawValue: rawValue)
+        {
             return channel
         }
         return defaultChannel
@@ -71,7 +83,8 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
         // First check if this build was marked as a pre-release during build time
         if let isPrereleaseValue = Bundle.main.object(forInfoDictionaryKey: "IS_PRERELEASE_BUILD"),
            let isPrerelease = isPrereleaseValue as? Bool,
-           isPrerelease {
+           isPrerelease
+        {
             return .prerelease
         }
 
@@ -91,4 +104,14 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
 
 extension UpdateChannel: Identifiable {
     public var id: String { rawValue }
+}
+
+// MARK: - UserDefaults Integration
+
+extension UserDefaults {
+    /// KVO-compatible property for update channel
+    @objc dynamic var updateChannel: String? {
+        get { string(forKey: "updateChannel") }
+        set { set(newValue, forKey: "updateChannel") }
+    }
 }
