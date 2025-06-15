@@ -3,7 +3,7 @@
 
 import Foundation
 import HTTPTypes
-import HTTPTypesFoundation
+// import HTTPTypesFoundation // TODO: Add when Xcode dependencies are configured
 import Logging
 
 /// HTTP client-based tunnel client for better testability
