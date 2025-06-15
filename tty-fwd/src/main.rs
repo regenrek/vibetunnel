@@ -142,6 +142,92 @@ fn send_text_to_session(
     Ok(())
 }
 
+fn is_pid_alive(pid: u32) -> bool {
+    use std::process::Command;
+
+    let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
+
+    match output {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}
+
+fn cleanup_session(control_path: &Path, session_id: &str) -> Result<bool, anyhow::Error> {
+    let session_path = control_path.join(session_id);
+    let session_json_path = session_path.join("session.json");
+
+    if !session_path.exists() {
+        return Err(anyhow!("Session {} not found", session_id));
+    }
+
+    if session_json_path.exists() {
+        let content = fs::read_to_string(&session_json_path)?;
+        if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
+            if let Some(pid) = session_info.pid {
+                if is_pid_alive(pid) {
+                    return Err(anyhow!(
+                        "Session {} is still running (PID: {})",
+                        session_id,
+                        pid
+                    ));
+                }
+            }
+        }
+    }
+
+    fs::remove_dir_all(&session_path)?;
+    Ok(true)
+}
+
+fn cleanup_sessions(
+    control_path: &Path,
+    specific_session: Option<&str>,
+) -> Result<(), anyhow::Error> {
+    if !control_path.exists() {
+        return Ok(());
+    }
+
+    if let Some(session_id) = specific_session {
+        cleanup_session(control_path, session_id)?;
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(control_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            if let Some(_session_id) = path.file_name().and_then(|n| n.to_str()) {
+                let session_json_path = path.join("session.json");
+
+                if session_json_path.exists() {
+                    let should_remove = if let Ok(content) = fs::read_to_string(&session_json_path)
+                    {
+                        if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
+                            if let Some(pid) = session_info.pid {
+                                !is_pid_alive(pid)
+                            } else {
+                                true
+                            }
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    };
+
+                    if should_remove {
+                        let _ = fs::remove_dir_all(&path);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), anyhow::Error> {
     let mut parser = Parser::from_env();
 
@@ -150,6 +236,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut session_id = None::<String>;
     let mut send_key = None::<String>;
     let mut send_text = None::<String>;
+    let mut cleanup = false;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -172,11 +259,14 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("send-text") => {
                 send_text = Some(parser.value()?);
             }
+            p if p.is_long("cleanup") => {
+                cleanup = true;
+            }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
             }
             p if p.is_long("help") => {
-                println!("Usage: tty-fwd [options] <command>");
+                println!("Usage: tty-fwd [options] -- <command>");
                 println!("Options:");
                 println!("  --control-path <path>   Where the control folder is located");
                 println!("  --session-name <name>   Names the session when creating");
@@ -185,6 +275,7 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("  --send-key <key>        Send key input to session");
                 println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter");
                 println!("  --send-text <text>      Send text input to session");
+                println!("  --cleanup               Remove exited sessions (all if no --session specified)");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
@@ -208,6 +299,11 @@ fn main() -> Result<(), anyhow::Error> {
         } else {
             return Err(anyhow!("--send-text requires --session <session_id>"));
         }
+    }
+
+    // Handle cleanup command
+    if cleanup {
+        return cleanup_sessions(&control_path, session_id.as_deref());
     }
 
     if cmdline.is_empty() {
