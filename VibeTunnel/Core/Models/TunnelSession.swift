@@ -36,7 +36,7 @@ public struct CreateSessionRequest: Codable {
 }
 
 /// Response after creating a session
-public struct CreateSessionResponse: Codable, ResponseGenerator {
+public struct CreateSessionResponse: ResponseCodable {
     public let sessionId: String
     public let createdAt: Date
 
@@ -62,7 +62,7 @@ public struct CommandRequest: Codable {
 }
 
 /// Command execution response
-public struct CommandResponse: Codable, ResponseGenerator {
+public struct CommandResponse: ResponseCodable {
     public let sessionId: String
     public let output: String?
     public let error: String?
@@ -85,7 +85,7 @@ public struct CommandResponse: Codable, ResponseGenerator {
 }
 
 /// Session information
-public struct SessionInfo: Codable, ResponseGenerator {
+public struct SessionInfo: ResponseCodable {
     public let id: String
     public let createdAt: Date
     public let lastActivity: Date
@@ -100,7 +100,7 @@ public struct SessionInfo: Codable, ResponseGenerator {
 }
 
 /// List sessions response
-public struct ListSessionsResponse: Codable, ResponseGenerator {
+public struct ListSessionsResponse: ResponseCodable {
     public let sessions: [SessionInfo]
 
     public init(sessions: [SessionInfo]) {

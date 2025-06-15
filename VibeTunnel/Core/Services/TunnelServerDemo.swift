@@ -1,17 +1,20 @@
 import Combine
 import Foundation
+import Logging
 
 /// Demo code showing how to use the VibeTunnel server
 class TunnelServerDemo {
+    private static let logger = Logger(label: "VibeTunnel.TunnelServerDemo")
+    
     static func runDemo() async {
         // Get the API key (in production, this should be managed securely)
         let apiKeys = APIKeyManager.loadStoredAPIKeys()
         guard let apiKey = apiKeys.first else {
-            print("No API key found")
+            logger.error("No API key found")
             return
         }
 
-        print("Using API key: \(apiKey)")
+        logger.info("Using API key: [REDACTED]")
 
         // Create client
         let client = TunnelClient(apiKey: apiKey)
@@ -19,38 +22,38 @@ class TunnelServerDemo {
         do {
             // Check server health
             let isHealthy = try await client.checkHealth()
-            print("Server healthy: \(isHealthy)")
+            logger.info("Server healthy: \(isHealthy)")
 
             // Create a new session
             let session = try await client.createSession(
                 workingDirectory: "/tmp",
                 shell: "/bin/zsh"
             )
-            print("Created session: \(session.sessionId)")
+            logger.info("Created session: \(session.sessionId)")
 
             // Execute a command
             let response = try await client.executeCommand(
                 sessionId: session.sessionId,
                 command: "echo 'Hello from VibeTunnel!'"
             )
-            print("Command output: \(response.output ?? "none")")
+            logger.info("Command output: \(response.output ?? "none")")
 
             // List all sessions
             let sessions = try await client.listSessions()
-            print("Active sessions: \(sessions.count)")
+            logger.info("Active sessions: \(sessions.count)")
 
             // Close the session
             try await client.closeSession(id: session.sessionId)
-            print("Session closed")
+            logger.info("Session closed")
         } catch {
-            print("Demo error: \(error)")
+            logger.error("Demo error: \(error)")
         }
     }
 
     static func runWebSocketDemo() async {
         let apiKeys = APIKeyManager.loadStoredAPIKeys()
         guard let apiKey = apiKeys.first else {
-            print("No API key found")
+            logger.error("No API key found")
             return
         }
 
@@ -59,7 +62,7 @@ class TunnelServerDemo {
         do {
             // Create a session first
             let session = try await client.createSession()
-            print("Created session for WebSocket: \(session.sessionId)")
+            logger.info("Created session for WebSocket: \(session.sessionId)")
 
             // Connect WebSocket
             let wsClient = client.connectWebSocket(sessionId: session.sessionId)
@@ -69,11 +72,11 @@ class TunnelServerDemo {
             let cancellable = wsClient.messages.sink { message in
                 switch message.type {
                 case .output:
-                    print("Output: \(message.data ?? "")")
+                    logger.info("Output: \(message.data ?? "")")
                 case .error:
-                    print("Error: \(message.data ?? "")")
+                    logger.error("Error: \(message.data ?? "")")
                 default:
-                    print("Message: \(message.type) - \(message.data ?? "")")
+                    logger.info("Message: \(message.type) - \(message.data ?? "")")
                 }
             }
 
@@ -90,7 +93,7 @@ class TunnelServerDemo {
             wsClient.disconnect()
             cancellable.cancel()
         } catch {
-            print("WebSocket demo error: \(error)")
+            logger.error("WebSocket demo error: \(error)")
         }
     }
 }

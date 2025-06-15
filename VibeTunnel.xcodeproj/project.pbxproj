@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		788688322DFF700200B22C15 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 788688312DFF700100B22C15 /* Sparkle */; };
 		788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */ = {isa = PBXBuildFile; productRef = 788688212DFF600100B22C15 /* Hummingbird */; };
+		89D01D862CB5D7DC0075D8BD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 89D01D852CB5D7DC0075D8BD /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,7 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */,
-				788688322DFF700200B22C15 /* Sparkle in Frameworks */,
+				89D01D862CB5D7DC0075D8BD /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,7 +104,7 @@
 /* Begin PBXNativeTarget section */
 		788687F02DFF4FCB00B22C15 /* VibeTunnel */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 788688122DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
+			buildConfigurationList = 788688152DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
 			buildPhases = (
 				788687ED2DFF4FCB00B22C15 /* Sources */,
 				788687EE2DFF4FCB00B22C15 /* Frameworks */,
@@ -120,7 +120,7 @@
 			name = VibeTunnel;
 			packageProductDependencies = (
 				788688212DFF600100B22C15 /* Hummingbird */,
-				788688312DFF700100B22C15 /* Sparkle */,
+				89D01D852CB5D7DC0075D8BD /* Sparkle */,
 			);
 			productName = VibeTunnel;
 			productReference = 788687F12DFF4FCB00B22C15 /* VibeTunnel.app */;
@@ -128,7 +128,7 @@
 		};
 		788687FD2DFF4FCB00B22C15 /* VibeTunnelTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 788688152DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */;
+			buildConfigurationList = 788688182DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */;
 			buildPhases = (
 				788687FA2DFF4FCB00B22C15 /* Sources */,
 				788687FB2DFF4FCB00B22C15 /* Frameworks */,
@@ -151,7 +151,7 @@
 		};
 		788688072DFF4FCC00B22C15 /* VibeTunnelUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 788688182DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelUITests" */;
+			buildConfigurationList = 7886881B2DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelUITests" */;
 			buildPhases = (
 				788688042DFF4FCC00B22C15 /* Sources */,
 				788688052DFF4FCC00B22C15 /* Frameworks */,
@@ -179,18 +179,18 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
-				LastUpgradeCheck = 2600;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 1610;
 				TargetAttributes = {
 					788687F02DFF4FCB00B22C15 = {
-						CreatedOnToolsVersion = 26.0;
+						CreatedOnToolsVersion = 16.1;
 					};
 					788687FD2DFF4FCB00B22C15 = {
-						CreatedOnToolsVersion = 26.0;
+						CreatedOnToolsVersion = 16.1;
 						TestTargetID = 788687F02DFF4FCB00B22C15;
 					};
 					788688072DFF4FCC00B22C15 = {
-						CreatedOnToolsVersion = 26.0;
+						CreatedOnToolsVersion = 16.1;
 						TestTargetID = 788687F02DFF4FCB00B22C15;
 					};
 				};
@@ -205,8 +205,8 @@
 			mainGroup = 788687E82DFF4FCB00B22C15;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */,
-				788688302DFF700000B22C15 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */,
+				89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 788687F22DFF4FCB00B22C15 /* Products */;
@@ -317,7 +317,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -381,7 +380,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -407,30 +405,29 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = VibeTunnel/VibeTunnel.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 100;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
-				ENABLE_APP_SANDBOX = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 55V3KCX766;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VibeTunnel/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = VibeTunnel;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2024 Amantus AI. All rights reserved.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.amantus.vibetunnel;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pspdfkit.VibeTunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -440,30 +437,29 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = VibeTunnel/VibeTunnel.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 100;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
-				ENABLE_APP_SANDBOX = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 55V3KCX766;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VibeTunnel/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = VibeTunnel;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2024 Amantus AI. All rights reserved.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.amantus.vibetunnel;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pspdfkit.VibeTunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -473,16 +469,14 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 100;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 55V3KCX766;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.amantus.vibetunnel.Tests;
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.steipete.VibeTunnelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeTunnel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibeTunnel";
 			};
@@ -493,16 +487,14 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 100;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 55V3KCX766;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.amantus.vibetunnel.Tests;
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.steipete.VibeTunnelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeTunnel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibeTunnel";
 			};
@@ -512,15 +504,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 100;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 55V3KCX766;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.amantus.vibetunnel.UITests;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.steipete.VibeTunnelUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = VibeTunnel;
 			};
@@ -530,15 +520,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 100;
-				DEVELOPMENT_TEAM = Y5PE65HELJ;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 55V3KCX766;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.amantus.vibetunnel.UITests;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.steipete.VibeTunnelUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = VibeTunnel;
 			};
@@ -556,7 +544,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		788688122DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnel" */ = {
+		788688152DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				788688132DFF4FCC00B22C15 /* Debug */,
@@ -565,7 +553,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		788688152DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */ = {
+		788688182DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				788688162DFF4FCC00B22C15 /* Debug */,
@@ -574,11 +562,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		788688182DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelUITests" */ = {
+		7886881B2DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				788688192DFF4FCC00B22C15 /* Debug */,
-				7886881A2DFF4FCC00B22C15 /* Release */,
+				788688192DFF4FCC00B22C15 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -586,20 +574,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */ = {
+		788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/hummingbird-project/hummingbird.git";
+			repositoryURL = "https://github.com/hummingbird-project/hummingbird";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.1;
+				minimumVersion = 2.8.0;
 			};
 		};
-		788688302DFF700000B22C15 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+		89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.4;
+				minimumVersion = 2.7.8;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -607,12 +595,12 @@
 /* Begin XCSwiftPackageProductDependency section */
 		788688212DFF600100B22C15 /* Hummingbird */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */;
+			package = 788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */;
 			productName = Hummingbird;
 		};
-		788688312DFF700100B22C15 /* Sparkle */ = {
+		89D01D852CB5D7DC0075D8BD /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 788688302DFF700000B22C15 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			package = 89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */

@@ -8,13 +8,13 @@ import Logging
 
 /// WebSocket message types for terminal communication
 public enum WSMessageType: String, Codable {
-    case connect = "connect"
-    case command = "command"
-    case output = "output"
-    case error = "error"
-    case ping = "ping"
-    case pong = "pong"
-    case close = "close"
+    case connect
+    case command
+    case output
+    case error
+    case ping
+    case pong
+    case close
 }
 
 /// WebSocket message structure

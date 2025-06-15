@@ -71,6 +71,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     private var updateInProgress = false
     private var lastUpdateCheckDate: Date?
     private var gentleReminderTimer: Timer?
+    private var updateChannelObserver: NSKeyValueObservation?
 
     // MARK: Methods
 
@@ -143,12 +144,13 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     /// Sets up a listener for update channel changes
     private func setupUpdateChannelListener() {
         // Listen for channel changes via UserDefaults
-        UserDefaults.standard.addObserver(
-            self,
-            forKeyPath: "updateChannel",
-            options: [.new],
-            context: nil
-        )
+        updateChannelObserver = UserDefaults.standard.observe(
+            \.updateChannel,
+            options: [.new]
+        ) { [weak self] _, _ in
+            self?.logger.info("Update channel changed via UserDefaults")
+            self?.setUpdateChannel(UpdateChannel.current)
+        }
     }
 
     /// Schedules an update check after app startup
@@ -198,8 +200,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         gentleReminderTimer?.invalidate()
 
         // Schedule reminders every 4 hours
-        gentleReminderTimer = Timer.scheduledTimer(withTimeInterval: 4 * 60 * 60, repeats: true) {
-            [weak self] _ in
+        gentleReminderTimer = Timer.scheduledTimer(withTimeInterval: 4 * 60 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.showGentleUpdateReminder()
             }
@@ -215,32 +216,37 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
 
     // MARK: - SPUUpdaterDelegate
 
-    @objc public nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
+    @objc
+    public nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         Task { @MainActor in
             Self.staticLogger.info("Appcast loaded successfully: \(appcast.items.count) items")
         }
     }
 
-    @objc public nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
+    @objc
+    public nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
         Task { @MainActor in
             Self.staticLogger.info("No update found: \(error.localizedDescription)")
         }
     }
 
-    @objc public nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+    @objc
+    public nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         Task { @MainActor in
             Self.staticLogger.error("Update aborted with error: \(error.localizedDescription)")
         }
     }
 
     /// Provide the feed URL dynamically based on update channel
-    @objc public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
+    @objc
+    public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
         UpdateChannel.current.appcastURL.absoluteString
     }
 
     // MARK: - SPUStandardUserDriverDelegate
 
-    @objc public nonisolated func standardUserDriverWillHandleShowingUpdate(
+    @objc
+    public nonisolated func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool,
         forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState
@@ -255,7 +261,8 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         }
     }
 
-    @objc public func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+    @objc
+    public func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
         logger.info("User gave attention to update: \(update.displayVersionString)")
         updateInProgress = true
 
@@ -264,14 +271,16 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         gentleReminderTimer = nil
     }
 
-    @objc public func standardUserDriverWillFinishUpdateSession() {
+    @objc
+    public func standardUserDriverWillFinishUpdateSession() {
         logger.info("Update session finishing")
         updateInProgress = false
     }
 
     // MARK: - Background update handling
 
-    @objc public func updater(
+    @objc
+    public func updater(
         _ updater: SPUUpdater,
         willDownloadUpdate item: SUAppcastItem,
         with request: NSMutableURLRequest
@@ -279,7 +288,8 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         logger.info("Will download update: \(item.displayVersionString)")
     }
 
-    @objc public func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
+    @objc
+    public func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
         logger.info("Update downloaded: \(item.displayVersionString)")
 
         // For background downloads, schedule gentle reminders
@@ -288,7 +298,8 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         }
     }
 
-    @objc public func updater(
+    @objc
+    public func updater(
         _ updater: SPUUpdater,
         willInstallUpdate item: SUAppcastItem
     ) {
@@ -297,7 +308,8 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    @objc public func userNotificationCenter(
+    @objc
+    public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
@@ -312,24 +324,10 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         completionHandler()
     }
 
-    // MARK: - KVO
-
-    override public func observeValue(
-        forKeyPath keyPath: String?,
-        of object: Any?,
-        change: [NSKeyValueChangeKey: Any]?,
-        context: UnsafeMutableRawPointer?
-    ) {
-        if keyPath == "updateChannel" {
-            logger.info("Update channel changed via UserDefaults")
-            setUpdateChannel(UpdateChannel.current)
-        }
-    }
-
     // MARK: - Cleanup
 
     deinit {
-        UserDefaults.standard.removeObserver(self, forKeyPath: "updateChannel")
+        updateChannelObserver?.invalidate()
         // Timer is cleaned up automatically when the object is deallocated
     }
 }

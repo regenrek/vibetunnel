@@ -11,7 +11,7 @@ import os
 // MARK: - Response Models
 
 /// Server info response
-struct ServerInfoResponse: Codable, ResponseGenerator {
+struct ServerInfoResponse: ResponseCodable {
     let name: String
     let version: String
     let uptime: TimeInterval
@@ -230,7 +230,8 @@ extension AppDelegate {
 
                 try await tunnelServer.start()
             } catch {
-                print("Failed to start tunnel server: \(error)")
+                let logger = Logger(label: "VibeTunnel.AppDelegate")
+                logger.error("Failed to start tunnel server: \(error)")
 
                 // Show error alert
                 await MainActor.run {

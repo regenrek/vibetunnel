@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 /// Client SDK for interacting with the VibeTunnel server
 public class TunnelClient {
@@ -156,6 +157,7 @@ public class TunnelWebSocketClient: NSObject {
     private var sessionId: String?
     private var webSocketTask: URLSessionWebSocketTask?
     private let messageSubject = PassthroughSubject<WSMessage, Never>()
+    private let logger = Logger(label: "VibeTunnel.TunnelWebSocketClient")
 
     public var messages: AnyPublisher<WSMessage, Never> {
         messageSubject.eraseToAnyPublisher()
@@ -195,11 +197,11 @@ public class TunnelWebSocketClient: NSObject {
 
             webSocketTask.send(message) { error in
                 if let error {
-                    print("WebSocket send error: \(error)")
+                    self.logger.error("WebSocket send error: \(error)")
                 }
             }
         } catch {
-            print("Failed to encode message: \(error)")
+            logger.error("Failed to encode message: \(error)")
         }
     }
 
@@ -234,7 +236,7 @@ public class TunnelWebSocketClient: NSObject {
                 self?.receiveMessage()
 
             case .failure(let error):
-                print("WebSocket receive error: \(error)")
+                self?.logger.error("WebSocket receive error: \(error)")
             }
         }
     }
@@ -248,7 +250,7 @@ extension TunnelWebSocketClient: URLSessionWebSocketDelegate {
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocol: String?
     ) {
-        print("WebSocket connected")
+        logger.info("WebSocket connected")
     }
 
     public func urlSession(
@@ -257,7 +259,7 @@ extension TunnelWebSocketClient: URLSessionWebSocketDelegate {
         didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
         reason: Data?
     ) {
-        print("WebSocket disconnected")
+        logger.info("WebSocket disconnected with code: \(closeCode)")
         messageSubject.send(completion: .finished)
     }
 }

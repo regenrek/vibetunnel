@@ -59,9 +59,12 @@ struct SettingsView: View {
 }
 
 struct GeneralSettingsView: View {
-    @AppStorage("autostart") private var autostart = false
-    @AppStorage("showNotifications") private var showNotifications = true
-    @AppStorage("showInDock") private var showInDock = false
+    @AppStorage("autostart")
+    private var autostart = false
+    @AppStorage("showNotifications")
+    private var showNotifications = true
+    @AppStorage("showInDock")
+    private var showInDock = false
 
     private let startupManager = StartupManager()
 
@@ -134,9 +137,12 @@ struct GeneralSettingsView: View {
 }
 
 struct AdvancedSettingsView: View {
-    @AppStorage("debugMode") private var debugMode = false
-    @AppStorage("serverPort") private var serverPort = "8080"
-    @AppStorage("updateChannel") private var updateChannelRaw = UpdateChannel.stable.rawValue
+    @AppStorage("debugMode")
+    private var debugMode = false
+    @AppStorage("serverPort")
+    private var serverPort = "8080"
+    @AppStorage("updateChannel")
+    private var updateChannelRaw = UpdateChannel.stable.rawValue
 
     @State private var isCheckingForUpdates = false
     @StateObject private var tunnelServer: TunnelServer

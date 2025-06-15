@@ -85,8 +85,7 @@ struct HoverableLink: View {
     let title: String
     let icon: String
 
-    @State
-    private var isHovering = false
+    @State private var isHovering = false
     
     private var destinationURL: URL {
         URL(string: url) ?? URL(fileURLWithPath: "/")
@@ -113,10 +112,8 @@ struct HoverableLink: View {
 /// to user interaction. It includes hover effects for visual feedback and opens the
 /// VibeTunnel website when clicked.
 struct InteractiveAppIcon: View {
-    @State
-    private var isHovering = false
-    @State
-    private var isPressed = false
+    @State private var isHovering = false
+    @State private var isPressed = false
     @Environment(\.colorScheme)
     private var colorScheme
 
