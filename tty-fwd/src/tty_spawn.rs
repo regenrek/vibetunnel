@@ -2,12 +2,15 @@ use std::ffi::{CString, OsStr, OsString};
 use std::fs::File;
 use std::os::fd::{AsFd, BorrowedFd, IntoRawFd, OwnedFd};
 use std::os::unix::prelude::{AsRawFd, OpenOptionsExt, OsStrExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{env, io};
+use tempfile::NamedTempFile;
 
-use crate::protocol::{AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, StreamWriter};
+use crate::protocol::{
+    AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, SessionInfo, StreamWriter,
+};
 
 use nix::errno::Errno;
 use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
@@ -41,6 +44,7 @@ impl TtySpawn {
                 no_echo: false,
                 no_pager: false,
                 no_raw: false,
+                session_json_path: None,
             }),
         }
     }
@@ -191,6 +195,12 @@ impl TtySpawn {
         self
     }
 
+    /// Sets the session JSON path for status updates.
+    pub fn session_json_path<P: AsRef<Path>>(&mut self, path: P) -> &mut Self {
+        self.options_mut().session_json_path = Some(path.as_ref().to_path_buf());
+        self
+    }
+
     /// Spawns the application in the TTY.
     pub fn spawn(&mut self) -> Result<i32, io::Error> {
         Ok(spawn(
@@ -212,6 +222,36 @@ struct SpawnOptions {
     no_echo: bool,
     no_pager: bool,
     no_raw: bool,
+    session_json_path: Option<PathBuf>,
+}
+
+/// Updates the session status in the JSON file
+fn update_session_status(
+    session_json_path: &Path,
+    pid: Option<u32>,
+    status: &str,
+    exit_code: Option<i32>,
+) -> Result<(), io::Error> {
+    if let Ok(content) = std::fs::read_to_string(session_json_path) {
+        if let Ok(mut session_info) = serde_json::from_str::<SessionInfo>(&content) {
+            if let Some(pid) = pid {
+                session_info.pid = Some(pid);
+            }
+            session_info.status = status.to_string();
+            if let Some(code) = exit_code {
+                session_info.exit_code = Some(code);
+            }
+            let updated_content = serde_json::to_string(&session_info)?;
+
+            // Write to temporary file first, then move to final location
+            let temp_file = NamedTempFile::new_in(
+                session_json_path.parent().unwrap_or_else(|| Path::new(".")),
+            )?;
+            std::fs::write(temp_file.path(), updated_content)?;
+            temp_file.persist(session_json_path)?;
+        }
+    }
+    Ok(())
 }
 
 /// Spawns a process in a PTY in a manor similar to `script`
@@ -290,7 +330,18 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
         } else {
             None
         };
-        return communication_loop(
+
+        // Update session status to running with PID
+        if let Some(ref session_json_path) = opts.session_json_path {
+            let _ = update_session_status(
+                session_json_path,
+                Some(child.as_raw() as u32),
+                "running",
+                None,
+            );
+        }
+
+        let exit_code = communication_loop(
             pty.master,
             child,
             term_attrs.is_some(),
@@ -298,7 +349,14 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             opts.stdin_file.as_mut(),
             stderr_pty,
             !opts.no_flush,
-        );
+        )?;
+
+        // Update session status to exited with exit code
+        if let Some(ref session_json_path) = opts.session_json_path {
+            let _ = update_session_status(session_json_path, None, "exited", Some(exit_code));
+        }
+
+        return Ok(exit_code);
     }
 
     // set the pagers to `cat` if it's disabled.

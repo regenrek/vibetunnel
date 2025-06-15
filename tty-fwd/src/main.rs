@@ -38,17 +38,44 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
             let stdin_path = path.join("stdin");
 
             if session_json_path.exists() {
-                let status = if stream_out_path.exists() && stdin_path.exists() {
-                    "running"
+                let session_data = if let Ok(content) = fs::read_to_string(&session_json_path) {
+                    if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
+                        serde_json::json!({
+                            "cmdline": session_info.cmdline,
+                            "name": session_info.name,
+                            "cwd": session_info.cwd,
+                            "pid": session_info.pid,
+                            "status": session_info.status,
+                            "exit_code": session_info.exit_code,
+                            "stream-out": stream_out_path.to_string_lossy(),
+                            "stdin": stdin_path.to_string_lossy()
+                        })
+                    } else {
+                        // Fallback to old behavior if JSON parsing fails
+                        let status = if stream_out_path.exists() && stdin_path.exists() {
+                            "running"
+                        } else {
+                            "stopped"
+                        };
+                        serde_json::json!({
+                            "status": status,
+                            "stream-out": stream_out_path.to_string_lossy(),
+                            "stdin": stdin_path.to_string_lossy()
+                        })
+                    }
                 } else {
-                    "stopped"
+                    // Fallback to old behavior if file reading fails
+                    let status = if stream_out_path.exists() && stdin_path.exists() {
+                        "running"
+                    } else {
+                        "stopped"
+                    };
+                    serde_json::json!({
+                        "status": status,
+                        "stream-out": stream_out_path.to_string_lossy(),
+                        "stdin": stdin_path.to_string_lossy()
+                    })
                 };
-
-                let session_data = serde_json::json!({
-                    "status": status,
-                    "stream-out": stream_out_path.to_string_lossy(),
-                    "stdin": stdin_path.to_string_lossy()
-                });
 
                 sessions.insert(session_id.to_string(), session_data);
             }
@@ -121,10 +148,13 @@ fn main() -> Result<(), anyhow::Error> {
             .collect(),
         name: session_name.unwrap_or(executable_name),
         cwd: current_dir,
+        pid: None,
+        status: "starting".to_string(),
+        exit_code: None,
     };
     let session_info_path = session_path.join("session.json");
     let session_info_str = serde_json::to_string(&session_info)?;
-    fs::write(session_info_path, session_info_str)?;
+    fs::write(&session_info_path, session_info_str)?;
 
     // Set up stream-out and stdin paths
     let stream_out_path = session_path.join("stream-out");
@@ -134,7 +164,8 @@ fn main() -> Result<(), anyhow::Error> {
     let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| s.as_os_str()));
     tty_spawn
         .stdout_path(&stream_out_path, true)?
-        .stdin_path(&stdin_path)?;
+        .stdin_path(&stdin_path)?
+        .session_json_path(&session_info_path);
 
     // Spawn the process
     let exit_code = tty_spawn.spawn()?;
