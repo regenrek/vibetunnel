@@ -93,7 +93,7 @@ public class TunnelClient {
     public func connectWebSocket(sessionId: String? = nil) -> TunnelWebSocketClient {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
         components.scheme = components.scheme == "https" ? "wss" : "ws"
-        components.path = components.path + "/ws/terminal"
+        components.path += "/ws/terminal"
         let wsURL = components.url!
 
         return TunnelWebSocketClient(url: wsURL, apiKey: apiKey, sessionId: sessionId)

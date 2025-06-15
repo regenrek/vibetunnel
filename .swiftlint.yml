@@ -118,12 +118,6 @@ custom_rules:
     excluded: 
       - "VibeTunnelTests/*"
       - "VibeTunnelUITests/*"
-    
-  prefer_async_await:
-    name: "Prefer async/await"
-    regex: '\.flatMap\s*\{\s*\$0\s*\}\s*\.eraseToAnyPublisher'
-    message: "Consider using async/await instead of Combine for simple cases"
-    severity: info
 
 analyzer_rules:
   - unused_import

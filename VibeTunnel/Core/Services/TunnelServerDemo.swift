@@ -3,7 +3,7 @@ import Foundation
 import Logging
 
 /// Demo code showing how to use the VibeTunnel server
-class TunnelServerDemo {
+enum TunnelServerDemo {
     private static let logger = Logger(label: "VibeTunnel.TunnelServerDemo")
     
     static func runDemo() async {

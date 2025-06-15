@@ -115,7 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.openSettings()
     }
 
-    @objc private func handleCheckForUpdatesNotification() {
+    @objc
+    private func handleCheckForUpdatesNotification() {
         sparkleUpdaterManager?.checkForUpdates()
     }
 
@@ -167,16 +168,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu
     }
 
-    @objc private func statusItemClicked() {
+    @objc
+    private func statusItemClicked() {
         // Left click shows menu
     }
 
-    @objc private func showSettings() {
+    @objc
+    private func showSettings() {
         NSApp.openSettings()
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func showAbout() {
+    @objc
+    private func showAbout() {
         showAboutInSettings()
     }
 }
