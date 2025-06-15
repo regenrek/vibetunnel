@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc private func handleCheckForUpdatesNotification() {
-        sparkleUpdaterManager?.updaterController.updater.checkForUpdates()
+        sparkleUpdaterManager?.checkForUpdates()
     }
     
     func applicationWillTerminate(_ notification: Notification) {

@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */ = {isa = PBXBuildFile; productRef = 788688212DFF600100B22C15 /* Hummingbird */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		788687FF2DFF4FCB00B22C15 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,25 +75,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/hummingbird-project/hummingbird.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		788688212DFF600100B22C15 /* Hummingbird */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */;
-			productName = Hummingbird;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXGroup section */
 		788687E82DFF4FCB00B22C15 = {
@@ -592,6 +578,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/hummingbird-project/hummingbird.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		788688212DFF600100B22C15 /* Hummingbird */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 788688202DFF600000B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */;
+			productName = Hummingbird;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 788687E92DFF4FCB00B22C15 /* Project object */;
 }
