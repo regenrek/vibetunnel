@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppDomain</key>
+	<string>vibetunnel.sh</string>
+	<key>GitHubURL</key>
+	<string>https://github.com/amantus-ai/vibetunnel</string>
+	<key>AppcastURL</key>
+	<string>https://vibetunnel.sh/appcast.xml</string>
+	<key>AppName</key>
+	<string>VibeTunnel</string>
+	<key>CompanyName</key>
+	<string>Amantus AI</string>
+	<key>SupportEmail</key>
+	<string>support@amantus.ai</string>
+	<key>WebsiteURL</key>
+	<string>https://vibetunnel.sh</string>
+</dict>
+</plist>
