@@ -1,11 +1,11 @@
 use std::ffi::{CString, OsStr, OsString};
 use std::fs::File;
+use std::io;
 use std::os::fd::{AsFd, BorrowedFd, IntoRawFd, OwnedFd};
 use std::os::unix::prelude::{AsRawFd, OpenOptionsExt, OsStrExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::{env, io};
 use tempfile::NamedTempFile;
 
 use crate::protocol::{
@@ -18,12 +18,10 @@ use nix::pty::{openpty, Winsize};
 use nix::sys::select::{select, FdSet};
 use nix::sys::signal::{killpg, Signal};
 use nix::sys::stat::Mode;
-use nix::sys::termios::{
-    cfmakeraw, tcgetattr, tcsetattr, LocalFlags, OutputFlags, SetArg, Termios,
-};
+use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, LocalFlags, SetArg, Termios};
 use nix::sys::time::TimeVal;
 use nix::sys::wait::{waitpid, WaitStatus};
-use nix::unistd::{dup2, execvp, fork, isatty, mkfifo, read, tcgetpgrp, write, ForkResult, Pid};
+use nix::unistd::{execvp, fork, mkfifo, read, tcgetpgrp, write, ForkResult, Pid};
 use signal_hook::consts::SIGWINCH;
 
 /// Lets you spawn processes with a TTY connected.
@@ -32,23 +30,6 @@ pub struct TtySpawn {
 }
 
 impl TtySpawn {
-    /// Creates a new [`TtySpawn`] for a given command.
-    pub fn new<S: AsRef<OsStr>>(cmd: S) -> TtySpawn {
-        TtySpawn {
-            options: Some(SpawnOptions {
-                command: vec![cmd.as_ref().to_os_string()],
-                stdin_file: None,
-                stream_writer: None,
-                script_mode: false,
-                no_flush: false,
-                no_echo: false,
-                no_pager: false,
-                no_raw: false,
-                session_json_path: None,
-            }),
-        }
-    }
-
     /// Alternative way to construct a [`TtySpawn`].
     ///
     /// Takes an iterator of command and arguments.  If the iterator is empty this
@@ -58,42 +39,21 @@ impl TtySpawn {
     ///
     /// If the iterator is empty, this panics.
     pub fn new_cmdline<S: AsRef<OsStr>, I: Iterator<Item = S>>(mut cmdline: I) -> Self {
-        let mut rv = TtySpawn::new(cmdline.next().expect("empty cmdline"));
-        rv.args(cmdline);
-        rv
-    }
+        let mut command = vec![cmdline
+            .next()
+            .expect("empty cmdline")
+            .as_ref()
+            .to_os_string()];
+        command.extend(cmdline.map(|arg| arg.as_ref().to_os_string()));
 
-    /// Adds a new argument to the command.
-    pub fn arg<S: AsRef<OsStr>>(&mut self, arg: S) -> &mut Self {
-        self.options_mut().command.push(arg.as_ref().to_os_string());
-        self
-    }
-
-    /// Adds multiple arguments from an iterator.
-    pub fn args<S: AsRef<OsStr>, I: Iterator<Item = S>>(&mut self, args: I) -> &mut Self {
-        for arg in args {
-            self.arg(arg);
+        TtySpawn {
+            options: Some(SpawnOptions {
+                command,
+                stdin_file: None,
+                stream_writer: None,
+                session_json_path: None,
+            }),
         }
-        self
-    }
-
-    /// Sets an input file for stdin.
-    ///
-    /// It's recommended that this is a named pipe and as a general recommendation
-    /// this file should be opened with `O_NONBLOCK`.
-    ///
-    /// # Platform Specifics
-    ///
-    /// While we will never write into the file it's strongly recommended to
-    /// ensure that the file is opened writable too.  The reason for this is that
-    /// on Linux, if the last writer (temporarily) disconnects from a FIFO polling
-    /// primitives such as the one used by `tty-spawn` will keep reporting that the
-    /// file is ready while there not actually being any more data coming in.  The
-    /// solution to this problem is to ensure that there is at least always one
-    /// writer open which can be ensured by also opening this file for writing.
-    pub fn stdin_file(&mut self, f: File) -> &mut Self {
-        self.options_mut().stdin_file = Some(f);
-        self
     }
 
     /// Sets a path as input file for stdin.
@@ -101,14 +61,15 @@ impl TtySpawn {
         let path = path.as_ref();
         mkfifo_atomic(path)?;
         // for the justification for write(true) see the explanation on
-        // [`stdin_file`](Self::stdin_file).
-        Ok(self.stdin_file(
-            File::options()
-                .read(true)
-                .write(true)
-                .custom_flags(O_NONBLOCK)
-                .open(path)?,
-        ))
+        // stdin_file - we need to open for both read and write to prevent
+        // polling primitives from reporting ready when no data is available.
+        let file = File::options()
+            .read(true)
+            .write(true)
+            .custom_flags(O_NONBLOCK)
+            .open(path)?;
+        self.options_mut().stdin_file = Some(file);
+        Ok(self)
     }
 
     /// Sets a path as output file for stdout.
@@ -148,53 +109,6 @@ impl TtySpawn {
         Ok(self)
     }
 
-    /// Enables script mode.
-    ///
-    /// In script mode stdout/stderr are retained as separate streams, the terminal is
-    /// not opened in raw mode.  Additionally some output processing is disabled so
-    /// usually you will find LF retained and not converted to CLRF.  This will also
-    /// attempt to disable pagers and turn off ECHO intelligently in some cases.
-    pub fn script_mode(&mut self, yes: bool) -> &mut Self {
-        self.options_mut().script_mode = yes;
-        self
-    }
-
-    /// Can be used to turn flushing off.
-    ///
-    /// By default output is flushed constantly.
-    pub fn flush(&mut self, yes: bool) -> &mut Self {
-        self.options_mut().no_flush = !yes;
-        self
-    }
-
-    /// Can be used to turn echo off.
-    ///
-    /// By default echo is turned on.
-    pub fn echo(&mut self, yes: bool) -> &mut Self {
-        self.options_mut().no_echo = !yes;
-        self
-    }
-
-    /// Tries to use `cat` as pager.
-    ///
-    /// When this is enabled then processes are instructed to use `cat` as pager.
-    /// This is useful when raw terminals are disabled in which case most pagers
-    /// will break.
-    pub fn pager(&mut self, yes: bool) -> &mut Self {
-        self.options_mut().no_pager = !yes;
-        self
-    }
-
-    /// Can be used to turn raw terminal mode off.
-    ///
-    /// By default the terminal is in raw mode but in some cases you might want to
-    /// turn this off.  If raw mode is disabled then pagers will not work and so
-    /// will most input operations.
-    pub fn raw(&mut self, yes: bool) -> &mut Self {
-        self.options_mut().no_raw = !yes;
-        self
-    }
-
     /// Sets the session JSON path for status updates.
     pub fn session_json_path<P: AsRef<Path>>(&mut self, path: P) -> &mut Self {
         self.options_mut().session_json_path = Some(path.as_ref().to_path_buf());
@@ -217,11 +131,6 @@ struct SpawnOptions {
     command: Vec<OsString>,
     stdin_file: Option<File>,
     stream_writer: Option<StreamWriter>,
-    script_mode: bool,
-    no_flush: bool,
-    no_echo: bool,
-    no_pager: bool,
-    no_raw: bool,
     session_json_path: Option<PathBuf>,
 }
 
@@ -272,64 +181,32 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
     // Create the outer pty for stdout
     let pty = openpty(&winsize, &term_attrs)?;
 
-    // In script mode we set up a secondary pty.  One could also use `pipe()`
-    // here but in that case the `isatty()` call on stderr would report that
-    // it's not connected to a tty which is what we want to prevent.
-    let (_restore_term, stderr_pty) = if opts.script_mode {
-        let term_attrs = tcgetattr(io::stderr()).ok();
-        let winsize = term_attrs
-            .as_ref()
-            .and_then(|_| get_winsize(io::stderr().as_fd()));
-        let stderr_pty = openpty(&winsize, &term_attrs)?;
-        (None, Some(stderr_pty))
-
-    // If we are not disabling raw, we change to raw mode.  This switches the
-    // terminal to raw mode and restores it on Drop.  Unfortunately due to all
-    // our shenanigans here we have no real guarantee that `Drop` is called so
-    // there will be cases where the term is left in raw state and requires a
-    // reset :(
-    } else if !opts.no_raw {
-        (
-            term_attrs.as_ref().map(|term_attrs| {
-                let mut raw_attrs = term_attrs.clone();
-                cfmakeraw(&mut raw_attrs);
-                raw_attrs.local_flags.remove(LocalFlags::ECHO);
-                tcsetattr(io::stdin(), SetArg::TCSAFLUSH, &raw_attrs).ok();
-                RestoreTerm(term_attrs.clone())
-            }),
-            None,
-        )
-
-    // at this point we're neither in scrop mode, nor is raw enabled. do nothing
-    } else {
-        (None, None)
-    };
+    // We always use raw mode since script_mode and no_raw are always false.
+    // This switches the terminal to raw mode and restores it on Drop.
+    // Unfortunately due to all our shenanigans here we have no real guarantee
+    // that `Drop` is called so there will be cases where the term is left in
+    // raw state and requires a reset :(
+    let _restore_term = term_attrs.as_ref().map(|term_attrs| {
+        let mut raw_attrs = term_attrs.clone();
+        cfmakeraw(&mut raw_attrs);
+        raw_attrs.local_flags.remove(LocalFlags::ECHO);
+        tcsetattr(io::stdin(), SetArg::TCSAFLUSH, &raw_attrs).ok();
+        RestoreTerm(term_attrs.clone())
+    });
 
     // set some flags after pty has been created.  There are cases where we
     // want to remove the ECHO flag so we don't see ^D and similar things in
     // the output.  Likewise in script mode we want to remove OPOST which will
     // otherwise convert LF to CRLF.
-    if let Ok(mut term_attrs) = tcgetattr(&pty.master) {
-        if opts.script_mode {
-            term_attrs.output_flags.remove(OutputFlags::OPOST);
-        }
-        if opts.no_echo || (opts.script_mode && !isatty(io::stdin().as_raw_fd()).unwrap_or(false)) {
-            term_attrs.local_flags.remove(LocalFlags::ECHO);
-        }
-        tcsetattr(&pty.master, SetArg::TCSAFLUSH, &term_attrs).ok();
-    }
+    // Since script_mode and no_echo are always false, we don't need to
+    // modify any terminal attributes for the pty master.
 
     // Fork and establish the communication loop in the parent.  This unfortunately
     // has to merge stdout/stderr since the pseudo terminal only has one stream for
     // both.
     if let ForkResult::Parent { child } = unsafe { fork()? } {
         drop(pty.slave);
-        let stderr_pty = if let Some(stderr_pty) = stderr_pty {
-            drop(stderr_pty.slave);
-            Some(stderr_pty.master)
-        } else {
-            None
-        };
+        let stderr_pty = None; // Always None since script_mode is always false
 
         // Update session status to running with PID
         if let Some(ref session_json_path) = opts.session_json_path {
@@ -348,7 +225,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             opts.stream_writer.as_mut(),
             opts.stdin_file.as_mut(),
             stderr_pty,
-            !opts.no_flush,
+            true, // flush is always enabled
         )?;
 
         // Update session status to exited with exit code
@@ -359,12 +236,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
         return Ok(exit_code);
     }
 
-    // set the pagers to `cat` if it's disabled.
-    if opts.no_pager || opts.script_mode {
-        unsafe {
-            env::set_var("PAGER", "cat");
-        }
-    }
+    // Since no_pager and script_mode are always false, we don't set PAGER.
 
     // If we reach this point we're the child and we want to turn into the
     // target executable after having set up the tty with `login_tty` which
@@ -378,9 +250,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
     drop(pty.master);
     unsafe {
         login_tty(pty.slave.into_raw_fd());
-        if let Some(stderr_pty) = stderr_pty {
-            dup2(stderr_pty.slave.into_raw_fd(), io::stderr().as_raw_fd())?;
-        }
+        // No stderr redirection since script_mode is always false
     }
 
     // Since this returns Infallible rather than ! due to limitations, we need
