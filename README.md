@@ -1,6 +1,6 @@
 # VibeTunnel
 
-A macOS application for remotely controlling Claude Code and other terminal applications through a secure tunnel interface.
+VibeTunnel is a Mac app that proxies terminal apps to the web. Now you can use Claude Code anywhere, anytime. Control open instances, read the output, type new commands or even open new instances. Supports macOS 14+.
 
 ## Overview
 

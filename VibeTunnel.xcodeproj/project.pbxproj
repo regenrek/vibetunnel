@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */ = {isa = PBXBuildFile; productRef = 788688212DFF600100B22C15 /* Hummingbird */; };
 		788688322DFF700200B22C15 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 788688312DFF700100B22C15 /* Sparkle */; };
+		788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */ = {isa = PBXBuildFile; productRef = 788688212DFF600100B22C15 /* Hummingbird */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */

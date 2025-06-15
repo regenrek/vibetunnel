@@ -28,7 +28,7 @@ import UserNotifications
 public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
     // MARK: Initialization
     
-    private static let staticLogger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
+    private nonisolated static let staticLogger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
     
     /// Initializes the updater manager and configures Sparkle
     override init() {
@@ -86,23 +86,10 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     /// Configures the update channel and restarts if needed
     func setUpdateChannel(_ channel: UpdateChannel) {
-        guard let updater = updaterController?.updater else {
-            logger.error("Updater not available")
-            return
-        }
+        // Store the channel preference
+        UserDefaults.standard.set(channel.rawValue, forKey: "updateChannel")
         
-        let oldFeedURL = updater.feedURL
-        let newFeedURL = channel.appcastURL
-        
-        guard oldFeedURL != newFeedURL else {
-            logger.info("Update channel unchanged")
-            return
-        }
-        
-        logger.info("Changing update channel from \(oldFeedURL?.absoluteString ?? "nil") to \(newFeedURL)")
-        
-        // Update the feed URL
-        updater.setFeedURL(newFeedURL)
+        logger.info("Update channel changed to: \(channel.rawValue)")
         
         // Force a new update check with the new feed
         checkForUpdates()
@@ -112,37 +99,28 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     /// Initializes the Sparkle updater controller
     private func initializeUpdaterController() {
-        do {
-            updaterController = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: self,
-                userDriverDelegate: self
-            )
-            
-            guard let updater = updaterController?.updater else {
-                logger.error("Failed to get updater from controller")
-                return
-            }
-            
-            // Configure updater settings
-            updater.automaticallyChecksForUpdates = true
-            updater.updateCheckInterval = 60 * 60  // 1 hour
-            updater.automaticallyDownloadsUpdates = true
-            
-            // Set the feed URL based on current channel
-            updater.setFeedURL(UpdateChannel.defaultChannel.appcastURL)
-            
-            logger.info("""
-                Updater configured:
-                - Automatic checks: \(updater.automaticallyChecksForUpdates)
-                - Check interval: \(updater.updateCheckInterval)s
-                - Auto download: \(updater.automaticallyDownloadsUpdates)
-                - Feed URL: \(updater.feedURL?.absoluteString ?? "none")
-            """)
-            
-        } catch {
-            logger.error("Failed to initialize updater controller: \(error.localizedDescription)")
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: self,
+            userDriverDelegate: self
+        )
+        
+        guard let updater = updaterController?.updater else {
+            logger.error("Failed to get updater from controller")
+            return
         }
+        
+        // Configure updater settings
+        updater.automaticallyChecksForUpdates = true
+        updater.updateCheckInterval = 60 * 60  // 1 hour
+        updater.automaticallyDownloadsUpdates = true
+        
+        logger.info("""
+            Updater configured:
+            - Automatic checks: \(updater.automaticallyChecksForUpdates)
+            - Check interval: \(updater.updateCheckInterval)s
+            - Auto download: \(updater.automaticallyDownloadsUpdates)
+        """)
     }
     
     /// Sets up the notification center for gentle reminders
@@ -182,8 +160,6 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     /// Checks for updates in the background without UI
     private func checkForUpdatesInBackground() {
-        guard let updater = updaterController?.updater else { return }
-        
         logger.info("Starting background update check")
         lastUpdateCheckDate = Date()
         
@@ -192,6 +168,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     }
     
     /// Shows a gentle reminder notification for available updates
+    @MainActor
     private func showGentleUpdateReminder() {
         let content = UNMutableNotificationContent()
         content.title = "Update Available"
@@ -222,27 +199,42 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         // Schedule reminders every 4 hours
         gentleReminderTimer = Timer.scheduledTimer(withTimeInterval: 4 * 60 * 60, repeats: true) {
             [weak self] _ in
-            self?.showGentleUpdateReminder()
+            Task { @MainActor in
+                self?.showGentleUpdateReminder()
+            }
         }
         
         // Show first reminder after 1 hour
         DispatchQueue.main.asyncAfter(deadline: .now() + 3600) { [weak self] in
-            self?.showGentleUpdateReminder()
+            Task { @MainActor in
+                self?.showGentleUpdateReminder()
+            }
         }
     }
     
     // MARK: - SPUUpdaterDelegate
     
     @objc public nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
-        Self.staticLogger.info("Appcast loaded successfully: \(appcast.items.count) items")
+        Task { @MainActor in
+            Self.staticLogger.info("Appcast loaded successfully: \(appcast.items.count) items")
+        }
     }
     
     @objc public nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
-        Self.staticLogger.info("No update found: \(error.localizedDescription)")
+        Task { @MainActor in
+            Self.staticLogger.info("No update found: \(error.localizedDescription)")
+        }
     }
     
     @objc public nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        Self.staticLogger.error("Update aborted with error: \(error.localizedDescription)")
+        Task { @MainActor in
+            Self.staticLogger.error("Update aborted with error: \(error.localizedDescription)")
+        }
+    }
+    
+    // Provide the feed URL dynamically based on update channel
+    @objc public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
+        return UpdateChannel.current.appcastURL.absoluteString
     }
     
     // MARK: - SPUStandardUserDriverDelegate
@@ -252,16 +244,18 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState
     ) {
-        Self.staticLogger.info("""
-            Will show update:
-            - Version: \(update.displayVersionString ?? "unknown")
-            - Critical: \(update.isCriticalUpdate)
-            - Stage: \(state.stage.rawValue)
-        """)
+        Task { @MainActor in
+            Self.staticLogger.info("""
+                Will show update:
+                - Version: \(update.displayVersionString)
+                - Critical: \(update.isCriticalUpdate)
+                - Stage: \(state.stage.rawValue)
+            """)
+        }
     }
     
     @objc public func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
-        logger.info("User gave attention to update: \(update.displayVersionString ?? "unknown")")
+        logger.info("User gave attention to update: \(update.displayVersionString)")
         updateInProgress = true
         
         // Cancel gentle reminders since user is aware
@@ -281,11 +275,11 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         willDownloadUpdate item: SUAppcastItem,
         with request: NSMutableURLRequest
     ) {
-        logger.info("Will download update: \(item.displayVersionString ?? "unknown")")
+        logger.info("Will download update: \(item.displayVersionString)")
     }
     
     @objc public func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
-        logger.info("Update downloaded: \(item.displayVersionString ?? "unknown")")
+        logger.info("Update downloaded: \(item.displayVersionString)")
         
         // For background downloads, schedule gentle reminders
         if !updateInProgress {
@@ -297,7 +291,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         _ updater: SPUUpdater,
         willInstallUpdate item: SUAppcastItem
     ) {
-        logger.info("Will install update: \(item.displayVersionString ?? "unknown")")
+        logger.info("Will install update: \(item.displayVersionString)")
     }
     
     // MARK: - UNUserNotificationCenterDelegate
@@ -327,7 +321,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     ) {
         if keyPath == "updateChannel" {
             logger.info("Update channel changed via UserDefaults")
-            setUpdateChannel(UpdateChannel.defaultChannel)
+            setUpdateChannel(UpdateChannel.current)
         }
     }
     
@@ -335,6 +329,6 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     
     deinit {
         UserDefaults.standard.removeObserver(self, forKeyPath: "updateChannel")
-        gentleReminderTimer?.invalidate()
+        // Timer is cleaned up automatically when the object is deallocated
     }
 }

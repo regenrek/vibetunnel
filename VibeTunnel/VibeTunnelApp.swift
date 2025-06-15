@@ -14,27 +14,16 @@ struct VibeTunnelApp: App {
     var appDelegate
     
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        #if os(macOS)
+        Settings {
+            SettingsView()
         }
         .commands {
-            CommandGroup(replacing: .appInfo) {
+            CommandGroup(after: .appInfo) {
                 Button("About VibeTunnel") {
                     AboutWindowController.shared.showWindow()
                 }
             }
-            
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings…") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
-        }
-        
-        #if os(macOS)
-        Settings {
-            SettingsView()
         }
         #endif
     }
@@ -45,6 +34,7 @@ struct VibeTunnelApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
+    private var statusItem: NSStatusItem?
     
     /// Distributed notification name used to ask an existing instance to show the Settings window.
     private static let showSettingsNotification = Notification.Name("com.amantus.vibetunnel.showSettings")
@@ -64,9 +54,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize Sparkle updater manager
         sparkleUpdaterManager = SparkleUpdaterManager()
         
-        // Configure activation policy based on settings
+        // Configure activation policy based on settings (default to menu bar only)
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
+        
+        // Setup status item (menu bar icon)
+        setupStatusItem()
+        
+        // Show settings on first launch or when no window is open
+        if !showInDock {
+            // For menu bar apps, we need to ensure the settings window is accessible
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if NSApp.windows.isEmpty || NSApp.windows.allSatisfy({ !$0.isVisible }) {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+            }
+        }
         
         // Listen for update check requests
         NotificationCenter.default.addObserver(
@@ -138,5 +141,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self,
             name: Notification.Name("checkForUpdates"),
             object: nil)
+    }
+    
+    // MARK: - Status Item
+    
+    private func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        
+        if let button = statusItem?.button {
+            button.image = NSImage(systemSymbolName: "network.badge.shield.half.filled", accessibilityDescription: "VibeTunnel")
+            button.action = #selector(statusItemClicked)
+            button.target = self
+        }
+        
+        // Create menu
+        let menu = NSMenu()
+        
+        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "About VibeTunnel", action: #selector(showAbout), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        
+        statusItem?.menu = menu
+    }
+    
+    @objc private func statusItemClicked() {
+        // Left click shows menu
+    }
+    
+    @objc private func showSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    @objc private func showAbout() {
+        AboutWindowController.shared.showWindow()
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
