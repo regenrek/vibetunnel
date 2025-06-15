@@ -351,7 +351,11 @@ fn communication_loop(
 
     while !done {
         if got_winch.load(Ordering::Relaxed) {
-            forward_winsize(master.as_fd(), stderr.as_ref().map(|x| x.as_fd()))?;
+            forward_winsize(
+                master.as_fd(),
+                stderr.as_ref().map(|x| x.as_fd()),
+                &mut stream_writer,
+            )?;
             got_winch.store(false, Ordering::Relaxed);
         }
 
@@ -466,7 +470,11 @@ fn forward_and_log(
 }
 
 /// Forwards the winsize and emits SIGWINCH
-fn forward_winsize(master: BorrowedFd, stderr_master: Option<BorrowedFd>) -> Result<(), Errno> {
+fn forward_winsize(
+    master: BorrowedFd,
+    stderr_master: Option<BorrowedFd>,
+    stream_writer: &mut Option<&mut StreamWriter>,
+) -> Result<(), Errno> {
     if let Some(winsize) = get_winsize(io::stdin().as_fd()) {
         set_winsize(master, winsize).ok();
         if let Some(second_master) = stderr_master {
@@ -474,6 +482,22 @@ fn forward_winsize(master: BorrowedFd, stderr_master: Option<BorrowedFd>) -> Res
         }
         if let Ok(pgrp) = tcgetpgrp(master) {
             killpg(pgrp, Signal::SIGWINCH).ok();
+        }
+
+        // Log resize event to stream writer
+        if let Some(writer) = stream_writer {
+            let time = writer.elapsed_time();
+            let event = AsciinemaEvent {
+                time,
+                event_type: AsciinemaEventType::Resize,
+                data: format!("{}x{}", winsize.ws_col, winsize.ws_row),
+            };
+            writer
+                .write_event(event)
+                .map_err(|x| match x.raw_os_error() {
+                    Some(errno) => Errno::from_raw(errno),
+                    None => Errno::EINVAL,
+                })?;
         }
     }
     Ok(())
