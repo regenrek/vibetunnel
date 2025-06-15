@@ -7,7 +7,7 @@ import Foundation
 public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
     case stable
     case prerelease
-    
+
     /// Human-readable display name for the update channel
     public var displayName: String {
         switch self {
@@ -17,7 +17,7 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
             "Include Pre-releases"
         }
     }
-    
+
     /// Detailed description of what each channel includes
     public var description: String {
         switch self {
@@ -27,17 +27,21 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
             "Receive both stable releases and beta/pre-release versions"
         }
     }
-    
+
     /// The Sparkle appcast URL for this update channel
     public var appcastURL: URL {
         switch self {
         case .stable:
-            URL(string: "https://vibetunnel.sh/appcast.xml")!
+            Self.stableAppcastURL
         case .prerelease:
-            URL(string: "https://vibetunnel.sh/appcast-prerelease.xml")!
+            Self.prereleaseAppcastURL
         }
     }
     
+    // Static URLs to ensure they're validated at compile time
+    private static let stableAppcastURL = URL(string: "https://vibetunnel.sh/appcast.xml")!
+    private static let prereleaseAppcastURL = URL(string: "https://vibetunnel.sh/appcast-prerelease.xml")!
+
     /// Whether this channel includes pre-release versions
     public var includesPreReleases: Bool {
         switch self {
@@ -47,38 +51,38 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
             true
         }
     }
-    
+
     /// The current update channel based on user defaults
-    public static var current: UpdateChannel {
+    public static var current: Self {
         if let rawValue = UserDefaults.standard.string(forKey: "updateChannel"),
-           let channel = UpdateChannel(rawValue: rawValue) {
+           let channel = Self(rawValue: rawValue) {
             return channel
         }
         return defaultChannel
     }
-    
+
     /// The default update channel based on the current app version
-    public static var defaultChannel: UpdateChannel {
+    public static var defaultChannel: Self {
         defaultChannel(for: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
     }
-    
+
     /// Determines if the current app version suggests this channel should be default
-    public static func defaultChannel(for appVersion: String) -> UpdateChannel {
+    public static func defaultChannel(for appVersion: String) -> Self {
         // First check if this build was marked as a pre-release during build time
         if let isPrereleaseValue = Bundle.main.object(forInfoDictionaryKey: "IS_PRERELEASE_BUILD"),
            let isPrerelease = isPrereleaseValue as? Bool,
            isPrerelease {
             return .prerelease
         }
-        
+
         // Otherwise, check if the version string contains pre-release keywords
         let prereleaseKeywords = ["beta", "alpha", "rc", "pre", "dev"]
         let lowercaseVersion = appVersion.lowercased()
-        
+
         for keyword in prereleaseKeywords where lowercaseVersion.contains(keyword) {
             return .prerelease
         }
-        
+
         return .stable
     }
 }

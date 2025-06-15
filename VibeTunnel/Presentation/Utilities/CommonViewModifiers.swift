@@ -16,7 +16,8 @@ struct MaterialBackgroundModifier: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(material))
+                    .fill(material)
+            )
     }
 }
 
@@ -50,7 +51,8 @@ struct CardStyleModifier: ViewModifier {
     init(
         cornerRadius: CGFloat = 10,
         horizontalPadding: CGFloat = 14,
-        verticalPadding: CGFloat = 10) {
+        verticalPadding: CGFloat = 10
+    ) {
         self.cornerRadius = cornerRadius
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
@@ -66,15 +68,17 @@ struct CardStyleModifier: ViewModifier {
 
 // MARK: - View Extensions
 
-public extension View {
+extension View {
     /// Applies a material background with rounded corners.
     ///
     /// - Parameters:
     ///   - cornerRadius: Corner radius for the rounded rectangle (default: 10)
     ///   - material: Material type to use (default: .thickMaterial)
-    func materialBackground(
+    public func materialBackground(
         cornerRadius: CGFloat = 10,
-        material: Material = .thickMaterial) -> some View {
+        material: Material = .thickMaterial
+    )
+        -> some View {
         modifier(MaterialBackgroundModifier(cornerRadius: cornerRadius, material: material))
     }
 
@@ -83,9 +87,11 @@ public extension View {
     /// - Parameters:
     ///   - horizontal: Horizontal padding (default: 16)
     ///   - vertical: Vertical padding (default: 14)
-    func standardPadding(
+    public func standardPadding(
         horizontal: CGFloat = 16,
-        vertical: CGFloat = 14) -> some View {
+        vertical: CGFloat = 14
+    )
+        -> some View {
         modifier(StandardPaddingModifier(horizontal: horizontal, vertical: vertical))
     }
 
@@ -95,14 +101,17 @@ public extension View {
     ///   - cornerRadius: Corner radius for the card (default: 10)
     ///   - horizontalPadding: Horizontal padding (default: 14)
     ///   - verticalPadding: Vertical padding (default: 10)
-    func cardStyle(
+    public func cardStyle(
         cornerRadius: CGFloat = 10,
         horizontalPadding: CGFloat = 14,
-        verticalPadding: CGFloat = 10) -> some View {
+        verticalPadding: CGFloat = 10
+    )
+        -> some View {
         modifier(CardStyleModifier(
             cornerRadius: cornerRadius,
             horizontalPadding: horizontalPadding,
-            verticalPadding: verticalPadding))
+            verticalPadding: verticalPadding
+        ))
     }
 }
 

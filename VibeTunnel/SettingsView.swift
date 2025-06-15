@@ -1,30 +1,23 @@
-//
-//  SettingsView.swift
-//  VibeTunnel
-//
-//  Created by Peter Steinberger on 15.06.25.
-//
-
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable {
     case general
     case advanced
     case about
-    
+
     var displayName: String {
         switch self {
-        case .general: return "General"
-        case .advanced: return "Advanced"
-        case .about: return "About"
+        case .general: "General"
+        case .advanced: "Advanced"
+        case .about: "About"
         }
     }
-    
+
     var icon: String {
         switch self {
-        case .general: return "gear"
-        case .advanced: return "gearshape.2"
-        case .about: return "info.circle"
+        case .general: "gear"
+        case .advanced: "gearshape.2"
+        case .about: "info.circle"
         }
     }
 }
@@ -35,7 +28,7 @@ extension Notification.Name {
 
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
-    
+
     var body: some View {
         TabView(selection: $selectedTab) {
             GeneralSettingsView()
@@ -43,13 +36,13 @@ struct SettingsView: View {
                     Label(SettingsTab.general.displayName, systemImage: SettingsTab.general.icon)
                 }
                 .tag(SettingsTab.general)
-            
+
             AdvancedSettingsView()
                 .tabItem {
                     Label(SettingsTab.advanced.displayName, systemImage: SettingsTab.advanced.icon)
                 }
                 .tag(SettingsTab.advanced)
-            
+
             AboutView()
                 .tabItem {
                     Label(SettingsTab.about.displayName, systemImage: SettingsTab.about.icon)
@@ -69,9 +62,9 @@ struct GeneralSettingsView: View {
     @AppStorage("autostart") private var autostart = false
     @AppStorage("showNotifications") private var showNotifications = true
     @AppStorage("showInDock") private var showInDock = false
-    
+
     private let startupManager = StartupManager()
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -83,7 +76,7 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     // Show Notifications
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Show notifications", isOn: $showNotifications)
@@ -95,7 +88,7 @@ struct GeneralSettingsView: View {
                     Text("Application")
                         .font(.headline)
                 }
-                
+
                 Section {
                     // Show in Dock
                     VStack(alignment: .leading, spacing: 4) {
@@ -118,23 +111,25 @@ struct GeneralSettingsView: View {
             autostart = startupManager.isLaunchAtLoginEnabled
         }
     }
-    
+
     private var launchAtLoginBinding: Binding<Bool> {
         Binding(
             get: { autostart },
             set: { newValue in
                 autostart = newValue
                 startupManager.setLaunchAtLogin(enabled: newValue)
-            })
+            }
+        )
     }
-    
+
     private var showInDockBinding: Binding<Bool> {
         Binding(
             get: { showInDock },
             set: { newValue in
                 showInDock = newValue
                 NSApp.setActivationPolicy(newValue ? .regular : .accessory)
-            })
+            }
+        )
     }
 }
 
@@ -142,19 +137,19 @@ struct AdvancedSettingsView: View {
     @AppStorage("debugMode") private var debugMode = false
     @AppStorage("serverPort") private var serverPort = "8080"
     @AppStorage("updateChannel") private var updateChannelRaw = UpdateChannel.stable.rawValue
-    
+
     @State private var isCheckingForUpdates = false
     @StateObject private var tunnelServer: TunnelServer
-    
+
     init() {
-        let port = Int(UserDefaults.standard.string(forKey: "serverPort") ?? "8080") ?? 8080
+        let port = Int(UserDefaults.standard.string(forKey: "serverPort") ?? "8080") ?? 8_080
         _tunnelServer = StateObject(wrappedValue: TunnelServer(port: port))
     }
-    
+
     var updateChannel: UpdateChannel {
         UpdateChannel(rawValue: updateChannelRaw) ?? .stable
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -176,7 +171,7 @@ struct AdvancedSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     // Check for Updates
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -185,9 +180,9 @@ struct AdvancedSettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        
+
                         Spacer()
-                        
+
                         Button("Check Now") {
                             checkForUpdates()
                         }
@@ -199,7 +194,7 @@ struct AdvancedSettingsView: View {
                     Text("Updates")
                         .font(.headline)
                 }
-                
+
                 Section {
                     // Tunnel Server
                     VStack(alignment: .leading, spacing: 8) {
@@ -213,26 +208,28 @@ struct AdvancedSettingsView: View {
                                             .frame(width: 8, height: 8)
                                     }
                                 }
-                                Text(tunnelServer.isRunning ? "Server is running on port \(serverPort)" : "Server is stopped")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text(tunnelServer
+                                    .isRunning ? "Server is running on port \(serverPort)" : "Server is stopped"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             }
-                            
+
                             Spacer()
-                            
+
                             Button(tunnelServer.isRunning ? "Stop" : "Start") {
                                 toggleServer()
                             }
                             .buttonStyle(.bordered)
                             .tint(tunnelServer.isRunning ? .red : .blue)
                         }
-                        
-                        if tunnelServer.isRunning {
-                            Link("Open in Browser", destination: URL(string: "http://localhost:\(serverPort)")!)
+
+                        if tunnelServer.isRunning, let serverURL = URL(string: "http://localhost:\(serverPort)") {
+                            Link("Open in Browser", destination: serverURL)
                                 .font(.caption)
                         }
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Server port:")
@@ -249,7 +246,7 @@ struct AdvancedSettingsView: View {
                     Text("Server")
                         .font(.headline)
                 }
-                
+
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Debug mode", isOn: $debugMode)
@@ -267,7 +264,7 @@ struct AdvancedSettingsView: View {
             .navigationTitle("Advanced Settings")
         }
     }
-    
+
     private var updateChannelBinding: Binding<UpdateChannel> {
         Binding(
             get: { updateChannel },
@@ -279,20 +276,21 @@ struct AdvancedSettingsView: View {
                     object: nil,
                     userInfo: ["channel": newValue]
                 )
-            })
+            }
+        )
     }
-    
+
     private func checkForUpdates() {
         isCheckingForUpdates = true
         NotificationCenter.default.post(name: Notification.Name("checkForUpdates"), object: nil)
-        
+
         // Reset after a delay
         Task {
             try? await Task.sleep(for: .seconds(2))
             isCheckingForUpdates = false
         }
     }
-    
+
     private func toggleServer() {
         Task {
             if tunnelServer.isRunning {

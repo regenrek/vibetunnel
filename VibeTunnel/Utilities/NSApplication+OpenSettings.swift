@@ -1,10 +1,3 @@
-//
-//  NSApplication+OpenSettings.swift
-//  VibeTunnel
-//
-//  Created by Peter Steinberger on 15.06.25.
-//
-
 import AppKit
 
 extension NSApplication {

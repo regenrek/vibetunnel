@@ -25,78 +25,79 @@ import UserNotifications
 /// ```
 @MainActor
 @Observable
-public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
+public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate,
+    UNUserNotificationCenterDelegate {
     // MARK: Initialization
-    
+
     private nonisolated static let staticLogger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
-    
+
     /// Initializes the updater manager and configures Sparkle
     override init() {
         super.init()
-        
+
         Self.staticLogger.info("Initializing SparkleUpdaterManager")
-        
+
         // Initialize the updater controller
         initializeUpdaterController()
-        
+
         // Set up notification center for gentle reminders
         setupNotificationCenter()
-        
+
         // Listen for update channel changes
         setupUpdateChannelListener()
         Self.staticLogger
             .info("SparkleUpdaterManager initialized. Updater controller initialization completed.")
-        
+
         // Only schedule startup update check in release builds
         #if !DEBUG
             scheduleStartupUpdateCheck()
         #endif
     }
-    
+
     // MARK: Public
-    
+
     // MARK: Properties
-    
+
     /// The shared singleton instance of the updater manager
     static let shared = SparkleUpdaterManager()
-    
+
     /// The Sparkle updater controller instance
     private(set) var updaterController: SPUStandardUpdaterController?
-    
+
     /// The logger instance for update events
     private let logger = Logger(subsystem: "com.amantus.vibetunnel", category: "updates")
-    
+
     // Track update state
     private var updateInProgress = false
     private var lastUpdateCheckDate: Date?
     private var gentleReminderTimer: Timer?
-    
+
     // MARK: Methods
-    
+
     /// Checks for updates immediately
     func checkForUpdates() {
-        guard let updaterController = updaterController else {
+        guard let updaterController else {
             logger.warning("Updater controller not available")
             return
         }
-        
+
         logger.info("Manual update check initiated")
         updaterController.checkForUpdates(nil)
     }
-    
+
     /// Configures the update channel and restarts if needed
     func setUpdateChannel(_ channel: UpdateChannel) {
         // Store the channel preference
         UserDefaults.standard.set(channel.rawValue, forKey: "updateChannel")
-        
+
         logger.info("Update channel changed to: \(channel.rawValue)")
-        
+
         // Force a new update check with the new feed
         checkForUpdates()
     }
-    
+
     // MARK: Private
-    
+
     /// Initializes the Sparkle updater controller
     private func initializeUpdaterController() {
         updaterController = SPUStandardUpdaterController(
@@ -104,17 +105,17 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             updaterDelegate: self,
             userDriverDelegate: self
         )
-        
+
         guard let updater = updaterController?.updater else {
             logger.error("Failed to get updater from controller")
             return
         }
-        
+
         // Configure updater settings
         updater.automaticallyChecksForUpdates = true
-        updater.updateCheckInterval = 60 * 60  // 1 hour
+        updater.updateCheckInterval = 60 * 60 // 1 hour
         updater.automaticallyDownloadsUpdates = true
-        
+
         logger.info("""
             Updater configured:
             - Automatic checks: \(updater.automaticallyChecksForUpdates)
@@ -122,11 +123,11 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             - Auto download: \(updater.automaticallyDownloadsUpdates)
         """)
     }
-    
+
     /// Sets up the notification center for gentle reminders
     private func setupNotificationCenter() {
         UNUserNotificationCenter.current().delegate = self
-        
+
         // Request notification permissions
         Task {
             do {
@@ -138,7 +139,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             }
         }
     }
-    
+
     /// Sets up a listener for update channel changes
     private func setupUpdateChannelListener() {
         // Listen for channel changes via UserDefaults
@@ -149,7 +150,7 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             context: nil
         )
     }
-    
+
     /// Schedules an update check after app startup
     private func scheduleStartupUpdateCheck() {
         // Check for updates 5 seconds after app launch
@@ -157,16 +158,16 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             self?.checkForUpdatesInBackground()
         }
     }
-    
+
     /// Checks for updates in the background without UI
     private func checkForUpdatesInBackground() {
         logger.info("Starting background update check")
         lastUpdateCheckDate = Date()
-        
+
         // Sparkle will check in the background when automaticallyChecksForUpdates is true
         // We don't need to explicitly call checkForUpdates for background checks
     }
-    
+
     /// Shows a gentle reminder notification for available updates
     @MainActor
     private func showGentleUpdateReminder() {
@@ -174,13 +175,13 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
         content.title = "Update Available"
         content.body = "A new version of VibeTunnel is ready to install. Click to update now."
         content.sound = .default
-        
+
         let request = UNNotificationRequest(
             identifier: "update-reminder",
             content: content,
             trigger: nil
         )
-        
+
         Task {
             do {
                 try await UNUserNotificationCenter.current().add(request)
@@ -190,12 +191,12 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             }
         }
     }
-    
+
     /// Schedules periodic gentle reminders for available updates
     private func scheduleGentleReminders() {
         // Cancel any existing timer
         gentleReminderTimer?.invalidate()
-        
+
         // Schedule reminders every 4 hours
         gentleReminderTimer = Timer.scheduledTimer(withTimeInterval: 4 * 60 * 60, repeats: true) {
             [weak self] _ in
@@ -203,42 +204,42 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
                 self?.showGentleUpdateReminder()
             }
         }
-        
+
         // Show first reminder after 1 hour
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3600) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3_600) { [weak self] in
             Task { @MainActor in
                 self?.showGentleUpdateReminder()
             }
         }
     }
-    
+
     // MARK: - SPUUpdaterDelegate
-    
+
     @objc public nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         Task { @MainActor in
             Self.staticLogger.info("Appcast loaded successfully: \(appcast.items.count) items")
         }
     }
-    
+
     @objc public nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
         Task { @MainActor in
             Self.staticLogger.info("No update found: \(error.localizedDescription)")
         }
     }
-    
+
     @objc public nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         Task { @MainActor in
             Self.staticLogger.error("Update aborted with error: \(error.localizedDescription)")
         }
     }
-    
-    // Provide the feed URL dynamically based on update channel
+
+    /// Provide the feed URL dynamically based on update channel
     @objc public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        return UpdateChannel.current.appcastURL.absoluteString
+        UpdateChannel.current.appcastURL.absoluteString
     }
-    
+
     // MARK: - SPUStandardUserDriverDelegate
-    
+
     @objc public nonisolated func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool,
         forUpdate update: SUAppcastItem,
@@ -253,23 +254,23 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             """)
         }
     }
-    
+
     @objc public func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
         logger.info("User gave attention to update: \(update.displayVersionString)")
         updateInProgress = true
-        
+
         // Cancel gentle reminders since user is aware
         gentleReminderTimer?.invalidate()
         gentleReminderTimer = nil
     }
-    
+
     @objc public func standardUserDriverWillFinishUpdateSession() {
         logger.info("Update session finishing")
         updateInProgress = false
     }
-    
+
     // MARK: - Background update handling
-    
+
     @objc public func updater(
         _ updater: SPUUpdater,
         willDownloadUpdate item: SUAppcastItem,
@@ -277,25 +278,25 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     ) {
         logger.info("Will download update: \(item.displayVersionString)")
     }
-    
+
     @objc public func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
         logger.info("Update downloaded: \(item.displayVersionString)")
-        
+
         // For background downloads, schedule gentle reminders
         if !updateInProgress {
             scheduleGentleReminders()
         }
     }
-    
+
     @objc public func updater(
         _ updater: SPUUpdater,
         willInstallUpdate item: SUAppcastItem
     ) {
         logger.info("Will install update: \(item.displayVersionString)")
     }
-    
+
     // MARK: - UNUserNotificationCenterDelegate
-    
+
     @objc public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -303,17 +304,17 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
     ) {
         if response.notification.request.identifier == "update-reminder" {
             logger.info("User clicked update reminder notification")
-            
+
             // Trigger the update UI
             checkForUpdates()
         }
-        
+
         completionHandler()
     }
-    
+
     // MARK: - KVO
-    
-    public override func observeValue(
+
+    override public func observeValue(
         forKeyPath keyPath: String?,
         of object: Any?,
         change: [NSKeyValueChangeKey: Any]?,
@@ -324,9 +325,9 @@ public class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUse
             setUpdateChannel(UpdateChannel.current)
         }
     }
-    
+
     // MARK: - Cleanup
-    
+
     deinit {
         UserDefaults.standard.removeObserver(self, forKeyPath: "updateChannel")
         // Timer is cleaned up automatically when the object is deallocated

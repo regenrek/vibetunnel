@@ -10,7 +10,8 @@ let package = Package(
     products: [
         .library(
             name: "VibeTunnel",
-            targets: ["VibeTunnel"])
+            targets: ["VibeTunnel"]
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/realm/SwiftLint.git", from: "0.57.0"),

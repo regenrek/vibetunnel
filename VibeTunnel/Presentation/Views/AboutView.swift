@@ -62,7 +62,8 @@ struct AboutView: View {
             HoverableLink(
                 url: "https://github.com/amantus-ai/vibetunnel/issues",
                 title: "Report an Issue",
-                icon: "exclamationmark.bubble")
+                icon: "exclamationmark.bubble"
+            )
             HoverableLink(url: "https://x.com/steipete", title: "Follow @steipete on Twitter", icon: "bird")
         }
     }
@@ -86,9 +87,13 @@ struct HoverableLink: View {
 
     @State
     private var isHovering = false
+    
+    private var destinationURL: URL {
+        URL(string: url) ?? URL(fileURLWithPath: "/")
+    }
 
     var body: some View {
-        Link(destination: URL(string: url)!) {
+        Link(destination: destinationURL) {
             Label(title, systemImage: icon)
                 .underline(isHovering, color: .accentColor)
         }
@@ -126,7 +131,8 @@ struct InteractiveAppIcon: View {
                     color: shadowColor,
                     radius: shadowRadius,
                     x: 0,
-                    y: shadowOffset)
+                    y: shadowOffset
+                )
                 .animation(.easeInOut(duration: 0.2), value: isHovering)
                 .animation(.easeInOut(duration: 0.1), value: isPressed)
 
@@ -144,7 +150,8 @@ struct InteractiveAppIcon: View {
         }
         .pressEvents(
             onPress: { isPressed = true },
-            onRelease: { isPressed = false })
+            onRelease: { isPressed = false }
+        )
     }
 
     private var shadowColor: Color {

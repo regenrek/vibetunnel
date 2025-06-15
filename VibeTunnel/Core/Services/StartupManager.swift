@@ -1,6 +1,6 @@
 import Foundation
-import ServiceManagement
 import os
+import ServiceManagement
 
 /// Protocol defining the interface for managing launch at login functionality.
 @MainActor
@@ -18,9 +18,9 @@ public protocol StartupControlling: Sendable {
 @MainActor
 public struct StartupManager: StartupControlling {
     private let logger = Logger(subsystem: "com.amantus.vibetunnel", category: "startup")
-    
+
     public init() {}
-    
+
     public func setLaunchAtLogin(enabled: Bool) {
         do {
             if enabled {
@@ -31,10 +31,13 @@ public struct StartupManager: StartupControlling {
                 logger.info("Successfully unregistered for launch at login.")
             }
         } catch {
-            logger.error("Failed to \(enabled ? "register" : "unregister") for launch at login: \(error.localizedDescription)")
+            logger
+                .error(
+                    "Failed to \(enabled ? "register" : "unregister") for launch at login: \(error.localizedDescription)"
+                )
         }
     }
-    
+
     public var isLaunchAtLoginEnabled: Bool {
         SMAppService.mainApp.status == .enabled
     }
