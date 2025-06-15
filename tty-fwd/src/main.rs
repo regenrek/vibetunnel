@@ -7,15 +7,15 @@ use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use std::{env, fs};
 
 use anyhow::anyhow;
 use argument_parser::Parser;
 use uuid::Uuid;
 
-use tty_spawn::{create_session_info, TtySpawn};
-
 use crate::protocol::SessionInfo;
+use crate::tty_spawn::TtySpawn;
 
 fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
     let mut sessions = HashMap::new();
@@ -111,9 +111,7 @@ fn send_key_to_session(
         _ => return Err(anyhow!("Unknown key: {}", key)),
     };
 
-    let mut file = OpenOptions::new()
-        .append(true)
-        .open(&stdin_path)?;
+    let mut file = OpenOptions::new().append(true).open(&stdin_path)?;
     file.write_all(key_bytes)?;
     file.flush()?;
 
@@ -132,9 +130,7 @@ fn send_text_to_session(
         return Err(anyhow!("Session {} not found or not running", session_id));
     }
 
-    let mut file = OpenOptions::new()
-        .append(true)
-        .open(&stdin_path)?;
+    let mut file = OpenOptions::new().append(true).open(&stdin_path)?;
     file.write_all(text.as_bytes())?;
     file.flush()?;
 
@@ -142,8 +138,6 @@ fn send_text_to_session(
 }
 
 fn is_pid_alive(pid: u32) -> bool {
-    use std::process::Command;
-
     let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
 
     match output {
@@ -196,30 +190,32 @@ fn cleanup_sessions(
         let entry = entry?;
         let path = entry.path();
 
-        if path.is_dir() {
-            if let Some(_session_id) = path.file_name().and_then(|n| n.to_str()) {
-                let session_json_path = path.join("session.json");
+        if !path.is_dir() {
+            continue;
+        }
 
-                if session_json_path.exists() {
-                    let should_remove = if let Ok(content) = fs::read_to_string(&session_json_path)
-                    {
-                        if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
-                            if let Some(pid) = session_info.pid {
-                                !is_pid_alive(pid)
-                            } else {
-                                true
-                            }
-                        } else {
-                            true
-                        }
+        if let Some(_session_id) = path.file_name().and_then(|n| n.to_str()) {
+            let session_json_path = path.join("session.json");
+            if !session_json_path.exists() {
+                continue;
+            }
+
+            let should_remove = if let Ok(content) = fs::read_to_string(&session_json_path) {
+                if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
+                    if let Some(pid) = session_info.pid {
+                        !is_pid_alive(pid)
                     } else {
                         true
-                    };
-
-                    if should_remove {
-                        let _ = fs::remove_dir_all(&path);
                     }
+                } else {
+                    true
                 }
+            } else {
+                true
+            };
+
+            if should_remove {
+                let _ = fs::remove_dir_all(&path);
             }
         }
     }
@@ -315,29 +311,7 @@ fn main() -> Result<(), anyhow::Error> {
     let session_path = control_path.join(session_id.to_string());
     fs::create_dir_all(&session_path)?;
 
-    // Get executable name for session name
-    let executable_name = cmdline[0]
-        .to_string_lossy()
-        .split('/')
-        .next_back()
-        .unwrap_or("unknown")
-        .to_string();
-
-    // Get current working directory
-    let current_dir = env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
     let session_info_path = session_path.join("session.json");
-    create_session_info(
-        &session_info_path,
-        cmdline
-            .iter()
-            .map(|s| s.to_string_lossy().to_string())
-            .collect(),
-        session_name.unwrap_or(executable_name),
-        current_dir,
-    )?;
 
     // Set up stream-out and stdin paths
     let stream_out_path = session_path.join("stream-out");
@@ -349,6 +323,10 @@ fn main() -> Result<(), anyhow::Error> {
         .stdout_path(&stream_out_path, true)?
         .stdin_path(&stdin_path)?
         .session_json_path(&session_info_path);
+
+    if let Some(name) = session_name {
+        tty_spawn.session_name(name);
+    }
 
     // Spawn the process
     let exit_code = tty_spawn.spawn()?;

@@ -1,3 +1,4 @@
+use std::env;
 use std::ffi::{CString, OsStr, OsString};
 use std::fs::File;
 use std::io;
@@ -15,6 +16,7 @@ use crate::utils;
 use jiff::Timestamp;
 
 use nix::errno::Errno;
+use nix::libc;
 use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
 use nix::pty::{openpty, Winsize};
 use nix::sys::select::{select, FdSet};
@@ -54,6 +56,7 @@ impl TtySpawn {
                 stdin_file: None,
                 stream_writer: None,
                 session_json_path: None,
+                session_name: None,
             }),
         }
     }
@@ -118,6 +121,12 @@ impl TtySpawn {
         self
     }
 
+    /// Sets the session name.
+    pub fn session_name<S: Into<String>>(&mut self, name: S) -> &mut Self {
+        self.options_mut().session_name = Some(name.into());
+        self
+    }
+
     /// Spawns the application in the TTY.
     pub fn spawn(&mut self) -> Result<i32, io::Error> {
         Ok(spawn(
@@ -135,6 +144,7 @@ struct SpawnOptions {
     stdin_file: Option<File>,
     stream_writer: Option<StreamWriter>,
     session_json_path: Option<PathBuf>,
+    session_name: Option<String>,
 }
 
 /// Creates a new session JSON file with the provided information
@@ -201,6 +211,32 @@ fn update_session_status(
 /// optional `out` log file.  Additionally it can retrieve instructions from
 /// the given control socket.
 fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
+    // Create session info at the beginning if we have a session JSON path
+    if let Some(ref session_json_path) = opts.session_json_path {
+        // Get executable name for session name
+        let executable_name = opts.command[0]
+            .to_string_lossy()
+            .split('/')
+            .next_back()
+            .unwrap_or("unknown")
+            .to_string();
+
+        // Get current working directory
+        let current_dir = env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+
+        let cmdline = opts
+            .command
+            .iter()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect();
+
+        let session_name = opts.session_name.unwrap_or(executable_name);
+
+        create_session_info(session_json_path, cmdline, session_name, current_dir)
+            .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?;
+    }
     // if we can't retrieve the terminal atts we're not directly connected
     // to a pty in which case we won't do any of the terminal related
     // operations.
