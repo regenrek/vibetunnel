@@ -12,7 +12,7 @@ use crate::protocol::{
     AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, SessionInfo, StreamWriter,
 };
 use crate::utils;
-use chrono::Utc;
+use jiff::Timestamp;
 
 use nix::errno::Errno;
 use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
@@ -151,7 +151,7 @@ pub fn create_session_info(
         pid: None,
         status: "starting".to_string(),
         exit_code: None,
-        started_at: Some(Utc::now()),
+        started_at: Some(Timestamp::now()),
     };
 
     let session_info_str = serde_json::to_string(&session_info)?;
