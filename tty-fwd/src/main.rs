@@ -6,12 +6,11 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{env, fs};
 
 use anyhow::anyhow;
 use argument_parser::Parser;
-use serde_json;
 use uuid::Uuid;
 
 use tty_spawn::{create_session_info, TtySpawn};
@@ -113,7 +112,6 @@ fn send_key_to_session(
     };
 
     let mut file = OpenOptions::new()
-        .write(true)
         .append(true)
         .open(&stdin_path)?;
     file.write_all(key_bytes)?;
@@ -135,7 +133,6 @@ fn send_text_to_session(
     }
 
     let mut file = OpenOptions::new()
-        .write(true)
         .append(true)
         .open(&stdin_path)?;
     file.write_all(text.as_bytes())?;
@@ -233,7 +230,9 @@ fn cleanup_sessions(
 fn main() -> Result<(), anyhow::Error> {
     let mut parser = Parser::from_env();
 
-    let mut control_path = PathBuf::from("./tty-fwd-control");
+    let mut control_path = env::home_dir()
+        .ok_or_else(|| anyhow!("Unable to determine home directory"))?
+        .join(".vibetunnel/control");
     let mut session_name = None::<String>;
     let mut session_id = None::<String>;
     let mut send_key = None::<String>;
@@ -313,14 +312,14 @@ fn main() -> Result<(), anyhow::Error> {
     }
 
     let session_id = Uuid::new_v4();
-    let session_path = control_path.join(&session_id.to_string());
+    let session_path = control_path.join(session_id.to_string());
     fs::create_dir_all(&session_path)?;
 
     // Get executable name for session name
     let executable_name = cmdline[0]
         .to_string_lossy()
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or("unknown")
         .to_string();
 
