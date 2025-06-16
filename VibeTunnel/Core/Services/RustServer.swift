@@ -497,9 +497,12 @@ final class RustServer: ServerProtocol {
                 return nil
             }
 
-            let result = await group.next()
+            if let result = await group.next() {
+                group.cancelAll()
+                return result
+            }
             group.cancelAll()
-            return result ?? nil
+            return nil
         }
     }
 }

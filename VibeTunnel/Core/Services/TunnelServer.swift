@@ -590,8 +590,13 @@ public final class TunnelServer {
             return errorResponse(message: "File not found", status: .notFound)
         }
 
-        // If it's a directory, return 404 (we don't serve directory listings)
+        // If it's a directory, try to serve index.html from that directory
         if isDirectory.boolValue {
+            let indexPath = fullPath + "/index.html"
+            if FileManager.default.fileExists(atPath: indexPath) {
+                // Recursively serve the index.html file
+                return await serveStaticFile(path: sanitizedPath + "/index.html")
+            }
             return errorResponse(message: "Directory access not allowed", status: .notFound)
         }
 
@@ -803,16 +808,10 @@ public final class TunnelServer {
             }
 
             if session.pid > 0 {
-                kill(pid_t(session.pid), SIGTERM)
-
-                DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
-                    if kill(pid_t(session.pid), 0) == 0 {
-                        kill(pid_t(session.pid), SIGKILL)
-                    }
-                }
+                kill(pid_t(session.pid), SIGKILL)
             }
 
-            let response = SimpleResponse(success: true, message: "Session killed")
+            let response = SimpleResponse(success: true, message: "Session killed (SIGKILL)")
             return jsonResponse(response)
         } catch {
             logger.error("Error killing session: \(error)")
@@ -1182,7 +1181,7 @@ public final class TunnelServer {
 
         do {
             let content = try String(contentsOfFile: streamOutPath, encoding: .utf8)
-            
+
             var buffer = ByteBuffer()
             buffer.writeString(content)
 
@@ -1354,9 +1353,10 @@ public final class TunnelServer {
 
             struct SuccessResponse: Codable {
                 let success: Bool
+                let message: String
             }
 
-            let response = SuccessResponse(success: true)
+            let response = SuccessResponse(success: true, message: "Input sent successfully")
             return jsonResponse(response)
         } catch let decodingError as DecodingError {
             logger.error("Error decoding input request: \(decodingError)")
@@ -1448,7 +1448,11 @@ public final class TunnelServer {
 
             let expandedPath = resolvePath(mkdirRequest.path, fallback: mkdirRequest.path)
 
-            try FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true, attributes: nil)
+            try FileManager.default.createDirectory(
+                atPath: expandedPath,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
 
             let response = SimpleResponse(
                 success: true,
@@ -1461,7 +1465,10 @@ public final class TunnelServer {
             return errorResponse(message: "Invalid request body. Expected JSON with 'path' field", status: .badRequest)
         } catch {
             logger.error("Error creating directory: \(error)")
-            return errorResponse(message: "Failed to create directory: \(error.localizedDescription)", status: .internalServerError)
+            return errorResponse(
+                message: "Failed to create directory: \(error.localizedDescription)",
+                status: .internalServerError
+            )
         }
     }
 
