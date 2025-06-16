@@ -809,3 +809,4 @@ private struct NgrokErrorView: View {
         }
     }
 }
+

@@ -53,7 +53,7 @@ struct WelcomeView: View {
                                 .frame(width: 8, height: 8)
                         }
                         .buttonStyle(.plain)
-                        .cursor(NSCursor.pointingHand)
+                        .pointingHandCursor()
                     }
                 }
                 .padding(.top, 12)
