@@ -594,7 +594,8 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
 
     } catch (error) {
         console.error('Error sending input via tty-fwd:', error);
-        res.status(500).json({ error: 'Failed to send input', details: error.message });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        res.status(500).json({ error: 'Failed to send input', details: errorMessage });
     }
 });
 
