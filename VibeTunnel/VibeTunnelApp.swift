@@ -107,6 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showWelcomeScreen()
         }
 
+        // Verify preferred terminal is still available
+        TerminalLauncher.shared.verifyPreferredTerminal()
+
         // Listen for update check requests
         NotificationCenter.default.addObserver(
             self,

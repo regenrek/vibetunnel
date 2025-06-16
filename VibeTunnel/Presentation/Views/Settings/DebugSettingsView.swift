@@ -65,6 +65,8 @@ struct DebugSettingsView: View {
                     logLevel: $logLevel
                 )
 
+                TerminalPreferenceSection()
+
                 DeveloperToolsSection(
                     showPurgeConfirmation: $showPurgeConfirmation,
                     showServerConsole: showServerConsole,
@@ -100,7 +102,9 @@ struct DebugSettingsView: View {
                     purgeAllUserDefaults()
                 }
             } message: {
-                Text("This will remove all stored preferences and reset the app to its default state. The app will quit after purging.")
+                Text(
+                    "This will remove all stored preferences and reset the app to its default state. The app will quit after purging."
+                )
             }
         }
     }
@@ -220,13 +224,13 @@ struct DebugSettingsView: View {
             }
         }
     }
-    
+
     private func getCurrentServerMode() -> String {
         // If server is switching, show transitioning state
         if serverManager.isSwitching {
             return "Switching..."
         }
-        
+
         // Always use the configured mode from settings to ensure immediate UI update
         return ServerMode(rawValue: serverModeString)?.displayName ?? "None"
     }
@@ -619,6 +623,51 @@ private struct DeveloperToolsSection: View {
         } header: {
             Text("Developer Tools")
                 .font(.headline)
+        }
+    }
+}
+
+// MARK: - Terminal Preference Section
+
+private struct TerminalPreferenceSection: View {
+    @AppStorage("preferredTerminal") private var preferredTerminal = Terminal.terminal.rawValue
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Preferred Terminal")
+                    Spacer()
+                    Picker("", selection: $preferredTerminal) {
+                        ForEach(Terminal.installed, id: \.rawValue) { terminal in
+                            HStack {
+                                if let icon = terminal.appIcon {
+                                    Image(nsImage: icon)
+                                        .resizable()
+                                        .frame(width: 16, height: 16)
+                                }
+                                Text(terminal.displayName)
+                            }
+                            .tag(terminal.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+                Text("Select which terminal application to use when creating new sessions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Terminal Preference")
+                .font(.headline)
+        } footer: {
+            Text(
+                "VibeTunnel will use this terminal when launching new terminal sessions. Falls back to Terminal if the selected app is not available."
+            )
+            .font(.caption)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
     }
 }
