@@ -21,6 +21,8 @@ export class VibeTunnelApp extends LitElement {
   @state() private loading = false;
   @state() private currentView: 'list' | 'session' = 'list';
   @state() private selectedSession: Session | null = null;
+  @state() private hideExited = true;
+  @state() private showCreateModal = false;
 
   private hotReloadWs: WebSocket | null = null;
 
@@ -88,6 +90,7 @@ export class VibeTunnelApp extends LitElement {
   private handleSessionCreated(e: CustomEvent) {
     console.log('Session created:', e.detail);
     this.showError('Session created successfully!');
+    this.showCreateModal = false;
     this.loadSessions(); // Refresh the list
   }
 
@@ -114,6 +117,18 @@ export class VibeTunnelApp extends LitElement {
 
   private handleError(e: CustomEvent) {
     this.showError(e.detail);
+  }
+
+  private handleHideExitedChange(e: CustomEvent) {
+    this.hideExited = e.detail;
+  }
+
+  private handleCreateSession() {
+    this.showCreateModal = true;
+  }
+
+  private handleCreateModalClose() {
+    this.showCreateModal = false;
   }
 
   private setupHotReload(): void {
@@ -151,15 +166,21 @@ export class VibeTunnelApp extends LitElement {
         ></session-view>
       ` : html`
         <div class="max-w-4xl mx-auto">
-          <app-header></app-header>
+          <app-header
+            @create-session=${this.handleCreateSession}
+          ></app-header>
           <session-list
             .sessions=${this.sessions}
             .loading=${this.loading}
+            .hideExited=${this.hideExited}
+            .showCreateModal=${this.showCreateModal}
             @session-select=${this.handleSessionSelect}
             @session-killed=${this.handleSessionKilled}
             @session-created=${this.handleSessionCreated}
+            @create-modal-close=${this.handleCreateModalClose}
             @refresh=${this.handleRefresh}
             @error=${this.handleError}
+            @hide-exited-change=${this.handleHideExitedChange}
           ></session-list>
         </div>
       `}

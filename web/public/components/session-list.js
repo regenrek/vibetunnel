@@ -12,11 +12,11 @@ let SessionList = class SessionList extends LitElement {
         super(...arguments);
         this.sessions = [];
         this.loading = false;
+        this.hideExited = true;
+        this.showCreateModal = false;
         this.killingSessionIds = new Set();
         this.loadedSnapshots = new Map();
         this.loadingSnapshots = new Set();
-        this.hideExited = true;
-        this.showCreateModal = false;
         this.cleaningExited = false;
         this.newSessionIds = new Set();
     }
@@ -79,18 +79,21 @@ let SessionList = class SessionList extends LitElement {
         }
         // If hideExited changed, recreate players for newly visible sessions
         if (changedProperties.has('hideExited')) {
-            requestAnimationFrame(() => {
-                this.filteredSessions.forEach(session => {
-                    const playerElement = this.querySelector(`#player-${session.id}`);
-                    if (playerElement && this.loadedSnapshots.has(session.id)) {
-                        // Player element exists but might not have a player instance
-                        // Check if it's empty and recreate if needed
-                        if (!playerElement.hasChildNodes() || playerElement.children.length === 0) {
-                            this.createPlayer(session.id);
+            // Use a slight delay to avoid blocking the checkbox click
+            setTimeout(() => {
+                requestAnimationFrame(() => {
+                    this.filteredSessions.forEach(session => {
+                        const playerElement = this.querySelector(`#player-${session.id}`);
+                        if (playerElement && this.loadedSnapshots.has(session.id)) {
+                            // Player element exists but might not have a player instance
+                            // Check if it's empty and recreate if needed
+                            if (!playerElement.hasChildNodes() || playerElement.children.length === 0) {
+                                this.createPlayer(session.id);
+                            }
                         }
-                    }
+                    });
                 });
-            });
+            }, 10);
         }
     }
     createPlayer(sessionId) {
@@ -221,7 +224,6 @@ let SessionList = class SessionList extends LitElement {
         return id.length > 8 ? `${id.substring(0, 8)}...` : id;
     }
     handleSessionCreated(e) {
-        this.showCreateModal = false;
         this.dispatchEvent(new CustomEvent('session-created', {
             detail: e.detail
         }));
@@ -230,6 +232,9 @@ let SessionList = class SessionList extends LitElement {
         this.dispatchEvent(new CustomEvent('error', {
             detail: e.detail
         }));
+    }
+    handleCreateModalClose() {
+        this.dispatchEvent(new CustomEvent('create-modal-close'));
     }
     async handleCleanExited() {
         const exitedSessions = this.sessions.filter(session => session.status === 'exited');
@@ -271,6 +276,12 @@ let SessionList = class SessionList extends LitElement {
             this.requestUpdate();
         }
     }
+    handleHideExitedChange(e) {
+        const checked = e.target.checked;
+        this.dispatchEvent(new CustomEvent('hide-exited-change', {
+            detail: checked
+        }));
+    }
     get filteredSessions() {
         return this.hideExited
             ? this.sessions.filter(session => session.status === 'running')
@@ -281,84 +292,35 @@ let SessionList = class SessionList extends LitElement {
         return html `
       <div class="font-mono text-sm p-4">
         <!-- Controls -->
-        <div class="mb-4 space-y-3 md:space-y-0">
-          <!-- Mobile: Stack everything -->
-          <div class="flex flex-col space-y-3 md:hidden">
-            <div class="flex items-center gap-2">
-              <button
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm flex-1"
-                @click=${() => this.showCreateModal = true}
-              >
-CREATE
-              </button>
+        <div class="mb-4 flex items-center justify-between">
+          ${!this.hideExited ? html `
+            <button
+              class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
+              @click=${this.handleCleanExited}
+              ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
+            >
+              ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
+            </button>
+          ` : html `<div></div>`}
 
-              <button
-                class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors disabled:opacity-50 text-sm flex-1"
-                @click=${this.handleCleanExited}
-                ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
+          <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
+            <div class="relative">
+              <input
+                type="checkbox"
+                class="sr-only"
+                .checked=${this.hideExited}
+                @change=${this.handleHideExitedChange}
               >
-                ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN'}
-              </button>
-            </div>
-
-            <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
-              <div class="relative">
-                <input
-                  type="checkbox"
-                  class="sr-only"
-                  .checked=${this.hideExited}
-                  @change=${(e) => this.hideExited = e.target.checked}
-                >
-                <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
-                  ${this.hideExited ? html `
-                    <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                    </svg>
-                  ` : ''}
-                </div>
+              <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
+                ${this.hideExited ? html `
+                  <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                  </svg>
+                ` : ''}
               </div>
-              hide exited
-            </label>
-          </div>
-
-          <!-- Desktop: Side by side -->
-          <div class="hidden md:flex md:items-center md:justify-between">
-            <div class="flex items-center gap-3">
-              <button
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors"
-                @click=${() => this.showCreateModal = true}
-              >
-CREATE SESSION
-              </button>
-
-              <button
-                class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
-                @click=${this.handleCleanExited}
-                ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
-              >
-                ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
-              </button>
             </div>
-
-            <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
-              <div class="relative">
-                <input
-                  type="checkbox"
-                  class="sr-only"
-                  .checked=${this.hideExited}
-                  @change=${(e) => this.hideExited = e.target.checked}
-                >
-                <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
-                  ${this.hideExited ? html `
-                    <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                    </svg>
-                  ` : ''}
-                </div>
-              </div>
-              hide exited
-            </label>
-          </div>
+            hide exited
+          </label>
         </div>
 
         ${sessionsToShow.length === 0 ? html `
@@ -375,15 +337,17 @@ CREATE SESSION
                 <!-- Compact Header -->
                 <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
                   <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${session.command}</div>
-                  <button
-                    class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
-                    @click=${(e) => session.status === 'running' ? this.handleKillSession(e, session.id) : this.handleCleanSession(e, session.id)}
-                    ?disabled=${this.killingSessionIds.has(session.id)}
-                  >
-                    ${this.killingSessionIds.has(session.id)
+                  ${session.status === 'running' || !this.hideExited ? html `
+                    <button
+                      class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
+                      @click=${(e) => session.status === 'running' ? this.handleKillSession(e, session.id) : this.handleCleanSession(e, session.id)}
+                      ?disabled=${this.killingSessionIds.has(session.id)}
+                    >
+                      ${this.killingSessionIds.has(session.id)
             ? (session.status === 'running' ? '[~] killing...' : '[~] cleaning...')
             : (session.status === 'running' ? 'kill' : 'clean')}
-                  </button>
+                    </button>
+                  ` : ''}
                 </div>
 
                 <!-- Asciinema player (main content) -->
@@ -417,7 +381,7 @@ CREATE SESSION
         <session-create-form
           .visible=${this.showCreateModal}
           @session-created=${this.handleSessionCreated}
-          @cancel=${() => this.showCreateModal = false}
+          @cancel=${this.handleCreateModalClose}
           @error=${this.handleCreateError}
         ></session-create-form>
       </div>
@@ -431,6 +395,12 @@ __decorate([
     property({ type: Boolean })
 ], SessionList.prototype, "loading", void 0);
 __decorate([
+    property({ type: Boolean })
+], SessionList.prototype, "hideExited", void 0);
+__decorate([
+    property({ type: Boolean })
+], SessionList.prototype, "showCreateModal", void 0);
+__decorate([
     state()
 ], SessionList.prototype, "killingSessionIds", void 0);
 __decorate([
@@ -439,12 +409,6 @@ __decorate([
 __decorate([
     state()
 ], SessionList.prototype, "loadingSnapshots", void 0);
-__decorate([
-    state()
-], SessionList.prototype, "hideExited", void 0);
-__decorate([
-    state()
-], SessionList.prototype, "showCreateModal", void 0);
 __decorate([
     state()
 ], SessionList.prototype, "cleaningExited", void 0);
