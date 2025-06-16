@@ -87,11 +87,63 @@ export class VibeTunnelApp extends LitElement {
     }, 3000);
   }
 
-  private handleSessionCreated(e: CustomEvent) {
-    console.log('Session created:', e.detail);
-    this.showError('Session created successfully!');
+  private async handleSessionCreated(e: CustomEvent) {
+    console.log('Session created event detail:', e.detail);
+    const sessionId = e.detail.sessionId;
+    console.log('Extracted sessionId:', sessionId);
+    
+    if (!sessionId) {
+      this.showError('Session created but ID not found in response');
+      return;
+    }
+    
     this.showCreateModal = false;
-    this.loadSessions(); // Refresh the list
+    
+    // Wait for session to appear in the list and then switch to it
+    await this.waitForSessionAndSwitch(sessionId);
+  }
+
+  private async waitForSessionAndSwitch(sessionId: string) {
+    const maxAttempts = 10;
+    const delay = 500; // 500ms between attempts
+    
+    console.log(`Waiting for session ${sessionId} to appear...`);
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      console.log(`Attempt ${attempt + 1}/${maxAttempts} to find session ${sessionId}`);
+      await this.loadSessions();
+      
+      console.log('Current sessions:', this.sessions.map(s => ({ id: s.id, command: s.command })));
+      // Try to find by exact ID match first
+      let session = this.sessions.find(s => s.id === sessionId);
+      
+      // If not found by ID, find the most recently created session
+      // This works around tty-fwd potentially using different IDs internally
+      if (!session && this.sessions.length > 0) {
+        console.log('Session not found by ID, trying to find newest session...');
+        const sortedSessions = [...this.sessions].sort((a, b) => 
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+        );
+        session = sortedSessions[0];
+        console.log('Using newest session:', session.id);
+      }
+      
+      if (session) {
+        // Session found, switch to session view
+        console.log('Session found, switching to session view');
+        this.selectedSession = session;
+        this.currentView = 'session';
+        this.showError('Session created successfully!');
+        return;
+      }
+      
+      // Wait before next attempt
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    // If we get here, session creation might have failed
+    console.log('Session not found after all attempts');
+    this.showError('Session created but could not be found. Please refresh.');
   }
 
   private handleSessionSelect(e: CustomEvent) {

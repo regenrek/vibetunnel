@@ -34,8 +34,25 @@ if (!TTY_FWD_PATH) {
 
 const TTY_FWD_CONTROL_DIR = process.env.TTY_FWD_CONTROL_DIR || path.join(os.homedir(), '.vibetunnel');
 
-// Ensure control directory exists
-if (!fs.existsSync(TTY_FWD_CONTROL_DIR)) {
+// Ensure control directory exists and is clean
+if (fs.existsSync(TTY_FWD_CONTROL_DIR)) {
+    // Clean existing directory contents
+    try {
+        const files = fs.readdirSync(TTY_FWD_CONTROL_DIR);
+        for (const file of files) {
+            const filePath = path.join(TTY_FWD_CONTROL_DIR, file);
+            const stat = fs.statSync(filePath);
+            if (stat.isDirectory()) {
+                fs.rmSync(filePath, { recursive: true, force: true });
+            } else {
+                fs.unlinkSync(filePath);
+            }
+        }
+        console.log(`Cleaned control directory: ${TTY_FWD_CONTROL_DIR}`);
+    } catch (error) {
+        console.error('Error cleaning control directory:', error);
+    }
+} else {
     fs.mkdirSync(TTY_FWD_CONTROL_DIR, { recursive: true });
     console.log(`Created control directory: ${TTY_FWD_CONTROL_DIR}`);
 }
