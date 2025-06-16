@@ -478,33 +478,15 @@ struct AdvancedSettingsView: View {
     }
 
     private func restartServerWithNewPort(_ port: Int) {
-        guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
-
         Task {
-            // Stop the current server if running
-            if let server = appDelegate.httpServer, server.isRunning {
-                try? await server.stop()
-            }
+            // Update the port in ServerManager and restart
+            ServerManager.shared.port = String(port)
+            await ServerManager.shared.restart()
+            print("Server restarted on port \(port)")
 
-            // Create and start new server with the new port
-            let newServer = TunnelServer(port: port)
-            appDelegate.setHTTPServer(newServer)
-
-            do {
-                try await newServer.start()
-                print("Server restarted on port \(port)")
-
-                // Restart session monitoring with new port
-                SessionMonitor.shared.stopMonitoring()
-                SessionMonitor.shared.startMonitoring()
-            } catch {
-                print("Failed to restart server on port \(port): \(error)")
-                // Show error alert
-                await MainActor.run {
-                    serverErrorMessage = "Could not start server on port \(port): \(error.localizedDescription)"
-                    showingServerErrorAlert = true
-                }
-            }
+            // Restart session monitoring with new port
+            SessionMonitor.shared.stopMonitoring()
+            SessionMonitor.shared.startMonitoring()
         }
     }
 
@@ -574,13 +556,16 @@ extension String? {
 
 /// Debug settings tab for development and troubleshooting
 struct DebugSettingsView: View {
-    @State private var httpServer: TunnelServer?
     @State private var serverMonitor = ServerMonitor.shared
     @State private var lastError: String?
     @State private var testResult: String?
     @State private var isTesting = false
     @AppStorage("debugMode") private var debugMode = false
     @AppStorage("logLevel") private var logLevel = "info"
+    @AppStorage("serverMode") private var serverModeString = ServerMode.hummingbird.rawValue
+    @StateObject private var serverManager = ServerManager.shared
+    @State private var isServerHealthy = false
+    @State private var heartbeatTask: Task<Void, Never>?
 
     private var isServerRunning: Bool {
         serverMonitor.isRunning
@@ -601,10 +586,15 @@ struct DebugSettingsView: View {
                                 HStack {
                                     Text("HTTP Server")
                                     Circle()
-                                        .fill(isServerRunning ? .green : .red)
+                                        .fill(isServerHealthy ? .green : (isServerRunning ? .orange : .red))
                                         .frame(width: 8, height: 8)
+                                    if isServerRunning && !isServerHealthy {
+                                        ProgressView()
+                                            .scaleEffect(0.6)
+                                    }
                                 }
-                                Text(isServerRunning ? "Server is running on port \(serverPort)" : "Server is stopped")
+                                Text(isServerHealthy ? "Server is running on port \(serverPort)" : 
+                                     isServerRunning ? "Server starting... (checking health)" : "Server is stopped")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -640,16 +630,66 @@ struct DebugSettingsView: View {
                 } footer: {
                     Text("The HTTP server provides REST API endpoints for terminal session management.")
                         .font(.caption)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
                 }
 
+                Section {
+                    // Server Mode Selector
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Server Mode")
+                            Spacer()
+                            Picker("", selection: Binding(
+                                get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
+                                set: { serverModeString = $0.rawValue }
+                            )) {
+                                ForEach(ServerMode.allCases, id: \.self) { mode in
+                                    VStack(alignment: .leading) {
+                                        Text(mode.displayName)
+                                        Text(mode.description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .disabled(serverManager.isSwitching)
+                        }
+                        
+                        if serverManager.isSwitching {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Switching server mode...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Server Configuration")
+                        .font(.headline)
+                } footer: {
+                    Text("Choose between the built-in Hummingbird server or the external Rust tty-fwd binary.")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                }
+                
                 Section {
                     // Server Information
                     VStack(alignment: .leading, spacing: 8) {
                         LabeledContent("Status") {
                             HStack {
-                                Image(systemName: isServerRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundStyle(isServerRunning ? .green : .secondary)
-                                Text(isServerRunning ? "Running" : "Stopped")
+                                Image(systemName: isServerHealthy ? "checkmark.circle.fill" : 
+                                                 isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundStyle(isServerHealthy ? .green : 
+                                                   isServerRunning ? .orange : .secondary)
+                                Text(isServerHealthy ? "Healthy" : 
+                                     isServerRunning ? "Unhealthy" : "Stopped")
                             }
                         }
 
@@ -660,6 +700,11 @@ struct DebugSettingsView: View {
                         LabeledContent("Base URL") {
                             Text("http://127.0.0.1:\(serverPort)")
                                 .font(.system(.body, design: .monospaced))
+                        }
+                        
+                        LabeledContent("Mode") {
+                            Text(serverManager.currentServer?.serverType.displayName ?? "None")
+                                .foregroundStyle(.secondary)
                         }
                     }
                 } header: {
@@ -750,14 +795,28 @@ struct DebugSettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Server Logs")
+                            Text("Server Console")
+                            Spacer()
+                            Button("Show Console") {
+                                showServerConsole()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        Text("View real-time server logs from both Hummingbird and Rust servers")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("System Logs")
                             Spacer()
                             Button("Open Console") {
                                 openConsole()
                             }
                             .buttonStyle(.bordered)
                         }
-                        Text("View server logs in Console.app")
+                        Text("View all application logs in Console.app")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -784,9 +843,21 @@ struct DebugSettingsView: View {
             .scrollContentBackground(.hidden)
             .navigationTitle("Debug Settings")
             .task {
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    httpServer = appDelegate.httpServer
-                }
+                // Start heartbeat monitoring
+                startHeartbeatMonitoring()
+            }
+            .onDisappear {
+                // Stop heartbeat monitoring when view disappears
+                heartbeatTask?.cancel()
+                heartbeatTask = nil
+            }
+            .onChange(of: serverManager.isRunning) { _, _ in
+                // Restart heartbeat monitoring when server state changes
+                startHeartbeatMonitoring()
+            }
+            .onChange(of: serverModeString) { _, _ in
+                // Clear health status when switching modes
+                isServerHealthy = false
             }
         }
     }
@@ -797,12 +868,16 @@ struct DebugSettingsView: View {
         if shouldStart {
             do {
                 try await serverMonitor.startServer()
+                // Restart heartbeat monitoring after starting server
+                startHeartbeatMonitoring()
             } catch {
                 lastError = error.localizedDescription
             }
         } else {
             do {
                 try await serverMonitor.stopServer()
+                // Clear health status immediately when stopping
+                isServerHealthy = false
             } catch {
                 lastError = error.localizedDescription
             }
@@ -849,6 +924,66 @@ struct DebugSettingsView: View {
             let appDirectory = appSupport.appendingPathComponent("VibeTunnel")
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: appDirectory.path)
         }
+    }
+    
+    private func showServerConsole() {
+        // Create a new window for the server console
+        let consoleWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        consoleWindow.title = "Server Console"
+        consoleWindow.center()
+        
+        let consoleView = ServerConsoleView()
+        consoleWindow.contentView = NSHostingView(rootView: consoleView)
+        
+        let windowController = NSWindowController(window: consoleWindow)
+        windowController.showWindow(nil)
+    }
+    
+    private func startHeartbeatMonitoring() {
+        // Cancel any existing heartbeat task
+        heartbeatTask?.cancel()
+        
+        // Start a new heartbeat monitoring task
+        heartbeatTask = Task {
+            while !Task.isCancelled {
+                // Check server health
+                let healthy = await checkServerHealth()
+                
+                // Update UI on main actor
+                await MainActor.run {
+                    isServerHealthy = healthy
+                }
+                
+                // Wait before next heartbeat
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+    
+    private func checkServerHealth() async -> Bool {
+        guard isServerRunning else { return false }
+        
+        do {
+            let url = URL(string: "http://127.0.0.1:\(serverPort)/health")!
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 1.0 // Quick timeout for heartbeat
+            
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                return httpResponse.statusCode == 200
+            }
+        } catch {
+            // Server not responding or error
+            print("Server health check failed: \(error.localizedDescription)")
+        }
+        
+        return false
     }
 }
 

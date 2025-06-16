@@ -2,22 +2,44 @@ import Foundation
 import Observation
 
 /// Monitors the HTTP server status and provides observable state for the UI
+/// This class now acts as a facade over ServerManager for backward compatibility
 @MainActor
 @Observable
 public final class ServerMonitor {
     public static let shared = ServerMonitor()
 
     // Observable properties
-    public private(set) var isRunning = false
-    public private(set) var port: Int = 4_020
-    public private(set) var lastError: Error?
+    public var isRunning: Bool {
+        isServerRunning
+    }
+    
+    public var port: Int {
+        Int(ServerManager.shared.port) ?? 4020
+    }
+    
+    public var lastError: Error? {
+        ServerManager.shared.lastError
+    }
 
-    /// Reference to the actual server
+    /// Reference to the actual server (kept for backward compatibility)
     private weak var server: TunnelServer?
+    
+    /// Internal state tracking
+    @ObservationIgnored
+    public var isServerRunning = false {
+        didSet {
+            // Notify observers when state changes
+        }
+    }
 
-    private init() {}
+    private init() {
+        // Sync initial state with ServerManager
+        Task {
+            await syncWithServerManager()
+        }
+    }
 
-    /// Updates the monitor with the current server instance
+    /// Updates the monitor with the current server instance (backward compatibility)
     public func setServer(_ server: TunnelServer?) {
         self.server = server
         updateStatus()
@@ -25,32 +47,34 @@ public final class ServerMonitor {
 
     /// Updates the current status from the server
     public func updateStatus() {
-        guard let server else {
-            isRunning = false
-            return
+        Task {
+            await syncWithServerManager()
         }
-
-        isRunning = server.isRunning
-        port = server.port
-        lastError = server.lastError
+    }
+    
+    /// Syncs state with ServerManager
+    private func syncWithServerManager() async {
+        isServerRunning = ServerManager.shared.isRunning
     }
 
     /// Starts the server if not already running
     public func startServer() async throws {
-        guard let server else {
-            throw ServerError.failedToStart("No server instance available")
-        }
-
-        try await server.start()
-        updateStatus()
+        // Delegate to ServerManager
+        await ServerManager.shared.start()
+        await syncWithServerManager()
     }
 
     /// Stops the server if running
     public func stopServer() async throws {
-        guard let server else { return }
-
-        try await server.stop()
-        updateStatus()
+        // Delegate to ServerManager
+        await ServerManager.shared.stop()
+        await syncWithServerManager()
+    }
+    
+    /// Restarts the server
+    public func restartServer() async throws {
+        await ServerManager.shared.restart()
+        await syncWithServerManager()
     }
 
     /// Checks if the server is healthy by making a health check request

@@ -59,7 +59,7 @@ struct VibeTunnelApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
-    private(set) var httpServer: TunnelServer?
+    private let serverManager = ServerManager.shared
     private let sessionMonitor = SessionMonitor.shared
     private let serverMonitor = ServerMonitor.shared
     private let ngrokService = NgrokService.shared
@@ -102,26 +102,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         
 
-        // Initialize and start HTTP server
-        let serverPortString = UserDefaults.standard.string(forKey: "serverPort") ?? "4020"
-        let serverPort = Int(serverPortString) ?? 4_020
-        httpServer = TunnelServer(port: serverPort)
-        serverMonitor.setServer(httpServer)
-
+        // Initialize and start HTTP server using ServerManager
         Task {
             do {
-                print("Attempting to start HTTP server on port \(httpServer?.port ?? 4_020)...")
-                try await httpServer?.start()
-                serverMonitor.updateStatus()
-                print("HTTP server started successfully on port \(httpServer?.port ?? 4_020)")
-                print("Server is running: \(httpServer?.isRunning ?? false)")
+                print("Attempting to start HTTP server using ServerManager...")
+                await serverManager.start()
+                
+                print("HTTP server started successfully on port \(serverManager.port)")
+                print("Server is running: \(serverManager.isRunning)")
+                print("Server mode: \(serverManager.serverMode.displayName)")
 
                 // Start monitoring sessions after server starts
                 sessionMonitor.startMonitoring()
 
                 // Test the server after a short delay
                 try await Task.sleep(for: .milliseconds(500))
-                if let url = URL(string: "http://127.0.0.1:\(httpServer?.port ?? 4_020)/health") {
+                if let url = URL(string: "http://127.0.0.1:\(serverManager.port)/health") {
                     let (_, response) = try await URLSession.shared.data(from: url)
                     if let httpResponse = response as? HTTPURLResponse {
                         print("Server health check response: \(httpResponse.statusCode)")
@@ -136,15 +132,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     print("NSError code: \(nsError.code)")
                     print("NSError userInfo: \(nsError.userInfo)")
                 }
-                serverMonitor.updateStatus()
             }
         }
     }
 
-    func setHTTPServer(_ server: TunnelServer?) {
-        httpServer = server
-        serverMonitor.setServer(server)
-    }
 
     private func handleSingleInstanceCheck() {
         let runningApps = NSRunningApplication
@@ -197,8 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Stop HTTP server
         Task {
-            try? await httpServer?.stop()
-            serverMonitor.updateStatus()
+            await serverManager.stop()
         }
 
         // Remove distributed notification observer
