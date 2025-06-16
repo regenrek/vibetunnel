@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# vt - VibeTunnel TTY Forward Wrapper
+# This script wraps tty-fwd to enable VibeTunnel to see command output
+
+if [[ $# -eq 0 || "$1" == "--help" || "$1" == "-h" ]]; then
+    cat << 'EOF'
+vt - VibeTunnel TTY Forward Wrapper
+
+USAGE:
+    vt [command] [args...]
+    vt --help
+
+DESCRIPTION:
+    This wrapper script allows VibeTunnel to see the output of commands by 
+    forwarding TTY data through the tty-fwd utility. When you run commands 
+    through 'vt', VibeTunnel can monitor and display the command's output 
+    in real-time.
+
+EXAMPLES:
+    vt ls -la                # List files with VibeTunnel monitoring
+    vt python script.py     # Run Python script with output forwarding
+    vt npm test             # Run tests with VibeTunnel visibility
+
+OPTIONS:
+    --help, -h              Show this help message and exit
+
+NOTE:
+    This script automatically uses the tty-fwd executable bundled with
+    VibeTunnel from the Resources folder.
+EOF
+    exit 0
+fi
+
+# Get the real path of this script, resolving any symlinks
+SCRIPT_REAL_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || greadlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
+if [[ -z "$SCRIPT_REAL_PATH" ]]; then
+    # Fallback for systems without readlink -f, greadlink, or realpath
+    SCRIPT_REAL_PATH="${BASH_SOURCE[0]}"
+    while [[ -L "$SCRIPT_REAL_PATH" ]]; do
+        SCRIPT_REAL_PATH="$(readlink "$SCRIPT_REAL_PATH")"
+    done
+fi
+
+# Get the directory where this script is actually located (Resources folder)
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL_PATH")" && pwd)"
+
+# Path to tty-fwd executable in the same Resources directory
+TTY_FWD="$SCRIPT_DIR/tty-fwd"
+
+# Check if tty-fwd exists
+if [[ ! -x "$TTY_FWD" ]]; then
+    echo "Error: tty-fwd executable not found at $TTY_FWD" >&2
+    exit 1
+fi
+
+# Execute tty-fwd with all passed arguments
+exec "$TTY_FWD" -- "$@"
