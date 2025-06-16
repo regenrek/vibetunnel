@@ -6,6 +6,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import './session-create-form.js';
 let SessionList = class SessionList extends LitElement {
     constructor() {
         super(...arguments);
@@ -14,7 +15,8 @@ let SessionList = class SessionList extends LitElement {
         this.killingSessionIds = new Set();
         this.loadedSnapshots = new Map();
         this.loadingSnapshots = new Set();
-        this.hideExited = false;
+        this.hideExited = true;
+        this.showCreateModal = false;
     }
     // Disable shadow DOM to use Tailwind
     createRenderRoot() {
@@ -144,6 +146,17 @@ let SessionList = class SessionList extends LitElement {
     truncateId(id) {
         return id.length > 8 ? `${id.substring(0, 8)}...` : id;
     }
+    handleSessionCreated(e) {
+        this.showCreateModal = false;
+        this.dispatchEvent(new CustomEvent('session-created', {
+            detail: e.detail
+        }));
+    }
+    handleCreateError(e) {
+        this.dispatchEvent(new CustomEvent('error', {
+            detail: e.detail
+        }));
+    }
     get filteredSessions() {
         return this.hideExited
             ? this.sessions.filter(session => session.status === 'running')
@@ -153,8 +166,15 @@ let SessionList = class SessionList extends LitElement {
         const sessionsToShow = this.filteredSessions;
         return html `
       <div class="font-mono text-sm p-4">
-        <!-- Filter Controls -->
-        <div class="mb-4 flex items-center justify-end">
+        <!-- Controls -->
+        <div class="mb-4 flex items-center justify-between">
+          <button 
+            class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded"
+            @click=${() => this.showCreateModal = true}
+          >
+            Create Session
+          </button>
+          
           <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
             <div class="relative">
               <input 
@@ -223,6 +243,13 @@ let SessionList = class SessionList extends LitElement {
             `)}
           </div>
         `}
+        
+        <session-create-form
+          .visible=${this.showCreateModal}
+          @session-created=${this.handleSessionCreated}
+          @cancel=${() => this.showCreateModal = false}
+          @error=${this.handleCreateError}
+        ></session-create-form>
       </div>
     `;
     }
@@ -245,6 +272,9 @@ __decorate([
 __decorate([
     state()
 ], SessionList.prototype, "hideExited", void 0);
+__decorate([
+    state()
+], SessionList.prototype, "showCreateModal", void 0);
 SessionList = __decorate([
     customElement('session-list')
 ], SessionList);
