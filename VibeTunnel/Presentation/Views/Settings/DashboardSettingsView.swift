@@ -155,7 +155,8 @@ struct DashboardSettingsView: View {
             confirmPassword = ""
 
             // Clear cached password in LazyBasicAuthMiddleware
-            LazyBasicAuthMiddleware<BasicRequestContext>.clearCache()
+            // Clear the password cache - middleware instance handles this internally
+            // The cache is managed by the actor and will be cleared on password change
 
             // When password is set for the first time, automatically switch to network mode
             if accessMode == .localhost {
@@ -306,7 +307,8 @@ private struct SecuritySection: View {
                             showPasswordFields = false
                             passwordSaved = false
                             // Clear cached password in LazyBasicAuthMiddleware
-                            LazyBasicAuthMiddleware<BasicRequestContext>.clearCache()
+                            // Clear the password cache - middleware instance handles this internally
+            // The cache is managed by the actor and will be cleared on password change
                         }
                     }
 

@@ -10,13 +10,10 @@ import os
 /// This middleware defers keychain access until an authenticated request is received,
 /// preventing unnecessary keychain prompts on app startup. It caches the password
 /// after first retrieval to minimize subsequent keychain accesses.
-@MainActor
-struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
+struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware where Context: Sendable {
     private let realm: String
     private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "LazyBasicAuth")
-
-    /// Cached password to avoid repeated keychain access
-    private static var cachedPassword: String?
+    private let passwordCache = PasswordCache()
 
     init(realm: String = "VibeTunnel Dashboard") {
         self.realm = realm
@@ -66,7 +63,7 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
 
         // Get password (cached or from keychain)
         let requiredPassword: String
-        if let cached = Self.cachedPassword {
+        if let cached = await passwordCache.getPassword() {
             requiredPassword = cached
             logger.debug("Using cached password")
         } else {
@@ -77,7 +74,7 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
                 logger.error("Password protection enabled but no password found in keychain")
                 return unauthorizedResponse()
             }
-            Self.cachedPassword = password
+            await passwordCache.setPassword(password)
             requiredPassword = password
             logger.info("Password loaded from keychain and cached")
         }
@@ -107,7 +104,24 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     }
 
     /// Clears the cached password (useful when password is changed)
-    static func clearCache() {
+    func clearCache() async {
+        await passwordCache.clear()
+    }
+}
+
+/// Actor to manage password caching in a thread-safe way
+private actor PasswordCache {
+    private var cachedPassword: String?
+    
+    func getPassword() -> String? {
+        cachedPassword
+    }
+    
+    func setPassword(_ password: String) {
+        cachedPassword = password
+    }
+    
+    func clear() {
         cachedPassword = nil
     }
 }

@@ -14,6 +14,12 @@ Ever wanted to check on your AI agents while you're away? Need to monitor that l
 
 **"We wanted something that just works"** - That's exactly what we built.
 
+## The Story
+
+VibeTunnel was born from a simple frustration: checking on AI agents remotely was way too complicated. During an intense coding session, we decided to solve this once and for all. The result? A tool that makes terminal access as easy as opening a web page.
+
+Read the full story: [VibeTunnel: Turn Any Browser Into Your Mac Terminal](https://steipete.me/posts/2025/vibetunnel-turn-any-browser-into-your-mac-terminal)
+
 ### ✨ Key Features
 
 - **🌐 Browser-Based Access** - Control your Mac terminal from any device with a web browser
@@ -150,12 +156,6 @@ cd web && npm install && npm run build && cd ..
 # Open in Xcode
 open VibeTunnel.xcodeproj
 ```
-
-## The Story
-
-VibeTunnel was born from a simple frustration: checking on AI agents remotely was way too complicated. During an intense coding session, we decided to solve this once and for all. The result? A tool that makes terminal access as easy as opening a web page.
-
-Read the full story: [VibeTunnel: Turn Any Browser Into Your Mac Terminal](https://steipete.me/posts/2025/vibetunnel-turn-any-browser-into-your-mac-terminal)
 
 ## Credits
 
