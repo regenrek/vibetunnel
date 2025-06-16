@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './session-create-form.js';
+import { Renderer } from '../renderer.js';
 
 export interface Session {
   id: string;
@@ -30,6 +31,16 @@ export class SessionList extends LitElement {
   @state() private loadingSnapshots = new Set<string>();
   @state() private cleaningExited = false;
   @state() private newSessionIds = new Set<string>();
+  @state() private renderers = new Map<string, Renderer>();
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    // Clean up all renderers
+    this.renderers.forEach(renderer => {
+      renderer.dispose();
+    });
+    this.renderers.clear();
+  }
 
   private handleRefresh() {
     this.dispatchEvent(new CustomEvent('refresh'));
@@ -48,8 +59,8 @@ export class SessionList extends LitElement {
       this.loadedSnapshots.set(sessionId, sessionId);
       this.requestUpdate();
 
-      // Create asciinema player after the element is rendered
-      setTimeout(() => this.createPlayer(sessionId), 10);
+      // Create renderer after the element is rendered
+      requestAnimationFrame(() => this.createRenderer(sessionId));
     } catch (error) {
       console.error('Error loading snapshot:', error);
     } finally {
@@ -85,71 +96,71 @@ export class SessionList extends LitElement {
 
       // Load new sessions after a delay to let them generate some output
       if (newSessionIdsList.length > 0) {
-        setTimeout(() => {
+        // Use a shorter delay for better responsiveness
+        requestAnimationFrame(() => {
           newSessionIdsList.forEach(sessionId => {
             this.newSessionIds.delete(sessionId); // Remove from new sessions set
             this.loadSnapshot(sessionId);
           });
           this.requestUpdate(); // Update UI to show the players
-        }, 500); // Wait 500ms for new sessions
+        });
       }
     }
 
     // If hideExited changed, recreate players for newly visible sessions
     if (changedProperties.has('hideExited')) {
-      // Use a slight delay to avoid blocking the checkbox click
-      setTimeout(() => {
-        requestAnimationFrame(() => {
-          this.filteredSessions.forEach(session => {
-            const playerElement = this.querySelector(`#player-${session.id}`);
-            if (playerElement && this.loadedSnapshots.has(session.id)) {
-              // Player element exists but might not have a player instance
-              // Check if it's empty and recreate if needed
-              if (!playerElement.hasChildNodes() || playerElement.children.length === 0) {
-                this.createPlayer(session.id);
-              }
+      // Use requestAnimationFrame to avoid blocking the checkbox click
+      requestAnimationFrame(() => {
+        this.filteredSessions.forEach(session => {
+          const playerElement = this.querySelector(`#player-${session.id}`);
+          if (playerElement && this.loadedSnapshots.has(session.id)) {
+            // Player element exists but might not have a renderer instance
+            // Check if it's empty and recreate if needed
+            if (!playerElement.hasChildNodes() || playerElement.children.length === 0) {
+              this.createRenderer(session.id);
             }
-          });
+          }
         });
-      }, 10);
+      });
     }
   }
 
-  private createPlayer(sessionId: string) {
+  private async createRenderer(sessionId: string) {
     const playerElement = this.querySelector(`#player-${sessionId}`) as HTMLElement;
     if (!playerElement) {
       // Element not ready yet, retry on next frame
-      requestAnimationFrame(() => this.createPlayer(sessionId));
+      requestAnimationFrame(() => this.createRenderer(sessionId));
       return;
     }
     
-    if ((window as any).AsciinemaPlayer) {
-      try {
-        // Find the session to check its status
-        const session = this.sessions.find(s => s.id === sessionId);
-        
-        // For ended sessions, use snapshot instead of stream to avoid reloading
-        const url = session?.status === 'exited' 
-          ? `/api/sessions/${sessionId}/snapshot`
-          : `/api/sessions/${sessionId}/stream`;
-        
-        const config = session?.status === 'exited'
-          ? { url } // Static snapshot
-          : { driver: "eventsource", url }; // Live stream
-
-        (window as any).AsciinemaPlayer.create(config, playerElement, {
-          autoPlay: true,
-          loop: false,
-          controls: false,
-          fit: 'width',
-          terminalFontSize: '8px',
-          idleTimeLimit: 0.5,
-          preload: true,
-          poster: 'npt:999999'
-        });
-      } catch (error) {
-        console.error('Error creating asciinema player:', error);
+    try {
+      // Clean up existing renderer if it exists
+      const existingRenderer = this.renderers.get(sessionId);
+      if (existingRenderer) {
+        existingRenderer.dispose();
+        this.renderers.delete(sessionId);
       }
+
+      // Find the session to check its status
+      const session = this.sessions.find(s => s.id === sessionId);
+      if (!session) return;
+      
+      // Create renderer with smaller dimensions and font for preview
+      const renderer = new Renderer(playerElement, 40, 12, 10000, 8); // 40x12 chars, 8px font
+      this.renderers.set(sessionId, renderer);
+      
+      // Terminal is already configured with disableStdin: true in renderer constructor
+      
+      // Determine URL and stream type
+      const isStream = session.status !== 'exited';
+      const url = isStream 
+        ? `/api/sessions/${sessionId}/stream`
+        : `/api/sessions/${sessionId}/snapshot`;
+      
+      // Let the renderer handle the URL
+      await renderer.loadFromUrl(url, isStream);
+    } catch (error) {
+      console.error('Error creating renderer:', error);
     }
   }
 
@@ -175,6 +186,13 @@ export class SessionList extends LitElement {
       });
 
       if (response.ok) {
+        // Clean up renderer for this session
+        const renderer = this.renderers.get(sessionId);
+        if (renderer) {
+          renderer.dispose();
+          this.renderers.delete(sessionId);
+        }
+        
         this.dispatchEvent(new CustomEvent('session-killed', {
           detail: { sessionId }
         }));
@@ -215,6 +233,13 @@ export class SessionList extends LitElement {
       });
 
       if (response.ok) {
+        // Clean up renderer for this session
+        const renderer = this.renderers.get(sessionId);
+        if (renderer) {
+          renderer.dispose();
+          this.renderers.delete(sessionId);
+        }
+        
         this.dispatchEvent(new CustomEvent('session-killed', {
           detail: { sessionId }
         }));
@@ -395,7 +420,7 @@ export class SessionList extends LitElement {
                   ` : ''}
                 </div>
 
-                <!-- Asciinema player (main content) -->
+                <!-- XTerm renderer (main content) -->
                 <div class="session-preview bg-black flex items-center justify-center overflow-hidden" style="aspect-ratio: 640/480;">
                   ${this.loadedSnapshots.has(session.id) ? html`
                     <div id="player-${session.id}" class="w-full h-full overflow-hidden"></div>

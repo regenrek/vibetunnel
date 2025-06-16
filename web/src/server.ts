@@ -319,7 +319,7 @@ const activeStreams = new Map<string, {
     lastPosition: number 
 }>();
 
-// Live streaming cast file for asciinema player
+// Live streaming cast file for XTerm renderer
 app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
@@ -489,7 +489,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     req.on('aborted', cleanup);
 });
 
-// Get session snapshot (asciinema cast with adjusted timestamps for immediate playback)
+// Get session snapshot (cast with adjusted timestamps for immediate playback)
 app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
@@ -528,7 +528,7 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
             }
         }
 
-        // Build the complete asciinema cast
+        // Build the complete cast
         const cast = [];
 
         // Add header if found, otherwise use default
@@ -606,7 +606,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
         }
 
         // Check if this is a special key that should use --send-key
-        const specialKeys = ['arrow_up', 'arrow_down', 'arrow_left', 'arrow_right', 'escape', 'enter'];
+        const specialKeys = ['arrow_up', 'arrow_down', 'arrow_left', 'arrow_right', 'escape', 'enter', 'ctrl_enter', 'shift_enter'];
         const isSpecialKey = specialKeys.includes(text);
 
         const startTime = Date.now();

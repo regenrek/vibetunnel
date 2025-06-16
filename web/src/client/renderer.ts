@@ -15,7 +15,7 @@ interface CastHeader {
 
 interface CastEvent {
   timestamp: number;
-  type: 'o' | 'i'; // output or input
+  type: 'o' | 'i' | 'r'; // output, input, or resize
   data: string;
 }
 
@@ -25,7 +25,7 @@ export class Renderer {
   private fitAddon: FitAddon;
   private webLinksAddon: WebLinksAddon;
 
-  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000) {
+  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14) {
     this.container = container;
     
     // Create terminal with options similar to the custom renderer
@@ -33,7 +33,7 @@ export class Renderer {
       cols: width,
       rows: height,
       fontFamily: 'Monaco, "Lucida Console", monospace',
-      fontSize: 14,
+      fontSize: fontSize,
       lineHeight: 1.2,
       theme: {
         background: '#000000',
@@ -139,6 +139,8 @@ export class Renderer {
           
           if (event.type === 'o') {
             this.processOutput(event.data);
+          } else if (event.type === 'r') {
+            this.processResize(event.data);
           }
         }
       } catch (e) {
@@ -152,9 +154,21 @@ export class Renderer {
     this.terminal.write(data);
   }
 
+  processResize(data: string): void {
+    // Parse resize data in format "WIDTHxHEIGHT" (e.g., "80x24")
+    const match = data.match(/^(\d+)x(\d+)$/);
+    if (match) {
+      const width = parseInt(match[1], 10);
+      const height = parseInt(match[2], 10);
+      this.resize(width, height);
+    }
+  }
+
   processEvent(event: CastEvent): void {
     if (event.type === 'o') {
       this.processOutput(event.data);
+    } else if (event.type === 'r') {
+      this.processResize(event.data);
     }
   }
 
@@ -172,7 +186,12 @@ export class Renderer {
 
   // Stream support - connect to SSE endpoint
   connectToStream(sessionId: string): EventSource {
-    const eventSource = new EventSource(`/api/sessions/${sessionId}/stream`);
+    return this.connectToUrl(`/api/sessions/${sessionId}/stream`);
+  }
+
+  // Connect to any SSE URL
+  connectToUrl(url: string): EventSource {
+    const eventSource = new EventSource(url);
     
     // Clear terminal when starting stream
     this.terminal.clear();
@@ -205,6 +224,28 @@ export class Renderer {
     return eventSource;
   }
 
+  private eventSource: EventSource | null = null;
+
+  // Load content from URL - pass isStream to determine how to handle it
+  async loadFromUrl(url: string, isStream: boolean): Promise<void> {
+    // Clear terminal first
+    this.terminal.clear();
+    
+    // Clean up existing connection
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    if (isStream) {
+      // It's a stream URL, connect via SSE
+      this.eventSource = this.connectToUrl(url);
+    } else {
+      // It's a snapshot URL, load as cast file
+      await this.loadCastFile(url);
+    }
+  }
+
   // Additional methods for terminal control
   
   focus(): void {
@@ -220,6 +261,10 @@ export class Renderer {
   }
 
   dispose(): void {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
     this.terminal.dispose();
   }
 

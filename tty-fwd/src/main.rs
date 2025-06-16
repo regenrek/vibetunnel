@@ -96,6 +96,8 @@ fn send_key_to_session(
         "arrow_left" => b"\x1b[D",
         "escape" => b"\x1b",
         "enter" => b"\r",
+        "ctrl_enter" => b"\x0d", // Just CR like normal enter for now - let's test this first
+        "shift_enter" => b"\x1b\x0d", // ESC + Enter - simpler approach
         _ => return Err(anyhow!("Unknown key: {}", key)),
     };
 
@@ -302,7 +304,7 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("  --list-sessions         List all sessions");
                 println!("  --session <I>           Operate on this session");
                 println!("  --send-key <key>        Send key input to session");
-                println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter");
+                println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter, ctrl_enter, shift_enter");
                 println!("  --send-text <text>      Send text input to session");
                 println!("  --signal <number>       Send signal number to session PID");
                 println!("  --stop                  Send SIGTERM to session (equivalent to --signal 15)");

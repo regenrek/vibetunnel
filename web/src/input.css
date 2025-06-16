@@ -2,23 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fix asciinema player dimensions */
-.ap-player {
-  min-width: unset !important;
-  min-height: unset !important;
-  width: auto !important;
-  height: auto !important;
+/* XTerm terminal styling */
+.xterm {
+  padding: 0 !important;
 }
 
-.asciinema-player-theme-asciinema {
-  min-width: unset !important;
-  min-height: unset !important;
-  width: auto !important;
-  height: auto !important;
+.xterm .xterm-viewport {
+  background-color: transparent !important;
 }
 
-/* Ensure terminal player container has proper size */
-#terminal-player {
+/* Hide XTerm input textarea in session views (we handle input separately) */
+session-view .xterm-helper-textarea {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure terminal container has proper size */
+#terminal-player,
+#interactive-terminal {
   min-height: 480px;
   min-width: 640px;
   width: 100%;
@@ -44,9 +46,8 @@
   z-index: 1000;
 }
 
-/* Force asciinema player to fit within session card bounds */
-.session-preview .asciinema-player,
-.session-preview .ap-player {
+/* Force XTerm terminal to fit within session card bounds */
+.session-preview .xterm {
   min-width: unset !important;
   min-height: unset !important;
   max-width: 100% !important;
@@ -54,20 +55,22 @@
   width: 100% !important;
   height: 100% !important;
   overflow: hidden !important;
-  z-index: 0 !important;
-  object-fit: contain !important;
 }
 
-.session-preview .asciinema-player .ap-screen,
-.session-preview .ap-player .ap-screen {
-  transform-origin: center center !important;
+.session-preview .xterm .xterm-screen {
   max-width: 100% !important;
   max-height: 100% !important;
-  z-index: 1 !important;
-  object-fit: contain !important;
+  transform: scale(0.8); /* Scale down the content to fit better */
+  transform-origin: top left;
 }
 
-.session-preview .asciinema-player *,
-.session-preview .ap-player * {
-  z-index: 1 !important;
+.session-preview .xterm .xterm-viewport {
+  overflow: hidden !important;
+}
+
+/* Hide the helper textarea in session previews too */
+.session-preview .xterm-helper-textarea {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

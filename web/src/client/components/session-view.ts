@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Session } from './session-list.js';
+import { Renderer } from '../renderer.js';
 
 @customElement('session-view')
 export class SessionView extends LitElement {
@@ -11,7 +12,7 @@ export class SessionView extends LitElement {
 
   @property({ type: Object }) session: Session | null = null;
   @state() private connected = false;
-  @state() private player: any = null;
+  @state() private renderer: Renderer | null = null;
   @state() private sessionStatusInterval: number | null = null;
   @state() private showMobileInput = false;
   @state() private mobileInputText = '';
@@ -94,9 +95,10 @@ export class SessionView extends LitElement {
     // Stop polling session status
     this.stopSessionStatusPolling();
     
-    // Cleanup player if exists
-    if (this.player) {
-      this.player = null;
+    // Cleanup renderer if it exists
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer = null;
     }
   }
 
@@ -104,10 +106,7 @@ export class SessionView extends LitElement {
     super.updated(changedProperties);
     
     if (changedProperties.has('session') && this.session) {
-      // Use setTimeout to ensure DOM is rendered first
-      setTimeout(() => {
-        this.createInteractiveTerminal();
-      }, 10);
+      this.createInteractiveTerminal();
     }
   }
 
@@ -115,48 +114,28 @@ export class SessionView extends LitElement {
     if (!this.session) return;
     
     const terminalElement = this.querySelector('#interactive-terminal') as HTMLElement;
-    if (terminalElement && (window as any).AsciinemaPlayer) {
-      try {
-        // For ended sessions, use snapshot instead of stream to avoid reloading
-        const url = this.session.status === 'exited' 
-          ? `/api/sessions/${this.session.id}/snapshot`
-          : `/api/sessions/${this.session.id}/stream`;
-        
-        const config = this.session.status === 'exited'
-          ? { url } // Static snapshot
-          : { driver: "eventsource", url }; // Live stream
-        
-        this.player = (window as any).AsciinemaPlayer.create(config, terminalElement, {
-          autoPlay: true,
-          loop: false,
-          controls: false,
-          fit: 'both',
-          terminalFontSize: '12px',
-          idleTimeLimit: 0.5,
-          preload: true,
-          poster: 'npt:999999'
-        });
+    if (!terminalElement) return;
 
-        // Disable focus outline and fullscreen functionality
-        if (this.player && this.player.el) {
-          // Remove focus outline
-          this.player.el.style.outline = 'none';
-          this.player.el.style.border = 'none';
-          
-          // Disable fullscreen hotkey by removing tabindex and preventing focus
-          this.player.el.removeAttribute('tabindex');
-          this.player.el.style.pointerEvents = 'none';
-          
-          // Find the terminal element and make it non-focusable
-          const terminal = this.player.el.querySelector('.ap-terminal, .ap-screen, pre');
-          if (terminal) {
-            terminal.removeAttribute('tabindex');
-            terminal.style.outline = 'none';
-          }
-        }
-      } catch (error) {
-        console.error('Error creating interactive terminal:', error);
+    try {
+      // Clean up existing renderer
+      if (this.renderer) {
+        this.renderer.dispose();
+        this.renderer = null;
       }
+
+      // Create new renderer using default parameters (EXACTLY like the test)
+      this.renderer = new Renderer(terminalElement);
+      
+      if (this.session.status === 'exited') {
+        // For ended sessions, load snapshot (EXACTLY like the test)
+        this.renderer.loadCastFile(`/api/sessions/${this.session.id}/snapshot`);
+      } else {
+        // For running sessions, connect to live stream (EXACTLY like the test)
+        this.renderer.clear();
+        this.renderer.connectToStream(this.session.id);
+      }
+    } catch (error) {
+      console.error('Error creating interactive terminal:', error);
     }
   }
 
@@ -168,7 +147,16 @@ export class SessionView extends LitElement {
     // Handle special keys
     switch (e.key) {
       case 'Enter':
-        inputText = 'enter';
+        if (e.ctrlKey) {
+          // Ctrl+Enter - send to tty-fwd for proper handling
+          inputText = 'ctrl_enter';
+        } else if (e.shiftKey) {
+          // Shift+Enter - send to tty-fwd for proper handling
+          inputText = 'shift_enter';
+        } else {
+          // Regular Enter
+          inputText = 'enter';
+        }
         break;
       case 'Escape':
         inputText = 'escape';
@@ -208,8 +196,8 @@ export class SessionView extends LitElement {
         break;
     }
 
-    // Handle Ctrl combinations
-    if (e.ctrlKey && e.key.length === 1) {
+    // Handle Ctrl combinations (but not if we already handled Ctrl+Enter above)
+    if (e.ctrlKey && e.key.length === 1 && e.key !== 'Enter') {
       const charCode = e.key.toLowerCase().charCodeAt(0);
       if (charCode >= 97 && charCode <= 122) { // a-z
         inputText = String.fromCharCode(charCode - 96); // Ctrl+A = \x01, etc.
@@ -450,19 +438,11 @@ export class SessionView extends LitElement {
         this.requestUpdate();
         
         // If session ended, switch from stream to snapshot to prevent restarts
-        if (currentSession.status === 'exited' && this.player && this.session.status === 'running') {
+        if (currentSession.status === 'exited' && this.session.status === 'running') {
           console.log('Session ended, switching to snapshot view');
           try {
-            // Dispose the streaming player
-            if (this.player.dispose) {
-              this.player.dispose();
-            }
-            this.player = null;
-            
             // Recreate with snapshot
-            setTimeout(() => {
-              this.createInteractiveTerminal();
-            }, 100);
+            this.createInteractiveTerminal();
           } catch (error) {
             console.error('Error switching to snapshot:', error);
           }
