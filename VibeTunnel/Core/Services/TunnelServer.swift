@@ -768,8 +768,10 @@ public final class TunnelServer {
         // Create SSE response with proper headers
         let headers: HTTPFields = [
             .contentType: "text/event-stream",
-            .cacheControl: "no-cache",
-            .connection: "keep-alive"
+            .cacheControl: "no-cache, no-store, must-revalidate",
+            .connection: "keep-alive",
+            .init("X-Accel-Buffering")!: "no", // Disable proxy buffering
+            .init("Access-Control-Allow-Origin")!: "*"
         ]
         
         // Create async sequence for streaming
@@ -805,6 +807,11 @@ public final class TunnelServer {
             // Ensure file monitor is cancelled when function exits
             fileMonitor?.cancel()
         }
+        
+        // Send initial connection established message
+        var initialMessage = ByteBuffer()
+        initialMessage.writeString(": connected\n\n")
+        continuation.yield(initialMessage)
         
         // Send existing content first
         do {
@@ -866,11 +873,21 @@ public final class TunnelServer {
             continuation: continuation
         )
         
-        // Wait for cancellation
+        // Keep the stream open until cancelled with periodic heartbeats
         await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                // This will suspend until cancelled
-                continuation.resume()
+            // Send heartbeat every 15 seconds to keep connection alive
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 15_000_000_000) // 15 seconds
+                    
+                    // Send SSE comment as heartbeat (comments start with ':')
+                    var heartbeat = ByteBuffer()
+                    heartbeat.writeString(": heartbeat\n\n")
+                    continuation.yield(heartbeat)
+                } catch {
+                    // Task was cancelled
+                    break
+                }
             }
         } onCancel: { [fileMonitor] in
             fileMonitor?.cancel()
@@ -894,41 +911,41 @@ public final class TunnelServer {
         // Store buffer for incomplete lines
         var lineBuffer = ""
         
-        // Read existing file content first
+        // Read entire file content from the beginning
         let fileSize = lseek(fileDescriptor, 0, SEEK_END)
         if fileSize > 0 {
-            // Read the entire file (or last portion if very large)
-            let maxInitialRead: Int64 = 1024 * 1024 // 1MB max initial read
-            let readSize = min(fileSize, maxInitialRead)
-            let startOffset = max(0, fileSize - readSize)
+            // Seek to beginning
+            lseek(fileDescriptor, 0, SEEK_SET)
             
-            lseek(fileDescriptor, startOffset, SEEK_SET)
-            
-            let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(readSize) + 1)
+            // Read entire file content
+            let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(fileSize) + 1)
             defer { buffer.deallocate() }
             
-            let bytesRead = read(fileDescriptor, buffer, Int(readSize))
-            if bytesRead > 0 {
-                let data = Data(bytes: buffer, count: bytesRead)
+            var totalBytesRead = 0
+            while totalBytesRead < fileSize {
+                let bytesRead = read(fileDescriptor, buffer + totalBytesRead, Int(fileSize) - totalBytesRead)
+                if bytesRead <= 0 { break }
+                totalBytesRead += bytesRead
+            }
+            
+            if totalBytesRead > 0 {
+                let data = Data(bytes: buffer, count: totalBytesRead)
                 if let initialContent = String(data: data, encoding: .utf8) {
                     lineBuffer = initialContent
                     let lines = lineBuffer.components(separatedBy: .newlines)
                     
-                    // Process all complete lines from existing content
-                    if lines.count > 1 {
-                        for i in 0..<(lines.count - 1) {
-                            let line = lines[i]
-                            Task { @MainActor in
-                                await self.processNewLine(
-                                    line: line,
-                                    startTime: startTime,
-                                    continuation: continuation
-                                )
-                            }
-                        }
-                        // Keep the last incomplete line in buffer
-                        lineBuffer = lines.last ?? ""
+                    // Process all complete lines synchronously to maintain order
+                    for i in 0..<lines.count - 1 {
+                        let line = lines[i]
+                        await processNewLine(
+                            line: line,
+                            startTime: startTime,
+                            continuation: continuation
+                        )
                     }
+                    
+                    // Keep the last incomplete line in buffer
+                    lineBuffer = lines.last ?? ""
                 }
             }
         }
@@ -978,11 +995,11 @@ public final class TunnelServer {
             lineBuffer += contentString
             let lines = lineBuffer.components(separatedBy: .newlines)
             
-            // Process all complete lines
+            // Process all complete lines synchronously to maintain order
             if lines.count > 1 {
-                for i in 0..<(lines.count - 1) {
-                    let line = lines[i]
-                    Task { @MainActor in
+                Task { @MainActor in
+                    for i in 0..<(lines.count - 1) {
+                        let line = lines[i]
                         await self.processNewLine(
                             line: line,
                             startTime: startTime,
@@ -1011,7 +1028,6 @@ public final class TunnelServer {
         continuation: AsyncStream<ByteBuffer>.Continuation
     ) async {
         let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-        guard !trimmedLine.isEmpty else { return }
         
         if let data = trimmedLine.data(using: .utf8),
            let parsed = try? JSONSerialization.jsonObject(with: data) {
