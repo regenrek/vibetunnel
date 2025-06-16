@@ -71,14 +71,17 @@ struct SessionCountView: View {
     let count: Int
     
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
             Image(systemName: "terminal")
                 .foregroundColor(.secondary)
+                .font(.system(size: 13))
             Text(sessionText)
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
+                .lineLimit(1)
             Spacer()
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
     
     private var sessionText: String {

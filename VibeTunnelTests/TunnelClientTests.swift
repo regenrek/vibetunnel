@@ -3,16 +3,16 @@ import Foundation
 import HTTPTypes
 @testable import VibeTunnel
 
-@Suite("TunnelClient2 Tests")
-struct TunnelClient2Tests {
+@Suite("TunnelClient Tests")
+struct TunnelClientTests {
     let mockClient: MockHTTPClient
-    let tunnelClient: TunnelClient2
+    let tunnelClient: TunnelClient
     let testURL = URL(string: "http://localhost:8080")!
     let testAPIKey = "test-api-key-123"
     
     init() {
         self.mockClient = MockHTTPClient()
-        self.tunnelClient = TunnelClient2(
+        self.tunnelClient = TunnelClient(
             baseURL: testURL,
             apiKey: testAPIKey,
             httpClient: mockClient
@@ -52,7 +52,7 @@ struct TunnelClient2Tests {
         mockClient.configure(for: "/health", response: .serverError)
         
         // Act & Assert
-        await #expect(throws: TunnelClient2Error.httpError(statusCode: 500)) {
+        await #expect(throws: TunnelClientError.httpError(statusCode: 500)) {
             _ = try await tunnelClient.checkHealth()
         }
     }
@@ -123,7 +123,7 @@ struct TunnelClient2Tests {
         )
         
         // Act & Assert
-        await #expect(throws: TunnelClient2Error.serverError("Maximum sessions reached")) {
+        await #expect(throws: TunnelClientError.serverError("Maximum sessions reached")) {
             _ = try await tunnelClient.createSession()
         }
     }
@@ -182,7 +182,7 @@ struct TunnelClient2Tests {
         )
         
         // Act & Assert
-        await #expect(throws: TunnelClient2Error.sessionNotFound) {
+        await #expect(throws: TunnelClientError.sessionNotFound) {
             _ = try await tunnelClient.getSession(id: "unknown-session")
         }
     }
@@ -360,7 +360,7 @@ struct TunnelClient2Tests {
             )
             
             // Act & Assert
-            await #expect(throws: TunnelClient2Error.httpError(statusCode: statusCode.code)) {
+            await #expect(throws: TunnelClientError.httpError(statusCode: statusCode.code)) {
                 _ = try await tunnelClient.listSessions()
             }
         }

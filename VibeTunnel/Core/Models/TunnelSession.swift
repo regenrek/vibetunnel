@@ -107,7 +107,7 @@ public struct ListSessionsResponse: Codable, Sendable {
     }
 }
 
-// MARK: - Extensions for TunnelClient2
+// MARK: - Extensions for TunnelClient
 
 extension TunnelSession {
     /// Client information for session creation

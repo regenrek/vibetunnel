@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import Logging
 
 /// WebSocket message types for terminal communication
@@ -31,7 +32,7 @@ public struct WSMessage: Codable {
 public class TunnelClient {
     private let baseURL: URL
     private let apiKey: String
-    private var session: URLSession
+    private let httpClient: HTTPClientProtocol
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     private let logger = Logger(label: "VibeTunnel.TunnelClient")
@@ -44,14 +45,19 @@ public class TunnelClient {
         return url
     }()
 
-    public init(baseURL: URL? = nil, apiKey: String) {
+    public init(baseURL: URL? = nil, apiKey: String, httpClient: HTTPClientProtocol? = nil) {
         // Use a static default URL that we know is valid
         self.baseURL = baseURL ?? Self.defaultBaseURL
         self.apiKey = apiKey
-
-        let config = URLSessionConfiguration.default
-        config.httpAdditionalHeaders = ["X-API-Key": apiKey]
-        self.session = URLSession(configuration: config)
+        
+        // Use injected client or create default with API key in session config
+        if let httpClient = httpClient {
+            self.httpClient = httpClient
+        } else {
+            let config = URLSessionConfiguration.default
+            config.httpAdditionalHeaders = ["X-API-Key": apiKey]
+            self.httpClient = HTTPClient(session: URLSession(configuration: config))
+        }
 
         decoder.dateDecodingStrategy = .iso8601
         encoder.dateEncodingStrategy = .iso8601
@@ -59,50 +65,72 @@ public class TunnelClient {
 
     // MARK: - Health Check
 
-    public func checkHealth() async throws -> Bool {
-        let url = baseURL.appendingPathComponent("health")
-        let (_, response) = try await session.data(from: url)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TunnelClientError.invalidResponse
+    public func checkHealth() async throws -> TunnelSession.HealthResponse {
+        let request = buildRequest(path: "/health", method: .get)
+        let (data, response) = try await httpClient.data(for: request, body: nil)
+        
+        guard response.status == .ok else {
+            throw TunnelClientError.httpError(statusCode: response.status.code)
         }
-
-        return httpResponse.statusCode == 200
+        
+        return try decoder.decode(TunnelSession.HealthResponse.self, from: data)
     }
 
     // MARK: - Session Management
 
-    public func createSession(
-        workingDirectory: String? = nil,
-        environment: [String: String]? = nil,
-        shell: String? = nil
-    )
-        async throws -> CreateSessionResponse
-    {
-        let url = baseURL.appendingPathComponent("sessions")
-        let request = CreateSessionRequest(
-            workingDirectory: workingDirectory,
-            environment: environment,
-            shell: shell
-        )
-
-        return try await post(to: url, body: request)
+    public func createSession(clientInfo: TunnelSession.ClientInfo? = nil) async throws -> TunnelSession.CreateResponse {
+        let requestBody = TunnelSession.CreateRequest(clientInfo: clientInfo)
+        let request = buildRequest(path: "/api/sessions", method: .post)
+        let body = try encoder.encode(requestBody)
+        
+        let (data, response) = try await httpClient.data(for: request, body: body)
+        
+        guard response.status == .created || response.status == .ok else {
+            if let errorResponse = try? decoder.decode(TunnelSession.ErrorResponse.self, from: data) {
+                throw TunnelClientError.serverError(errorResponse.error)
+            }
+            throw TunnelClientError.httpError(statusCode: response.status.code)
+        }
+        
+        return try decoder.decode(TunnelSession.CreateResponse.self, from: data)
     }
 
-    public func listSessions() async throws -> [SessionInfo] {
-        let url = baseURL.appendingPathComponent("sessions")
-        let response: ListSessionsResponse = try await get(from: url)
-        return response.sessions
+    public func listSessions() async throws -> [TunnelSession] {
+        let request = buildRequest(path: "/api/sessions", method: .get)
+        let (data, response) = try await httpClient.data(for: request, body: nil)
+        
+        guard response.status == .ok else {
+            throw TunnelClientError.httpError(statusCode: response.status.code)
+        }
+        
+        let listResponse = try decoder.decode(TunnelSession.ListResponse.self, from: data)
+        return listResponse.sessions
     }
 
-    public func getSession(id: String) async throws -> SessionInfo {
-        let url = baseURL.appendingPathComponent("sessions/\(id)")
-        return try await get(from: url)
+    public func getSession(id: String) async throws -> TunnelSession {
+        let request = buildRequest(path: "/api/sessions/\(id)", method: .get)
+        let (data, response) = try await httpClient.data(for: request, body: nil)
+        
+        guard response.status == .ok else {
+            if response.status == .notFound {
+                throw TunnelClientError.sessionNotFound
+            }
+            throw TunnelClientError.httpError(statusCode: response.status.code)
+        }
+        
+        return try decoder.decode(TunnelSession.self, from: data)
     }
 
-    public func closeSession(id: String) async throws {
-        let url = baseURL.appendingPathComponent("sessions/\(id)")
-        try await delete(from: url)
+    public func deleteSession(id: String) async throws {
+        let request = buildRequest(path: "/api/sessions/\(id)", method: .delete)
+        let (_, response) = try await httpClient.data(for: request, body: nil)
+        
+        guard response.status == .noContent || response.status == .ok else {
+            if response.status == .notFound {
+                throw TunnelClientError.sessionNotFound
+            }
+            throw TunnelClientError.httpError(statusCode: response.status.code)
+        }
     }
 
     // MARK: - Command Execution
@@ -110,19 +138,32 @@ public class TunnelClient {
     public func executeCommand(
         sessionId: String,
         command: String,
-        args: [String]? = nil
-    )
-        async throws -> CommandResponse
-    {
-        let url = baseURL.appendingPathComponent("execute")
-        let request = CommandRequest(
+        environment: [String: String]? = nil,
+        workingDirectory: String? = nil
+    ) async throws -> TunnelSession.ExecuteCommandResponse {
+        let requestBody = TunnelSession.ExecuteCommandRequest(
             sessionId: sessionId,
             command: command,
-            args: args,
-            environment: nil
+            environment: environment,
+            workingDirectory: workingDirectory
         )
-
-        return try await post(to: url, body: request)
+        
+        let request = buildRequest(path: "/api/sessions/\(sessionId)/execute", method: .post)
+        let body = try encoder.encode(requestBody)
+        
+        let (data, response) = try await httpClient.data(for: request, body: body)
+        
+        guard response.status == .ok else {
+            if response.status == .notFound {
+                throw TunnelClientError.sessionNotFound
+            }
+            if let errorResponse = try? decoder.decode(TunnelSession.ErrorResponse.self, from: data) {
+                throw TunnelClientError.serverError(errorResponse.error)
+            }
+            throw TunnelClientError.httpError(statusCode: response.status.code)
+        }
+        
+        return try decoder.decode(TunnelSession.ExecuteCommandResponse.self, from: data)
     }
 
     // MARK: - WebSocket Connection
@@ -146,52 +187,32 @@ public class TunnelClient {
 
     // MARK: - Private Helpers
 
-    private func get<T: Decodable>(from url: URL) async throws -> T {
-        let (data, response) = try await session.data(from: url)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TunnelClientError.invalidResponse
+    private func buildRequest(path: String, method: HTTPRequest.Method) -> HTTPRequest {
+        let url = baseURL.appendingPathComponent(path)
+        
+        // Use URLComponents to get scheme, host, and path
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            fatalError("Invalid URL")
         }
-
-        guard httpResponse.statusCode == 200 else {
-            throw TunnelClientError.httpError(statusCode: httpResponse.statusCode)
+        
+        var request = HTTPRequest(
+            method: method,
+            scheme: components.scheme,
+            authority: components.host.map { host in
+                components.port.map { "\(host):\($0)" } ?? host
+            },
+            path: components.path
+        )
+        
+        // Add authentication
+        request.headerFields[.authorization] = "Bearer \(apiKey)"
+        
+        // Add content type for POST/PUT requests
+        if method == .post || method == .put {
+            request.headerFields[.contentType] = "application/json"
         }
-
-        return try decoder.decode(T.self, from: data)
-    }
-
-    private func post<R: Decodable>(to url: URL, body: some Encodable) async throws -> R {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try encoder.encode(body)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TunnelClientError.invalidResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw TunnelClientError.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        return try decoder.decode(R.self, from: data)
-    }
-
-    private func delete(from url: URL) async throws {
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-
-        let (_, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TunnelClientError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 204 else {
-            throw TunnelClientError.httpError(statusCode: httpResponse.statusCode)
-        }
+        
+        return request
     }
 }
 
@@ -315,19 +336,42 @@ extension TunnelWebSocketClient: URLSessionWebSocketDelegate {
 
 // MARK: - Errors
 
-public enum TunnelClientError: LocalizedError {
+public enum TunnelClientError: LocalizedError, Equatable {
     case invalidResponse
     case httpError(statusCode: Int)
-    case decodingError(Error)
+    case serverError(String)
+    case sessionNotFound
+    case decodingError(String)
 
     public var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            "Invalid response from server"
+            return "Invalid response from server"
         case .httpError(let statusCode):
-            "HTTP error: \(statusCode)"
+            return "HTTP error: \(statusCode)"
+        case .serverError(let message):
+            return "Server error: \(message)"
+        case .sessionNotFound:
+            return "Session not found"
         case .decodingError(let error):
-            "Decoding error: \(error.localizedDescription)"
+            return "Decoding error: \(error)"
+        }
+    }
+    
+    public static func == (lhs: TunnelClientError, rhs: TunnelClientError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidResponse, .invalidResponse):
+            return true
+        case (.httpError(let code1), .httpError(let code2)):
+            return code1 == code2
+        case (.serverError(let msg1), .serverError(let msg2)):
+            return msg1 == msg2
+        case (.sessionNotFound, .sessionNotFound):
+            return true
+        case (.decodingError(let msg1), .decodingError(let msg2)):
+            return msg1 == msg2
+        default:
+            return false
         }
     }
 }
