@@ -17,6 +17,7 @@ let SessionList = class SessionList extends LitElement {
         this.loadingSnapshots = new Set();
         this.hideExited = true;
         this.showCreateModal = false;
+        this.cleaningExited = false;
     }
     // Disable shadow DOM to use Tailwind
     createRenderRoot() {
@@ -157,6 +158,49 @@ let SessionList = class SessionList extends LitElement {
             detail: e.detail
         }));
     }
+    async handleCleanExited() {
+        const exitedSessions = this.sessions.filter(session => session.status === 'exited');
+        if (exitedSessions.length === 0) {
+            this.dispatchEvent(new CustomEvent('error', {
+                detail: 'No exited sessions to clean'
+            }));
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete ${exitedSessions.length} exited session${exitedSessions.length > 1 ? 's' : ''}?`)) {
+            return;
+        }
+        this.cleaningExited = true;
+        this.requestUpdate();
+        try {
+            const deletePromises = exitedSessions.map(async (session) => {
+                const response = await fetch(`/api/sessions/${session.id}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to delete session ${session.id}`);
+                }
+                return session.id;
+            });
+            await Promise.all(deletePromises);
+            this.dispatchEvent(new CustomEvent('error', {
+                detail: `Successfully cleaned ${exitedSessions.length} exited session${exitedSessions.length > 1 ? 's' : ''}`
+            }));
+            // Refresh the list after cleanup
+            setTimeout(() => {
+                this.handleRefresh();
+            }, 500);
+        }
+        catch (error) {
+            console.error('Error cleaning exited sessions:', error);
+            this.dispatchEvent(new CustomEvent('error', {
+                detail: 'Failed to clean some sessions'
+            }));
+        }
+        finally {
+            this.cleaningExited = false;
+            this.requestUpdate();
+        }
+    }
     get filteredSessions() {
         return this.hideExited
             ? this.sessions.filter(session => session.status === 'running')
@@ -168,12 +212,22 @@ let SessionList = class SessionList extends LitElement {
       <div class="font-mono text-sm p-4">
         <!-- Controls -->
         <div class="mb-4 flex items-center justify-between">
-          <button 
-            class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded"
-            @click=${() => this.showCreateModal = true}
-          >
-            Create Session
-          </button>
+          <div class="flex items-center gap-3">
+            <button 
+              class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors"
+              @click=${() => this.showCreateModal = true}
+            >
+              Create Session
+            </button>
+            
+            <button 
+              class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
+              @click=${this.handleCleanExited}
+              ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
+            >
+              ${this.cleaningExited ? 'Cleaning...' : 'Clean Exited'}
+            </button>
+          </div>
           
           <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
             <div class="relative">
@@ -275,6 +329,9 @@ __decorate([
 __decorate([
     state()
 ], SessionList.prototype, "showCreateModal", void 0);
+__decorate([
+    state()
+], SessionList.prototype, "cleaningExited", void 0);
 SessionList = __decorate([
     customElement('session-list')
 ], SessionList);
