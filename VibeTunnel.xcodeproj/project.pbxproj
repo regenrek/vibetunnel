@@ -263,31 +263,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/web/package.json",
-				"$(SRCROOT)/web/src",
-				"$(SRCROOT)/web/tsconfig.json",
-				"$(SRCROOT)/web/tsconfig.client.json",
-				"$(SRCROOT)/web/tailwind.config.js",
-			);
-			name = "Build Web Frontend";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/web/public",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/zsh;
-			shellScript = "# Build web frontend\necho \"Building web frontend...\"\n\n# Source the user's zsh configuration to get the proper PATH\n# This loads all PATH modifications from .zshrc, including nvm, homebrew, etc.\nif [ -f \"$HOME/.zshrc\" ]; then\n    # Use zsh in non-interactive mode to source the config\n    export PATH=$(zsh -c 'source ~/.zshrc >/dev/null 2>&1 && echo $PATH')\n    echo \"Loaded PATH from .zshrc\"\nelif [ -f \"$HOME/.zprofile\" ]; then\n    # Fallback to .zprofile if .zshrc doesn't exist\n    export PATH=$(zsh -c 'source ~/.zprofile >/dev/null 2>&1 && echo $PATH')\n    echo \"Loaded PATH from .zprofile\"\nelse\n    # Final fallback: add common paths if no zsh config is found\n    echo \"Warning: No .zshrc or .zprofile found, using basic PATH\"\n    export PATH=\"/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH\"\nfi\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nWEB_DIR=\"${PROJECT_DIR}/web\"\nPUBLIC_DIR=\"${WEB_DIR}/public\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/web/public\"\n\n# Export CI environment variable to prevent interactive prompts\nexport CI=true\n\n# Check if npm is available\nif ! command -v npm &> /dev/null; then\n    echo \"error: npm could not be found in PATH\"\n    echo \"PATH is: $PATH\"\n    echo \"Please ensure Node.js is installed and available in your shell configuration\"\n    exit 1\nfi\n\n# Print npm version for debugging\necho \"Using npm version: $(npm --version)\"\necho \"Using node version: $(node --version)\"\necho \"PATH: $PATH\"\n\n# Check if web directory exists\nif [ ! -d \"${WEB_DIR}\" ]; then\n    echo \"error: Web directory not found at ${WEB_DIR}\"\n    exit 1\nfi\n\n# Change to web directory\ncd \"${WEB_DIR}\"\n\n# Install dependencies if node_modules doesn't exist or package-lock.json is newer\nif [ ! -d \"node_modules\" ] || [ \"package-lock.json\" -nt \"node_modules\" ]; then\n    echo \"Installing npm dependencies...\"\n    npm install --no-progress --no-audit\n    if [ $? -ne 0 ]; then\n        echo \"error: npm install failed\"\n        exit 1\n    fi\nfi\n\n# Build the web frontend\necho \"Running npm build...\"\nnpm run build\nif [ $? -ne 0 ]; then\n    echo \"error: npm run build failed\"\n    exit 1\nfi\n\n# Create destination directory\nmkdir -p \"${DEST_DIR}\"\n\n# Copy built files to Resources\necho \"Copying web files to app bundle...\"\nif [ -d \"${PUBLIC_DIR}\" ]; then\n    # Copy all files from public directory\n    cp -R \"${PUBLIC_DIR}/\"* \"${DEST_DIR}/\"\n    echo \"Web frontend files copied to ${DEST_DIR}\"\nelse\n    echo \"error: Public directory not found at ${PUBLIC_DIR}\"\n    exit 1\nfi\n";
-		};
 		A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -314,6 +289,31 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Build tty-fwd universal binary\necho \"Building tty-fwd universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nTTY_FWD_DIR=\"${PROJECT_DIR}/tty-fwd\"\nBUILD_SCRIPT=\"${TTY_FWD_DIR}/build-universal.sh\"\nSOURCE_BINARY=\"${TTY_FWD_DIR}/target/release/tty-fwd-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/tty-fwd\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to tty-fwd directory and run build\ncd \"${TTY_FWD_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\necho \"tty-fwd universal binary copied to ${DEST_BINARY}\"\n";
+		};
+		B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/web/package.json",
+				"$(SRCROOT)/web/src",
+				"$(SRCROOT)/web/tsconfig.json",
+				"$(SRCROOT)/web/tsconfig.client.json",
+				"$(SRCROOT)/web/tailwind.config.js",
+			);
+			name = "Build Web Frontend";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/web/public",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Build web frontend\necho \"Building web frontend...\"\n\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nWEB_DIR=\"${PROJECT_DIR}/web\"\nPUBLIC_DIR=\"${WEB_DIR}/public\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/web/public\"\n\n# Export CI environment variable to prevent interactive prompts\nexport CI=true\n\n# Check if npm is available\nif ! command -v npm &> /dev/null; then\n    echo \"error: npm could not be found in PATH\"\n    echo \"PATH is: $PATH\"\n    echo \"Please ensure Node.js is installed and available in your shell configuration\"\n    exit 1\nfi\n\n# Print npm version for debugging\necho \"Using npm version: $(npm --version)\"\necho \"Using node version: $(node --version)\"\necho \"PATH: $PATH\"\n\n# Check if web directory exists\nif [ ! -d \"${WEB_DIR}\" ]; then\n    echo \"error: Web directory not found at ${WEB_DIR}\"\n    exit 1\nfi\n\n# Change to web directory\ncd \"${WEB_DIR}\"\n\n# Install dependencies if node_modules doesn't exist or package-lock.json is newer\nif [ ! -d \"node_modules\" ] || [ \"package-lock.json\" -nt \"node_modules\" ]; then\n    echo \"Installing npm dependencies...\"\n    npm install --no-progress --no-audit\n    if [ $? -ne 0 ]; then\n        echo \"error: npm install failed\"\n        exit 1\n    fi\nfi\n\n# Build the web frontend\necho \"Running npm build...\"\nnpm run build\nif [ $? -ne 0 ]; then\n    echo \"error: npm run build failed\"\n    exit 1\nfi\n\n# Create destination directory\nmkdir -p \"${DEST_DIR}\"\n\n# Copy built files to Resources\necho \"Copying web files to app bundle...\"\nif [ -d \"${PUBLIC_DIR}\" ]; then\n    # Copy all files from public directory\n    cp -R \"${PUBLIC_DIR}/\"* \"${DEST_DIR}/\"\n    echo \"Web frontend files copied to ${DEST_DIR}\"\nelse\n    echo \"error: Public directory not found at ${PUBLIC_DIR}\"\n    exit 1\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
