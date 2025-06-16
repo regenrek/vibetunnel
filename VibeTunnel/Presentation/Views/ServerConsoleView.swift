@@ -1,7 +1,11 @@
 import Observation
 import SwiftUI
 
-/// View for displaying server console logs
+/// View for displaying server console logs.
+///
+/// Provides a real-time console interface for monitoring server output with
+/// filtering capabilities, auto-scroll functionality, and color-coded log levels.
+/// Supports both Rust and Hummingbird server implementations.
 struct ServerConsoleView: View {
     @State private var viewModel = ServerConsoleViewModel()
     @State private var autoScroll = true

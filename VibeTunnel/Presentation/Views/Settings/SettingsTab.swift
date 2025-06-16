@@ -1,6 +1,9 @@
 import Foundation
 
-/// Represents the available tabs in the Settings window
+/// Represents the available tabs in the Settings window.
+///
+/// Each tab corresponds to a different configuration area of VibeTunnel,
+/// with associated display names and SF Symbol icons for the tab bar.
 enum SettingsTab: String, CaseIterable {
     case general
     case dashboard

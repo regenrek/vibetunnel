@@ -1,6 +1,10 @@
 import SwiftUI
 
-/// Main settings window with tabbed interface
+/// Main settings window with tabbed interface.
+///
+/// Provides a macOS-style preferences window with multiple tabs for different
+/// configuration aspects of VibeTunnel. Dynamically adjusts window size based
+/// on the selected tab and conditionally shows debug settings when enabled.
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var contentSize: CGSize = .zero
