@@ -876,23 +876,17 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
         return json_response(StatusCode::OK, &response);
     };
 
-    // Try SIGTERM first, then SIGKILL if needed
-    let (status, message) = match sessions::send_signal_to_session(control_path, &session_id, 15) {
-        Ok(_) => (StatusCode::OK, "Session killed (SIGTERM)"),
-        Err(_) => {
-            // SIGTERM failed, try SIGKILL
-            match sessions::send_signal_to_session(control_path, &session_id, 9) {
-                Ok(_) => (StatusCode::OK, "Session killed (SIGKILL)"),
-                Err(e) => {
-                    let response = ApiResponse {
-                        success: None,
-                        message: None,
-                        error: Some(format!("Failed to kill session: {}", e)),
-                        session_id: None,
-                    };
-                    return json_response(StatusCode::GONE, &response);
-                }
-            }
+    // Try SIGKILL first, then SIGKILL if needed
+    let (status, message) = match sessions::send_signal_to_session(control_path, &session_id, 9) {
+        Ok(_) => (StatusCode::OK, "Session killed (SIGKILL)"),
+        Err(e) => {
+            let response = ApiResponse {
+                success: None,
+                message: None,
+                error: Some(format!("Failed to kill session: {}", e)),
+                session_id: None,
+            };
+            return json_response(StatusCode::GONE, &response);
         }
     };
 
