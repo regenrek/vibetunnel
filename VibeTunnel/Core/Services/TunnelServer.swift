@@ -88,7 +88,7 @@ public final class TunnelServer {
     private let logger = Logger(label: "VibeTunnel.TunnelServer")
     private let terminalManager = TerminalManager()
     private var serverTask: Task<Void, Error>?
-    private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel").path
+    private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel").appendingPathComponent("control").path
     
     public init(port: Int = 4020) {
         self.port = port
