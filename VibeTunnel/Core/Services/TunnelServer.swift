@@ -961,7 +961,7 @@ public final class TunnelServer {
                 }
             }
         } onCancel: { [fileMonitor] in
-            fileMonitor?.cancel()
+            // fileMonitor?.cancel()
         }
 
         continuation.finish()
