@@ -136,12 +136,12 @@ fn unauthorized_response() -> Response<String> {
 
 fn get_mime_type(file_path: &Path) -> &'static str {
     match file_path.extension().and_then(|ext| ext.to_str()) {
-        Some("html") | Some("htm") => "text/html",
+        Some("html" | "htm") => "text/html",
         Some("css") => "text/css",
-        Some("js") | Some("mjs") => "application/javascript",
+        Some("js" | "mjs") => "application/javascript",
         Some("json") => "application/json",
         Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("jpg" | "jpeg") => "image/jpeg",
         Some("gif") => "image/gif",
         Some("svg") => "image/svg+xml",
         Some("ico") => "image/x-icon",
@@ -185,29 +185,26 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
 
     if file_path.is_file() {
         // Serve the file directly
-        match fs::read(&file_path) {
-            Ok(content) => {
-                let mime_type = get_mime_type(&file_path);
+        if let Ok(content) = fs::read(&file_path) {
+            let mime_type = get_mime_type(&file_path);
 
-                Some(
-                    Response::builder()
-                        .status(StatusCode::OK)
-                        .header("Content-Type", mime_type)
-                        .header("Access-Control-Allow-Origin", "*")
-                        .body(content)
-                        .unwrap(),
-                )
-            }
-            Err(_) => {
-                let error_msg = "Failed to read file".as_bytes().to_vec();
-                Some(
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .header("Content-Type", "text/plain")
-                        .body(error_msg)
-                        .unwrap(),
-                )
-            }
+            Some(
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header("Content-Type", mime_type)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(content)
+                    .unwrap(),
+            )
+        } else {
+            let error_msg = b"Failed to read file".to_vec();
+            Some(
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("Content-Type", "text/plain")
+                    .body(error_msg)
+                    .unwrap(),
+            )
         }
     } else if file_path.is_dir() {
         // Try to serve index.html from the directory
@@ -215,25 +212,24 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
         println!("Checking for index.html at: {}", index_path.display());
         if index_path.is_file() {
             println!("Found index.html, serving it");
-            match fs::read(&index_path) {
-                Ok(content) => Some(
+            if let Ok(content) = fs::read(&index_path) {
+                Some(
                     Response::builder()
                         .status(StatusCode::OK)
                         .header("Content-Type", "text/html")
                         .header("Access-Control-Allow-Origin", "*")
                         .body(content)
                         .unwrap(),
-                ),
-                Err(_) => {
-                    let error_msg = "Failed to read index.html".as_bytes().to_vec();
-                    Some(
-                        Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .header("Content-Type", "text/plain")
-                            .body(error_msg)
-                            .unwrap(),
-                    )
-                }
+                )
+            } else {
+                let error_msg = b"Failed to read index.html".to_vec();
+                Some(
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header("Content-Type", "text/plain")
+                        .body(error_msg)
+                        .unwrap(),
+                )
             }
         } else {
             println!("index.html not found at: {}", index_path.display());
@@ -262,15 +258,11 @@ pub fn start_server(
     // Set up auth if password is provided
     let auth_password = if let Some(ref password) = password {
         println!(
-            "HTTP API server listening on {} with Basic Auth enabled (any username)",
-            bind_address
+            "HTTP API server listening on {bind_address} with Basic Auth enabled (any username)"
         );
         Some(password.clone())
     } else {
-        println!(
-            "HTTP API server listening on {} with no authentication",
-            bind_address
-        );
+        println!("HTTP API server listening on {bind_address} with no authentication");
         None
     };
 
@@ -283,7 +275,7 @@ pub fn start_server(
             let mut req = match req {
                 Ok(req) => req,
                 Err(e) => {
-                    eprintln!("Request error: {}", e);
+                    eprintln!("Request error: {e}");
                     return;
                 }
             };
@@ -292,7 +284,7 @@ pub fn start_server(
             let path = req.uri().path().to_string();
             let full_uri = req.uri().to_string();
 
-            println!("{:?} {} (full URI: {})", method, path, full_uri);
+            println!("{method:?} {path} (full URI: {full_uri})");
 
             // Check authentication if enabled (but skip /api/health)
             if let Some(ref expected_password) = auth_password {
@@ -326,10 +318,10 @@ pub fn start_server(
             let response = match (method, path.as_str()) {
                 (&Method::GET, "/api/health") => handle_health(),
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
-                (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &mut req),
+                (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &req),
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
-                (&Method::POST, "/api/mkdir") => handle_mkdir(&mut req),
-                (&Method::GET, "/api/fs/browse") => handle_browse(&mut req),
+                (&Method::POST, "/api/mkdir") => handle_mkdir(&req),
+                (&Method::GET, "/api/fs/browse") => handle_browse(&req),
                 (&Method::GET, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/stream") =>
                 {
@@ -344,7 +336,7 @@ pub fn start_server(
                 (&Method::POST, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/input") =>
                 {
-                    handle_session_input(&control_path, path, &mut req)
+                    handle_session_input(&control_path, path, &req)
                 }
                 (&Method::DELETE, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/cleanup") =>
@@ -408,8 +400,7 @@ fn handle_list_sessions(control_path: &Path) -> Response<String> {
                 let started_at_str = entry
                     .session_info
                     .started_at
-                    .map(|ts| ts.to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
+                    .map_or_else(|| "unknown".to_string(), |ts| ts.to_string());
 
                 let last_modified =
                     get_last_modified(&entry.stream_out).unwrap_or_else(|| started_at_str.clone());
@@ -433,7 +424,7 @@ fn handle_list_sessions(control_path: &Path) -> Response<String> {
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Failed to list sessions: {}", e)),
+                error: Some(format!("Failed to list sessions: {e}")),
                 session_id: None,
             };
             json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
@@ -443,23 +434,22 @@ fn handle_list_sessions(control_path: &Path) -> Response<String> {
 
 fn handle_create_session(
     control_path: &Path,
-    req: &mut crate::http_server::HttpRequest,
+    req: &crate::http_server::HttpRequest,
 ) -> Response<String> {
     // Read the request body
     let body_bytes = req.body();
     let body = String::from_utf8_lossy(body_bytes);
 
-    let create_request = match serde_json::from_str::<CreateSessionRequest>(&body) {
-        Ok(request) => request,
-        Err(_) => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Invalid request body. Expected JSON with 'command' array and optional 'workingDir'".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::BAD_REQUEST, &error);
-        }
+    let create_request = if let Ok(request) = serde_json::from_str::<CreateSessionRequest>(&body) {
+        request
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid request body. Expected JSON with 'command' array and optional 'workingDir'".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &error);
     };
 
     if create_request.command.is_empty() {
@@ -481,7 +471,7 @@ fn handle_create_session(
         let error = ApiResponse {
             success: None,
             message: None,
-            error: Some(format!("Failed to create session directory: {}", e)),
+            error: Some(format!("Failed to create session directory: {e}")),
             session_id: None,
         };
         return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
@@ -532,33 +522,29 @@ fn handle_create_session(
         expanded_dir.to_string_lossy().to_string()
     } else {
         std::env::current_dir()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| "/".to_string())
+            .map_or_else(|_| "/".to_string(), |p| p.to_string_lossy().to_string())
     };
 
     // Spawn the process in a detached manner using a separate thread
     let control_path_clone = control_path.to_path_buf();
     let session_id_clone = session_id.clone();
-    let cmdline_clone = cmdline.clone();
-    let working_dir_clone = current_dir.clone();
-    let term_clone = create_request.term.clone();
+    let cmdline_clone = cmdline;
+    let working_dir_clone = current_dir;
+    let term_clone = create_request.term;
 
     std::thread::Builder::new()
-        .name(format!("session-{}", session_id_clone))
+        .name(format!("session-{session_id_clone}"))
         .spawn(move || {
             // Change to the specified working directory before spawning
             let original_dir = std::env::current_dir().ok();
             if let Err(e) = std::env::set_current_dir(&working_dir_clone) {
-                eprintln!(
-                    "Failed to change to working directory {}: {}",
-                    working_dir_clone, e
-                );
+                eprintln!("Failed to change to working directory {working_dir_clone}: {e}");
                 return;
             }
 
             // Set up TtySpawn
             let mut tty_spawn = crate::tty_spawn::TtySpawn::new_cmdline(
-                cmdline_clone.iter().map(|s| s.as_os_str()),
+                cmdline_clone.iter().map(std::ffi::OsString::as_os_str),
             );
             let session_path = control_path_clone.join(&session_id_clone);
             let session_info_path = session_path.join("session.json");
@@ -570,20 +556,14 @@ fn handle_create_session(
                 .stdout_path(&stream_out_path, true)
                 .and_then(|spawn| spawn.stdin_path(&stdin_path))
             {
-                eprintln!(
-                    "Failed to set up TTY paths for session {}: {}",
-                    session_id_clone, e
-                );
+                eprintln!("Failed to set up TTY paths for session {session_id_clone}: {e}");
                 return;
             }
 
             tty_spawn.session_json_path(&session_info_path);
 
             if let Err(e) = tty_spawn.notification_path(&notification_stream_path) {
-                eprintln!(
-                    "Failed to set up notification path for session {}: {}",
-                    session_id_clone, e
-                );
+                eprintln!("Failed to set up notification path for session {session_id_clone}: {e}");
                 return;
             }
 
@@ -591,8 +571,7 @@ fn handle_create_session(
             let session_name = cmdline_clone
                 .first()
                 .and_then(|cmd| cmd.to_str())
-                .map(|s| s.split('/').next_back().unwrap_or(s))
-                .unwrap_or("unknown")
+                .map_or("unknown", |s| s.split('/').next_back().unwrap_or(s))
                 .to_string();
             tty_spawn.session_name(session_name);
 
@@ -605,13 +584,10 @@ fn handle_create_session(
             // Spawn the process (this will block until the process exits)
             match tty_spawn.spawn() {
                 Ok(exit_code) => {
-                    println!(
-                        "Session {} exited with code {}",
-                        session_id_clone, exit_code
-                    );
+                    println!("Session {session_id_clone} exited with code {exit_code}");
                 }
                 Err(e) => {
-                    eprintln!("Failed to spawn session {}: {}", session_id_clone, e);
+                    eprintln!("Failed to spawn session {session_id_clone}: {e}");
                 }
             }
 
@@ -634,7 +610,7 @@ fn handle_create_session(
 
 fn handle_cleanup_exited(control_path: &Path) -> Response<String> {
     match sessions::cleanup_sessions(control_path, None) {
-        Ok(_) => {
+        Ok(()) => {
             let response = ApiResponse {
                 success: Some(true),
                 message: Some("All exited sessions cleaned up".to_string()),
@@ -647,7 +623,7 @@ fn handle_cleanup_exited(control_path: &Path) -> Response<String> {
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Failed to cleanup sessions: {}", e)),
+                error: Some(format!("Failed to cleanup sessions: {e}")),
                 session_id: None,
             };
             json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
@@ -659,21 +635,20 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
     if let Some(session_id) = extract_session_id(path) {
         let stream_path = control_path.join(&session_id).join("stream-out");
 
-        match fs::read_to_string(&stream_path) {
-            Ok(content) => Response::builder()
+        if let Ok(content) = fs::read_to_string(&stream_path) {
+            Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "text/plain")
                 .body(content)
-                .unwrap(),
-            Err(_) => {
-                let error = ApiResponse {
-                    success: None,
-                    message: None,
-                    error: Some("Session not found".to_string()),
-                    session_id: None,
-                };
-                json_response(StatusCode::NOT_FOUND, &error)
-            }
+                .unwrap()
+        } else {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Session not found".to_string()),
+                session_id: None,
+            };
+            json_response(StatusCode::NOT_FOUND, &error)
         }
     } else {
         let error = ApiResponse {
@@ -689,7 +664,7 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
 fn handle_session_input(
     control_path: &Path,
     path: &str,
-    req: &mut crate::http_server::HttpRequest,
+    req: &crate::http_server::HttpRequest,
 ) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
         // Try to read the request body using the body() method
@@ -765,7 +740,7 @@ fn handle_session_input(
                         };
 
                         match result {
-                            Ok(_) => {
+                            Ok(()) => {
                                 let response = ApiResponse {
                                     success: Some(true),
                                     message: Some("Input sent successfully".to_string()),
@@ -778,7 +753,7 @@ fn handle_session_input(
                                 let error = ApiResponse {
                                     success: None,
                                     message: None,
-                                    error: Some(format!("Failed to send input: {}", e)),
+                                    error: Some(format!("Failed to send input: {e}")),
                                     session_id: None,
                                 };
                                 json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
@@ -799,7 +774,7 @@ fn handle_session_input(
                     let error = ApiResponse {
                         success: None,
                         message: None,
-                        error: Some(format!("Failed to list sessions: {}", e)),
+                        error: Some(format!("Failed to list sessions: {e}")),
                         session_id: None,
                     };
                     json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
@@ -826,17 +801,16 @@ fn handle_session_input(
 }
 
 fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
-    let session_id = match extract_session_id(path) {
-        Some(id) => id,
-        None => {
-            let response = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Invalid session ID".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::BAD_REQUEST, &response);
-        }
+    let session_id = if let Some(id) = extract_session_id(path) {
+        id
+    } else {
+        let response = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid session ID".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &response);
     };
 
     let sessions = match sessions::list_sessions(control_path) {
@@ -845,24 +819,23 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
             let response = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Failed to list sessions: {}", e)),
+                error: Some(format!("Failed to list sessions: {e}")),
                 session_id: None,
             };
             return json_response(StatusCode::INTERNAL_SERVER_ERROR, &response);
         }
     };
 
-    let session_entry = match sessions.get(&session_id) {
-        Some(entry) => entry,
-        None => {
-            let response = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Session not found".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::NOT_FOUND, &response);
-        }
+    let session_entry = if let Some(entry) = sessions.get(&session_id) {
+        entry
+    } else {
+        let response = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Session not found".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::NOT_FOUND, &response);
     };
 
     // If session has no PID, consider it already dead
@@ -874,16 +847,16 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
             session_id: None,
         };
         return json_response(StatusCode::OK, &response);
-    };
+    }
 
     // Try SIGKILL first, then SIGKILL if needed
     let (status, message) = match sessions::send_signal_to_session(control_path, &session_id, 9) {
-        Ok(_) => (StatusCode::OK, "Session killed (SIGKILL)"),
+        Ok(()) => (StatusCode::OK, "Session killed (SIGKILL)"),
         Err(e) => {
             let response = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Failed to kill session: {}", e)),
+                error: Some(format!("Failed to kill session: {e}")),
                 session_id: None,
             };
             return json_response(StatusCode::GONE, &response);
@@ -902,7 +875,7 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
 fn handle_session_cleanup(control_path: &Path, path: &str) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
         match sessions::cleanup_sessions(control_path, Some(&session_id)) {
-            Ok(_) => {
+            Ok(()) => {
                 let response = ApiResponse {
                     success: Some(true),
                     message: Some("Session cleaned up".to_string()),
@@ -915,7 +888,7 @@ fn handle_session_cleanup(control_path: &Path, path: &str) -> Response<String> {
                 let error = ApiResponse {
                     success: None,
                     message: None,
-                    error: Some(format!("Failed to cleanup session: {}", e)),
+                    error: Some(format!("Failed to cleanup session: {e}")),
                     session_id: None,
                 };
                 json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
@@ -945,19 +918,18 @@ fn get_last_modified(file_path: &str) -> Option<String> {
 }
 
 fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpRequest) {
-    let session_id = match extract_session_id(path) {
-        Some(id) => id,
-        None => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Invalid session ID".to_string()),
-                session_id: None,
-            };
-            let response = json_response(StatusCode::BAD_REQUEST, &error);
-            let _ = req.respond(response);
-            return;
-        }
+    let session_id = if let Some(id) = extract_session_id(path) {
+        id
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid session ID".to_string()),
+            session_id: None,
+        };
+        let response = json_response(StatusCode::BAD_REQUEST, &error);
+        let _ = req.respond(response);
+        return;
     };
 
     // First check if the session exists
@@ -967,7 +939,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Failed to list sessions: {}", e)),
+                error: Some(format!("Failed to list sessions: {e}")),
                 session_id: None,
             };
             let response = json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
@@ -976,19 +948,18 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         }
     };
 
-    let session_entry = match sessions.get(&session_id) {
-        Some(entry) => entry,
-        None => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Session not found".to_string()),
-                session_id: None,
-            };
-            let response = json_response(StatusCode::NOT_FOUND, &error);
-            let _ = req.respond(response);
-            return;
-        }
+    let session_entry = if let Some(entry) = sessions.get(&session_id) {
+        entry
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Session not found".to_string()),
+            session_id: None,
+        };
+        let response = json_response(StatusCode::NOT_FOUND, &error);
+        let _ = req.respond(response);
+        return;
     };
 
     let stream_out_path = &session_entry.stream_out;
@@ -1006,7 +977,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         return;
     }
 
-    println!("Starting streaming SSE for session {}", session_id);
+    println!("Starting streaming SSE for session {session_id}");
 
     // Send SSE headers
     let response = Response::builder()
@@ -1019,7 +990,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         .unwrap();
 
     if let Err(e) = req.respond(response) {
-        println!("Failed to send SSE headers: {}", e);
+        println!("Failed to send SSE headers: {e}");
         return;
     }
 
@@ -1037,13 +1008,13 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
 
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
                 // Check if this is an event line [timestamp, type, data]
-                if parsed.as_array().map(|arr| arr.len() >= 3).unwrap_or(false) {
+                if parsed.as_array().is_some_and(|arr| arr.len() >= 3) {
                     // Convert to instant event for immediate playback
                     if let Some(arr) = parsed.as_array() {
                         let instant_event = serde_json::json!([0, arr[1], arr[2]]);
-                        let data = format!("data: {}\n\n", instant_event);
+                        let data = format!("data: {instant_event}\n\n");
                         if let Err(e) = req.respond_raw(data.as_bytes()) {
-                            println!("Failed to send event data: {}", e);
+                            println!("Failed to send event data: {e}");
                             return;
                         }
                     }
@@ -1051,7 +1022,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                 } else {
                     req.respond_raw("data: ").ok();
                     if let Err(e) = req.respond_raw(line.as_bytes()) {
-                        println!("Failed to send header: {}", e);
+                        println!("Failed to send header: {e}");
                         return;
                     }
                     req.respond_raw("\n\n").ok();
@@ -1073,7 +1044,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
             serde_json::to_string(&default_header).unwrap()
         );
         if let Err(e) = req.respond_raw(data.as_bytes()) {
-            println!("Failed to send fallback header: {}", e);
+            println!("Failed to send fallback header: {e}");
             return;
         }
     }
@@ -1118,13 +1089,12 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                                             arr[2]
                                         ]);
                                         let data = format!(
-                                            "data: {}
+                                            "data: {real_time_event}
 
-",
-                                            real_time_event
+"
                                         );
                                         if let Err(e) = req.respond_raw(data.as_bytes()) {
-                                            println!("Failed to send streaming data: {}", e);
+                                            println!("Failed to send streaming data: {e}");
                                             break;
                                         }
                                     }
@@ -1138,19 +1108,18 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                                 let cast_event =
                                     serde_json::json!([current_time - start_time, "o", line]);
                                 let data = format!(
-                                    "data: {}
+                                    "data: {cast_event}
 
-",
-                                    cast_event
+"
                                 );
                                 if let Err(e) = req.respond_raw(data.as_bytes()) {
-                                    println!("Failed to send raw streaming data: {}", e);
+                                    println!("Failed to send raw streaming data: {e}");
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("Error reading from tail: {}", e);
+                            println!("Error reading from tail: {e}");
                             break;
                         }
                     }
@@ -1161,12 +1130,11 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
             }
         }
         Err(e) => {
-            println!("Failed to start tail command: {}", e);
+            println!("Failed to start tail command: {e}");
             let error_data = format!(
-                "data: {{\"type\":\"error\",\"message\":\"Failed to start streaming: {}\"}}
+                "data: {{\"type\":\"error\",\"message\":\"Failed to start streaming: {e}\"}}
 
-",
-                e
+"
             );
             let _ = req.respond_raw(error_data.as_bytes());
         }
@@ -1178,7 +1146,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
 ";
     let _ = req.respond_raw(end_data.as_bytes());
 
-    println!("Ended streaming SSE for session {}", session_id);
+    println!("Ended streaming SSE for session {session_id}");
 }
 
 fn resolve_path(path: &str, home_dir: &str) -> PathBuf {
@@ -1193,20 +1161,19 @@ fn resolve_path(path: &str, home_dir: &str) -> PathBuf {
     }
 }
 
-fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> {
+fn handle_browse(req: &crate::http_server::HttpRequest) -> Response<String> {
     let query_string = req.uri().query().unwrap_or("");
 
-    let query: BrowseQuery = match serde_urlencoded::from_str(query_string) {
-        Ok(query) => query,
-        Err(_) => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Invalid query parameters".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::BAD_REQUEST, &error);
-        }
+    let query: BrowseQuery = if let Ok(query) = serde_urlencoded::from_str(query_string) {
+        query
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid query parameters".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &error);
     };
 
     let dir_path = query.path.as_deref().unwrap_or("~");
@@ -1225,17 +1192,16 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
         return json_response(StatusCode::NOT_FOUND, &error);
     }
 
-    let metadata = match fs::metadata(&expanded_path) {
-        Ok(metadata) => metadata,
-        Err(_) => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Failed to read directory metadata".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
-        }
+    let metadata = if let Ok(metadata) = fs::metadata(&expanded_path) {
+        metadata
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Failed to read directory metadata".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
     };
 
     if !metadata.is_dir() {
@@ -1248,17 +1214,16 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
         return json_response(StatusCode::BAD_REQUEST, &error);
     }
 
-    let entries = match fs::read_dir(&expanded_path) {
-        Ok(entries) => entries,
-        Err(_) => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Failed to list directory".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
-        }
+    let entries = if let Ok(entries) = fs::read_dir(&expanded_path) {
+        entries
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Failed to list directory".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
     };
 
     let mut files = Vec::new();
@@ -1278,13 +1243,15 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
             let created = file_metadata
                 .created()
                 .or_else(|_| file_metadata.modified())
-                .map(system_time_to_iso_string)
-                .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+                .map_or_else(
+                    |_| "1970-01-01T00:00:00Z".to_string(),
+                    system_time_to_iso_string,
+                );
 
-            let last_modified = file_metadata
-                .modified()
-                .map(system_time_to_iso_string)
-                .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+            let last_modified = file_metadata.modified().map_or_else(
+                |_| "1970-01-01T00:00:00Z".to_string(),
+                system_time_to_iso_string,
+            );
 
             files.push(FileInfo {
                 name,
@@ -1315,21 +1282,20 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
     json_response(StatusCode::OK, &response)
 }
 
-fn handle_mkdir(req: &mut crate::http_server::HttpRequest) -> Response<String> {
+fn handle_mkdir(req: &crate::http_server::HttpRequest) -> Response<String> {
     let body_bytes = req.body();
     let body = String::from_utf8_lossy(body_bytes);
 
-    let mkdir_request = match serde_json::from_str::<MkdirRequest>(&body) {
-        Ok(request) => request,
-        Err(_) => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some("Invalid request body. Expected JSON with 'path' field".to_string()),
-                session_id: None,
-            };
-            return json_response(StatusCode::BAD_REQUEST, &error);
-        }
+    let mkdir_request = if let Ok(request) = serde_json::from_str::<MkdirRequest>(&body) {
+        request
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid request body. Expected JSON with 'path' field".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &error);
     };
 
     if mkdir_request.path.is_empty() {
@@ -1343,7 +1309,7 @@ fn handle_mkdir(req: &mut crate::http_server::HttpRequest) -> Response<String> {
     }
 
     match fs::create_dir_all(&mkdir_request.path) {
-        Ok(_) => {
+        Ok(()) => {
             let response = ApiResponse {
                 success: Some(true),
                 message: Some("Directory created successfully".to_string()),
@@ -1356,7 +1322,7 @@ fn handle_mkdir(req: &mut crate::http_server::HttpRequest) -> Response<String> {
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Failed to create directory: {}", e)),
+                error: Some(format!("Failed to create directory: {e}")),
                 session_id: None,
             };
             json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)

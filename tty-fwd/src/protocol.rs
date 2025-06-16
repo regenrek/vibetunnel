@@ -120,7 +120,7 @@ impl StreamWriter {
             start_time: std::time::Instant::now(),
         };
         let header_json = serde_json::to_string(&header)?;
-        writeln!(&mut writer.file, "{}", header_json)?;
+        writeln!(&mut writer.file, "{header_json}")?;
         writer.file.flush()?;
         Ok(writer)
     }
@@ -168,7 +168,7 @@ impl StreamWriter {
         ];
 
         let event_json = serde_json::to_string(&event_array)?;
-        writeln!(self.file, "{}", event_json)?;
+        writeln!(self.file, "{event_json}")?;
         self.file.flush()?;
 
         Ok(())
@@ -184,7 +184,7 @@ pub struct NotificationWriter {
 }
 
 impl NotificationWriter {
-    pub fn new(file: std::fs::File) -> Self {
+    pub const fn new(file: std::fs::File) -> Self {
         Self { file }
     }
 
@@ -192,7 +192,7 @@ impl NotificationWriter {
         use std::io::Write;
 
         let event_json = serde_json::to_string(&event)?;
-        writeln!(self.file, "{}", event_json)?;
+        writeln!(self.file, "{event_json}")?;
         self.file.flush()?;
 
         Ok(())

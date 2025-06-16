@@ -75,7 +75,7 @@ fn main() -> Result<(), anyhow::Error> {
                 serve_address = Some(if addr.contains(':') {
                     addr
                 } else {
-                    format!("127.0.0.1:{}", addr)
+                    format!("127.0.0.1:{addr}")
                 });
             }
             p if p.is_long("static-path") => {
@@ -121,45 +121,40 @@ fn main() -> Result<(), anyhow::Error> {
     if let Some(key) = send_key {
         if let Some(sid) = &session_id {
             return sessions::send_key_to_session(&control_path, sid, &key);
-        } else {
-            return Err(anyhow!("--send-key requires --session <session_id>"));
         }
+        return Err(anyhow!("--send-key requires --session <session_id>"));
     }
 
     // Handle send-text command
     if let Some(text) = send_text {
         if let Some(sid) = &session_id {
             return sessions::send_text_to_session(&control_path, sid, &text);
-        } else {
-            return Err(anyhow!("--send-text requires --session <session_id>"));
         }
+        return Err(anyhow!("--send-text requires --session <session_id>"));
     }
 
     // Handle signal command
     if let Some(sig) = signal {
         if let Some(sid) = &session_id {
             return sessions::send_signal_to_session(&control_path, sid, sig);
-        } else {
-            return Err(anyhow!("--signal requires --session <session_id>"));
         }
+        return Err(anyhow!("--signal requires --session <session_id>"));
     }
 
     // Handle stop command (SIGTERM)
     if stop {
         if let Some(sid) = &session_id {
             return sessions::send_signal_to_session(&control_path, sid, 15);
-        } else {
-            return Err(anyhow!("--stop requires --session <session_id>"));
         }
+        return Err(anyhow!("--stop requires --session <session_id>"));
     }
 
     // Handle kill command (SIGKILL)
     if kill {
         if let Some(sid) = &session_id {
             return sessions::send_signal_to_session(&control_path, sid, 9);
-        } else {
-            return Err(anyhow!("--kill requires --session <session_id>"));
         }
+        return Err(anyhow!("--kill requires --session <session_id>"));
     }
 
     // Handle cleanup command

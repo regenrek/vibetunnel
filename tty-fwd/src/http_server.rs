@@ -26,7 +26,7 @@ impl HttpServer {
         Ok(Self { listener })
     }
 
-    pub fn incoming(&self) -> Incoming {
+    pub const fn incoming(&self) -> Incoming {
         Incoming {
             listener: &self.listener,
         }
@@ -38,7 +38,7 @@ pub struct Incoming<'a> {
     listener: &'a TcpListener,
 }
 
-impl<'a> Iterator for Incoming<'a> {
+impl Iterator for Incoming<'_> {
     type Item = std::result::Result<HttpRequest, Box<dyn std::error::Error + Send + Sync>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -161,7 +161,7 @@ impl HttpRequest {
 
                         let request = request_builder.body(body)?;
 
-                        return Ok(HttpRequest {
+                        return Ok(Self {
                             stream,
                             remote_addr,
                             request,
@@ -186,10 +186,11 @@ impl HttpRequest {
         let mut headers = String::new();
         for (name, value) in parts.headers {
             if let Some(name) = name {
-                headers.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
+                use std::fmt::Write;
+                let _ = write!(headers, "{}: {}\r\n", name, value.to_str().unwrap_or(""));
             }
         }
-        let header_bytes = format!("{}{}\r\n", status_line, headers).into_bytes();
+        let header_bytes = format!("{status_line}{headers}\r\n").into_bytes();
         let mut result = header_bytes;
         result.extend_from_slice(body.as_ref());
         result

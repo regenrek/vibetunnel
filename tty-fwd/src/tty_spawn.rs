@@ -32,7 +32,7 @@ use signal_hook::consts::SIGWINCH;
 
 pub const DEFAULT_TERM: &str = "xterm-256color";
 
-/// Creates environment variables for AsciinemaHeader
+/// Creates environment variables for `AsciinemaHeader`
 fn create_env_vars(term: &str) -> std::collections::HashMap<String, String> {
     let mut env_vars = std::collections::HashMap::new();
     env_vars.insert("TERM".to_string(), term.to_string());
@@ -69,7 +69,7 @@ impl TtySpawn {
             .to_os_string()];
         command.extend(cmdline.map(|arg| arg.as_ref().to_os_string()));
 
-        TtySpawn {
+        Self {
             options: Some(SpawnOptions {
                 command,
                 stdin_file: None,
@@ -108,14 +108,14 @@ impl TtySpawn {
         path: P,
         truncate: bool,
     ) -> Result<&mut Self, io::Error> {
-        let file = if !truncate {
-            File::options().append(true).create(true).open(path)?
-        } else {
+        let file = if truncate {
             File::options()
                 .create(true)
                 .truncate(true)
                 .write(true)
                 .open(path)?
+        } else {
+            File::options().append(true).create(true).open(path)?
         };
 
         self.options_mut().stdout_file = Some(file);
@@ -135,7 +135,7 @@ impl TtySpawn {
     }
 
     /// Sets the process to run in detached mode (don't connect to current terminal).
-    pub fn detached(&mut self, detached: bool) -> &mut Self {
+    pub const fn detached(&mut self, detached: bool) -> &mut Self {
         self.options_mut().detached = detached;
         self
     }
@@ -162,7 +162,7 @@ impl TtySpawn {
         )?)
     }
 
-    fn options_mut(&mut self) -> &mut SpawnOptions {
+    const fn options_mut(&mut self) -> &mut SpawnOptions {
         self.options.as_mut().expect("builder only works once")
     }
 }
@@ -237,7 +237,6 @@ fn update_session_status(
     Ok(())
 }
 
-
 /// Spawns a process in a PTY in a manor similar to `script`
 /// but with separate stdout/stderr.
 ///
@@ -256,9 +255,10 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             .to_string();
 
         // Get current working directory
-        let current_dir = env::current_dir()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| "unknown".to_string());
+        let current_dir = env::current_dir().map_or_else(
+            |_| "unknown".to_string(),
+            |p| p.to_string_lossy().to_string(),
+        );
 
         let cmdline: Vec<String> = opts
             .command
@@ -359,8 +359,8 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
                 let stream_writer = if let Some(stdout_file) = opts.stdout_file.take() {
                     StreamWriter::with_params(
                         stdout_file,
-                        winsize.as_ref().map_or(80, |x| x.ws_col as u32),
-                        winsize.as_ref().map_or(24, |x| x.ws_row as u32),
+                        winsize.as_ref().map_or(80, |x| u32::from(x.ws_col)),
+                        winsize.as_ref().map_or(24, |x| u32::from(x.ws_row)),
                         Some(
                             opts.command
                                 .iter()
@@ -421,8 +421,8 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
         let mut stream_writer = if let Some(stdout_file) = opts.stdout_file.take() {
             StreamWriter::with_params(
                 stdout_file,
-                winsize.as_ref().map_or(80, |x| x.ws_col as u32),
-                winsize.as_ref().map_or(24, |x| x.ws_row as u32),
+                winsize.as_ref().map_or(80, |x| u32::from(x.ws_col)),
+                winsize.as_ref().map_or(24, |x| u32::from(x.ws_row)),
                 Some(
                     opts.command
                         .iter()
@@ -592,7 +592,7 @@ fn communication_loop(
                     done = true;
                 }
                 Err(err) => return Err(err),
-            };
+            }
         }
         if let Some(ref f) = in_file {
             if read_fds.contains(f.as_fd()) {
@@ -625,11 +625,11 @@ fn communication_loop(
                     done = true;
                 }
                 Ok(n) => {
-                    forward_and_log(io::stdout().as_fd(), &mut stream_writer, &buf[..n], flush)?
+                    forward_and_log(io::stdout().as_fd(), &mut stream_writer, &buf[..n], flush)?;
                 }
                 Err(Errno::EAGAIN | Errno::EINTR) => {}
                 Err(err) => return Err(err),
-            };
+            }
         }
     }
 
@@ -818,7 +818,7 @@ fn monitor_detached_session(
                 }
                 Err(Errno::EAGAIN | Errno::EINTR) => {}
                 Err(err) => return Err(err),
-            };
+            }
         }
     }
 

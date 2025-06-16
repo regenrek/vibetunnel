@@ -8,6 +8,8 @@ edition = "2021"
 rust-version = "1.83.0"
 keywords = ["pty", "script", "tty", "tee"]
 readme = "README.md"
+repository = "https://github.com/steipete/vibetunnel"
+categories = ["command-line-utilities", "development-tools"]
 exclude = [
     "tests/*"
 ]
@@ -39,3 +41,40 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[lints.rust]
+# Allow unsafe code as it's necessary for system operations
+unsafe_code = "allow"
+missing_docs = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+# Allow some common patterns that are too pedantic
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# Allow unsafe operations necessary for system calls
+multiple_unsafe_ops_per_block = "allow"
+# Allow cognitive complexity for main function
+cognitive_complexity = "allow"
+too_many_lines = "allow"
+# Allow some other pedantic lints that are too strict
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+similar_names = "allow"
+# Allow some nursery lints that are impractical
+option_if_let_else = "allow"
+# Allow needless_pass_by_value as it's often cleaner
+needless_pass_by_value = "allow"
+# Allow other pedantic warnings that are overly strict
+manual_let_else = "allow"
+items_after_statements = "allow"
+useless_let_if_seq = "allow"
+unused_self = "allow"
+# Allow multiple crate versions (not always controllable)
+multiple_crate_versions = "allow"

@@ -40,17 +40,17 @@ pub fn list_sessions(
             if session_json_path.exists() {
                 let stream_out = stream_out_path
                     .canonicalize()
-                    .unwrap_or(stream_out_path.clone())
+                    .unwrap_or_else(|_| stream_out_path.clone())
                     .to_string_lossy()
                     .to_string();
                 let stdin = stdin_path
                     .canonicalize()
-                    .unwrap_or(stdin_path.clone())
+                    .unwrap_or_else(|_| stdin_path.clone())
                     .to_string_lossy()
                     .to_string();
                 let notification_stream = notification_stream_path
                     .canonicalize()
-                    .unwrap_or(notification_stream_path.clone())
+                    .unwrap_or_else(|_| notification_stream_path.clone())
                     .to_string_lossy()
                     .to_string();
                 let mut session_info: SessionInfo = fs::read_to_string(&session_json_path)
@@ -100,9 +100,8 @@ pub fn send_key_to_session(
         "arrow_right" => b"\x1b[C",
         "arrow_left" => b"\x1b[D",
         "escape" => b"\x1b",
-        "enter" => b"\r",
-        "ctrl_enter" => b"\x0d", // Just CR like normal enter for now - let's test this first
-        "shift_enter" => b"\x1b\x0d", // ESC + Enter - simpler approach
+        "enter" | "ctrl_enter" => b"\r", // Just CR like normal enter for now - let's test this first
+        "shift_enter" => b"\x1b\x0d",    // ESC + Enter - simpler approach
         _ => return Err(anyhow!("Unknown key: {}", key)),
     };
 
@@ -325,14 +324,14 @@ pub fn spawn_command(
     }
     let session_id = Uuid::new_v4();
     // Print session ID to stdout for the caller to capture
-    println!("{}", session_id);
+    println!("{session_id}");
     let session_path = control_path.join(session_id.to_string());
     fs::create_dir_all(&session_path)?;
     let session_info_path = session_path.join("session.json");
     let stream_out_path = session_path.join("stream-out");
     let stdin_path = session_path.join("stdin");
     let notification_stream_path = session_path.join("notification-stream");
-    let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| s.as_os_str()));
+    let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(std::ffi::OsString::as_os_str));
     tty_spawn
         .stdout_path(&stream_out_path, true)?
         .stdin_path(&stdin_path)?
