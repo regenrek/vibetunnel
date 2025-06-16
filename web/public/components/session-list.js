@@ -149,23 +149,20 @@ let SessionList = class SessionList extends LitElement {
                 <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
                   <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${session.command}</div>
                   <button 
-                    class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-1 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
+                    class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
                     @click=${(e) => this.handleKillSession(e, session.id)}
                     ?disabled=${this.killingSessionIds.has(session.id)}
                   >
-                    ${this.killingSessionIds.has(session.id) ? '...' : 'x'}
+                    ${this.killingSessionIds.has(session.id) ? 'killing...' : 'kill'}
                   </button>
                 </div>
 
                 <!-- Asciinema player (main content) -->
-                <div class="session-preview">
+                <div class="session-preview bg-black flex items-center justify-center" style="aspect-ratio: 640/480;">
                   ${this.loadedSnapshots.has(session.id) ? html `
-                    <div id="player-${session.id}" class="bg-black" style="height: 120px; overflow: hidden;"></div>
+                    <div id="player-${session.id}" class="w-full h-full" style="overflow: hidden;"></div>
                   ` : html `
-                    <div 
-                      class="bg-black flex items-center justify-center text-vs-muted text-xs"
-                      style="height: 120px;"
-                    >
+                    <div class="text-vs-muted text-xs">
                       ${this.loadingSnapshots.has(session.id) ? 'Loading...' : 'Loading...'}
                     </div>
                   `}
