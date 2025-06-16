@@ -143,8 +143,19 @@ export class SessionView extends LitElement {
   private createInteractiveTerminal() {
     if (!this.session) return;
 
-    const terminalElement = this.querySelector('#interactive-terminal') as HTMLElement;
-    if (!terminalElement) return;
+    // Look for existing interactive terminal div or create one
+    let terminalElement = this.querySelector('#interactive-terminal') as HTMLElement;
+    if (!terminalElement) {
+      // Create the interactive terminal div inside the container
+      const container = this.querySelector('#terminal-container') as HTMLElement;
+      if (!container) return;
+      
+      terminalElement = document.createElement('div');
+      terminalElement.id = 'interactive-terminal';
+      terminalElement.className = 'w-full h-full';
+      terminalElement.style.cssText = 'max-width: 100%; height: 100%;';
+      container.appendChild(terminalElement);
+    }
 
     // Create renderer once and connect to current session
     this.renderer = new Renderer(terminalElement);
@@ -610,7 +621,7 @@ export class SessionView extends LitElement {
           box-shadow: none !important;
         }
       </style>
-      <div class="flex flex-col bg-vs-bg font-mono" style="height: 100vh; outline: none !important; box-shadow: none !important;">
+      <div class="flex flex-col bg-vs-bg font-mono" style="height: 100vh; height: 100dvh; outline: none !important; box-shadow: none !important;">
         <!-- Compact Header -->
         <div class="flex items-center justify-between px-3 py-2 border-b border-vs-border bg-vs-bg-secondary text-sm">
           <div class="flex items-center gap-3">
@@ -633,9 +644,7 @@ export class SessionView extends LitElement {
         </div>
 
         <!-- Terminal Container -->
-        <div class="flex-1 bg-black overflow-hidden min-h-0 relative" id="terminal-container" style="max-width: 100vw;">
-          <div id="interactive-terminal" class="w-full h-full" style="max-width: 100%;"></div>
-          
+        <div class="flex-1 bg-black overflow-hidden min-h-0 relative" id="terminal-container" style="max-width: 100vw; height: 100%;">
           ${this.loading ? html`
             <!-- Loading overlay -->
             <div class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center">

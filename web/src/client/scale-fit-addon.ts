@@ -16,10 +16,8 @@ const MAX_FONT_SIZE = 16;
 
 export class ScaleFitAddon implements ITerminalAddon {
   private _terminal: Terminal | undefined;
-  private _isPreview: boolean;
 
-  constructor(isPreview: boolean = false) {
-    this._isPreview = isPreview;
+  constructor() {
   }
 
   public activate(terminal: Terminal): void {
@@ -29,10 +27,6 @@ export class ScaleFitAddon implements ITerminalAddon {
   public dispose(): void {}
 
   public fit(): void {
-    if (this._isPreview) {
-      // For previews, only scale font size, don't change terminal dimensions
-      this.scaleFontOnly();
-    } else {
       // For full terminals, resize both font and dimensions
       const dims = this.proposeDimensions();
       if (!dims || !this._terminal || isNaN(dims.cols) || isNaN(dims.rows)) {
@@ -43,7 +37,9 @@ export class ScaleFitAddon implements ITerminalAddon {
       if (this._terminal.rows !== dims.rows) {
         this._terminal.resize(this._terminal.cols, dims.rows);
       }
-    }
+
+      // Force responsive sizing by overriding XTerm's fixed dimensions
+      this.forceResponsiveSizing();
   }
 
   public proposeDimensions(): ITerminalDimensions | undefined {
@@ -75,35 +71,60 @@ export class ScaleFitAddon implements ITerminalAddon {
     // Current terminal dimensions
     const currentCols = this._terminal.cols;
 
-    // Calculate optimal font size to fit current cols in available width
-    // Character width is approximately 0.6 * fontSize for monospace fonts
-    // For 80 cols exactly, we need to be more conservative to prevent wrapping
-    const charWidthRatio = 0.63;
-    // Calculate font size and round down for precision
-    const calculatedFontSize = Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
-    const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
+    // Get exact character dimensions from XTerm's measurement system first
+    const charDimensions = this.getXTermCharacterDimensions();
 
-    // Apply the calculated font size (outside of proposeDimensions to avoid recursion)
-    requestAnimationFrame(() => this.applyFontSize(optimalFontSize));
+    if (charDimensions) {
+      // Use actual measured dimensions for linear scaling calculation
+      const { charWidth, lineHeight } = charDimensions;
+      const currentFontSize = this._terminal.options.fontSize || 14;
 
-    // Get the actual line height from the rendered XTerm element
-    const xtermElement = this._terminal.element;
-    const currentStyle = window.getComputedStyle(xtermElement);
-    const actualLineHeight = parseFloat(currentStyle.lineHeight);
+      // Calculate current total rendered width for all columns
+      const currentRenderedWidth = currentCols * charWidth;
 
-    // XTerm typically uses a line height of around 1.0 for the character cell height
-    // Use a more accurate fallback based on XTerm's actual behavior
-    const lineHeight = (actualLineHeight && !isNaN(actualLineHeight)) ? 
-      actualLineHeight : 
-      (optimalFontSize * (this._terminal.options.lineHeight || 1.0));
+      // Calculate scale factor needed to fit exactly in available width
+      const scaleFactor = availableWidth / currentRenderedWidth;
 
-    // Calculate how many rows fit with this line height
-    const optimalRows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / lineHeight));
+      // Apply linear scaling to font size
+      const newFontSize = currentFontSize * scaleFactor;
+      const clampedFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, newFontSize));
 
-    return {
-      cols: currentCols, // Keep existing cols
-      rows: optimalRows  // Fit as many rows as possible
-    };
+      // Calculate actual font scaling that was applied (accounting for clamping)
+      const actualFontScaling = clampedFontSize / currentFontSize;
+
+      // Apply the actual font scaling to line height
+      const newLineHeight = lineHeight * actualFontScaling;
+
+      // Calculate how many rows fit with the scaled line height
+      const optimalRows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / newLineHeight));
+
+      // Apply the new font size
+      requestAnimationFrame(() => this.applyFontSize(clampedFontSize));
+
+      // Log all calculations for debugging
+      console.log(`ScaleFitAddon: ${availableWidth}×${availableHeight}px available, ${currentCols}×${this._terminal.rows} terminal, charWidth=${charWidth.toFixed(2)}px, lineHeight=${lineHeight.toFixed(2)}px, currentRenderedWidth=${currentRenderedWidth.toFixed(2)}px, scaleFactor=${scaleFactor.toFixed(3)}, actualFontScaling=${actualFontScaling.toFixed(3)}, fontSize ${currentFontSize}px→${clampedFontSize.toFixed(2)}px, lineHeight ${lineHeight.toFixed(2)}px→${newLineHeight.toFixed(2)}px, rows ${this._terminal.rows}→${optimalRows}`);
+
+      return {
+        cols: currentCols, // ALWAYS keep exact column count
+        rows: optimalRows  // Maximize rows that fit
+      };
+    } else {
+      // Fallback: estimate font size and dimensions if measurements aren't available
+      const charWidthRatio = 0.63;
+      const calculatedFontSize = Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
+      const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
+
+      // Apply the calculated font size
+      requestAnimationFrame(() => this.applyFontSize(optimalFontSize));
+
+      const lineHeight = optimalFontSize * (this._terminal.options.lineHeight || 1.2);
+      const optimalRows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / lineHeight));
+
+      return {
+        cols: currentCols,
+        rows: optimalRows
+      };
+    }
   }
 
   private applyFontSize(fontSize: number): void {
@@ -121,10 +142,12 @@ export class ScaleFitAddon implements ITerminalAddon {
     // Apply CSS font size to the element
     terminalElement.style.fontSize = `${fontSize}px`;
 
-    // Force a refresh to apply the new font size
+    // Force a refresh to apply the new font size and ensure responsive sizing
     requestAnimationFrame(() => {
       if (this._terminal) {
         this._terminal.refresh(0, this._terminal.rows - 1);
+        // Force responsive sizing after refresh since XTerm might reset dimensions
+        this.forceResponsiveSizing();
       }
     });
   }
@@ -158,6 +181,9 @@ export class ScaleFitAddon implements ITerminalAddon {
 
     // Apply the font size without changing terminal dimensions
     this.applyFontSize(optimalFontSize);
+
+    // Also force responsive sizing for previews
+    this.forceResponsiveSizing();
   }
 
   public getOptimalFontSize(): number {
@@ -178,5 +204,85 @@ export class ScaleFitAddon implements ITerminalAddon {
     const calculatedFontSize = availableWidth / (this._terminal.cols * charWidthRatio);
 
     return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
+  }
+
+  /**
+   * Get exact character dimensions from XTerm's built-in measurement system
+   */
+  private getXTermCharacterDimensions(): { charWidth: number; lineHeight: number } | null {
+    if (!this._terminal?.element) return null;
+
+    // XTerm has a built-in character measurement system with multiple font styles
+    const measureContainer = this._terminal.element.querySelector('.xterm-width-cache-measure-container');
+
+    // Find the first measurement element (normal weight, usually 'm' characters)
+    // This is what XTerm uses for baseline character width calculations
+    const firstMeasureElement = measureContainer?.querySelector('.xterm-char-measure-element');
+
+    if (firstMeasureElement) {
+      const measureRect = firstMeasureElement.getBoundingClientRect();
+      const measureText = firstMeasureElement.textContent || '';
+
+      if (measureText.length > 0 && measureRect.width > 0) {
+        // Calculate actual character width from the primary measurement element
+        const actualCharWidth = measureRect.width / measureText.length;
+
+        // Get line height from the first row in .xterm-rows
+        const xtermRows = this._terminal.element.querySelector('.xterm-rows');
+        const firstRow = xtermRows?.querySelector('div');
+        let lineHeight = 21.5; // fallback
+
+        if (firstRow) {
+          const rowStyle = window.getComputedStyle(firstRow);
+          const rowLineHeight = parseFloat(rowStyle.lineHeight);
+          if (!isNaN(rowLineHeight) && rowLineHeight > 0) {
+            lineHeight = rowLineHeight;
+          }
+        }
+
+        return {
+          charWidth: actualCharWidth,
+          lineHeight: lineHeight
+        };
+      }
+    }
+
+    // Fallback: try to measure from the xterm-screen dimensions and terminal cols/rows
+    const xtermScreen = this._terminal.element.querySelector('.xterm-screen') as HTMLElement;
+    if (xtermScreen) {
+      const screenRect = xtermScreen.getBoundingClientRect();
+      const charWidth = screenRect.width / this._terminal.cols;
+      const lineHeight = screenRect.height / this._terminal.rows;
+
+      if (charWidth > 0 && lineHeight > 0) {
+        return { charWidth, lineHeight };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Force XTerm elements to use responsive sizing instead of fixed dimensions
+   */
+  private forceResponsiveSizing(): void {
+    if (!this._terminal?.element) return;
+
+    // Find the xterm-screen element within the terminal
+    const xtermScreen = this._terminal.element.querySelector('.xterm-screen') as HTMLElement;
+    const xtermViewport = this._terminal.element.querySelector('.xterm-viewport') as HTMLElement;
+
+    if (xtermScreen) {
+      // Remove any fixed width/height styles and force responsive sizing
+      xtermScreen.style.width = '100%';
+      xtermScreen.style.height = '100%';
+      xtermScreen.style.maxWidth = '100%';
+      xtermScreen.style.maxHeight = '100%';
+    }
+
+    if (xtermViewport) {
+      xtermViewport.style.width = '100%';
+      xtermViewport.style.maxWidth = '100%';
+    }
   }
 }

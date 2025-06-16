@@ -60,16 +60,8 @@ session-view .xterm-helper-textarea {
 .session-preview .xterm .xterm-screen {
   max-width: 100% !important;
   max-height: 100% !important;
-  /* Scaling now handled by ScaleFitAddon */
 }
 
 .session-preview .xterm .xterm-viewport {
   overflow: hidden !important;
-}
-
-/* Hide the helper textarea in session previews too */
-.session-preview .xterm-helper-textarea {
-  display: none !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
 }

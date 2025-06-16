@@ -2,7 +2,6 @@
 // Professional-grade terminal emulation with full VT compatibility
 
 import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ScaleFitAddon } from './scale-fit-addon.js';
 
@@ -22,19 +21,16 @@ interface CastEvent {
 
 export class Renderer {
   private static activeCount: number = 0;
-  
+
   private container: HTMLElement;
   private terminal: Terminal;
-  private fitAddon: FitAddon;
   private scaleFitAddon: ScaleFitAddon;
   private webLinksAddon: WebLinksAddon;
-  private isPreview: boolean;
 
-  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14, isPreview: boolean = false) {
+  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14) {
     Renderer.activeCount++;
     console.log(`Renderer constructor called (active: ${Renderer.activeCount})`);
     this.container = container;
-    this.isPreview = isPreview;
 
     // Create terminal with options similar to the custom renderer
     this.terminal = new Terminal({
@@ -74,17 +70,13 @@ export class Renderer {
       altClickMovesCursor: false,
       rightClickSelectsWord: false,
       disableStdin: true, // We handle input separately
-      cursorStyle: 'block',
-      cursorInactiveStyle: 'block',
       cursorWidth: 1,
     });
 
     // Add addons
-    this.fitAddon = new FitAddon();
-    this.scaleFitAddon = new ScaleFitAddon(isPreview);
+    this.scaleFitAddon = new ScaleFitAddon();
     this.webLinksAddon = new WebLinksAddon();
 
-    this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(this.scaleFitAddon);
     this.terminal.loadAddon(this.webLinksAddon);
 
@@ -94,23 +86,13 @@ export class Renderer {
   private setupDOM(): void {
     // Clear container and add CSS
     this.container.innerHTML = '';
-    
-    // Different styling for preview vs full terminals
-    if (this.isPreview) {
-      // No padding for previews, let container control sizing
-      this.container.style.padding = '0';
-      this.container.style.backgroundColor = '#1e1e1e';
-      this.container.style.overflow = 'hidden';
-      this.container.style.maxWidth = '100%';
-      this.container.style.boxSizing = 'border-box';
-    } else {
-      // Full terminals get padding
-      this.container.style.padding = '10px';
-      this.container.style.backgroundColor = '#1e1e1e';
-      this.container.style.overflow = 'hidden';
-      this.container.style.maxWidth = '100%';
-      this.container.style.boxSizing = 'border-box';
-    }
+
+    // Full terminals get padding
+    this.container.style.padding = '10px';
+    this.container.style.backgroundColor = '#1e1e1e';
+    this.container.style.overflow = 'hidden';
+    this.container.style.maxWidth = '100%';
+    this.container.style.boxSizing = 'border-box';
 
     // Create terminal wrapper
     const terminalWrapper = document.createElement('div');
@@ -127,21 +109,6 @@ export class Renderer {
     // Apply to both previews and full terminals
     const containerId = `terminal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     this.container.id = containerId;
-    
-    const style = document.createElement('style');
-    style.textContent = `
-      #${containerId} .xterm-screen {
-        width: 100% !important;
-        height: 100% !important;
-        max-width: 100% !important;
-        max-height: 100% !important;
-      }
-      #${containerId} .xterm-viewport {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-    `;
-    document.head.appendChild(style);
 
     // Always use ScaleFitAddon for better scaling
     this.scaleFitAddon.fit();
@@ -260,14 +227,14 @@ export class Renderer {
             const exitCode = data[1];
             const sessionId = data[2];
             console.log(`Session ${sessionId} exited with code ${exitCode}`);
-            
+
             // Close the SSE connection immediately
             if (this.eventSource) {
               console.log('Closing SSE connection due to session exit');
               this.eventSource.close();
               this.eventSource = null;
             }
-            
+
             // Dispatch custom event that session-view can listen to
             const exitEvent = new CustomEvent('session-exit', {
               detail: { sessionId, exitCode }
@@ -275,7 +242,7 @@ export class Renderer {
             this.container.dispatchEvent(exitEvent);
             return;
           }
-          
+
           // Regular cast event
           const castEvent: CastEvent = {
             timestamp: data[0],
@@ -352,7 +319,7 @@ export class Renderer {
 
   // Method to fit terminal to container (useful for responsive layouts)
   fit(): void {
-    this.fitAddon.fit();
+    this.scaleFitAddon.fit();
   }
 
   // Get terminal dimensions

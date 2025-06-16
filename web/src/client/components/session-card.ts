@@ -25,7 +25,7 @@ export class SessionCard extends LitElement {
   @state() private renderer: Renderer | null = null;
   @state() private killing = false;
   @state() private killingFrame = 0;
-  
+
   private refreshInterval: number | null = null;
   private killingInterval: number | null = null;
 
@@ -55,7 +55,7 @@ export class SessionCard extends LitElement {
     if (!playerElement) return;
 
     // Create single renderer for this card
-    this.renderer = new Renderer(playerElement, 80, 24, 10000, 4, true);
+    this.renderer = new Renderer(playerElement, 80, 24, 10000, 4, false);
 
     // Always use snapshot endpoint for cards
     const url = `/api/sessions/${this.session.id}/snapshot`;
@@ -107,7 +107,7 @@ export class SessionCard extends LitElement {
   private async handleKillClick(e: Event) {
     e.stopPropagation();
     e.preventDefault();
-    
+
     // Start killing animation
     this.killing = true;
     this.killingFrame = 0;
@@ -151,7 +151,7 @@ export class SessionCard extends LitElement {
   private async handlePidClick(e: Event) {
     e.stopPropagation();
     e.preventDefault();
-    
+
     if (this.session.pid) {
       try {
         await navigator.clipboard.writeText(this.session.pid.toString());
@@ -181,7 +181,7 @@ export class SessionCard extends LitElement {
 
   render() {
     const isRunning = this.session.status === 'running';
-    
+
     return html`
       <div class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden ${this.killing ? 'opacity-60' : ''}"
            @click=${this.handleCardClick}>
@@ -221,7 +221,7 @@ export class SessionCard extends LitElement {
               ${this.getStatusText()}
             </span>
             ${this.session.pid ? html`
-              <span 
+              <span
                 class="cursor-pointer hover:text-vs-accent transition-colors"
                 @click=${this.handlePidClick}
                 title="Click to copy PID"
