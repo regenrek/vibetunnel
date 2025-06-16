@@ -74,6 +74,9 @@ export class Renderer {
       altClickMovesCursor: false,
       rightClickSelectsWord: false,
       disableStdin: true, // We handle input separately
+      cursorStyle: 'block',
+      cursorInactiveStyle: 'block',
+      cursorWidth: 1,
     });
 
     // Add addons
