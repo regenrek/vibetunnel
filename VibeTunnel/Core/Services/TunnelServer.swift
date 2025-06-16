@@ -19,6 +19,63 @@ enum ServerError: LocalizedError {
     }
 }
 
+struct TtyFwdSession: Codable {
+    let cmdline: [String]
+    let cwd: String
+    let exitCode: Int?
+    let name: String
+    let pid: Int
+    let startedAt: String
+    let status: String
+    let stdin: String
+    let streamOut: String
+    
+    enum CodingKeys: String, CodingKey {
+        case cmdline, cwd, name, pid, status, stdin
+        case exitCode = "exit_code"
+        case startedAt = "started_at"
+        case streamOut = "stream-out"
+    }
+}
+
+struct TtyFwdSessionInfo: Codable {
+    let id: String
+    let command: String
+    let workingDir: String
+    let status: String
+    let exitCode: Int?
+    let startedAt: String
+    let lastModified: String
+    let pid: Int
+}
+
+struct FileInfo: Codable {
+    let name: String
+    let created: String
+    let lastModified: String
+    let size: Int64
+    let isDir: Bool
+}
+
+struct DirectoryListing: Codable {
+    let absolutePath: String
+    let files: [FileInfo]
+}
+
+struct SimpleResponse: Codable {
+    let success: Bool
+    let message: String
+}
+
+struct SessionIdResponse: Codable {
+    let sessionId: String
+}
+
+struct StreamResponse: Codable {
+    let message: String
+    let streamPath: String
+}
+
 /// HTTP server implementation for the macOS app
 @MainActor
 @Observable
@@ -31,6 +88,7 @@ public final class TunnelServer {
     private let logger = Logger(label: "VibeTunnel.TunnelServer")
     private let terminalManager = TerminalManager()
     private var serverTask: Task<Void, Error>?
+    private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel").path
     
     public init(port: Int = 4020) {
         self.port = port
@@ -108,7 +166,55 @@ public final class TunnelServer {
                 )
             }
             
-            // Sessions endpoint - calls tty-fwd --list-sessions
+            // API routes for session management
+            router.get("/api/sessions") { _, _ async -> Response in
+                await self.listSessions()
+            }
+            
+            router.post("/api/sessions") { request, _ async -> Response in
+                await self.createSession(request: request)
+            }
+            
+            router.delete("/api/sessions/:sessionId") { _, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.killSession(sessionId: sessionId)
+            }
+            
+            router.delete("/api/sessions/:sessionId/cleanup") { _, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.cleanupSession(sessionId: sessionId)
+            }
+            
+            router.get("/api/sessions/:sessionId/stream") { _, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.streamSessionOutput(sessionId: sessionId)
+            }
+            
+            router.get("/api/sessions/:sessionId/snapshot") { _, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.getSessionSnapshot(sessionId: sessionId)
+            }
+            
+            router.post("/api/sessions/:sessionId/input") { request, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.sendSessionInput(request: request, sessionId: sessionId)
+            }
+            
+            router.get("/api/fs/browse") { request, _ async -> Response in
+                await self.browseFileSystem(request: request)
+            }
+            
+            // Legacy endpoint for backwards compatibility
             router.get("/sessions") { _, _ async -> Response in
                 let process = await MainActor.run {
                     TTYForwardManager.shared.createTTYForwardProcess(with: ["--list-sessions"])
@@ -261,5 +367,388 @@ public final class TunnelServer {
             // Server not yet ready
         }
         return false
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func executeTtyFwd(args: [String]) async throws -> String {
+        let process = TTYForwardManager.shared.createTTYForwardProcess(with: args)
+        guard let process = process else {
+            throw NSError(domain: "TtyFwdError", code: 1, userInfo: [NSLocalizedDescriptionKey: "tty-fwd binary not found"])
+        }
+        
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus == 0 {
+            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: outputData, encoding: .utf8) ?? ""
+        } else {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "TtyFwdError", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: errorString])
+        }
+    }
+    
+    private func resolvePath(_ inputPath: String, fallback: String = NSHomeDirectory()) -> String {
+        if inputPath.isEmpty {
+            return fallback
+        }
+        
+        if inputPath.hasPrefix("~") {
+            return NSString(string: inputPath).expandingTildeInPath
+        }
+        
+        return NSString(string: inputPath).standardizingPath
+    }
+    
+    nonisolated private func errorResponse(message: String, status: HTTPResponse.Status = .internalServerError) -> Response {
+        let errorJson = "{\"error\": \"\(message.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+        var buffer = ByteBuffer()
+        buffer.writeString(errorJson)
+        
+        return Response(
+            status: status,
+            headers: [.contentType: "application/json"],
+            body: ResponseBody(byteBuffer: buffer)
+        )
+    }
+    
+    private func jsonResponse<T: Codable>(_ object: T, status: HTTPResponse.Status = .ok) -> Response {
+        do {
+            let jsonData = try JSONEncoder().encode(object)
+            var buffer = ByteBuffer()
+            buffer.writeBytes(jsonData)
+            
+            return Response(
+                status: status,
+                headers: [.contentType: "application/json"],
+                body: ResponseBody(byteBuffer: buffer)
+            )
+        } catch {
+            return errorResponse(message: "Failed to encode JSON response")
+        }
+    }
+    
+    // MARK: - API Endpoints
+    
+    private func listSessions() async -> Response {
+        do {
+            let output = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--list-sessions"])
+            let sessionsData = output.data(using: .utf8) ?? Data()
+            
+            let sessions = try JSONDecoder().decode([String: TtyFwdSession].self, from: sessionsData)
+            
+            let sessionInfos = sessions.compactMap { (sessionId, sessionInfo) -> TtyFwdSessionInfo? in
+                var lastModified = sessionInfo.startedAt
+                
+                let streamOutPath = sessionInfo.streamOut
+                if FileManager.default.fileExists(atPath: streamOutPath) {
+                    do {
+                        let attrs = try FileManager.default.attributesOfItem(atPath: streamOutPath)
+                        if let modDate = attrs[.modificationDate] as? Date {
+                            let formatter = ISO8601DateFormatter()
+                            lastModified = formatter.string(from: modDate)
+                        }
+                    } catch {
+                        // Use startedAt as fallback
+                    }
+                }
+                
+                return TtyFwdSessionInfo(
+                    id: sessionId,
+                    command: sessionInfo.cmdline.joined(separator: " "),
+                    workingDir: sessionInfo.cwd,
+                    status: sessionInfo.status,
+                    exitCode: sessionInfo.exitCode,
+                    startedAt: sessionInfo.startedAt,
+                    lastModified: lastModified,
+                    pid: sessionInfo.pid
+                )
+            }.sorted { a, b in
+                let dateA = ISO8601DateFormatter().date(from: a.lastModified) ?? Date.distantPast
+                let dateB = ISO8601DateFormatter().date(from: b.lastModified) ?? Date.distantPast
+                return dateA > dateB
+            }
+            
+            return jsonResponse(sessionInfos)
+        } catch {
+            logger.error("Failed to list sessions: \(error)")
+            return errorResponse(message: "Failed to list sessions")
+        }
+    }
+    
+    private func createSession(request: Request) async -> Response {
+        do {
+            let buffer = try await request.body.collect(upTo: 1024 * 1024) // 1MB limit
+            let requestData = Data(buffer: buffer)
+            
+            struct CreateSessionRequest: Codable {
+                let command: [String]
+                let workingDir: String?
+            }
+            
+            let sessionRequest = try JSONDecoder().decode(CreateSessionRequest.self, from: requestData)
+            
+            if sessionRequest.command.isEmpty {
+                return errorResponse(message: "Command array is required and cannot be empty", status: .badRequest)
+            }
+            
+            let sessionName = "session_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(9))"
+            let cwd = resolvePath(sessionRequest.workingDir ?? "", fallback: FileManager.default.currentDirectoryPath)
+            
+            var args = ["--control-path", ttyFwdControlDir, "--session-name", sessionName, "--"]
+            args.append(contentsOf: sessionRequest.command)
+            
+            logger.info("Creating session: \(args.joined(separator: " "))")
+            
+            let process = TTYForwardManager.shared.createTTYForwardProcess(with: args)
+            guard let process = process else {
+                return errorResponse(message: "tty-fwd binary not found")
+            }
+            
+            process.currentDirectoryPath = cwd
+            try process.run()
+            
+            let response = SessionIdResponse(sessionId: sessionName)
+            return jsonResponse(response)
+            
+        } catch {
+            logger.error("Error creating session: \(error)")
+            return errorResponse(message: "Failed to create session")
+        }
+    }
+    
+    private func killSession(sessionId: String) async -> Response {
+        do {
+            let output = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--list-sessions"])
+            let sessionsData = output.data(using: .utf8) ?? Data()
+            let sessions = try JSONDecoder().decode([String: TtyFwdSession].self, from: sessionsData)
+            
+            guard let session = sessions[sessionId] else {
+                return errorResponse(message: "Session not found", status: .notFound)
+            }
+            
+            if session.pid > 0 {
+                kill(pid_t(session.pid), SIGTERM)
+                
+                DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
+                    if kill(pid_t(session.pid), 0) == 0 {
+                        kill(pid_t(session.pid), SIGKILL)
+                    }
+                }
+            }
+            
+            let response = SimpleResponse(success: true, message: "Session killed")
+            return jsonResponse(response)
+            
+        } catch {
+            logger.error("Error killing session: \(error)")
+            return errorResponse(message: "Failed to kill session")
+        }
+    }
+    
+    private func cleanupSession(sessionId: String) async -> Response {
+        do {
+            _ = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--session", sessionId, "--cleanup"])
+            
+            let response = SimpleResponse(success: true, message: "Session cleaned up")
+            return jsonResponse(response)
+            
+        } catch {
+            logger.info("tty-fwd cleanup failed, force removing directory")
+            let sessionDir = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId).path
+            
+            do {
+                if FileManager.default.fileExists(atPath: sessionDir) {
+                    try FileManager.default.removeItem(atPath: sessionDir)
+                }
+                let response = SimpleResponse(success: true, message: "Session force cleaned up")
+                return jsonResponse(response)
+            } catch {
+                logger.error("Error force removing session directory: \(error)")
+                return errorResponse(message: "Failed to cleanup session")
+            }
+        }
+    }
+    
+    private func streamSessionOutput(sessionId: String) async -> Response {
+        let streamOutPath = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId).appendingPathComponent("stream-out").path
+        
+        guard FileManager.default.fileExists(atPath: streamOutPath) else {
+            return errorResponse(message: "Session not found", status: .notFound)
+        }
+        
+        // For now, return a simple response indicating streaming would happen here
+        // Full SSE implementation would require more complex Hummingbird setup
+        let response = StreamResponse(message: "Streaming endpoint - SSE implementation needed", streamPath: streamOutPath)
+        return jsonResponse(response)
+    }
+    
+    private func getSessionSnapshot(sessionId: String) async -> Response {
+        let streamOutPath = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId).appendingPathComponent("stream-out").path
+        
+        guard FileManager.default.fileExists(atPath: streamOutPath) else {
+            return errorResponse(message: "Session not found", status: .notFound)
+        }
+        
+        do {
+            let content = try String(contentsOfFile: streamOutPath, encoding: .utf8)
+            let lines = content.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            
+            var header: [String: Any]? = nil
+            var events: [[Any]] = []
+            var startTime: Double? = nil
+            
+            for line in lines {
+                if let data = line.data(using: .utf8),
+                   let parsed = try? JSONSerialization.jsonObject(with: data) {
+                    
+                    if let dict = parsed as? [String: Any],
+                       dict["version"] != nil && dict["width"] != nil && dict["height"] != nil {
+                        header = dict
+                    } else if let array = parsed as? [Any], array.count >= 3 {
+                        if let timestamp = array[0] as? Double {
+                            if startTime == nil {
+                                startTime = timestamp
+                            }
+                            let adjustedTime = (timestamp - (startTime ?? 0)) * 0.1
+                            events.append([adjustedTime, array[1], array[2]])
+                        }
+                    }
+                }
+            }
+            
+            var cast: [String] = []
+            
+            if let header = header {
+                if let headerData = try? JSONSerialization.data(withJSONObject: header),
+                   let headerString = String(data: headerData, encoding: .utf8) {
+                    cast.append(headerString)
+                }
+            } else {
+                let defaultHeader: [String: Any] = [
+                    "version": 2,
+                    "width": 80,
+                    "height": 24,
+                    "timestamp": Int(Date().timeIntervalSince1970),
+                    "env": ["TERM": "xterm-256color"]
+                ]
+                if let headerData = try? JSONSerialization.data(withJSONObject: defaultHeader),
+                   let headerString = String(data: headerData, encoding: .utf8) {
+                    cast.append(headerString)
+                }
+            }
+            
+            for event in events {
+                if let eventData = try? JSONSerialization.data(withJSONObject: event),
+                   let eventString = String(data: eventData, encoding: .utf8) {
+                    cast.append(eventString)
+                }
+            }
+            
+            let result = cast.joined(separator: "\n")
+            var buffer = ByteBuffer()
+            buffer.writeString(result)
+            
+            return Response(
+                status: .ok,
+                headers: [.contentType: "text/plain"],
+                body: ResponseBody(byteBuffer: buffer)
+            )
+            
+        } catch {
+            logger.error("Error reading session snapshot: \(error)")
+            return errorResponse(message: "Failed to read session snapshot")
+        }
+    }
+    
+    private func sendSessionInput(request: Request, sessionId: String) async -> Response {
+        do {
+            let buffer = try await request.body.collect(upTo: 1024 * 1024)
+            let requestData = Data(buffer: buffer)
+            
+            struct InputRequest: Codable {
+                let text: String
+            }
+            
+            let inputRequest = try JSONDecoder().decode(InputRequest.self, from: requestData)
+            
+            logger.info("Sending input to session \(sessionId): \(inputRequest.text)")
+            
+            let specialKeys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter"]
+            let isSpecialKey = specialKeys.contains(inputRequest.text)
+            
+            if isSpecialKey {
+                _ = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--session", sessionId, "--send-key", inputRequest.text])
+                logger.info("Successfully sent key: \(inputRequest.text)")
+            } else {
+                _ = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--session", sessionId, "--send-text", inputRequest.text])
+                logger.info("Successfully sent text: \(inputRequest.text)")
+            }
+            
+            let response = SimpleResponse(success: true, message: "Input sent successfully")
+            return jsonResponse(response)
+            
+        } catch {
+            logger.error("Error sending input via tty-fwd: \(error)")
+            return errorResponse(message: "Failed to send input")
+        }
+    }
+    
+    private func browseFileSystem(request: Request) async -> Response {
+        let dirPath = String(request.uri.queryParameters.first { $0.key == "path" }?.value ?? "~")
+        
+        do {
+            let expandedPath = resolvePath(dirPath, fallback: "~")
+            
+            guard FileManager.default.fileExists(atPath: expandedPath) else {
+                return errorResponse(message: "Directory not found", status: .notFound)
+            }
+            
+            var isDirectory: ObjCBool = false
+            FileManager.default.fileExists(atPath: expandedPath, isDirectory: &isDirectory)
+            
+            guard isDirectory.boolValue else {
+                return errorResponse(message: "Path is not a directory", status: .badRequest)
+            }
+            
+            let fileNames = try FileManager.default.contentsOfDirectory(atPath: expandedPath)
+            let files = try fileNames.compactMap { name -> FileInfo? in
+                let filePath = URL(fileURLWithPath: expandedPath).appendingPathComponent(name).path
+                let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
+                
+                let isDir = (attributes[.type] as? FileAttributeType) == .typeDirectory
+                let size = attributes[.size] as? Int64 ?? 0
+                let created = attributes[.creationDate] as? Date ?? Date()
+                let modified = attributes[.modificationDate] as? Date ?? Date()
+                
+                let formatter = ISO8601DateFormatter()
+                
+                return FileInfo(
+                    name: name,
+                    created: formatter.string(from: created),
+                    lastModified: formatter.string(from: modified),
+                    size: size,
+                    isDir: isDir
+                )
+            }.sorted { a, b in
+                if a.isDir && !b.isDir { return true }
+                if !a.isDir && b.isDir { return false }
+                return a.name.localizedCompare(b.name) == .orderedAscending
+            }
+            
+            let listing = DirectoryListing(absolutePath: expandedPath, files: files)
+            return jsonResponse(listing)
+            
+        } catch {
+            logger.error("Error listing directory: \(error)")
+            return errorResponse(message: "Failed to list directory")
+        }
     }
 }
