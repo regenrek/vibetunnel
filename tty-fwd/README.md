@@ -44,7 +44,36 @@ tty-fwd --session <session-id> --send-key enter
 tty-fwd --session <session-id> --send-key arrow_up
 ```
 
-Supported keys: `arrow_up`, `arrow_down`, `arrow_left`, `arrow_right`, `escape`, `enter`
+Supported keys: `arrow_up`, `arrow_down`, `arrow_left`, `arrow_right`, `escape`, `enter`, `ctrl_enter`, `shift_enter`
+
+### Process Control
+
+Stop a session gracefully:
+```bash
+tty-fwd --session <session-id> --stop
+```
+
+Kill a session forcefully:
+```bash
+tty-fwd --session <session-id> --kill
+```
+
+Send custom signal to session:
+```bash
+tty-fwd --session <session-id> --signal <number>
+```
+
+### HTTP API Server
+
+Start HTTP server for remote session management:
+```bash
+tty-fwd --serve 8080
+```
+
+Start server with static file serving:
+```bash
+tty-fwd --serve 127.0.0.1:8080 --static-path ./web
+```
 
 ### Cleanup
 
@@ -58,6 +87,28 @@ Remove a specific session:
 tty-fwd --session <session-id> --cleanup
 ```
 
+## HTTP API
+
+When running with `--serve`, the following REST API endpoints are available:
+
+### Session Management
+
+- **GET /api/sessions** - List all sessions with metadata
+- **POST /api/sessions** - Create new session (body: `{"command": ["cmd", "args"], "workingDir": "/path"}`)
+- **DELETE /api/sessions/{session-id}** - Kill session
+- **DELETE /api/sessions/{session-id}/cleanup** - Clean up specific session
+- **POST /api/cleanup-exited** - Clean up all exited sessions
+
+### Session Interaction
+
+- **GET /api/sessions/{session-id}/stream** - Real-time session output (Server-Sent Events)
+- **GET /api/sessions/{session-id}/snapshot** - Current session output snapshot
+- **POST /api/sessions/{session-id}/input** - Send input to session (body: `{"text": "input"}`)
+
+### Static Files
+
+- **GET /** - Serves static files from `--static-path` directory
+
 ## Options
 
 - `--control-path`: Specify control directory location (default: `~/.vibetunnel/control`)
@@ -66,6 +117,11 @@ tty-fwd --session <session-id> --cleanup
 - `--list-sessions`: List all sessions with metadata
 - `--send-text`: Send text input to session
 - `--send-key`: Send special key input to session
+- `--signal`: Send custom signal to session process
+- `--stop`: Send SIGTERM to session (graceful stop)
+- `--kill`: Send SIGKILL to session (force kill)
+- `--serve`: Start HTTP API server on specified address/port
+- `--static-path`: Directory to serve static files from (requires --serve)
 - `--cleanup`: Remove exited sessions
 
 ## License
