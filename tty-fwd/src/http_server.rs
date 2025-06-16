@@ -11,10 +11,11 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::net::ToSocketAddrs;
 
+const MAX_REQUEST_SIZE: usize = 1024 * 1024; // 1MB
+
 #[derive(Debug)]
 pub struct HttpServer {
     listener: TcpListener,
-    request_size_limit: Option<usize>,
 }
 
 impl HttpServer {
@@ -22,20 +23,12 @@ impl HttpServer {
         addr: A,
     ) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let listener = TcpListener::bind(addr)?;
-        Ok(Self {
-            listener,
-            request_size_limit: Some(4096),
-        })
-    }
-
-    pub fn set_request_size_limit(&mut self, limit: Option<usize>) {
-        self.request_size_limit = limit;
+        Ok(Self { listener })
     }
 
     pub fn incoming(&self) -> Incoming {
         Incoming {
             listener: &self.listener,
-            request_size_limit: self.request_size_limit,
         }
     }
 }
@@ -43,7 +36,6 @@ impl HttpServer {
 #[derive(Debug)]
 pub struct Incoming<'a> {
     listener: &'a TcpListener,
-    request_size_limit: Option<usize>,
 }
 
 impl<'a> Iterator for Incoming<'a> {
@@ -51,11 +43,7 @@ impl<'a> Iterator for Incoming<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.listener.accept() {
-            Ok((stream, remote_addr)) => Some(HttpRequest::from_stream(
-                stream,
-                remote_addr,
-                self.request_size_limit,
-            )),
+            Ok((stream, remote_addr)) => Some(HttpRequest::from_stream(stream, remote_addr)),
             Err(e) => Some(Err(Box::new(e))),
         }
     }
@@ -64,6 +52,7 @@ impl<'a> Iterator for Incoming<'a> {
 #[derive(Debug)]
 pub struct HttpRequest {
     stream: TcpStream,
+    #[allow(unused)]
     remote_addr: SocketAddr,
     request: Request<Vec<u8>>,
 }
@@ -72,7 +61,6 @@ impl HttpRequest {
     fn from_stream(
         mut stream: TcpStream,
         remote_addr: SocketAddr,
-        request_size_limit: Option<usize>,
     ) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut buffer = BytesMut::new();
         let mut tmp = [0; 1024];
@@ -85,10 +73,8 @@ impl HttpRequest {
                 Ok(n) => {
                     buffer.extend_from_slice(&tmp[..n]);
 
-                    if let Some(limit) = request_size_limit {
-                        if buffer.len() > limit {
-                            return Err("Request too large".into());
-                        }
+                    if buffer.len() > MAX_REQUEST_SIZE {
+                        return Err("Request too large".into());
                     }
 
                     if let Some(header_end) = find_header_end(&buffer) {
@@ -185,10 +171,6 @@ impl HttpRequest {
                 Err(e) => return Err(Box::new(e)),
             }
         }
-    }
-
-    pub fn remote_addr(&self) -> SocketAddr {
-        self.remote_addr
     }
 
     pub fn respond<T: AsRef<[u8]>>(

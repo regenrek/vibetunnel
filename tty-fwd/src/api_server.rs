@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::SystemTime;
@@ -71,7 +71,100 @@ struct ApiResponse {
     session_id: Option<String>,
 }
 
-pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
+fn get_mime_type(file_path: &Path) -> &'static str {
+    match file_path.extension().and_then(|ext| ext.to_str()) {
+        Some("html") | Some("htm") => "text/html",
+        Some("css") => "text/css",
+        Some("js") | Some("mjs") => "application/javascript",
+        Some("json") => "application/json",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        Some("ico") => "image/x-icon",
+        Some("pdf") => "application/pdf",
+        Some("txt") => "text/plain",
+        Some("xml") => "application/xml",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        Some("otf") => "font/otf",
+        Some("mp4") => "video/mp4",
+        Some("webm") => "video/webm",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("ogg") => "audio/ogg",
+        _ => "application/octet-stream",
+    }
+}
+
+fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<Vec<u8>>> {
+    // Security check: prevent directory traversal attacks
+    if request_path.contains("../") || request_path.contains("..\\") {
+        return None;
+    }
+    
+    let cleaned_path = request_path.trim_start_matches('/');
+    let file_path = static_root.join(cleaned_path);
+    
+    // Security check: ensure the file path is within the static root
+    if !file_path.starts_with(static_root) {
+        return None;
+    }
+    
+    if file_path.is_file() {
+        // Serve the file directly
+        match fs::read(&file_path) {
+            Ok(content) => {
+                let mime_type = get_mime_type(&file_path);
+                
+                Some(Response::builder()
+                    .status(StatusCode::OK)
+                    .header("Content-Type", mime_type)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(content)
+                    .unwrap())
+            }
+            Err(_) => {
+                let error_msg = "Failed to read file".as_bytes().to_vec();
+                Some(Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("Content-Type", "text/plain")
+                    .body(error_msg)
+                    .unwrap())
+            }
+        }
+    } else if file_path.is_dir() {
+        // Try to serve index.html from the directory
+        let index_path = file_path.join("index.html");
+        if index_path.is_file() {
+            match fs::read(&index_path) {
+                Ok(content) => {
+                    Some(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "text/html")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(content)
+                        .unwrap())
+                }
+                Err(_) => {
+                    let error_msg = "Failed to read index.html".as_bytes().to_vec();
+                    Some(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header("Content-Type", "text/plain")
+                        .body(error_msg)
+                        .unwrap())
+                }
+            }
+        } else {
+            None // Directory doesn't have index.html
+        }
+    } else {
+        None // File doesn't exist
+    }
+}
+
+pub fn start_server(bind_address: &str, control_path: PathBuf, static_path: Option<String>) -> Result<()> {
     fs::create_dir_all(&control_path)?;
 
     let server = HttpServer::bind(bind_address)
@@ -80,6 +173,7 @@ pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
 
     for req in server.incoming() {
         let control_path = control_path.clone();
+        let static_path = static_path.clone();
 
         thread::spawn(move || {
             let mut req = match req {
@@ -94,6 +188,19 @@ pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
             let path = req.uri().path().to_string();
 
             println!("{:?} {}", method, path);
+
+            // Check for static file serving first
+            if method == &Method::GET && !path.starts_with("/api/") {
+                if let Some(ref static_dir) = static_path {
+                    let static_dir_path = Path::new(static_dir);
+                    if static_dir_path.exists() && static_dir_path.is_dir() {
+                        if let Some(static_response) = serve_static_file(static_dir_path, &path) {
+                            let _ = req.respond(binary_response_to_bytes(static_response));
+                            return;
+                        }
+                    }
+                }
+            }
 
             let response = match (method, path.as_str()) {
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
@@ -164,6 +271,25 @@ fn response_to_bytes(response: Response<String>) -> Vec<u8> {
     }
     let response_str = format!("{}{}\r\n{}", status_line, headers, body);
     response_str.into_bytes()
+}
+
+fn binary_response_to_bytes(response: Response<Vec<u8>>) -> Vec<u8> {
+    let (parts, body) = response.into_parts();
+    let status_line = format!(
+        "HTTP/1.1 {} {}\r\n",
+        parts.status.as_u16(),
+        parts.status.canonical_reason().unwrap_or("")
+    );
+    let mut headers = String::new();
+    for (name, value) in parts.headers {
+        if let Some(name) = name {
+            headers.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
+        }
+    }
+    let header_bytes = format!("{}{}\r\n", status_line, headers).into_bytes();
+    let mut result = header_bytes;
+    result.extend_from_slice(&body);
+    result
 }
 
 fn json_response<T: Serialize>(status: StatusCode, data: &T) -> Response<String> {

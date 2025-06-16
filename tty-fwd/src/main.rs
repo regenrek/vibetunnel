@@ -28,6 +28,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut kill = false;
     let mut cleanup = false;
     let mut serve_address = None::<String>;
+    let mut static_path = None::<String>;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -78,6 +79,9 @@ fn main() -> Result<(), anyhow::Error> {
                     format!("127.0.0.1:{}", addr)
                 });
             }
+            p if p.is_long("static-path") => {
+                static_path = Some(parser.value()?);
+            }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
             }
@@ -100,6 +104,7 @@ fn main() -> Result<(), anyhow::Error> {
                 );
                 println!("  --cleanup               Remove exited sessions (all if no --session specified)");
                 println!("  --serve <addr>          Start HTTP server (hostname:port or just port for 127.0.0.1)");
+                println!("  --static-path <path>    Path to static files directory for HTTP server");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
@@ -159,7 +164,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Handle serve command
     if let Some(addr) = serve_address {
-        return crate::api_server::start_server(&addr, control_path);
+        return crate::api_server::start_server(&addr, control_path, static_path);
     }
 
     let exit_code = sessions::spawn_command(control_path, session_name, cmdline)?;
