@@ -1,31 +1,27 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: [
-    "./src/**/*.{html,js,ts}",
-    "./public/**/*.html"
-  ],
-  theme: {
-    extend: {
-      fontFamily: {
-        'mono': ['Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', 'monospace'],
-      },
-      colors: {
-        'terminal': {
-          'bg': '#1a1a1a',
-          'fg': '#f0f0f0',
-          'green': '#00ff00',
-          'blue': '#0080ff',
-          'yellow': '#ffff00',
-          'red': '#ff0000',
-          'cyan': '#00ffff',
-          'magenta': '#ff00ff',
-        }
-      }
+    content: ["./src/**/*.{html,js,ts,jsx,tsx}", "./src/**/*.ts", "./src/components/*.ts", "./src/*.ts", "./public/**/*.html"],
+    theme: {
+        extend: {
+            colors: {
+                "vs-bg": "#1e1e1e",
+                "vs-text": "#d4d4d4",
+                "vs-muted": "#8c8c8c",
+                "vs-accent": "#569cd6",
+                "vs-user": "#6a9955",
+                "vs-assistant": "#ce9178",
+                "vs-warning": "#f48771",
+                "vs-function": "#dcdcaa",
+                "vs-type": "#4ec9b0",
+                "vs-border": "#3e3e42",
+                "vs-border-light": "#5a5a5e",
+                "vs-bg-secondary": "#2d2d30",
+                "vs-nav": "#3e3e42",
+                "vs-nav-hover": "#4a4a4e",
+                "vs-nav-active": "#f48771",
+                "vs-highlight": "#8b6914",
+            },
+        },
     },
-    fontFamily: {
-      'sans': ['Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', 'monospace'],
-      'mono': ['Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', 'monospace'],
-    }
-  },
-  plugins: [],
-}
+    plugins: [],
+};

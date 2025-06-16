@@ -14,7 +14,9 @@
     "sourceMap": true,
     "inlineSourceMap": false,
     "inlineSources": true,
-    "declaration": false
+    "declaration": false,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
   },
   "include": [
     "src/client/**/*"

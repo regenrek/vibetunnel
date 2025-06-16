@@ -2,64 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply font-mono bg-terminal-bg text-terminal-fg;
-  }
-  
-  * {
-    @apply font-mono;
-  }
+/* Fix asciinema player dimensions */
+.ap-player {
+  min-width: 640px !important;
+  min-height: 480px !important;
+  width: auto !important;
+  height: auto !important;
 }
 
-@layer components {
-  .terminal {
-    @apply bg-terminal-bg text-terminal-fg p-4 rounded-lg border border-gray-600;
-  }
-  
-  .terminal-input {
-    @apply bg-transparent border-none outline-none text-terminal-fg font-mono w-full;
-  }
-  
-  /* Fix asciinema player dimensions */
-  .ap-player {
-    min-width: 640px !important;
-    min-height: 480px !important;
-    width: auto !important;
-    height: auto !important;
-  }
-  
-  .asciinema-player-theme-asciinema {
-    min-width: 640px !important;
-    min-height: 480px !important;
-    width: auto !important;
-    height: auto !important;
-  }
-  
-  /* Ensure terminal player container has proper size */
-  #terminal-player {
-    min-height: 480px;
-    min-width: 640px;
-    width: 100%;
-  }
-  
-  /* Terminal focus indicator */
-  .terminal-focused {
-    box-shadow: 0 0 0 2px #00ff00;
-    border-color: #00ff00 !important;
-  }
-  
-  /* Keyboard capture indicator */
-  .keyboard-capture-indicator {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: rgba(0, 255, 0, 0.1);
-    border: 1px solid #00ff00;
-    color: #00ff00;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    z-index: 1000;
-  }
+.asciinema-player-theme-asciinema {
+  min-width: 640px !important;
+  min-height: 480px !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Ensure terminal player container has proper size */
+#terminal-player {
+  min-height: 480px;
+  min-width: 640px;
+  width: 100%;
+}
+
+/* Terminal focus indicator */
+.terminal-focused {
+  box-shadow: 0 0 0 2px #00ff00;
+  border-color: #00ff00 !important;
+}
+
+/* Keyboard capture indicator */
+.keyboard-capture-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 255, 0, 0.1);
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 1000;
+}
+
+/* Force asciinema player to fit within session card bounds */
+.session-preview .asciinema-player,
+.session-preview .ap-player {
+  max-width: 100% !important;
+  max-height: 120px !important;
+  width: 100% !important;
+  height: 120px !important;
+  overflow: hidden !important;
+}
+
+.session-preview .asciinema-player .ap-screen,
+.session-preview .ap-player .ap-screen {
+  transform-origin: top left !important;
+  max-width: 100% !important;
+  max-height: 120px !important;
 }

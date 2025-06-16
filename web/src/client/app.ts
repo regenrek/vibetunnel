@@ -1,3 +1,7 @@
+import { LitElement, html, TemplateResult } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { choose } from 'lit/directives/choose.js';
+
 // Type definitions for asciinema-player
 declare var AsciinemaPlayer: {
     create(
@@ -17,17 +21,6 @@ interface ProcessMetadata {
     error?: string;
 }
 
-interface CastEvent {
-    0: number; // timestamp
-    1: string; // type ('o' for output, 'i' for input, 'r' for resize)
-    2: string; // data
-}
-
-interface WebSocketMessage {
-    type: 'input' | 'reload';
-    data?: string;
-}
-
 interface FileInfo {
     name: string;
     created: string;
@@ -43,247 +36,49 @@ interface DirectoryListing {
 
 type Route = 'processes' | 'terminal';
 
-class VibeTunnelApp {
-    private currentRoute: Route = 'processes';
-    private currentProcess: ProcessMetadata | null = null;
-    private websocket: WebSocket | null = null;
-    private eventSource: EventSource | null = null;
+@customElement('vibetunnel-app')
+export class VibeTunnelApp extends LitElement {
+    // Override createRenderRoot to disable shadow DOM and enable Tailwind
+    createRenderRoot() {
+        return this;
+    }
+
+    @state() private currentRoute: Route = 'processes';
+    @state() private currentProcess: ProcessMetadata | null = null;
+    @state() private processes: ProcessMetadata[] = [];
+    @state() private workingDir: string = '~/';
+    @state() private command: string = '';
+    @state() private showDirBrowser: boolean = false;
+    @state() private currentDirPath: string = '~/';
+    @state() private dirFiles: FileInfo[] = [];
+    @state() private keyboardCaptured: boolean = false;
+
     private player: any = null;
+    private eventSource: EventSource | null = null;
     private hotReloadWs: WebSocket | null = null;
     private processRefreshInterval: number | null = null;
-    private currentDirPath: string = '~/';
-    private processesCache: ProcessMetadata[] = [];
-    
-    // Page elements
-    private processListPageEl!: HTMLElement;
-    private terminalPageEl!: HTMLElement;
-    
-    // Process list page elements
-    private processListEl!: HTMLElement;
-    private refreshBtn!: HTMLButtonElement;
-    private createProcessFormEl!: HTMLFormElement;
-    private workingDirEl!: HTMLInputElement;
-    private commandEl!: HTMLInputElement;
-    private browseDirBtn!: HTMLButtonElement;
-    
-    // Terminal page elements
-    private currentProcessEl!: HTMLElement;
-    private terminalPlayerEl!: HTMLElement;
-    private terminalInputEl!: HTMLInputElement;
-    private sendInputBtn!: HTMLButtonElement;
-    private backToProcessesBtn!: HTMLButtonElement;
-    private killCurrentProcessBtn!: HTMLButtonElement;
-    
-    // Directory browser elements
-    private dirBrowserModalEl!: HTMLElement;
-    private dirBrowserContentEl!: HTMLElement;
-    private currentDirPathEl!: HTMLElement;
-    private closeDirBrowserBtn!: HTMLButtonElement;
-    private cancelDirBrowserBtn!: HTMLButtonElement;
-    private selectDirBtn!: HTMLButtonElement;
-    
-    // Navigation elements
-    private homeLinkEl!: HTMLElement;
-    
-    constructor() {
-        this.initializeElements();
-        this.setupEventListeners();
+
+    connectedCallback(): void {
+        super.connectedCallback();
         this.setupHotReload();
         this.handleRouting();
         this.startProcessRefresh();
-    }
-    
-    private initializeElements(): void {
-        // Page elements
-        this.processListPageEl = document.getElementById('process-list-page')!;
-        this.terminalPageEl = document.getElementById('terminal-page')!;
-        
-        // Process list page elements
-        this.processListEl = document.getElementById('process-list')!;
-        this.refreshBtn = document.getElementById('refresh-processes') as HTMLButtonElement;
-        this.createProcessFormEl = document.getElementById('create-process-form') as HTMLFormElement;
-        this.workingDirEl = document.getElementById('working-dir') as HTMLInputElement;
-        this.commandEl = document.getElementById('command') as HTMLInputElement;
-        this.browseDirBtn = document.getElementById('browse-dir') as HTMLButtonElement;
-        
-        // Terminal page elements
-        this.currentProcessEl = document.getElementById('current-process')!;
-        this.terminalPlayerEl = document.getElementById('terminal-player')!;
-        this.terminalInputEl = document.getElementById('terminal-input') as HTMLInputElement;
-        this.sendInputBtn = document.getElementById('send-input') as HTMLButtonElement;
-        this.backToProcessesBtn = document.getElementById('back-to-processes') as HTMLButtonElement;
-        this.killCurrentProcessBtn = document.getElementById('kill-current-process') as HTMLButtonElement;
-        
-        // Directory browser elements
-        this.dirBrowserModalEl = document.getElementById('dir-browser-modal')!;
-        this.dirBrowserContentEl = document.getElementById('dir-browser-content')!;
-        this.currentDirPathEl = document.getElementById('current-dir-path')!;
-        this.closeDirBrowserBtn = document.getElementById('close-dir-browser') as HTMLButtonElement;
-        this.cancelDirBrowserBtn = document.getElementById('cancel-dir-browser') as HTMLButtonElement;
-        this.selectDirBtn = document.getElementById('select-dir') as HTMLButtonElement;
-        
-        // Navigation elements
-        this.homeLinkEl = document.getElementById('home-link')!;
-    }
-    
-    private setupEventListeners(): void {
-        // Navigation
-        this.homeLinkEl.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.navigateToProcesses();
-        });
-        
-        this.backToProcessesBtn.addEventListener('click', () => {
-            this.navigateToProcesses();
-        });
-        
-        this.killCurrentProcessBtn.addEventListener('click', () => {
-            if (this.currentProcess) {
-                this.killSession(this.currentProcess.processId);
-            }
-        });
-        
-        // Process list page
-        this.refreshBtn.addEventListener('click', () => this.loadProcesses());
-        this.createProcessFormEl.addEventListener('submit', (e) => this.handleCreateProcess(e));
-        this.browseDirBtn.addEventListener('click', () => this.openDirectoryBrowser());
-        
-        // Terminal page
-        this.sendInputBtn.addEventListener('click', () => this.sendInput());
-        this.terminalInputEl.addEventListener('keypress', (e: KeyboardEvent) => {
-            if (e.key === 'Enter') {
-                this.sendInput();
-            }
-        });
-        
-        // Directory browser
-        this.closeDirBrowserBtn.addEventListener('click', () => this.closeDirectoryBrowser());
-        this.cancelDirBrowserBtn.addEventListener('click', () => this.closeDirectoryBrowser());
-        this.selectDirBtn.addEventListener('click', () => this.selectCurrentDirectory());
-        
-        // Handle browser back/forward
-        window.addEventListener('popstate', () => this.handleRouting());
-        
-        // Global keyboard capture for terminal
         this.setupGlobalKeyCapture();
+        window.addEventListener('popstate', () => this.handleRouting());
     }
-    
-    private setupGlobalKeyCapture(): void {
-        // Capture all keyboard events when in terminal mode
-        document.addEventListener('keydown', (e: KeyboardEvent) => {
-            // Only capture keys when viewing a terminal and not in input fields
-            if (this.currentRoute !== 'terminal' || !this.currentProcess) {
-                return;
-            }
-            
-            // Don't capture keys when user is in input fields (except terminal input)
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' && target !== this.terminalInputEl) {
-                return;
-            }
-            
-            // Don't capture keys when user is in other form elements
-            if (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-                return;
-            }
-            
-            // Don't capture browser shortcuts (Ctrl+R, Ctrl+T, etc.)
-            if (e.ctrlKey && ['r', 't', 'w', 'n', 'shift+t'].includes(e.key.toLowerCase())) {
-                return;
-            }
-            
-            // Convert key event to terminal input
-            const terminalKey = this.convertKeyToTerminalInput(e);
-            if (terminalKey) {
-                console.log('Captured key:', e.key, 'converted to:', terminalKey);
-                this.sendKeyToTerminal(terminalKey);
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        });
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        this.disconnectStreaming();
+        if (this.processRefreshInterval) {
+            clearInterval(this.processRefreshInterval);
+        }
+        if (this.hotReloadWs) {
+            this.hotReloadWs.close();
+        }
+        window.removeEventListener('popstate', () => this.handleRouting());
     }
-    
-    private convertKeyToTerminalInput(e: KeyboardEvent): string | null {
-        // Handle special keys first
-        const specialKeys: { [key: string]: string } = {
-            'Enter': '\r',
-            'Backspace': '\x7f',
-            'Tab': '\t',
-            'Escape': '\x1b',
-            'ArrowUp': '\x1b[A',
-            'ArrowDown': '\x1b[B',
-            'ArrowRight': '\x1b[C',
-            'ArrowLeft': '\x1b[D',
-            'Home': '\x1b[H',
-            'End': '\x1b[F',
-            'PageUp': '\x1b[5~',
-            'PageDown': '\x1b[6~',
-            'Insert': '\x1b[2~',
-            'Delete': '\x1b[3~',
-            'F1': '\x1bOP',
-            'F2': '\x1bOQ',
-            'F3': '\x1bOR',
-            'F4': '\x1bOS',
-            'F5': '\x1b[15~',
-            'F6': '\x1b[17~',
-            'F7': '\x1b[18~',
-            'F8': '\x1b[19~',
-            'F9': '\x1b[20~',
-            'F10': '\x1b[21~',
-            'F11': '\x1b[23~',
-            'F12': '\x1b[24~'
-        };
-        
-        // Handle Ctrl combinations
-        if (e.ctrlKey && e.key.length === 1) {
-            const code = e.key.toLowerCase().charCodeAt(0);
-            if (code >= 97 && code <= 122) { // a-z
-                return String.fromCharCode(code - 96); // Ctrl+A = \x01, Ctrl+C = \x03, etc.
-            }
-        }
-        
-        // Handle Alt combinations (ESC prefix)
-        if (e.altKey && e.key.length === 1) {
-            return '\x1b' + e.key;
-        }
-        
-        // Check for special keys
-        if (specialKeys[e.key]) {
-            return specialKeys[e.key];
-        }
-        
-        // Handle regular printable characters
-        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-            return e.key;
-        }
-        
-        return null;
-    }
-    
-    private async sendKeyToTerminal(key: string): Promise<void> {
-        if (!this.currentProcess) {
-            return;
-        }
-        
-        try {
-            const response = await fetch(`/api/input/${this.currentProcess.processId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text: key
-                })
-            });
-            
-            if (!response.ok) {
-                console.error('Failed to send key to terminal');
-            }
-        } catch (error) {
-            console.error('Error sending key to terminal:', error);
-        }
-    }
-    
+
     private handleRouting(): void {
         const hash = window.location.hash;
         if (hash.startsWith('#terminal/')) {
@@ -293,338 +88,229 @@ class VibeTunnelApp {
             this.navigateToProcesses();
         }
     }
-    
+
     private navigateToProcesses(): void {
         this.currentRoute = 'processes';
-        this.processListPageEl.classList.remove('hidden');
-        this.terminalPageEl.classList.add('hidden');
-        this.disconnectWebSocket();
-        this.removeKeyboardIndicator();
+        this.currentProcess = null; // Clear current process when leaving terminal
+        this.disconnectStreaming();
+        this.keyboardCaptured = false;
         this.loadProcesses();
         window.history.pushState({}, '', '#');
     }
-    
+
     private async navigateToTerminal(processId: string): Promise<void> {
         this.currentRoute = 'terminal';
-        this.processListPageEl.classList.add('hidden');
-        this.terminalPageEl.classList.remove('hidden');
         
-        // Find process metadata - load if not cached
-        let process = this.findProcessById(processId);
-        if (!process && this.processesCache.length === 0) {
+        if (this.processes.length === 0) {
             await this.loadProcesses();
-            process = this.findProcessById(processId);
         }
         
+        const process = this.processes.find(p => p.processId === processId);
         if (process) {
             this.selectProcess(process);
         } else {
             console.error(`Process ${processId} not found`);
-            // Process not found, go back to process list
             this.navigateToProcesses();
             return;
         }
         
         window.history.pushState({}, '', `#terminal/${processId}`);
     }
-    
+
     private async loadProcesses(): Promise<void> {
         try {
             const response = await fetch('/api/sessions');
             const sessions = await response.json();
             
-            // Transform sessions to match ProcessMetadata interface
-            const data: ProcessMetadata[] = sessions.map((session: any) => ({
+            this.processes = sessions.map((session: any) => ({
                 processId: session.id,
                 command: session.metadata?.cmdline?.join(' ') || 'Unknown',
                 workingDir: session.metadata?.cwd || 'Unknown',
-                startDate: new Date().toISOString(), // tty-fwd doesn't provide start time
+                startDate: new Date().toISOString(),
                 lastModified: session.lastModified || new Date().toISOString(),
                 exitCode: session.status === 'running' ? undefined : 1,
                 error: session.status !== 'running' ? 'Not running' : undefined
             }));
-            
-            this.processesCache = data; // Cache the processes data
-            this.renderProcessList(data);
         } catch (error) {
             console.error('Failed to load processes:', error);
-            this.processListEl.innerHTML = '<p class="text-terminal-red">Failed to load processes</p>';
         }
     }
-    
-    private renderProcessList(processes: ProcessMetadata[]): void {
-        this.processListEl.innerHTML = '';
+
+    private selectProcess(process: ProcessMetadata): void {
+        this.disconnectStreaming();
+        this.currentProcess = process;
+        this.keyboardCaptured = true;
         
-        if (processes.length === 0) {
-            this.processListEl.innerHTML = '<p class="text-gray-400 text-center py-4">No processes found</p>';
-            return;
-        }
-        
-        processes.forEach(process => {
-            const processEl = document.createElement('div');
-            processEl.className = 'p-3 rounded cursor-pointer hover:bg-gray-700 border border-gray-600';
-            
-            // Determine status color - if process has exitCode it's stopped
-            const isRunning = process.exitCode === undefined && !process.error;
-            const statusColor = isRunning ? 'text-terminal-green' : 'text-terminal-red';
-            const status = isRunning ? 'running' : 'stopped';
-            
-            processEl.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="font-bold text-terminal-fg">${process.command}</div>
-                        <div class="text-sm ${statusColor} mb-1">${status}</div>
-                        <div class="text-xs text-gray-400">ID: ${process.processId}</div>
-                        <div class="text-xs text-gray-400">Dir: ${process.workingDir}</div>
-                        <div class="text-xs text-gray-400">Last Activity: ${new Date(process.lastModified).toLocaleString()}</div>
-                    </div>
-                    <button class="kill-btn bg-terminal-red text-white px-2 py-1 rounded text-xs hover:opacity-80 ml-2" 
-                            data-process-id="${process.processId}">Kill</button>
-                </div>
-            `;
-            
-            processEl.addEventListener('click', (e) => {
-                // Don't navigate if kill button was clicked
-                if ((e.target as HTMLElement).classList.contains('kill-btn')) {
-                    return;
-                }
-                this.navigateToTerminal(process.processId);
-            });
-            
-            // Add kill button event listener
-            const killBtn = processEl.querySelector('.kill-btn') as HTMLButtonElement;
-            killBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.killSession(process.processId);
-            });
-            
-            this.processListEl.appendChild(processEl);
+        // Create asciinema player with SSE
+        this.requestUpdate();
+        this.updateComplete.then(() => {
+            this.createPlayerWithSSE(process.processId);
         });
     }
-    
-    private findProcessById(processId: string): ProcessMetadata | null {
-        return this.processesCache.find(process => process.processId === processId) || null;
-    }
-    
-    private selectProcess(process: ProcessMetadata): void {
-        this.disconnectWebSocket();
-        this.currentProcess = process;
-        this.currentProcessEl.textContent = `${process.command} (${process.processId})`;
-        
-        // Clear previous terminal content
-        this.terminalPlayerEl.innerHTML = '<div class="text-center py-4 text-terminal-fg opacity-60">Connecting...</div>';
-        
-        // Create asciinema player with eventsource driver for real-time streaming
-        this.createPlayerWithSSE(process.processId);
-        
-        // Add visual feedback for keyboard capture
-        this.showKeyboardIndicator();
-    }
-    
+
     private createPlayerWithSSE(processId: string): void {
+        const playerEl = this.querySelector('.terminal-player') as HTMLElement;
+        if (!playerEl) return;
+
         const sseUrl = `/api/stream/${processId}`;
         
-        console.log(`Creating asciinema player with SSE stream: ${sseUrl}`);
-        
-        // Clear the container
-        this.terminalPlayerEl.innerHTML = '';
-        
         try {
-            // First try with eventsource driver
-            console.log('Attempting to create player with eventsource driver...');
+            playerEl.innerHTML = '';
             this.player = AsciinemaPlayer.create({
                 driver: 'eventsource',
                 url: sseUrl
-            }, this.terminalPlayerEl, {
+            }, playerEl, {
                 theme: 'asciinema',
                 autoPlay: true,
                 controls: false,
-                fit: 'both',
-                logger: console
+                fit: 'both'
             });
-            
-            // Debug: Check player dimensions after creation
-            setTimeout(() => {
-                const playerEl = this.terminalPlayerEl.querySelector('.ap-player');
-                if (playerEl) {
-                    console.log('Player dimensions:', {
-                        width: playerEl.style.width,
-                        height: playerEl.style.height,
-                        computed: window.getComputedStyle(playerEl)
-                    });
-                }
-            }, 1000);
-            
-            console.log('Asciinema player with SSE created successfully');
-            
-            // Add a timeout to check if player actually loads content
-            setTimeout(() => {
-                if (this.terminalPlayerEl.children.length === 0 || 
-                    this.terminalPlayerEl.innerHTML.includes('Connecting...')) {
-                    console.warn('Player seems not to be loading content, trying fallback...');
-                    this.tryFallbackPlayer(processId);
-                }
-            }, 3000);
-            
         } catch (error) {
-            console.error('Error creating asciinema player with SSE:', error);
-            this.tryFallbackPlayer(processId);
+            console.error('Error creating asciinema player:', error);
+            playerEl.innerHTML = '<div style="text-align: center; padding: 2em; color: #ff5555;">Error loading terminal</div>';
         }
     }
-    
-    private tryFallbackPlayer(processId: string): void {
-        console.log('Trying fallback: direct file streaming...');
-        
-        // Fallback: try loading the cast file directly
-        const castUrl = `/api/cast/${processId}`;
-        
-        try {
-            this.terminalPlayerEl.innerHTML = '<div class="text-center py-4 text-terminal-fg opacity-60">Loading cast file...</div>';
-            
-            this.player = AsciinemaPlayer.create(castUrl, this.terminalPlayerEl, {
-                theme: 'asciinema',
-                autoPlay: true,
-                controls: false,
-                fit: 'both',
-                logger: console
-            });
-            
-            console.log('Fallback player created with cast file');
-        } catch (error) {
-            console.error('Fallback player also failed:', error);
-            this.terminalPlayerEl.innerHTML = '<div class="text-center py-4 text-terminal-red">Error loading terminal display</div>';
-        }
-    }
-    
-    private showKeyboardIndicator(): void {
-        // Remove existing indicator
-        this.removeKeyboardIndicator();
-        
-        // Create new indicator
-        const indicator = document.createElement('div');
-        indicator.id = 'keyboard-capture-indicator';
-        indicator.className = 'keyboard-capture-indicator';
-        indicator.textContent = '⌨️ Keyboard Captured';
-        document.body.appendChild(indicator);
-        
-        // Add focus styling to terminal container
-        this.terminalPlayerEl.classList.add('terminal-focused');
-    }
-    
-    private removeKeyboardIndicator(): void {
-        const indicator = document.getElementById('keyboard-capture-indicator');
-        if (indicator) {
-            indicator.remove();
-        }
-        
-        // Remove focus styling
-        this.terminalPlayerEl.classList.remove('terminal-focused');
-    }
-    
-    private disconnectWebSocket(): void {
-        if (this.websocket) {
-            this.websocket.close();
-            this.websocket = null;
-        }
-        
+
+    private disconnectStreaming(): void {
         if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;
         }
-        
         if (this.player) {
             this.player = null;
         }
     }
-    
-    
-    private async sendInput(): Promise<void> {
-        const input = this.terminalInputEl.value.trim();
-        if (!input || !this.currentProcess) {
+
+
+    private setupGlobalKeyCapture(): void {
+        document.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (this.currentRoute !== 'terminal' || !this.currentProcess || !this.keyboardCaptured) {
+                return;
+            }
+
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            const terminalKey = this.convertKeyToTerminalInput(e);
+            if (terminalKey) {
+                this.sendKeyToTerminal(terminalKey);
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+    }
+
+    private convertKeyToTerminalInput(e: KeyboardEvent): { type: 'key' | 'text', value: string } | null {
+        const ttyFwdKeys: { [key: string]: string } = {
+            'ArrowUp': 'arrow_up', 'ArrowDown': 'arrow_down', 
+            'ArrowLeft': 'arrow_left', 'ArrowRight': 'arrow_right',
+            'Escape': 'escape', 'Enter': 'enter'
+        };
+
+        const specialKeys: { [key: string]: string } = {
+            'Backspace': '\x7f', 'Tab': '\t',
+            'Home': '\x1b[H', 'End': '\x1b[F',
+            'PageUp': '\x1b[5~', 'PageDown': '\x1b[6~',
+            'Insert': '\x1b[2~', 'Delete': '\x1b[3~'
+        };
+
+        if (ttyFwdKeys[e.key]) {
+            return { type: 'key', value: ttyFwdKeys[e.key] };
+        }
+
+        if (e.ctrlKey && e.key.length === 1) {
+            const code = e.key.toLowerCase().charCodeAt(0);
+            if (code >= 97 && code <= 122) {
+                return { type: 'text', value: String.fromCharCode(code - 96) };
+            }
+        }
+
+        if (e.altKey && e.key.length === 1) {
+            return { type: 'text', value: '\x1b' + e.key };
+        }
+
+        if (specialKeys[e.key]) {
+            return { type: 'text', value: specialKeys[e.key] };
+        }
+
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            return { type: 'text', value: e.key };
+        }
+
+        return null;
+    }
+
+    private async sendKeyToTerminal(keyData: { type: 'key' | 'text', value: string }): Promise<void> {
+        // Only send input if we're actually in terminal mode with a valid process
+        if (this.currentRoute !== 'terminal' || !this.currentProcess || !this.keyboardCaptured) {
             return;
         }
-        
+
         try {
+            // Send as text to match old working version
             const response = await fetch(`/api/input/${this.currentProcess.processId}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text: input
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: keyData.value })
             });
             
-            if (response.ok) {
-                this.terminalInputEl.value = '';
-            } else {
-                console.error('Failed to send input');
+            if (!response.ok) {
+                console.error('Failed to send key to terminal:', response.status, response.statusText);
             }
         } catch (error) {
-            console.error('Error sending input:', error);
+            console.error('Error sending key to terminal:', error);
         }
     }
-    
-    private parseCommand(command: string): string[] {
-        // Simple command parser that respects quotes
-        const args: string[] = [];
-        let current = '';
-        let inQuotes = false;
-        let quoteChar = '';
-        
-        for (let i = 0; i < command.length; i++) {
-            const char = command[i];
-            
-            if ((char === '"' || char === "'") && !inQuotes) {
-                inQuotes = true;
-                quoteChar = char;
-            } else if (char === quoteChar && inQuotes) {
-                inQuotes = false;
-                quoteChar = '';
-            } else if (char === ' ' && !inQuotes) {
-                if (current.length > 0) {
-                    args.push(current);
-                    current = '';
-                }
-            } else {
-                current += char;
-            }
-        }
-        
-        if (current.length > 0) {
-            args.push(current);
-        }
-        
-        return args;
-    }
-    
-    private async killSession(processId: string): Promise<void> {
-        if (!confirm('Are you sure you want to kill this session? This action cannot be undone.')) {
+
+    private async createProcess(): Promise<void> {
+        if (!this.workingDir.trim() || !this.command.trim()) {
+            alert('Please fill in both working directory and command');
             return;
         }
-        
+
         try {
-            console.log(`Killing session: ${processId}`);
-            
-            const response = await fetch(`/api/sessions/${processId}`, {
-                method: 'DELETE'
+            const response = await fetch('/api/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    workingDir: this.workingDir,
+                    command: [this.command]
+                })
             });
+
+            if (response.ok) {
+                this.command = '';
+                await this.loadProcesses();
+            } else {
+                const error = await response.json();
+                alert(`Failed to create process: ${error.error}`);
+            }
+        } catch (error) {
+            console.error('Error creating process:', error);
+            alert('Failed to create process');
+        }
+    }
+
+    private async killSession(processId: string): Promise<void> {
+        if (!confirm('Are you sure you want to kill this session?')) return;
+
+        try {
+            const response = await fetch(`/api/sessions/${processId}`, { method: 'DELETE' });
             
             if (response.ok) {
-                console.log('Session killed successfully');
-                
-                // If we're currently viewing this session, go back to process list
                 if (this.currentProcess && this.currentProcess.processId === processId) {
                     this.navigateToProcesses();
                 }
                 
-                // Refresh the process list immediately and again after cleanup
-                await this.loadProcesses();
-                
-                // Refresh again after cleanup time to ensure session is removed
+                // Wait a moment for server cleanup to complete, then refresh
                 setTimeout(async () => {
                     await this.loadProcesses();
-                }, 2000);
+                }, 1500);
+                
+                // Also refresh immediately
+                await this.loadProcesses();
             } else {
                 const error = await response.json();
                 alert(`Failed to kill session: ${error.error}`);
@@ -634,164 +320,208 @@ class VibeTunnelApp {
             alert('Failed to kill session');
         }
     }
-    
-    private async handleCreateProcess(e: Event): Promise<void> {
-        e.preventDefault();
-        
-        const workingDir = this.workingDirEl.value.trim();
-        const command = this.commandEl.value.trim();
-        
-        if (!workingDir || !command) {
-            alert('Please fill in both working directory and command');
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/sessions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    workingDir,
-                    command: [command] // Send as single string since we use -- in tty-fwd
-                })
-            });
-            
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            
-            if (response.ok) {
-                const result = await response.json();
-                console.log('Session created successfully:', result);
-                // Clear form
-                this.commandEl.value = '';
-                // Refresh process list
-                await this.loadProcesses();
-            } else {
-                const error = await response.json();
-                console.error('Session creation failed:', error);
-                alert(`Failed to create process: ${error.error}`);
-            }
-        } catch (error) {
-            console.error('Error creating process:', error);
-            alert('Failed to create process');
-        }
-    }
-    
+
     private async openDirectoryBrowser(): Promise<void> {
-        this.dirBrowserModalEl.classList.remove('hidden');
+        this.showDirBrowser = true;
         await this.loadDirectoryContents(this.currentDirPath);
     }
-    
-    private closeDirectoryBrowser(): void {
-        this.dirBrowserModalEl.classList.add('hidden');
-    }
-    
-    private selectCurrentDirectory(): void {
-        this.workingDirEl.value = this.currentDirPath;
-        this.closeDirectoryBrowser();
-    }
-    
+
     private async loadDirectoryContents(dirPath: string): Promise<void> {
         try {
             const response = await fetch(`/api/ls?dir=${encodeURIComponent(dirPath)}`);
             const data: DirectoryListing = await response.json();
             
             this.currentDirPath = data.absolutePath;
-            this.currentDirPathEl.textContent = this.currentDirPath;
-            this.renderDirectoryContents(data.files);
+            this.dirFiles = data.files;
         } catch (error) {
             console.error('Error loading directory:', error);
-            this.dirBrowserContentEl.innerHTML = '<p class="text-terminal-red">Failed to load directory</p>';
         }
     }
-    
-    private renderDirectoryContents(files: FileInfo[]): void {
-        this.dirBrowserContentEl.innerHTML = '';
-        
-        // Add parent directory option if not at root
-        if (this.currentDirPath !== '/') {
-            const parentEl = document.createElement('div');
-            parentEl.className = 'p-2 cursor-pointer hover:bg-gray-700 rounded text-terminal-blue';
-            parentEl.textContent = '.. (parent directory)';
-            parentEl.addEventListener('click', () => {
-                const parentPath = this.currentDirPath.split('/').slice(0, -1).join('/') || '/';
-                this.loadDirectoryContents(parentPath);
-            });
-            this.dirBrowserContentEl.appendChild(parentEl);
-        }
-        
-        // Add directories first
-        files.filter(f => f.isDir).forEach(file => {
-            const fileEl = document.createElement('div');
-            fileEl.className = 'p-2 cursor-pointer hover:bg-gray-700 rounded flex items-center';
-            fileEl.innerHTML = `<span class="text-terminal-blue mr-2">📁</span> ${file.name}`;
-            fileEl.addEventListener('click', () => {
-                const newPath = this.currentDirPath + '/' + file.name;
-                this.loadDirectoryContents(newPath);
-            });
-            this.dirBrowserContentEl.appendChild(fileEl);
-        });
-        
-        // Add files
-        files.filter(f => !f.isDir).forEach(file => {
-            const fileEl = document.createElement('div');
-            fileEl.className = 'p-2 text-gray-400 flex items-center';
-            fileEl.innerHTML = `<span class="mr-2">📄</span> ${file.name}`;
-            this.dirBrowserContentEl.appendChild(fileEl);
-        });
+
+    private selectDirectory(): void {
+        this.workingDir = this.currentDirPath;
+        this.showDirBrowser = false;
     }
-    
+
     private startProcessRefresh(): void {
-        // Refresh process list every 5 seconds when on process list page
         this.processRefreshInterval = window.setInterval(() => {
             if (this.currentRoute === 'processes') {
                 this.loadProcesses();
             }
-        }, 5000);
+        }, 2000); // Refresh every 2 seconds instead of 5
     }
-    
+
     private setupHotReload(): void {
-        // Only setup hot reload in development (not in production)
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}?hotReload=true`;
             
             this.hotReloadWs = new WebSocket(wsUrl);
-            
-            this.hotReloadWs.onopen = () => {
-                console.log('Hot reload connected');
-            };
-            
-            this.hotReloadWs.onmessage = (event: MessageEvent) => {
-                try {
-                    const message: WebSocketMessage = JSON.parse(event.data);
-                    if (message.type === 'reload') {
-                        console.log('Hot reload triggered - reloading page');
-                        window.location.reload();
-                    }
-                } catch (error) {
-                    console.error('Error parsing hot reload message:', error);
+            this.hotReloadWs.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === 'reload') {
+                    window.location.reload();
                 }
-            };
-            
-            this.hotReloadWs.onclose = () => {
-                console.log('Hot reload disconnected');
-                // Attempt to reconnect after a delay
-                setTimeout(() => {
-                    this.setupHotReload();
-                }, 1000);
-            };
-            
-            this.hotReloadWs.onerror = (error: Event) => {
-                console.error('Hot reload WebSocket error:', error);
             };
         }
     }
-}
 
-// Initialize the application when the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    new VibeTunnelApp();
-});
+    render(): TemplateResult {
+        return html`
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1e1e1e; color: #cccccc; overflow: hidden;">
+                ${choose(this.currentRoute, [
+                    ['processes', () => this.renderProcessList()],
+                    ['terminal', () => this.renderTerminal()]
+                ])}
+
+                ${this.showDirBrowser ? this.renderDirectoryBrowser() : ''}
+            </div>
+        `;
+    }
+
+    private renderProcessList(): TemplateResult {
+        return html`
+            <div style="padding: 1em; max-width: 100%; overflow-x: auto;">
+                <!-- Header -->
+                <div style="margin-bottom: 1.5em; text-align: center;">
+                    <div style="color: #569cd6; font-size: 1.2em; font-weight: bold;">VibeTunnel</div>
+                    <div style="color: #6a9955; font-size: 0.9em;">Terminal Multiplexer</div>
+                </div>
+
+                <!-- Create Process Form -->
+                <div style="border: 1px solid #3c3c3c; padding: 1em; margin-bottom: 1em; background: #252526;">
+                    <div style="color: #4ec9b0; margin-bottom: 1em;">Create New Process</div>
+                    <div style="margin-bottom: 1em;">
+                        <div style="margin-bottom: 1em;">Working Directory:</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1em; align-items: stretch;">
+                            <input style="flex: 1; background: #3c3c3c; color: #cccccc; border: 1px solid #464647; padding: 0.5em; height: 2em; outline: none; font-size: 1em;" 
+                                   .value=${this.workingDir} 
+                                   @input=${(e: Event) => this.workingDir = (e.target as HTMLInputElement).value}
+                                   placeholder="~/projects/my-app">
+                            <button style="min-width: 5em; height: 3em; border: 1px solid #6272a4; background: #44475a; color: #cccccc; cursor: pointer; padding: 0.5em; font-size: 1em;" 
+                                    @click=${this.openDirectoryBrowser}>Browse</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 1em;">
+                        <div style="margin-bottom: 1em;">Command:</div>
+                        <input style="width: 100%; max-width: 40em; background: #3c3c3c; color: #cccccc; border: 1px solid #464647; padding: 0.5em; height: 2em; outline: none; font-size: 1em;" 
+                               .value=${this.command}
+                               @input=${(e: Event) => this.command = (e.target as HTMLInputElement).value}
+                               placeholder="bash">
+                    </div>
+                    <button style="min-width: 6em; height: 3em; background: #0e639c; color: #ffffff; border: 1px solid #6272a4; cursor: pointer; padding: 0.5em; font-size: 1em; font-weight: bold;" 
+                            @click=${this.createProcess}>Create</button>
+                </div>
+
+                <!-- Process List -->
+                <div style="border: 1px solid #6272a4; padding: 1em;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+                        <span style="color: #8be9fd;">Active Processes</span>
+                        <button style="min-width: 6em; height: 3em; border: 1px solid #6272a4; background: #44475a; color: #cccccc; cursor: pointer; padding: 0.5em; font-size: 1em;" 
+                                @click=${this.loadProcesses}>Refresh</button>
+                    </div>
+                    
+                    ${this.processes.length === 0 ? 
+                        html`<div style="color: #6a9955;">No processes found</div>` :
+                        this.processes.map(process => html`
+                            <div style="border: 1px solid #3c3c3c; padding: 1.5em; margin-bottom: 1em; cursor: pointer; min-height: 4em; background: #252526; transition: background-color 0.2s;" 
+                                 @click=${() => this.navigateToTerminal(process.processId)}
+                                 @mouseover=${(e: Event) => (e.currentTarget as HTMLElement).style.background = '#2d2d30'}
+                                 @mouseout=${(e: Event) => (e.currentTarget as HTMLElement).style.background = '#252526'}>
+                                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                    <div style="flex: 1;">
+                                        <div style="color: #cccccc;">${process.command}</div>
+                                        <div style="color: ${process.exitCode === undefined ? '#4ec9b0' : '#f14c4c'};">
+                                            ${process.exitCode === undefined ? 'running' : 'stopped'}
+                                        </div>
+                                        <div style="color: #6272a4;">ID: ${process.processId}</div>
+                                        <div style="color: #6272a4;">Dir: ${process.workingDir}</div>
+                                    </div>
+                                    <button style="min-width: 4em; height: 3em; background: #f14c4c; color: #ffffff; border: 1px solid #6272a4; cursor: pointer; padding: 0.5em; font-size: 1em; font-weight: bold;" 
+                                            @click=${(e: Event) => { e.stopPropagation(); this.killSession(process.processId); }}>
+                                        Kill
+                                    </button>
+                                </div>
+                            </div>
+                        `)
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    private renderTerminal(): TemplateResult {
+        return html`
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column;">
+                <!-- Header -->
+                <div style="padding: 1em; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3c3c3c; background: #2d2d30;">
+                    <button style="min-width: 5em; height: 3em; border: 1px solid #6272a4; background: #44475a; color: #cccccc; cursor: pointer; padding: 0.5em; font-size: 1em;" 
+                            @click=${this.navigateToProcesses}>← Back</button>
+                    <span style="color: #dcdcaa;">${this.currentProcess?.command} (${this.currentProcess?.processId})</span>
+                    <button style="min-width: 4em; height: 3em; background: #f14c4c; color: #ffffff; border: 1px solid #6272a4; cursor: pointer; padding: 0.5em; font-size: 1em; font-weight: bold;" 
+                            @click=${() => this.currentProcess && this.killSession(this.currentProcess.processId)}>
+                        Kill
+                    </button>
+                </div>
+
+                <!-- Terminal Player -->
+                <div class="terminal-player" style="flex: 1; background: #1e1e1e; overflow: hidden;"></div>
+            </div>
+        `;
+    }
+
+    private renderDirectoryBrowser(): TemplateResult {
+        return html`
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;" 
+                 @click=${(e: Event) => e.target === e.currentTarget && (this.showDirBrowser = false)}>
+                <div style="background: #252526; border: 1px solid #3c3c3c; width: 90vw; max-width: 60em; height: 80vh; max-height: 30em; margin: 1em; display: flex; flex-direction: column;">
+                    <div style="padding: 1em; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3c3c3c;">
+                        <span style="color: #4ec9b0;">Browse Directory</span>
+                        <button style="min-width: 3em; height: 3em; border: 1px solid #6272a4; background: #44475a; color: #cccccc; cursor: pointer; padding: 0.5em; font-size: 1em;" 
+                                @click=${() => this.showDirBrowser = false}>✕</button>
+                    </div>
+                    
+                    <div style="padding: 1em; border-bottom: 1px solid #3c3c3c;">
+                        <span style="color: #6a9955;">Current: </span>
+                        <span style="color: #4ec9b0;">${this.currentDirPath}</span>
+                    </div>
+                    
+                    <div style="flex: 1; overflow: auto; padding: 1em; min-height: 0;">
+                        ${this.currentDirPath !== '/' ? html`
+                            <div style="cursor: pointer; color: #569cd6; padding: 0; margin-bottom: 1em;" 
+                                 @click=${() => this.loadDirectoryContents(this.currentDirPath.split('/').slice(0, -1).join('/') || '/')}
+                                 @mouseover=${(e: Event) => (e.target as HTMLElement).style.background = '#2d2d30'}
+                                 @mouseout=${(e: Event) => (e.target as HTMLElement).style.background = '#252526'}>
+                                .. (parent directory)
+                            </div>
+                        ` : ''}
+                        
+                        ${this.dirFiles.filter(f => f.isDir).map(file => html`
+                            <div style="cursor: pointer; padding: 0; margin-bottom: 1em; display: flex;" 
+                                 @click=${() => this.loadDirectoryContents(this.currentDirPath + '/' + file.name)}
+                                 @mouseover=${(e: Event) => (e.target as HTMLElement).style.background = '#2d2d30'}
+                                 @mouseout=${(e: Event) => (e.target as HTMLElement).style.background = '#252526'}>
+                                <span style="color: #569cd6; width: 2em;">📁</span>
+                                <span>${file.name}</span>
+                            </div>
+                        `)}
+                        
+                        ${this.dirFiles.filter(f => !f.isDir).map(file => html`
+                            <div style="padding: 0; margin-bottom: 1em; color: #6a9955; display: flex;">
+                                <span style="width: 2em;">📄</span>
+                                <span>${file.name}</span>
+                            </div>
+                        `)}
+                    </div>
+                    
+                    <div style="padding: 1em; display: flex; gap: 1em; border-top: 1px solid #3c3c3c;">
+                        <button style="min-width: 6em; height: 3em; border: 1px solid #6272a4; background: #44475a; color: #cccccc; cursor: pointer; padding: 0.5em; font-size: 1em;" 
+                                @click=${() => this.showDirBrowser = false}>Cancel</button>
+                        <button style="min-width: 6em; height: 3em; background: #0e639c; color: #ffffff; border: 1px solid #6272a4; cursor: pointer; padding: 0.5em; font-size: 1em; font-weight: bold;" 
+                                @click=${this.selectDirectory}>Select</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
