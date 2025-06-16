@@ -93,7 +93,7 @@ final class NgrokService: NgrokTunnelProtocol {
     /// Timer for periodic status updates
     private var statusTimer: Timer?
 
-    private let logger = Logger(subsystem: "com.amantus.vibetunnel", category: "NgrokService")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "NgrokService")
 
     private init() {}
 
@@ -342,7 +342,7 @@ struct AsyncLineSequence: AsyncSequence {
 
 /// Helper for secure storage of ngrok auth tokens in Keychain
 private enum KeychainHelper {
-    private static let service = "com.amantus.vibetunnel"
+    private static let service = "sh.vibetunnel.vibetunnel"
     private static let account = "ngrok-auth-token"
 
     static func getNgrokAuthToken() -> String? {
