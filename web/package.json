@@ -7,11 +7,11 @@
     "dev": "npm run build:css && concurrently --kill-others-on-fail \"npm run watch:css\" \"npm run watch:client\" \"npm run watch:server\"",
     "watch:server": "tsx watch src/server.ts",
     "watch:client": "tsc -p tsconfig.client.json --watch --preserveWatchOutput",
-    "watch:css": "tailwindcss -i ./src/input.css -o ./public/output.css --watch",
+    "watch:css": "npx tailwindcss -i ./src/input.css -o ./public/output.css --watch",
     "build": "npm run build:css && npm run build:client && npm run build:server",
     "build:server": "tsc",
     "build:client": "tsc -p tsconfig.client.json",
-    "build:css": "tailwindcss -i ./src/input.css -o ./public/output.css --minify",
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/output.css --minify",
     "start": "node dist/server.js",
     "test": "jest",
     "test:watch": "jest --watch"
