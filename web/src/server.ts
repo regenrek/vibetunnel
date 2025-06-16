@@ -750,6 +750,67 @@ app.get('/api/fs/browse', (req, res) => {
     }
 });
 
+// Create directory
+app.post('/api/mkdir', (req, res) => {
+    try {
+        const { path: dirPath, name } = req.body;
+
+        if (!dirPath || !name) {
+            return res.status(400).json({ error: 'Missing path or name parameter' });
+        }
+
+        // Validate directory name (no path separators, no hidden files starting with .)
+        if (name.includes('/') || name.includes('\\') || name.startsWith('.')) {
+            return res.status(400).json({ error: 'Invalid directory name' });
+        }
+
+        // Expand tilde in path
+        const expandedPath = dirPath.startsWith('~') 
+            ? path.join(os.homedir(), dirPath.slice(1))
+            : path.resolve(dirPath);
+
+        // Security check: ensure we're not trying to access outside allowed areas
+        const allowedBasePaths = [os.homedir(), process.cwd()];
+        const isAllowed = allowedBasePaths.some(basePath => 
+            expandedPath.startsWith(path.resolve(basePath))
+        );
+
+        if (!isAllowed) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        // Check if parent directory exists
+        if (!fs.existsSync(expandedPath)) {
+            return res.status(404).json({ error: 'Parent directory not found' });
+        }
+
+        const stats = fs.statSync(expandedPath);
+        if (!stats.isDirectory()) {
+            return res.status(400).json({ error: 'Parent path is not a directory' });
+        }
+
+        const newDirPath = path.join(expandedPath, name);
+
+        // Check if directory already exists
+        if (fs.existsSync(newDirPath)) {
+            return res.status(409).json({ error: 'Directory already exists' });
+        }
+
+        // Create the directory
+        fs.mkdirSync(newDirPath, { recursive: false });
+
+        res.json({ 
+            success: true, 
+            path: newDirPath,
+            message: `Directory '${name}' created successfully` 
+        });
+
+    } catch (error) {
+        console.error('Error creating directory:', error);
+        res.status(500).json({ error: 'Failed to create directory' });
+    }
+});
+
 // === WEBSOCKETS ===
 
 // WebSocket for hot reload

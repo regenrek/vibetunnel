@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
 import './session-create-form.js';
 import './session-card.js';
 
@@ -26,7 +27,6 @@ export class SessionList extends LitElement {
   @property({ type: Boolean }) hideExited = true;
   @property({ type: Boolean }) showCreateModal = false;
 
-  @state() private killingSessionIds = new Set<string>();
   @state() private cleaningExited = false;
 
   private handleRefresh() {
@@ -34,38 +34,10 @@ export class SessionList extends LitElement {
   }
 
   private handleSessionSelect(e: CustomEvent) {
-    this.dispatchEvent(new CustomEvent('session-select', {
-      detail: e.detail,
-      bubbles: true,
-      composed: true
-    }));
+    const session = e.detail as Session;
+    window.location.search = `?session=${session.id}`;
   }
 
-  private async handleSessionKill(e: CustomEvent) {
-    const sessionId = e.detail;
-    if (this.killingSessionIds.has(sessionId)) return;
-    
-    this.killingSessionIds.add(sessionId);
-    this.requestUpdate();
-
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}/kill`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        this.dispatchEvent(new CustomEvent('session-killed', { detail: sessionId }));
-      } else {
-        this.dispatchEvent(new CustomEvent('error', { detail: 'Failed to kill session' }));
-      }
-    } catch (error) {
-      console.error('Error killing session:', error);
-      this.dispatchEvent(new CustomEvent('error', { detail: 'Failed to kill session' }));
-    } finally {
-      this.killingSessionIds.delete(sessionId);
-      this.requestUpdate();
-    }
-  }
 
   private async handleCleanupExited() {
     if (this.cleaningExited) return;
@@ -138,11 +110,10 @@ export class SessionList extends LitElement {
           </div>
         ` : html`
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${filteredSessions.map(session => html`
+            ${repeat(filteredSessions, (session) => session.id, (session) => html`
               <session-card 
                 .session=${session}
-                @session-select=${this.handleSessionSelect}
-                @session-kill=${this.handleSessionKill}>
+                @session-select=${this.handleSessionSelect}>
               </session-card>
             `)}
           </div>

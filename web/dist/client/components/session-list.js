@@ -12,7 +12,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SessionList = void 0;
 const lit_1 = require("lit");
 const decorators_js_1 = require("lit/decorators.js");
+const repeat_js_1 = require("lit/directives/repeat.js");
 require("./session-create-form.js");
+require("./session-card.js");
 let SessionList = class SessionList extends lit_1.LitElement {
     constructor() {
         super(...arguments);
@@ -21,10 +23,7 @@ let SessionList = class SessionList extends lit_1.LitElement {
         this.hideExited = true;
         this.showCreateModal = false;
         this.killingSessionIds = new Set();
-        this.loadedSnapshots = new Map();
-        this.loadingSnapshots = new Set();
         this.cleaningExited = false;
-        this.newSessionIds = new Set();
     }
     // Disable shadow DOM to use Tailwind
     createRenderRoot() {
@@ -33,119 +32,14 @@ let SessionList = class SessionList extends lit_1.LitElement {
     handleRefresh() {
         this.dispatchEvent(new CustomEvent('refresh'));
     }
-    async loadSnapshot(sessionId) {
-        if (this.loadedSnapshots.has(sessionId) || this.loadingSnapshots.has(sessionId)) {
+    handleSessionSelect(e) {
+        const session = e.detail;
+        window.location.search = `?session=${session.id}`;
+    }
+    async handleSessionKill(e) {
+        const sessionId = e.detail;
+        if (this.killingSessionIds.has(sessionId))
             return;
-        }
-        this.loadingSnapshots.add(sessionId);
-        this.requestUpdate();
-        try {
-            // Just mark as loaded and create the player with the endpoint URL
-            this.loadedSnapshots.set(sessionId, sessionId);
-            this.requestUpdate();
-            // Create asciinema player after the element is rendered
-            setTimeout(() => this.createPlayer(sessionId), 10);
-        }
-        catch (error) {
-            console.error('Error loading snapshot:', error);
-        }
-        finally {
-            this.loadingSnapshots.delete(sessionId);
-            this.requestUpdate();
-        }
-    }
-    loadAllSnapshots() {
-        this.sessions.forEach(session => {
-            this.loadSnapshot(session.id);
-        });
-    }
-    updated(changedProperties) {
-        super.updated(changedProperties);
-        if (changedProperties.has('sessions')) {
-            // Auto-load snapshots for existing sessions immediately, but delay for new ones
-            const prevSessions = changedProperties.get('sessions') || [];
-            const newSessionIdsList = this.sessions
-                .filter(session => !prevSessions.find((prev) => prev.id === session.id))
-                .map(session => session.id);
-            // Track new sessions
-            newSessionIdsList.forEach(id => this.newSessionIds.add(id));
-            // Load existing sessions immediately
-            const existingSessions = this.sessions.filter(session => !newSessionIdsList.includes(session.id));
-            existingSessions.forEach(session => this.loadSnapshot(session.id));
-            // Load new sessions after a delay to let them generate some output
-            if (newSessionIdsList.length > 0) {
-                setTimeout(() => {
-                    newSessionIdsList.forEach(sessionId => {
-                        this.newSessionIds.delete(sessionId); // Remove from new sessions set
-                        this.loadSnapshot(sessionId);
-                    });
-                    this.requestUpdate(); // Update UI to show the players
-                }, 500); // Wait 500ms for new sessions
-            }
-        }
-        // If hideExited changed, recreate players for newly visible sessions
-        if (changedProperties.has('hideExited')) {
-            // Use a slight delay to avoid blocking the checkbox click
-            setTimeout(() => {
-                requestAnimationFrame(() => {
-                    this.filteredSessions.forEach(session => {
-                        const playerElement = this.querySelector(`#player-${session.id}`);
-                        if (playerElement && this.loadedSnapshots.has(session.id)) {
-                            // Player element exists but might not have a player instance
-                            // Check if it's empty and recreate if needed
-                            if (!playerElement.hasChildNodes() || playerElement.children.length === 0) {
-                                this.createPlayer(session.id);
-                            }
-                        }
-                    });
-                });
-            }, 10);
-        }
-    }
-    createPlayer(sessionId) {
-        const playerElement = this.querySelector(`#player-${sessionId}`);
-        if (!playerElement) {
-            // Element not ready yet, retry on next frame
-            requestAnimationFrame(() => this.createPlayer(sessionId));
-            return;
-        }
-        if (window.AsciinemaPlayer) {
-            try {
-                // Find the session to check its status
-                const session = this.sessions.find(s => s.id === sessionId);
-                // For ended sessions, use snapshot instead of stream to avoid reloading
-                const url = session?.status === 'exited'
-                    ? `/api/sessions/${sessionId}/snapshot`
-                    : `/api/sessions/${sessionId}/stream`;
-                const config = session?.status === 'exited'
-                    ? { url } // Static snapshot
-                    : { driver: "eventsource", url }; // Live stream
-                window.AsciinemaPlayer.create(config, playerElement, {
-                    autoPlay: true,
-                    loop: false,
-                    controls: false,
-                    fit: 'width',
-                    terminalFontSize: '8px',
-                    idleTimeLimit: 0.5,
-                    preload: true,
-                    poster: 'npt:999999'
-                });
-            }
-            catch (error) {
-                console.error('Error creating asciinema player:', error);
-            }
-        }
-    }
-    handleSessionClick(session) {
-        this.dispatchEvent(new CustomEvent('session-select', {
-            detail: session
-        }));
-    }
-    async handleKillSession(e, sessionId) {
-        e.stopPropagation(); // Prevent session selection
-        if (!confirm('Are you sure you want to kill this session?')) {
-            return;
-        }
         this.killingSessionIds.add(sessionId);
         this.requestUpdate();
         try {
@@ -153,148 +47,50 @@ let SessionList = class SessionList extends lit_1.LitElement {
                 method: 'DELETE'
             });
             if (response.ok) {
-                this.dispatchEvent(new CustomEvent('session-killed', {
-                    detail: { sessionId }
-                }));
-                // Refresh the list after a short delay
-                setTimeout(() => {
-                    this.handleRefresh();
-                }, 1000);
+                this.dispatchEvent(new CustomEvent('session-killed', { detail: sessionId }));
             }
             else {
-                const error = await response.json();
-                this.dispatchEvent(new CustomEvent('error', {
-                    detail: `Failed to kill session: ${error.error}`
-                }));
+                this.dispatchEvent(new CustomEvent('error', { detail: 'Failed to kill session' }));
             }
         }
         catch (error) {
             console.error('Error killing session:', error);
-            this.dispatchEvent(new CustomEvent('error', {
-                detail: 'Failed to kill session'
-            }));
+            this.dispatchEvent(new CustomEvent('error', { detail: 'Failed to kill session' }));
         }
         finally {
             this.killingSessionIds.delete(sessionId);
             this.requestUpdate();
         }
     }
-    async handleCleanSession(e, sessionId) {
-        e.stopPropagation(); // Prevent session selection
-        if (!confirm('Are you sure you want to clean up this session?')) {
+    async handleCleanupExited() {
+        if (this.cleaningExited)
             return;
-        }
-        this.killingSessionIds.add(sessionId);
-        this.requestUpdate();
-        try {
-            const response = await fetch(`/api/sessions/${sessionId}/cleanup`, {
-                method: 'DELETE'
-            });
-            if (response.ok) {
-                this.dispatchEvent(new CustomEvent('session-killed', {
-                    detail: { sessionId }
-                }));
-                // Refresh the list after a short delay
-                setTimeout(() => {
-                    this.handleRefresh();
-                }, 500);
-            }
-            else {
-                const error = await response.json();
-                this.dispatchEvent(new CustomEvent('error', {
-                    detail: `Failed to clean session: ${error.error}`
-                }));
-            }
-        }
-        catch (error) {
-            console.error('Error cleaning session:', error);
-            this.dispatchEvent(new CustomEvent('error', {
-                detail: 'Failed to clean session'
-            }));
-        }
-        finally {
-            this.killingSessionIds.delete(sessionId);
-            this.requestUpdate();
-        }
-    }
-    formatTime(timestamp) {
-        try {
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString();
-        }
-        catch {
-            return 'Unknown';
-        }
-    }
-    truncateId(id) {
-        return id.length > 8 ? `${id.substring(0, 8)}...` : id;
-    }
-    handleSessionCreated(e) {
-        this.dispatchEvent(new CustomEvent('session-created', {
-            detail: e.detail
-        }));
-    }
-    handleCreateError(e) {
-        this.dispatchEvent(new CustomEvent('error', {
-            detail: e.detail
-        }));
-    }
-    handleCreateModalClose() {
-        this.dispatchEvent(new CustomEvent('create-modal-close'));
-    }
-    async handleCleanExited() {
-        const exitedSessions = this.sessions.filter(session => session.status === 'exited');
-        if (exitedSessions.length === 0) {
-            this.dispatchEvent(new CustomEvent('error', {
-                detail: 'No exited sessions to clean'
-            }));
-            return;
-        }
-        if (!confirm(`Are you sure you want to delete ${exitedSessions.length} exited session${exitedSessions.length > 1 ? 's' : ''}?`)) {
-            return;
-        }
         this.cleaningExited = true;
         this.requestUpdate();
         try {
-            // Use the bulk cleanup API endpoint
             const response = await fetch('/api/cleanup-exited', {
                 method: 'POST'
             });
-            if (!response.ok) {
-                throw new Error('Failed to cleanup exited sessions');
+            if (response.ok) {
+                this.dispatchEvent(new CustomEvent('refresh'));
             }
-            this.dispatchEvent(new CustomEvent('error', {
-                detail: `Successfully cleaned ${exitedSessions.length} exited session${exitedSessions.length > 1 ? 's' : ''}`
-            }));
-            // Refresh the list after cleanup
-            setTimeout(() => {
-                this.handleRefresh();
-            }, 500);
+            else {
+                this.dispatchEvent(new CustomEvent('error', { detail: 'Failed to cleanup exited sessions' }));
+            }
         }
         catch (error) {
-            console.error('Error cleaning exited sessions:', error);
-            this.dispatchEvent(new CustomEvent('error', {
-                detail: 'Failed to clean exited sessions'
-            }));
+            console.error('Error cleaning up exited sessions:', error);
+            this.dispatchEvent(new CustomEvent('error', { detail: 'Failed to cleanup exited sessions' }));
         }
         finally {
             this.cleaningExited = false;
             this.requestUpdate();
         }
     }
-    handleHideExitedChange(e) {
-        const checked = e.target.checked;
-        this.dispatchEvent(new CustomEvent('hide-exited-change', {
-            detail: checked
-        }));
-    }
-    get filteredSessions() {
-        return this.hideExited
-            ? this.sessions.filter(session => session.status === 'running')
-            : this.sessions;
-    }
     render() {
-        const sessionsToShow = this.filteredSessions;
+        const filteredSessions = this.hideExited
+            ? this.sessions.filter(session => session.status !== 'exited')
+            : this.sessions;
         return (0, lit_1.html) `
       <div class="font-mono text-sm p-4">
         <!-- Controls -->
@@ -302,7 +98,7 @@ let SessionList = class SessionList extends lit_1.LitElement {
           ${!this.hideExited ? (0, lit_1.html) `
             <button
               class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
-              @click=${this.handleCleanExited}
+              @click=${this.handleCleanupExited}
               ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
             >
               ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
@@ -315,7 +111,7 @@ let SessionList = class SessionList extends lit_1.LitElement {
                 type="checkbox"
                 class="sr-only"
                 .checked=${this.hideExited}
-                @change=${this.handleHideExitedChange}
+                @change=${(e) => this.dispatchEvent(new CustomEvent('hide-exited-change', { detail: e.target.checked }))}
               >
               <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
                 ${this.hideExited ? (0, lit_1.html) `
@@ -328,67 +124,27 @@ let SessionList = class SessionList extends lit_1.LitElement {
             hide exited
           </label>
         </div>
-
-        ${sessionsToShow.length === 0 ? (0, lit_1.html) `
+        ${filteredSessions.length === 0 ? (0, lit_1.html) `
           <div class="text-vs-muted text-center py-8">
             ${this.loading ? 'Loading sessions...' : (this.hideExited && this.sessions.length > 0 ? 'No running sessions' : 'No sessions found')}
           </div>
         ` : (0, lit_1.html) `
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${sessionsToShow.map(session => (0, lit_1.html) `
-              <div
-                class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden"
-                @click=${() => this.handleSessionClick(session)}
-              >
-                <!-- Compact Header -->
-                <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
-                  <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${session.command}</div>
-                  ${session.status === 'running' || !this.hideExited ? (0, lit_1.html) `
-                    <button
-                      class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
-                      @click=${(e) => session.status === 'running' ? this.handleKillSession(e, session.id) : this.handleCleanSession(e, session.id)}
-                      ?disabled=${this.killingSessionIds.has(session.id)}
-                    >
-                      ${this.killingSessionIds.has(session.id)
-            ? (session.status === 'running' ? '[~] killing...' : '[~] cleaning...')
-            : (session.status === 'running' ? 'kill' : 'clean')}
-                    </button>
-                  ` : ''}
-                </div>
-
-                <!-- Asciinema player (main content) -->
-                <div class="session-preview bg-black flex items-center justify-center overflow-hidden" style="aspect-ratio: 640/480;">
-                  ${this.loadedSnapshots.has(session.id) ? (0, lit_1.html) `
-                    <div id="player-${session.id}" class="w-full h-full overflow-hidden"></div>
-                  ` : (0, lit_1.html) `
-                    <div class="text-vs-muted text-xs">
-                      ${this.newSessionIds.has(session.id)
-            ? '[~] init_session...'
-            : (this.loadingSnapshots.has(session.id) ? '[~] loading...' : '[~] loading...')}
-                    </div>
-                  `}
-                </div>
-
-                <!-- Compact Footer -->
-                <div class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border">
-                  <div class="flex justify-between items-center">
-                    <span class="${session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'} text-xs">
-                      ${session.status}
-                    </span>
-                    <span class="truncate">${this.truncateId(session.id)}</span>
-                  </div>
-                  <div class="truncate text-xs opacity-75" title="${session.workingDir}">${session.workingDir}</div>
-                </div>
-              </div>
+            ${(0, repeat_js_1.repeat)(filteredSessions, (session) => session.id, (session) => (0, lit_1.html) `
+              <session-card 
+                .session=${session}
+                @session-select=${this.handleSessionSelect}
+                @session-kill=${this.handleSessionKill}>
+              </session-card>
             `)}
           </div>
         `}
 
         <session-create-form
           .visible=${this.showCreateModal}
-          @session-created=${this.handleSessionCreated}
-          @cancel=${this.handleCreateModalClose}
-          @error=${this.handleCreateError}
+          @session-created=${(e) => this.dispatchEvent(new CustomEvent('session-created', { detail: e.detail }))}
+          @cancel=${() => this.dispatchEvent(new CustomEvent('create-modal-close'))}
+          @error=${(e) => this.dispatchEvent(new CustomEvent('error', { detail: e.detail }))}
         ></session-create-form>
       </div>
     `;
@@ -418,19 +174,7 @@ __decorate([
 __decorate([
     (0, decorators_js_1.state)(),
     __metadata("design:type", Object)
-], SessionList.prototype, "loadedSnapshots", void 0);
-__decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
-], SessionList.prototype, "loadingSnapshots", void 0);
-__decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
 ], SessionList.prototype, "cleaningExited", void 0);
-__decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
-], SessionList.prototype, "newSessionIds", void 0);
 exports.SessionList = SessionList = __decorate([
     (0, decorators_js_1.customElement)('session-list')
 ], SessionList);

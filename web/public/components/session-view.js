@@ -1,19 +1,13 @@
-"use strict";
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SessionView = void 0;
-const lit_1 = require("lit");
-const decorators_js_1 = require("lit/decorators.js");
-const renderer_js_1 = require("../renderer.js");
-let SessionView = class SessionView extends lit_1.LitElement {
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { Renderer } from '../renderer.js';
+let SessionView = class SessionView extends LitElement {
     constructor() {
         super(...arguments);
         this.session = null;
@@ -136,7 +130,7 @@ let SessionView = class SessionView extends lit_1.LitElement {
         if (!terminalElement)
             return;
         // Create renderer once and connect to current session
-        this.renderer = new renderer_js_1.Renderer(terminalElement);
+        this.renderer = new Renderer(terminalElement);
         // Wait a moment for freshly created sessions before connecting
         const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
         const delay = sessionAge < 5000 ? 2000 : 0; // 2 second delay if session is less than 5 seconds old
@@ -494,13 +488,13 @@ let SessionView = class SessionView extends lit_1.LitElement {
     }
     render() {
         if (!this.session) {
-            return (0, lit_1.html) `
+            return html `
         <div class="p-4 text-vs-muted">
           No session selected
         </div>
       `;
         }
-        return (0, lit_1.html) `
+        return html `
       <style>
         session-view *, session-view *:focus, session-view *:focus-visible {
           outline: none !important;
@@ -533,7 +527,7 @@ let SessionView = class SessionView extends lit_1.LitElement {
         <div class="flex-1 bg-black overflow-x-auto overflow-y-hidden min-h-0 relative" id="terminal-container">
           <div id="interactive-terminal" class="w-full h-full"></div>
           
-          ${this.loading ? (0, lit_1.html) `
+          ${this.loading ? html `
             <!-- Loading overlay -->
             <div class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center">
               <div class="text-vs-text font-mono text-center">
@@ -545,7 +539,7 @@ let SessionView = class SessionView extends lit_1.LitElement {
         </div>
 
         <!-- Mobile Input Controls -->
-        ${this.isMobile && !this.showMobileInput ? (0, lit_1.html) `
+        ${this.isMobile && !this.showMobileInput ? html `
           <div class="flex-shrink-0 p-4 bg-vs-bg">
               <!-- First row: Arrow keys -->
               <div class="flex gap-2 mb-2">
@@ -612,7 +606,7 @@ let SessionView = class SessionView extends lit_1.LitElement {
         ` : ''}
 
         <!-- Full-Screen Input Overlay (only when opened) -->
-        ${this.isMobile && this.showMobileInput ? (0, lit_1.html) `
+        ${this.isMobile && this.showMobileInput ? html `
             <div class="fixed inset-0 bg-vs-bg-secondary bg-opacity-95 z-50 flex flex-col" style="height: 100vh; height: 100dvh;">
               <!-- Input Header -->
               <div class="flex items-center justify-between p-4 border-b border-vs-border flex-shrink-0">
@@ -676,52 +670,41 @@ let SessionView = class SessionView extends lit_1.LitElement {
     `;
     }
 };
-exports.SessionView = SessionView;
 __decorate([
-    (0, decorators_js_1.property)({ type: Object }),
-    __metadata("design:type", Object)
+    property({ type: Object })
 ], SessionView.prototype, "session", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "connected", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "renderer", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "sessionStatusInterval", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "showMobileInput", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "mobileInputText", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "isMobile", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "touchStartX", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "touchStartY", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "loading", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], SessionView.prototype, "loadingFrame", void 0);
-exports.SessionView = SessionView = __decorate([
-    (0, decorators_js_1.customElement)('session-view')
+SessionView = __decorate([
+    customElement('session-view')
 ], SessionView);
+export { SessionView };
 //# sourceMappingURL=session-view.js.map

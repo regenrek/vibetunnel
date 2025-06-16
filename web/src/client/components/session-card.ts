@@ -22,8 +22,11 @@ export class SessionCard extends LitElement {
 
   @property({ type: Object }) session!: Session;
   @state() private renderer: Renderer | null = null;
+  @state() private killing = false;
+  @state() private killingFrame = 0;
   
   private refreshInterval: number | null = null;
+  private killingInterval: number | null = null;
 
   firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
@@ -31,10 +34,14 @@ export class SessionCard extends LitElement {
     this.startRefresh();
   }
 
+
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
+    }
+    if (this.killingInterval) {
+      clearInterval(this.killingInterval);
     }
     if (this.renderer) {
       this.renderer.dispose();
@@ -47,7 +54,7 @@ export class SessionCard extends LitElement {
     if (!playerElement) return;
 
     // Create single renderer for this card
-    this.renderer = new Renderer(playerElement, 40, 12, 10000, 6, true);
+    this.renderer = new Renderer(playerElement, 80, 24, 10000, 4, true);
 
     // Always use snapshot endpoint for cards
     const url = `/api/sessions/${this.session.id}/snapshot`;
@@ -61,6 +68,12 @@ export class SessionCard extends LitElement {
         this.renderer.loadFromUrl(url, false); // false = not a stream, use snapshot
         // Disable pointer events so clicks pass through to the card
         this.renderer.setPointerEventsEnabled(false);
+        // Force fit after loading to ensure proper scaling in card
+        setTimeout(() => {
+          if (this.renderer) {
+            this.renderer.fit();
+          }
+        }, 100);
       }
     }, delay);
   }
@@ -72,6 +85,12 @@ export class SessionCard extends LitElement {
         this.renderer.loadFromUrl(url, false);
         // Ensure pointer events stay disabled after refresh
         this.renderer.setPointerEventsEnabled(false);
+        // Force fit after refresh to maintain proper scaling
+        setTimeout(() => {
+          if (this.renderer) {
+            this.renderer.fit();
+          }
+        }, 100);
       }
     }, 10000); // Refresh every 10 seconds
   }
@@ -84,14 +103,48 @@ export class SessionCard extends LitElement {
     }));
   }
 
-  private handleKillClick(e: Event) {
+  private async handleKillClick(e: Event) {
     e.stopPropagation();
     e.preventDefault();
-    this.dispatchEvent(new CustomEvent('session-kill', {
-      detail: this.session.id,
-      bubbles: true,
-      composed: true
-    }));
+    
+    // Start killing animation
+    this.killing = true;
+    this.killingFrame = 0;
+    this.killingInterval = window.setInterval(() => {
+      this.killingFrame = (this.killingFrame + 1) % 4;
+      this.requestUpdate();
+    }, 200);
+
+    // Send kill request
+    try {
+      const response = await fetch(`/api/sessions/${this.session.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        console.error('Failed to kill session');
+        // Stop animation on error
+        this.stopKillingAnimation();
+      }
+      // Note: We don't stop the animation on success - let the session list refresh handle it
+    } catch (error) {
+      console.error('Error killing session:', error);
+      // Stop animation on error
+      this.stopKillingAnimation();
+    }
+  }
+
+  private stopKillingAnimation() {
+    this.killing = false;
+    if (this.killingInterval) {
+      clearInterval(this.killingInterval);
+      this.killingInterval = null;
+    }
+  }
+
+  private getKillingText(): string {
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    return frames[this.killingFrame % frames.length];
   }
 
   private async handlePidClick(e: Event) {
@@ -129,7 +182,7 @@ export class SessionCard extends LitElement {
     const isRunning = this.session.status === 'running';
     
     return html`
-      <div class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden"
+      <div class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden ${this.killing ? 'opacity-60' : ''}"
            @click=${this.handleCardClick}>
         <!-- Compact Header -->
         <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
@@ -138,15 +191,25 @@ export class SessionCard extends LitElement {
             <button
               class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
               @click=${this.handleKillClick}
+              ?disabled=${this.killing}
             >
-              ${this.session.status === 'running' ? 'kill' : 'clean'}
+              ${this.killing ? 'killing...' : 'kill'}
             </button>
           ` : ''}
         </div>
 
         <!-- XTerm renderer (main content) -->
-        <div class="session-preview bg-black flex items-center justify-center overflow-hidden" style="aspect-ratio: 640/480;">
-          <div id="player" class="w-full h-full overflow-hidden"></div>
+        <div class="session-preview bg-black overflow-hidden" style="aspect-ratio: 640/480;">
+          ${this.killing ? html`
+            <div class="w-full h-full flex items-center justify-center text-vs-warning">
+              <div class="text-center font-mono">
+                <div class="text-4xl mb-2">${this.getKillingText()}</div>
+                <div class="text-sm">Killing session...</div>
+              </div>
+            </div>
+          ` : html`
+            <div id="player" class="w-full h-full"></div>
+          `}
         </div>
 
         <!-- Compact Footer -->
@@ -161,7 +224,7 @@ export class SessionCard extends LitElement {
                 @click=${this.handlePidClick}
                 title="Click to copy PID"
               >
-                PID: ${this.session.pid}
+                PID: ${this.session.pid} <span class="opacity-50">(click to copy)</span>
               </span>
             ` : ''}
           </div>

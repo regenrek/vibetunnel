@@ -16,6 +16,11 @@ const MAX_FONT_SIZE = 16;
 
 export class ScaleFitAddon implements ITerminalAddon {
   private _terminal: Terminal | undefined;
+  private _isPreview: boolean;
+
+  constructor(isPreview: boolean = false) {
+    this._isPreview = isPreview;
+  }
 
   public activate(terminal: Terminal): void {
     this._terminal = terminal;
@@ -24,14 +29,20 @@ export class ScaleFitAddon implements ITerminalAddon {
   public dispose(): void {}
 
   public fit(): void {
-    const dims = this.proposeDimensions();
-    if (!dims || !this._terminal || isNaN(dims.cols) || isNaN(dims.rows)) {
-      return;
-    }
+    if (this._isPreview) {
+      // For previews, only scale font size, don't change terminal dimensions
+      this.scaleFontOnly();
+    } else {
+      // For full terminals, resize both font and dimensions
+      const dims = this.proposeDimensions();
+      if (!dims || !this._terminal || isNaN(dims.cols) || isNaN(dims.rows)) {
+        return;
+      }
 
-    // Only resize rows, keep cols the same (font scaling handles width)
-    if (this._terminal.rows !== dims.rows) {
-      this._terminal.resize(this._terminal.cols, dims.rows);
+      // Only resize rows, keep cols the same (font scaling handles width)
+      if (this._terminal.rows !== dims.rows) {
+        this._terminal.resize(this._terminal.cols, dims.rows);
+      }
     }
   }
 
@@ -66,7 +77,8 @@ export class ScaleFitAddon implements ITerminalAddon {
 
     // Calculate optimal font size to fit current cols in available width
     // Character width is approximately 0.6 * fontSize for monospace fonts
-    const charWidthRatio = 0.6;
+    // Use a slightly smaller ratio for better fitting in constrained spaces
+    const charWidthRatio = 0.55;
     const calculatedFontSize = availableWidth / (currentCols * charWidthRatio);
     const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
 
@@ -78,8 +90,11 @@ export class ScaleFitAddon implements ITerminalAddon {
     const currentStyle = window.getComputedStyle(xtermElement);
     const actualLineHeight = parseFloat(currentStyle.lineHeight);
 
-    // If we can't get the line height, fall back to configuration
-    const lineHeight = actualLineHeight || (optimalFontSize * (this._terminal.options.lineHeight || 1.2));
+    // XTerm typically uses a line height of around 1.0 for the character cell height
+    // Use a more accurate fallback based on XTerm's actual behavior
+    const lineHeight = (actualLineHeight && !isNaN(actualLineHeight)) ? 
+      actualLineHeight : 
+      (optimalFontSize * (this._terminal.options.lineHeight || 1.0));
 
     // Calculate how many rows fit with this line height
     const optimalRows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / lineHeight));
@@ -116,6 +131,33 @@ export class ScaleFitAddon implements ITerminalAddon {
   /**
    * Get the calculated font size that would fit the current columns in the container
    */
+  private scaleFontOnly(): void {
+    if (!this._terminal?.element?.parentElement) return;
+
+    // Get container dimensions for font scaling
+    const terminalWrapper = this._terminal.element.parentElement;
+    const rendererContainer = terminalWrapper.parentElement;
+    if (!rendererContainer) return;
+
+    const containerStyle = window.getComputedStyle(rendererContainer);
+    const containerWidth = parseInt(containerStyle.getPropertyValue('width'));
+    const containerPadding = {
+      left: parseInt(containerStyle.getPropertyValue('padding-left')),
+      right: parseInt(containerStyle.getPropertyValue('padding-right'))
+    };
+
+    const availableWidth = containerWidth - containerPadding.left - containerPadding.right;
+    const currentCols = this._terminal.cols;
+
+    // Calculate font size to fit columns in available width
+    const charWidthRatio = 0.55;
+    const calculatedFontSize = availableWidth / (currentCols * charWidthRatio);
+    const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
+
+    // Apply the font size without changing terminal dimensions
+    this.applyFontSize(optimalFontSize);
+  }
+
   public getOptimalFontSize(): number {
     if (!this._terminal?.element?.parentElement) {
       return this._terminal?.options.fontSize || 14;

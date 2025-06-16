@@ -170,18 +170,59 @@ app.post('/api/sessions', async (req, res) => {
             detached: false,
             stdio: 'pipe'
         });
-        // Log output for debugging
+        // Capture session ID from stdout
+        let sessionId = '';
         child.stdout.on('data', (data) => {
-            console.log(`Session ${sessionName} stdout:`, data.toString());
+            const output = data.toString().trim();
+            if (output && !sessionId) {
+                // First line of output should be the session ID
+                sessionId = output;
+                console.log(`Session created with ID: ${sessionId}`);
+            }
         });
         child.stderr.on('data', (data) => {
-            console.log(`Session ${sessionName} stderr:`, data.toString());
+            // Only log stderr if it contains actual errors
+            const output = data.toString();
+            if (output.includes('error') || output.includes('Error')) {
+                console.error(`Session ${sessionName} stderr:`, output);
+            }
         });
-        child.on('close', (code) => {
-            console.log(`Session ${sessionName} exited with code: ${code}`);
+        child.on('close', async (code) => {
+            console.log(`Session ${sessionId || sessionName} exited with code: ${code}`);
+            // Send exit event to all clients watching this session
+            const streamInfo = activeStreams.get(sessionId);
+            if (streamInfo) {
+                console.log(`Sending exit event to stream ${sessionId}`);
+                const exitEvent = JSON.stringify(['exit', code, sessionId]);
+                const eventData = `data: ${exitEvent}\n\n`;
+                streamInfo.clients.forEach(client => {
+                    try {
+                        client.write(eventData);
+                    }
+                    catch (error) {
+                        console.error('Error sending exit event to client:', error);
+                    }
+                });
+            }
         });
-        // Respond immediately - don't wait for completion
-        res.json({ sessionId: sessionName });
+        // Wait for session ID from tty-fwd or timeout after 3 seconds
+        const waitForSessionId = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Failed to get session ID from tty-fwd within 3 seconds'));
+            }, 3000);
+            const checkSessionId = () => {
+                if (sessionId) {
+                    clearTimeout(timeout);
+                    resolve(sessionId);
+                }
+                else {
+                    setTimeout(checkSessionId, 100);
+                }
+            };
+            checkSessionId();
+        });
+        const finalSessionId = await waitForSessionId;
+        res.json({ sessionId: finalSessionId });
     }
     catch (error) {
         console.error('Error creating session:', error);
@@ -266,14 +307,14 @@ app.post('/api/cleanup-exited', async (req, res) => {
 // === TERMINAL I/O ===
 // Track active streams per session to avoid multiple tail processes
 const activeStreams = new Map();
-// Live streaming cast file for asciinema player
+// Live streaming cast file for XTerm renderer
 app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path_1.default.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
     if (!fs_1.default.existsSync(streamOutPath)) {
         return res.status(404).json({ error: 'Session not found' });
     }
-    console.log(`New SSE client connected to session ${sessionId}`);
+    console.log(`New SSE client connected to session ${sessionId} from ${req.get('User-Agent')?.substring(0, 50) || 'unknown'}`);
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -368,6 +409,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
                                 console.error('Error writing to client:', error);
                                 if (streamInfo) {
                                     streamInfo.clients.delete(client);
+                                    console.log(`Removed failed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`);
                                 }
                             }
                         });
@@ -391,7 +433,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
         });
         tailProcess.on('exit', (code) => {
             console.log(`Shared tail process exited for session ${sessionId} with code ${code}`);
-            // Cleanup all clients  
+            // Cleanup all clients
             const currentStreamInfo = activeStreams.get(sessionId);
             if (currentStreamInfo) {
                 currentStreamInfo.clients.forEach(client => {
@@ -425,8 +467,11 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     };
     req.on('close', cleanup);
     req.on('aborted', cleanup);
+    req.on('error', cleanup);
+    res.on('close', cleanup);
+    res.on('finish', cleanup);
 });
-// Get session snapshot (asciinema cast with adjusted timestamps for immediate playback)
+// Get session snapshot (cast with adjusted timestamps for immediate playback)
 app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path_1.default.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
@@ -460,7 +505,7 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
                 }
             }
         }
-        // Build the complete asciinema cast
+        // Build the complete cast
         const cast = [];
         // Add header if found, otherwise use default
         if (header) {
@@ -530,7 +575,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
             }
         }
         // Check if this is a special key that should use --send-key
-        const specialKeys = ['arrow_up', 'arrow_down', 'arrow_left', 'arrow_right', 'escape', 'enter'];
+        const specialKeys = ['arrow_up', 'arrow_down', 'arrow_left', 'arrow_right', 'escape', 'enter', 'ctrl_enter', 'shift_enter'];
         const isSpecialKey = specialKeys.includes(text);
         const startTime = Date.now();
         if (isSpecialKey) {
@@ -539,7 +584,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
                 '--session', sessionId,
                 '--send-key', text
             ]);
-            console.log(`Successfully sent key: ${text} (${Date.now() - startTime}ms)`);
+            // Key sent successfully (removed verbose logging)
         }
         else {
             await executeTtyFwd([
@@ -547,7 +592,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
                 '--session', sessionId,
                 '--send-text', text
             ]);
-            console.log(`Successfully sent text: ${text} (${Date.now() - startTime}ms)`);
+            // Text sent successfully (removed verbose logging)
         }
         res.json({ success: true });
     }
@@ -615,6 +660,53 @@ app.get('/api/fs/browse', (req, res) => {
     catch (error) {
         console.error('Error listing directory:', error);
         res.status(500).json({ error: 'Failed to list directory' });
+    }
+});
+// Create directory
+app.post('/api/mkdir', (req, res) => {
+    try {
+        const { path: dirPath, name } = req.body;
+        if (!dirPath || !name) {
+            return res.status(400).json({ error: 'Missing path or name parameter' });
+        }
+        // Validate directory name (no path separators, no hidden files starting with .)
+        if (name.includes('/') || name.includes('\\') || name.startsWith('.')) {
+            return res.status(400).json({ error: 'Invalid directory name' });
+        }
+        // Expand tilde in path
+        const expandedPath = dirPath.startsWith('~')
+            ? path_1.default.join(os_1.default.homedir(), dirPath.slice(1))
+            : path_1.default.resolve(dirPath);
+        // Security check: ensure we're not trying to access outside allowed areas
+        const allowedBasePaths = [os_1.default.homedir(), process.cwd()];
+        const isAllowed = allowedBasePaths.some(basePath => expandedPath.startsWith(path_1.default.resolve(basePath)));
+        if (!isAllowed) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        // Check if parent directory exists
+        if (!fs_1.default.existsSync(expandedPath)) {
+            return res.status(404).json({ error: 'Parent directory not found' });
+        }
+        const stats = fs_1.default.statSync(expandedPath);
+        if (!stats.isDirectory()) {
+            return res.status(400).json({ error: 'Parent path is not a directory' });
+        }
+        const newDirPath = path_1.default.join(expandedPath, name);
+        // Check if directory already exists
+        if (fs_1.default.existsSync(newDirPath)) {
+            return res.status(409).json({ error: 'Directory already exists' });
+        }
+        // Create the directory
+        fs_1.default.mkdirSync(newDirPath, { recursive: false });
+        res.json({
+            success: true,
+            path: newDirPath,
+            message: `Directory '${name}' created successfully`
+        });
+    }
+    catch (error) {
+        console.error('Error creating directory:', error);
+        res.status(500).json({ error: 'Failed to create directory' });
     }
 });
 // === WEBSOCKETS ===

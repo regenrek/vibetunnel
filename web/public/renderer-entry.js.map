@@ -1,0 +1,1 @@
+{"version":3,"file":"renderer-entry.js","sourceRoot":"","sources":["../src/client/renderer-entry.ts"],"names":[],"mappings":"AAAA,iEAAiE;AACjE,OAAO,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC","sourcesContent":["// Entry point for renderer bundle - exports XTerm-based renderer\nexport { Renderer } from './renderer';"]}

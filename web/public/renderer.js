@@ -1,13 +1,10 @@
-"use strict";
 // Terminal renderer for asciinema cast format using XTerm.js
 // Professional-grade terminal emulation with full VT compatibility
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Renderer = void 0;
-const xterm_1 = require("@xterm/xterm");
-const addon_fit_1 = require("@xterm/addon-fit");
-const addon_web_links_1 = require("@xterm/addon-web-links");
-const scale_fit_addon_js_1 = require("./scale-fit-addon.js");
-class Renderer {
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { ScaleFitAddon } from './scale-fit-addon.js';
+export class Renderer {
     constructor(container, width = 80, height = 20, scrollback = 1000000, fontSize = 14, isPreview = false) {
         this.eventSource = null;
         Renderer.activeCount++;
@@ -15,7 +12,7 @@ class Renderer {
         this.container = container;
         this.isPreview = isPreview;
         // Create terminal with options similar to the custom renderer
-        this.terminal = new xterm_1.Terminal({
+        this.terminal = new Terminal({
             cols: width,
             rows: height,
             fontFamily: 'Monaco, "Lucida Console", monospace',
@@ -54,9 +51,9 @@ class Renderer {
             disableStdin: true, // We handle input separately
         });
         // Add addons
-        this.fitAddon = new addon_fit_1.FitAddon();
-        this.scaleFitAddon = new scale_fit_addon_js_1.ScaleFitAddon();
-        this.webLinksAddon = new addon_web_links_1.WebLinksAddon();
+        this.fitAddon = new FitAddon();
+        this.scaleFitAddon = new ScaleFitAddon();
+        this.webLinksAddon = new WebLinksAddon();
         this.terminal.loadAddon(this.fitAddon);
         this.terminal.loadAddon(this.scaleFitAddon);
         this.terminal.loadAddon(this.webLinksAddon);
@@ -305,6 +302,5 @@ class Renderer {
         }
     }
 }
-exports.Renderer = Renderer;
 Renderer.activeCount = 0;
 //# sourceMappingURL=renderer.js.map

@@ -78,7 +78,7 @@ export class Renderer {
 
     // Add addons
     this.fitAddon = new FitAddon();
-    this.scaleFitAddon = new ScaleFitAddon();
+    this.scaleFitAddon = new ScaleFitAddon(isPreview);
     this.webLinksAddon = new WebLinksAddon();
 
     this.terminal.loadAddon(this.fitAddon);
@@ -91,9 +91,19 @@ export class Renderer {
   private setupDOM(): void {
     // Clear container and add CSS
     this.container.innerHTML = '';
-    this.container.style.padding = '10px';
-    this.container.style.backgroundColor = '#1e1e1e';
-    this.container.style.overflow = 'hidden';
+    
+    // Different styling for preview vs full terminals
+    if (this.isPreview) {
+      // No padding for previews, let container control sizing
+      this.container.style.padding = '0';
+      this.container.style.backgroundColor = '#1e1e1e';
+      this.container.style.overflow = 'hidden';
+    } else {
+      // Full terminals get padding
+      this.container.style.padding = '10px';
+      this.container.style.backgroundColor = '#1e1e1e';
+      this.container.style.overflow = 'hidden';
+    }
 
     // Create terminal wrapper
     const terminalWrapper = document.createElement('div');
@@ -184,10 +194,8 @@ export class Renderer {
   }
 
   resize(width: number, height: number): void {
-    if (this.isPreview) {
-      // For previews, resize to session dimensions then apply scaling
-      this.terminal.resize(width, height);
-    }
+    // Resize terminal to session dimensions
+    this.terminal.resize(width, height);
     // Always use ScaleFitAddon for consistent scaling behavior
     this.scaleFitAddon.fit();
   }

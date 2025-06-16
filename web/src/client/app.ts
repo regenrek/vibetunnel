@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { keyed } from 'lit/directives/keyed.js';
 
 // Import components
 import './components/app-header.js';
@@ -21,7 +22,7 @@ export class VibeTunnelApp extends LitElement {
   @state() private sessions: Session[] = [];
   @state() private loading = false;
   @state() private currentView: 'list' | 'session' = 'list';
-  @state() private selectedSession: Session | null = null;
+  @state() private selectedSessionId: string | null = null;
   @state() private hideExited = true;
   @state() private showCreateModal = false;
 
@@ -127,11 +128,8 @@ export class VibeTunnelApp extends LitElement {
       }
 
       if (session) {
-        // Session found, switch to session view
-        this.selectedSession = session;
-        this.currentView = 'session';
-        // Update URL to include session ID
-        this.updateUrl(session.id);
+        // Session found, switch to session view via URL
+        window.location.search = `?session=${session.id}`;
         return;
       }
 
@@ -144,21 +142,6 @@ export class VibeTunnelApp extends LitElement {
     this.showError('Session created but could not be found. Please refresh.');
   }
 
-  private handleSessionSelect(e: CustomEvent) {
-    const session = e.detail as Session;
-    console.log('Session selected:', session);
-    this.selectedSession = session;
-    this.currentView = 'session';
-    // Update URL to include session ID
-    this.updateUrl(session.id);
-  }
-
-  private handleBack() {
-    this.currentView = 'list';
-    this.selectedSession = null;
-    // Update URL to remove session parameter
-    this.updateUrl();
-  }
 
 
   private handleSessionKilled(e: CustomEvent) {
@@ -205,32 +188,11 @@ export class VibeTunnelApp extends LitElement {
     const sessionId = url.searchParams.get('session');
 
     if (sessionId) {
-      // Load the specific session
-      this.loadSessionFromUrl(sessionId);
-    } else {
-      // Show session list
-      this.currentView = 'list';
-      this.selectedSession = null;
-    }
-  }
-
-  private async loadSessionFromUrl(sessionId: string) {
-    // First ensure sessions are loaded
-    if (this.sessions.length === 0) {
-      await this.loadSessions();
-    }
-
-    // Find the session
-    const session = this.sessions.find(s => s.id === sessionId);
-    if (session) {
-      this.selectedSession = session;
+      this.selectedSessionId = sessionId;
       this.currentView = 'session';
     } else {
-      // Session not found, go to list view
+      this.selectedSessionId = null;
       this.currentView = 'list';
-      this.selectedSession = null;
-      // Update URL to remove invalid session ID
-      this.updateUrl();
     }
   }
 
@@ -275,12 +237,12 @@ export class VibeTunnelApp extends LitElement {
       ` : ''}
 
       <!-- Main content -->
-      ${this.currentView === 'session' ? html`
-        <session-view
-          .session=${this.selectedSession}
-          @back=${this.handleBack}
-        ></session-view>
-      ` : html`
+      ${this.currentView === 'session' && this.selectedSessionId ? 
+        keyed(this.selectedSessionId, html`
+          <session-view
+            .session=${this.sessions.find(s => s.id === this.selectedSessionId)}
+          ></session-view>
+        `) : html`
         <div class="max-w-4xl mx-auto">
           <app-header
             @create-session=${this.handleCreateSession}
@@ -290,7 +252,6 @@ export class VibeTunnelApp extends LitElement {
             .loading=${this.loading}
             .hideExited=${this.hideExited}
             .showCreateModal=${this.showCreateModal}
-            @session-select=${this.handleSessionSelect}
             @session-killed=${this.handleSessionKilled}
             @session-created=${this.handleSessionCreated}
             @create-modal-close=${this.handleCreateModalClose}
@@ -299,7 +260,7 @@ export class VibeTunnelApp extends LitElement {
             @hide-exited-change=${this.handleHideExitedChange}
           ></session-list>
         </div>
-      `}
+        `}
     `;
   }
 }

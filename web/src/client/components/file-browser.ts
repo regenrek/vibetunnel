@@ -26,6 +26,9 @@ export class FileBrowser extends LitElement {
 
   @state() private files: FileInfo[] = [];
   @state() private loading = false;
+  @state() private showCreateFolder = false;
+  @state() private newFolderName = '';
+  @state() private creating = false;
 
   async connectedCallback() {
     super.connectedCallback();
@@ -78,6 +81,62 @@ export class FileBrowser extends LitElement {
     this.dispatchEvent(new CustomEvent('browser-cancel'));
   }
 
+  private handleCreateFolder() {
+    this.showCreateFolder = true;
+    this.newFolderName = '';
+  }
+
+  private handleCancelCreateFolder() {
+    this.showCreateFolder = false;
+    this.newFolderName = '';
+  }
+
+  private handleFolderNameInput(e: Event) {
+    this.newFolderName = (e.target as HTMLInputElement).value;
+  }
+
+  private handleFolderNameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.createFolder();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.handleCancelCreateFolder();
+    }
+  }
+
+  private async createFolder() {
+    if (!this.newFolderName.trim()) return;
+
+    this.creating = true;
+    try {
+      const response = await fetch('/api/mkdir', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          path: this.currentPath,
+          name: this.newFolderName.trim()
+        })
+      });
+
+      if (response.ok) {
+        // Refresh directory listing
+        await this.loadDirectory(this.currentPath);
+        this.handleCancelCreateFolder();
+      } else {
+        const error = await response.json();
+        alert(`Failed to create folder: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      alert('Failed to create folder');
+    } finally {
+      this.creating = false;
+    }
+  }
+
   render() {
     if (!this.visible) {
       return html``;
@@ -87,7 +146,17 @@ export class FileBrowser extends LitElement {
       <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 9999;">
         <div class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 h-96 flex flex-col">
           <div class="p-4 border-b border-vs-border flex-shrink-0">
-            <div class="text-vs-assistant text-sm mb-2">Select Directory</div>
+            <div class="flex justify-between items-center mb-2">
+              <div class="text-vs-assistant text-sm">Select Directory</div>
+              <button 
+                class="bg-vs-user text-vs-bg hover:bg-vs-accent font-mono px-2 py-1 text-xs border-none rounded"
+                @click=${this.handleCreateFolder}
+                ?disabled=${this.loading}
+                title="Create new folder"
+              >
+                + folder
+              </button>
+            </div>
             <div class="text-vs-muted text-sm break-all">${this.currentPath}</div>
           </div>
           
@@ -123,6 +192,38 @@ export class FileBrowser extends LitElement {
               `)}
             `}
           </div>
+
+          <!-- Create folder dialog -->
+          ${this.showCreateFolder ? html`
+            <div class="p-4 border-t border-vs-border flex-shrink-0">
+              <div class="text-vs-assistant text-sm mb-2">Create New Folder</div>
+              <div class="flex gap-2">
+                <input 
+                  type="text" 
+                  class="flex-1 bg-vs-bg border border-vs-border text-vs-text px-2 py-1 text-sm font-mono"
+                  placeholder="Folder name"
+                  .value=${this.newFolderName}
+                  @input=${this.handleFolderNameInput}
+                  @keydown=${this.handleFolderNameKeydown}
+                  ?disabled=${this.creating}
+                />
+                <button 
+                  class="bg-vs-user text-vs-bg hover:bg-vs-accent font-mono px-2 py-1 text-xs border-none"
+                  @click=${this.createFolder}
+                  ?disabled=${this.creating || !this.newFolderName.trim()}
+                >
+                  ${this.creating ? '...' : 'create'}
+                </button>
+                <button 
+                  class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-2 py-1 text-xs border-none"
+                  @click=${this.handleCancelCreateFolder}
+                  ?disabled=${this.creating}
+                >
+                  cancel
+                </button>
+              </div>
+            </div>
+          ` : ''}
           
           <div class="p-4 border-t border-vs-border flex gap-4 justify-end flex-shrink-0">
             <button 

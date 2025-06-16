@@ -9,3 +9,6 @@
 - Make changes to source files in `src/`
 - The dev server automatically rebuilds and reloads
 - Focus on editing source files, not built artifacts
+
+## Server Execution
+- NEVER RUN THE SERVER YOURSELF, I ALWAYS RUN IT ON THE SIDE VIA NPM RUN DEV!

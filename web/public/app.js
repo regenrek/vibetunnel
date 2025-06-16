@@ -1,24 +1,18 @@
-"use strict";
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.VibeTunnelApp = void 0;
-const lit_1 = require("lit");
-const decorators_js_1 = require("lit/decorators.js");
+import { LitElement, html } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 // Import components
-require("./components/app-header.js");
-require("./components/session-create-form.js");
-require("./components/session-list.js");
-require("./components/session-view.js");
-require("./components/session-card.js");
-let VibeTunnelApp = class VibeTunnelApp extends lit_1.LitElement {
+import './components/app-header.js';
+import './components/session-create-form.js';
+import './components/session-list.js';
+import './components/session-view.js';
+import './components/session-card.js';
+let VibeTunnelApp = class VibeTunnelApp extends LitElement {
     constructor() {
         super(...arguments);
         this.errorMessage = '';
@@ -236,9 +230,9 @@ let VibeTunnelApp = class VibeTunnelApp extends lit_1.LitElement {
         }
     }
     render() {
-        return (0, lit_1.html) `
+        return html `
       <!-- Error notification overlay -->
-      ${this.errorMessage ? (0, lit_1.html) `
+      ${this.errorMessage ? html `
         <div class="fixed top-4 right-4 z-50">
           <div class="bg-vs-warning text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
             ${this.errorMessage}
@@ -248,12 +242,12 @@ let VibeTunnelApp = class VibeTunnelApp extends lit_1.LitElement {
       ` : ''}
 
       <!-- Main content -->
-      ${this.currentView === 'session' ? (0, lit_1.html) `
+      ${this.currentView === 'session' ? html `
         <session-view
           .session=${this.selectedSession}
           @back=${this.handleBack}
         ></session-view>
-      ` : (0, lit_1.html) `
+      ` : html `
         <div class="max-w-4xl mx-auto">
           <app-header
             @create-session=${this.handleCreateSession}
@@ -276,36 +270,29 @@ let VibeTunnelApp = class VibeTunnelApp extends lit_1.LitElement {
     `;
     }
 };
-exports.VibeTunnelApp = VibeTunnelApp;
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], VibeTunnelApp.prototype, "errorMessage", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Array)
+    state()
 ], VibeTunnelApp.prototype, "sessions", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], VibeTunnelApp.prototype, "loading", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", String)
+    state()
 ], VibeTunnelApp.prototype, "currentView", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], VibeTunnelApp.prototype, "selectedSession", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], VibeTunnelApp.prototype, "hideExited", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], VibeTunnelApp.prototype, "showCreateModal", void 0);
-exports.VibeTunnelApp = VibeTunnelApp = __decorate([
-    (0, decorators_js_1.customElement)('vibetunnel-app')
+VibeTunnelApp = __decorate([
+    customElement('vibetunnel-app')
 ], VibeTunnelApp);
+export { VibeTunnelApp };
 //# sourceMappingURL=app.js.map

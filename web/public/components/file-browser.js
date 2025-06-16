@@ -1,18 +1,12 @@
-"use strict";
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.FileBrowser = void 0;
-const lit_1 = require("lit");
-const decorators_js_1 = require("lit/decorators.js");
-let FileBrowser = class FileBrowser extends lit_1.LitElement {
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+let FileBrowser = class FileBrowser extends LitElement {
     constructor() {
         super(...arguments);
         this.currentPath = '~';
@@ -130,9 +124,9 @@ let FileBrowser = class FileBrowser extends lit_1.LitElement {
     }
     render() {
         if (!this.visible) {
-            return (0, lit_1.html) ``;
+            return html ``;
         }
-        return (0, lit_1.html) `
+        return html `
       <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 9999;">
         <div class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 h-96 flex flex-col">
           <div class="p-4 border-b border-vs-border flex-shrink-0">
@@ -151,10 +145,10 @@ let FileBrowser = class FileBrowser extends lit_1.LitElement {
           </div>
           
           <div class="p-4 flex-1 overflow-y-auto">
-            ${this.loading ? (0, lit_1.html) `
+            ${this.loading ? html `
               <div class="text-vs-muted">Loading...</div>
-            ` : (0, lit_1.html) `
-              ${this.currentPath !== '/' ? (0, lit_1.html) `
+            ` : html `
+              ${this.currentPath !== '/' ? html `
                 <div 
                   class="flex items-center gap-2 p-2 hover:bg-vs-nav-hover cursor-pointer text-vs-accent"
                   @click=${this.handleParentClick}
@@ -164,7 +158,7 @@ let FileBrowser = class FileBrowser extends lit_1.LitElement {
                 </div>
               ` : ''}
               
-              ${this.files.filter(f => f.isDir).map(file => (0, lit_1.html) `
+              ${this.files.filter(f => f.isDir).map(file => html `
                 <div 
                   class="flex items-center gap-2 p-2 hover:bg-vs-nav-hover cursor-pointer text-vs-accent"
                   @click=${() => this.handleDirectoryClick(file.name)}
@@ -174,7 +168,7 @@ let FileBrowser = class FileBrowser extends lit_1.LitElement {
                 </div>
               `)}
               
-              ${this.files.filter(f => !f.isDir).map(file => (0, lit_1.html) `
+              ${this.files.filter(f => !f.isDir).map(file => html `
                 <div class="flex items-center gap-2 p-2 text-vs-muted">
                   <span>📄</span>
                   <span>${file.name}</span>
@@ -184,7 +178,7 @@ let FileBrowser = class FileBrowser extends lit_1.LitElement {
           </div>
 
           <!-- Create folder dialog -->
-          ${this.showCreateFolder ? (0, lit_1.html) `
+          ${this.showCreateFolder ? html `
             <div class="p-4 border-t border-vs-border flex-shrink-0">
               <div class="text-vs-assistant text-sm mb-2">Create New Folder</div>
               <div class="flex gap-2">
@@ -234,36 +228,29 @@ let FileBrowser = class FileBrowser extends lit_1.LitElement {
     `;
     }
 };
-exports.FileBrowser = FileBrowser;
 __decorate([
-    (0, decorators_js_1.property)({ type: String }),
-    __metadata("design:type", Object)
+    property({ type: String })
 ], FileBrowser.prototype, "currentPath", void 0);
 __decorate([
-    (0, decorators_js_1.property)({ type: Boolean }),
-    __metadata("design:type", Object)
+    property({ type: Boolean })
 ], FileBrowser.prototype, "visible", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Array)
+    state()
 ], FileBrowser.prototype, "files", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], FileBrowser.prototype, "loading", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], FileBrowser.prototype, "showCreateFolder", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], FileBrowser.prototype, "newFolderName", void 0);
 __decorate([
-    (0, decorators_js_1.state)(),
-    __metadata("design:type", Object)
+    state()
 ], FileBrowser.prototype, "creating", void 0);
-exports.FileBrowser = FileBrowser = __decorate([
-    (0, decorators_js_1.customElement)('file-browser')
+FileBrowser = __decorate([
+    customElement('file-browser')
 ], FileBrowser);
+export { FileBrowser };
 //# sourceMappingURL=file-browser.js.map

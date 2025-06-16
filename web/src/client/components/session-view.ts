@@ -19,6 +19,12 @@ export class SessionView extends LitElement {
   @state() private isMobile = false;
   @state() private touchStartX = 0;
   @state() private touchStartY = 0;
+  @state() private loading = false;
+  @state() private loadingFrame = 0;
+
+  private loadingInterval: number | null = null;
+  private keyboardListenerAdded = false;
+  private touchListenersAdded = false;
 
   private keyboardHandler = (e: KeyboardEvent) => {
     if (!this.session) return;
@@ -62,17 +68,24 @@ export class SessionView extends LitElement {
     super.connectedCallback();
     this.connected = true;
 
+    // Show loading animation if no session yet
+    if (!this.session) {
+      this.startLoading();
+    }
+
     // Detect mobile device
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                    window.innerWidth <= 768;
 
-    // Add global keyboard event listener only for desktop
-    if (!this.isMobile) {
+    // Only add listeners if not already added
+    if (!this.isMobile && !this.keyboardListenerAdded) {
       document.addEventListener('keydown', this.keyboardHandler);
-    } else {
+      this.keyboardListenerAdded = true;
+    } else if (this.isMobile && !this.touchListenersAdded) {
       // Add touch event listeners for mobile swipe gestures
       document.addEventListener('touchstart', this.touchStartHandler, { passive: true });
       document.addEventListener('touchend', this.touchEndHandler, { passive: true });
+      this.touchListenersAdded = true;
     }
 
     // Start polling session status
@@ -84,16 +97,21 @@ export class SessionView extends LitElement {
     this.connected = false;
 
     // Remove global keyboard event listener
-    if (!this.isMobile) {
+    if (!this.isMobile && this.keyboardListenerAdded) {
       document.removeEventListener('keydown', this.keyboardHandler);
-    } else {
+      this.keyboardListenerAdded = false;
+    } else if (this.isMobile && this.touchListenersAdded) {
       // Remove touch event listeners
       document.removeEventListener('touchstart', this.touchStartHandler);
       document.removeEventListener('touchend', this.touchEndHandler);
+      this.touchListenersAdded = false;
     }
 
     // Stop polling session status
     this.stopSessionStatusPolling();
+
+    // Stop loading animation
+    this.stopLoading();
 
     // Cleanup renderer if it exists
     if (this.renderer) {
@@ -104,11 +122,20 @@ export class SessionView extends LitElement {
 
   firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
-    this.createInteractiveTerminal();
+    if (this.session) {
+      this.stopLoading();
+      this.createInteractiveTerminal();
+    }
   }
 
   updated(changedProperties: any) {
     super.updated(changedProperties);
+
+    // Stop loading and create terminal when session becomes available
+    if (changedProperties.has('session') && this.session && this.loading) {
+      this.stopLoading();
+      this.createInteractiveTerminal();
+    }
 
     // Adjust terminal height for mobile buttons after render
     if (changedProperties.has('showMobileInput') || changedProperties.has('isMobile')) {
@@ -131,8 +158,14 @@ export class SessionView extends LitElement {
     const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
     const delay = sessionAge < 5000 ? 2000 : 0; // 2 second delay if session is less than 5 seconds old
 
+    if (delay > 0) {
+      // Show loading animation during delay for fresh sessions
+      this.startLoading();
+    }
+
     setTimeout(() => {
       if (this.renderer && this.session) {
+        this.stopLoading(); // Stop loading before connecting
         this.renderer.connectToStream(this.session.id);
       }
     }, delay);
@@ -241,7 +274,7 @@ export class SessionView extends LitElement {
   }
 
   private handleBack() {
-    this.dispatchEvent(new CustomEvent('back'));
+    window.location.search = '';
   }
 
   private handleSessionExit(e: Event) {
@@ -446,6 +479,28 @@ export class SessionView extends LitElement {
     // The mobile buttons will overlay the terminal
   }
 
+  private startLoading() {
+    this.loading = true;
+    this.loadingFrame = 0;
+    this.loadingInterval = window.setInterval(() => {
+      this.loadingFrame = (this.loadingFrame + 1) % 4;
+      this.requestUpdate();
+    }, 200); // Update every 200ms for smooth animation
+  }
+
+  private stopLoading() {
+    this.loading = false;
+    if (this.loadingInterval) {
+      clearInterval(this.loadingInterval);
+      this.loadingInterval = null;
+    }
+  }
+
+  private getLoadingText(): string {
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    return frames[this.loadingFrame % frames.length];
+  }
+
   private startSessionStatusPolling() {
     if (this.sessionStatusInterval) {
       clearInterval(this.sessionStatusInterval);
@@ -531,8 +586,18 @@ export class SessionView extends LitElement {
         </div>
 
         <!-- Terminal Container -->
-        <div class="flex-1 bg-black overflow-x-auto overflow-y-hidden min-h-0" id="terminal-container">
+        <div class="flex-1 bg-black overflow-x-auto overflow-y-hidden min-h-0 relative" id="terminal-container">
           <div id="interactive-terminal" class="w-full h-full"></div>
+          
+          ${this.loading ? html`
+            <!-- Loading overlay -->
+            <div class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center">
+              <div class="text-vs-text font-mono text-center">
+                <div class="text-2xl mb-2">${this.getLoadingText()}</div>
+                <div class="text-sm text-vs-muted">Connecting to session...</div>
+              </div>
+            </div>
+          ` : ''}
         </div>
 
         <!-- Mobile Input Controls -->
