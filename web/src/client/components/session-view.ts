@@ -13,7 +13,6 @@ export class SessionView extends LitElement {
   @property({ type: Object }) session: Session | null = null;
   @state() private connected = false;
   @state() private renderer: Renderer | null = null;
-  @state() private sessionStatusInterval: number | null = null;
   @state() private showMobileInput = false;
   @state() private mobileInputText = '';
   @state() private isMobile = false;
@@ -88,8 +87,6 @@ export class SessionView extends LitElement {
       this.touchListenersAdded = true;
     }
 
-    // Start polling session status
-    this.startSessionStatusPolling();
   }
 
   disconnectedCallback() {
@@ -107,8 +104,6 @@ export class SessionView extends LitElement {
       this.touchListenersAdded = false;
     }
 
-    // Stop polling session status
-    this.stopSessionStatusPolling();
 
     // Stop loading animation
     this.stopLoading();
@@ -262,7 +257,6 @@ export class SessionView extends LitElement {
           if (this.session && (this.session.status as string) !== 'exited') {
             this.session = { ...this.session, status: 'exited' };
             this.requestUpdate();
-            this.stopSessionStatusPolling();
           }
         } else {
           console.error('Failed to send input to session:', response.status);
@@ -286,8 +280,6 @@ export class SessionView extends LitElement {
       this.session = { ...this.session, status: 'exited' };
       this.requestUpdate();
 
-      // Stop polling immediately
-      this.stopSessionStatusPolling();
 
       // Switch to snapshot mode
       requestAnimationFrame(() => {
@@ -501,51 +493,6 @@ export class SessionView extends LitElement {
     return frames[this.loadingFrame % frames.length];
   }
 
-  private startSessionStatusPolling() {
-    if (this.sessionStatusInterval) {
-      clearInterval(this.sessionStatusInterval);
-    }
-
-    // Only poll for running sessions - exited sessions don't need polling
-    if (this.session?.status !== 'exited') {
-      this.sessionStatusInterval = window.setInterval(() => {
-        this.checkSessionStatus();
-      }, 2000);
-    }
-  }
-
-  private stopSessionStatusPolling() {
-    if (this.sessionStatusInterval) {
-      clearInterval(this.sessionStatusInterval);
-      this.sessionStatusInterval = null;
-    }
-  }
-
-  private async checkSessionStatus() {
-    if (!this.session) return;
-
-    try {
-      const response = await fetch('/api/sessions');
-      if (!response.ok) return;
-
-      const sessions = await response.json();
-      const currentSession = sessions.find((s: Session) => s.id === this.session!.id);
-
-      if (currentSession && currentSession.status !== this.session.status) {
-        // Store old status before updating
-        const oldStatus = this.session.status;
-
-        // Session status changed
-        this.session = { ...this.session, status: currentSession.status };
-        this.requestUpdate();
-
-        // Session status polling is now only for detecting new sessions
-        // Exit events are handled via SSE stream directly
-      }
-    } catch (error) {
-      console.error('Error checking session status:', error);
-    }
-  }
 
   render() {
     if (!this.session) {
