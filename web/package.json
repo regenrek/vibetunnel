@@ -12,8 +12,10 @@
     "build:server": "tsc",
     "build:client": "tsc -p tsconfig.client.json",
     "build:css": "npx tailwindcss -i ./src/input.css -o ./public/bundle/output.css --minify",
-    "bundle": "esbuild src/client/app-entry.ts --bundle --outfile=public/bundle/client-bundle.js --format=esm --sourcemap --external:@xterm/xterm/css/xterm.css",
-    "bundle:watch": "esbuild src/client/app-entry.ts --bundle --outfile=public/bundle/client-bundle.js --format=esm --sourcemap --external:@xterm/xterm/css/xterm.css --watch",
+    "bundle": "npm run bundle:client && npm run bundle:renderer",
+    "bundle:client": "esbuild src/client/app-entry.ts --bundle --outfile=public/bundle/client-bundle.js --format=esm --sourcemap --external:@xterm/xterm/css/xterm.css",
+    "bundle:renderer": "esbuild src/client/renderer-entry.ts --bundle --outfile=public/bundle/renderer.js --format=esm --sourcemap",
+    "bundle:watch": "concurrently \"npm run bundle:client -- --watch\" \"npm run bundle:renderer -- --watch\"",
     "start": "node dist/server.js",
     "test": "jest",
     "test:watch": "jest --watch"

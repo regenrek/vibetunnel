@@ -87,16 +87,10 @@
         <pre id="debugText">Run performance test to see timing comparison</pre>
     </div>
 
-    <!-- XTerm.js Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
-
     <script type="module">
-        import { TerminalRenderer } from './renderer.js';
-        import { XTermRenderer } from './xterm-renderer.js';
+        import { Renderer, XTermRenderer } from '../bundle/renderer.js';
         
-        const customTerminal = new TerminalRenderer(document.getElementById('custom-terminal'), 80, 20);
+        const customTerminal = new Renderer(document.getElementById('custom-terminal'), 80, 20);
         const xtermTerminal = new XTermRenderer(document.getElementById('xterm-terminal'), 80, 20);
         
         function runOnBoth(callback) {

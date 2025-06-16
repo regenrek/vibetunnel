@@ -194,12 +194,12 @@
     </div>
 
     <script type="module">
-        import { TerminalRenderer } from './renderer.js';
+        import { Renderer } from '../bundle/renderer.js';
         
         // Initialize terminals
-        const terminal1 = new TerminalRenderer(document.getElementById('terminal1'));
-        const terminal2 = new TerminalRenderer(document.getElementById('terminal2'));
-        const terminal3 = new TerminalRenderer(document.getElementById('terminal3'));
+        const terminal1 = new Renderer(document.getElementById('terminal1'));
+        const terminal2 = new Renderer(document.getElementById('terminal2'));
+        const terminal3 = new Renderer(document.getElementById('terminal3'));
         
         let currentStream = null;
         
