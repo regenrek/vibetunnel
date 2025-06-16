@@ -4,7 +4,12 @@ import Hummingbird
 import HummingbirdCore
 import NIOCore
 
-/// Middleware that implements HTTP Basic Authentication
+/// Middleware that implements HTTP Basic Authentication.
+///
+/// Provides password-based access control for the VibeTunnel dashboard.
+/// Validates incoming requests against a configured password using
+/// standard HTTP Basic Authentication. Exempts health check endpoints
+/// from authentication requirements.
 struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     let password: String
     let realm: String

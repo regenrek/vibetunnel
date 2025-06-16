@@ -2,14 +2,21 @@ import Combine
 import Foundation
 import Logging
 
-/// Holds pipes for a terminal session
+/// Holds pipes for a terminal session.
+///
+/// Encapsulates the standard I/O pipes used for communicating
+/// with a terminal process.
 private struct SessionPipes {
     let stdin: Pipe
     let stdout: Pipe
     let stderr: Pipe
 }
 
-/// Manages terminal sessions and command execution
+/// Manages terminal sessions and command execution.
+///
+/// An actor that handles the lifecycle of terminal sessions, including
+/// process creation, I/O handling, and command execution. Provides
+/// thread-safe management of multiple concurrent terminal sessions.
 actor TerminalManager {
     private var sessions: [UUID: TunnelSession] = [:]
     private var processes: [UUID: Process] = [:]

@@ -4,7 +4,11 @@ import os.log
 import Sparkle
 import UserNotifications
 
-/// SparkleUpdaterManager with automatic update downloads enabled
+/// SparkleUpdaterManager with automatic update downloads enabled.
+///
+/// Manages application updates using the Sparkle framework. Handles automatic
+/// update checking, downloading, and installation while respecting user preferences
+/// and update channels. Integrates with macOS notifications for update announcements.
 @available(macOS 10.15, *)
 @MainActor
 public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {

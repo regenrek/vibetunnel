@@ -49,7 +49,9 @@ public final class ServerMonitor {
 
     /// Syncs state with ServerManager
     private func syncWithServerManager() async {
-        isServerRunning = ServerManager.shared.isRunning
+        // Consider the server as running if it's actually running OR if it's restarting
+        // This prevents the UI from showing "stopped" during restart
+        isServerRunning = ServerManager.shared.isRunning || ServerManager.shared.isRestarting
     }
 
     /// Starts the server if not already running
@@ -68,7 +70,9 @@ public final class ServerMonitor {
 
     /// Restarts the server
     public func restartServer() async throws {
+        // During restart, we maintain the running state to prevent UI flicker
         await ServerManager.shared.restart()
+        // Sync after restart completes
         await syncWithServerManager()
     }
 

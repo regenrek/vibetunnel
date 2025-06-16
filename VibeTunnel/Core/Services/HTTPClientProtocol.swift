@@ -1,12 +1,19 @@
 import Foundation
 import HTTPTypes
 
-/// Protocol for HTTP client abstraction to enable testing
+/// Protocol for HTTP client abstraction to enable testing.
+///
+/// Defines the interface for making HTTP requests, allowing for
+/// easy mocking and testing of network-dependent code.
 public protocol HTTPClientProtocol {
     func data(for request: HTTPRequest, body: Data?) async throws -> (Data, HTTPResponse)
 }
 
-/// Real HTTP client implementation
+/// Real HTTP client implementation.
+///
+/// Concrete implementation of HTTPClientProtocol using URLSession
+/// for actual network requests. Converts between HTTPTypes and
+/// Foundation's URLRequest/URLResponse types.
 public final class HTTPClient: HTTPClientProtocol {
     private let session: URLSession
 
@@ -29,6 +36,7 @@ public final class HTTPClient: HTTPClientProtocol {
     }
 }
 
+/// Errors that can occur during HTTP client operations.
 enum HTTPClientError: Error {
     case invalidResponse
 }

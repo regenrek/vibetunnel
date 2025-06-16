@@ -48,6 +48,7 @@ class ServerManager {
     private(set) var currentServer: ServerProtocol?
     private(set) var isRunning = false
     private(set) var isSwitching = false
+    private(set) var isRestarting = false
     private(set) var lastError: Error?
 
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "ServerManager")
@@ -193,11 +194,25 @@ class ServerManager {
         ))
 
         // Update ServerMonitor for compatibility
-        ServerMonitor.shared.isServerRunning = false
+        // Only set to false if we're not in the middle of a restart
+        if !isRestarting {
+            ServerMonitor.shared.isServerRunning = false
+        }
     }
 
     /// Restart the current server
     func restart() async {
+        // Set restarting flag to prevent UI from showing "stopped" state
+        isRestarting = true
+        defer { isRestarting = false }
+        
+        // Log that we're restarting
+        logSubject.send(ServerLogEntry(
+            level: .info,
+            message: "Restarting server...",
+            source: serverMode
+        ))
+        
         await stop()
         await start()
     }
