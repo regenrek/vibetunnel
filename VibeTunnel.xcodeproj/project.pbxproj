@@ -61,11 +61,6 @@
 			path = VibeTunnelTests;
 			sourceTree = "<group>";
 		};
-		7886880B2DFF4FCC00B22C15 /* VibeTunnelUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = VibeTunnelUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,7 +95,6 @@
 			children = (
 				788687F32DFF4FCB00B22C15 /* VibeTunnel */,
 				788688012DFF4FCB00B22C15 /* VibeTunnelTests */,
-				7886880B2DFF4FCC00B22C15 /* VibeTunnelUITests */,
 				788687F22DFF4FCB00B22C15 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -179,9 +173,6 @@
 			);
 			dependencies = (
 				7886880A2DFF4FCC00B22C15 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				7886880B2DFF4FCC00B22C15 /* VibeTunnelUITests */,
 			);
 			name = VibeTunnelUITests;
 			packageProductDependencies = (
