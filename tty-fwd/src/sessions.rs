@@ -4,8 +4,11 @@ use std::ffi::OsString;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::protocol::{SessionInfo, SessionListEntry};
@@ -94,9 +97,8 @@ pub fn send_key_to_session(
         _ => return Err(anyhow!("Unknown key: {}", key)),
     };
 
-    let mut file = OpenOptions::new().append(true).open(&stdin_path)?;
-    file.write_all(key_bytes)?;
-    file.flush()?;
+    // Use a timeout-protected write operation that also checks for readers
+    write_to_pipe_with_timeout(&stdin_path, key_bytes, Duration::from_secs(5))?;
 
     Ok(())
 }
@@ -113,9 +115,72 @@ pub fn send_text_to_session(
         return Err(anyhow!("Session {} not found or not running", session_id));
     }
 
-    let mut file = OpenOptions::new().append(true).open(&stdin_path)?;
-    file.write_all(text.as_bytes())?;
-    file.flush()?;
+    // Use a timeout-protected write operation that also checks for readers
+    write_to_pipe_with_timeout(&stdin_path, text.as_bytes(), Duration::from_secs(5))?;
+
+    Ok(())
+}
+
+fn write_to_pipe_with_timeout(
+    pipe_path: &Path,
+    data: &[u8],
+    timeout: Duration,
+) -> Result<(), anyhow::Error> {
+    // Open the pipe in non-blocking mode first to check if it has readers
+    let file = OpenOptions::new()
+        .write(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(pipe_path)?;
+
+    let fd = file.as_raw_fd();
+
+    // Use poll to check if the pipe is writable with timeout
+    let mut pollfd = libc::pollfd {
+        fd,
+        events: libc::POLLOUT,
+        revents: 0,
+    };
+
+    let timeout_ms = timeout.as_millis() as libc::c_int;
+
+    let poll_result = unsafe { libc::poll(&mut pollfd, 1, timeout_ms) };
+
+    match poll_result {
+        -1 => {
+            let errno = unsafe { *libc::__error() };
+            return Err(anyhow!(
+                "Poll failed: {}",
+                std::io::Error::from_raw_os_error(errno)
+            ));
+        }
+        0 => {
+            return Err(anyhow!("Write operation timed out after {:?}", timeout));
+        }
+        _ => {
+            // Check poll results
+            if pollfd.revents & libc::POLLERR != 0 {
+                return Err(anyhow!("Pipe error detected"));
+            }
+            if pollfd.revents & libc::POLLHUP != 0 {
+                return Err(anyhow!("Pipe has no readers (POLLHUP)"));
+            }
+            if pollfd.revents & libc::POLLNVAL != 0 {
+                return Err(anyhow!("Invalid pipe file descriptor"));
+            }
+            if pollfd.revents & libc::POLLOUT == 0 {
+                return Err(anyhow!("Pipe not ready for writing"));
+            }
+        }
+    }
+
+    // At this point, the pipe is ready for writing
+    // Re-open in blocking mode and write the data
+    drop(file); // Close the non-blocking file descriptor
+
+    let mut blocking_file = OpenOptions::new().append(true).open(pipe_path)?;
+
+    blocking_file.write_all(data)?;
+    blocking_file.flush()?;
 
     Ok(())
 }
