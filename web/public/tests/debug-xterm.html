@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug XTerm Test</title>
+    
+    <!-- XTerm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            margin: 20px;
+        }
+        
+        .terminal {
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #000;
+            height: 400px;
+            width: 800px;
+            overflow: hidden;
+        }
+        
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px 16px;
+            margin: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        #log {
+            background: #333;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug XTerm Loading</h1>
+    
+    <button onclick="testXTerm()">Test XTerm</button>
+    <button onclick="testRenderer()">Test XTerm Renderer</button>
+    
+    <div class="terminal" id="terminal"></div>
+    
+    <div id="log"></div>
+
+    <!-- XTerm.js Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+        }
+
+        // Check what's available globally
+        log('Checking global objects...');
+        log('Terminal available: ' + (typeof Terminal !== 'undefined'));
+        log('FitAddon available: ' + (typeof FitAddon !== 'undefined'));
+        log('WebLinksAddon available: ' + (typeof WebLinksAddon !== 'undefined'));
+
+        function testXTerm() {
+            try {
+                log('Creating XTerm directly...');
+                const terminal = new Terminal();
+                const container = document.getElementById('terminal');
+                container.innerHTML = '';
+                terminal.open(container);
+                terminal.write('Hello from XTerm.js!\r\n');
+                terminal.write('\x1b[31mRed text\x1b[0m\r\n');
+                log('XTerm direct test successful!');
+            } catch (error) {
+                log('XTerm direct test failed: ' + error.message);
+            }
+        }
+
+        function testRenderer() {
+            try {
+                log('Testing XTerm Renderer import...');
+                
+                // Test if we can access the renderer
+                import('./xterm-renderer.js')
+                    .then(module => {
+                        log('XTerm Renderer module loaded successfully');
+                        log('XTermRenderer class: ' + (module.XTermRenderer ? 'available' : 'not available'));
+                        
+                        try {
+                            const container = document.getElementById('terminal');
+                            const renderer = new module.XTermRenderer(container);
+                            renderer.processOutput('Hello from XTerm Renderer!\n');
+                            renderer.processOutput('\x1b[32mGreen text from renderer\x1b[0m\n');
+                            log('XTerm Renderer test successful!');
+                        } catch (error) {
+                            log('XTerm Renderer creation failed: ' + error.message);
+                        }
+                    })
+                    .catch(error => {
+                        log('XTerm Renderer import failed: ' + error.message);
+                    });
+                    
+            } catch (error) {
+                log('XTerm Renderer test failed: ' + error.message);
+            }
+        }
+
+        // Run initial checks
+        window.addEventListener('load', () => {
+            log('Page loaded, running initial checks...');
+        });
+    </script>
+</body>
+</html>

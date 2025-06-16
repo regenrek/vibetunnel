@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Terminal Renderer Test</title>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            margin: 20px;
+        }
+        
+        .terminal {
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #000;
+            height: 400px;
+            width: 800px;
+            overflow-y: scroll;
+            padding: 10px;
+            font-size: 14px;
+            line-height: 1.2;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px 16px;
+            margin-right: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        button:hover {
+            background: #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Terminal Renderer Debug</h1>
+    
+    <div class="controls">
+        <button onclick="testBasic()">Test Basic Colors</button>
+        <button onclick="testScrollback()">Test Scrollback</button>
+        <button onclick="clearTerminal()">Clear</button>
+        <button onclick="debugOutput()">Debug Output</button>
+    </div>
+    
+    <div class="terminal" id="terminal"></div>
+    
+    <div id="debug" style="margin-top: 20px; background: #333; padding: 10px; border-radius: 4px;">
+        <h3>Debug Output:</h3>
+        <pre id="debugText"></pre>
+    </div>
+
+    <script type="module">
+        import { TerminalRenderer } from './renderer.js';
+        
+        const terminal = new TerminalRenderer(document.getElementById('terminal'), 80, 20);
+        
+        window.testBasic = function() {
+            console.log('Testing basic colors...');
+            terminal.clear();
+            
+            // Test individual ANSI sequences
+            const tests = [
+                'Hello World (no color)\n',
+                '\x1b[31mRed Text\x1b[0m\n',
+                '\x1b[32mGreen Text\x1b[0m\n', 
+                '\x1b[1;33mBold Yellow\x1b[0m\n',
+                '\x1b[4;34mUnderline Blue\x1b[0m\n',
+                '\x1b[1;31m[001]\x1b[0m Test line 1\n',
+                '\x1b[1;32m[002]\x1b[0m Test line 2\n'
+            ];
+            
+            tests.forEach((test, i) => {
+                console.log(`Processing test ${i}:`, JSON.stringify(test));
+                terminal.processOutput(test);
+            });
+            
+            updateDebug();
+        };
+        
+        window.testScrollback = function() {
+            console.log('Testing scrollback...');
+            terminal.clear();
+            
+            for (let i = 1; i <= 30; i++) {
+                const color = 31 + (i % 6);
+                const line = `\x1b[1;${color}m[${i.toString().padStart(3, '0')}]\x1b[0m Line ${i}: Scrollback test content\n`;
+                console.log(`Line ${i}:`, JSON.stringify(line));
+                terminal.processOutput(line);
+            }
+            
+            updateDebug();
+        };
+        
+        window.clearTerminal = function() {
+            terminal.clear();
+            updateDebug();
+        };
+        
+        window.debugOutput = function() {
+            updateDebug();
+        };
+        
+        function updateDebug() {
+            const terminalEl = document.getElementById('terminal');
+            const debugEl = document.getElementById('debugText');
+            
+            const info = {
+                innerHTML: terminalEl.innerHTML.substring(0, 500) + (terminalEl.innerHTML.length > 500 ? '...' : ''),
+                childCount: terminalEl.children.length,
+                scrollHeight: terminalEl.scrollHeight,
+                clientHeight: terminalEl.clientHeight
+            };
+            
+            debugEl.textContent = JSON.stringify(info, null, 2);
+        }
+        
+        // Initial test
+        setTimeout(() => {
+            console.log('Running initial test...');
+            testBasic();
+        }, 100);
+    </script>
+</body>
+</html>

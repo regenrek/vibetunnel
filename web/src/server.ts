@@ -312,6 +312,13 @@ app.post('/api/cleanup-exited', async (req, res) => {
 
 // === TERMINAL I/O ===
 
+// Track active streams per session to avoid multiple tail processes
+const activeStreams = new Map<string, { 
+    clients: Set<any>, 
+    tailProcess: any, 
+    lastPosition: number 
+}>();
+
 // Live streaming cast file for asciinema player
 app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     const sessionId = req.params.sessionId;
@@ -320,6 +327,8 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     if (!fs.existsSync(streamOutPath)) {
         return res.status(404).json({ error: 'Session not found' });
     }
+
+    console.log(`New SSE client connected to session ${sessionId}`);
 
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -333,7 +342,6 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     let headerSent = false;
 
     // Send existing content first
-    // NOTE: Small race condition possible between reading file and starting tail
     try {
         const content = fs.readFileSync(streamOutPath, 'utf8');
         const lines = content.trim().split('\n');
@@ -370,103 +378,115 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
         res.write(`data: ${JSON.stringify(defaultHeader)}\n\n`);
     }
 
-    // Stream new content
-    const tailProcess = spawn('tail', ['-f', streamOutPath]);
-    let buffer = '';
-    let streamCleanedUp = false;
+    // Get or create shared stream for this session
+    let streamInfo = activeStreams.get(sessionId);
+    
+    if (!streamInfo) {
+        console.log(`Creating new shared tail process for session ${sessionId}`);
+        
+        // Create new tail process for this session
+        const tailProcess = spawn('tail', ['-f', streamOutPath]);
+        let buffer = '';
+        
+        streamInfo = {
+            clients: new Set(),
+            tailProcess,
+            lastPosition: 0
+        };
+        
+        activeStreams.set(sessionId, streamInfo);
+        
+        // Handle tail output - broadcast to all clients
+        tailProcess.stdout.on('data', (chunk) => {
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
+            for (const line of lines) {
+                if (line.trim()) {
+                    let eventData;
+                    try {
+                        const parsed = JSON.parse(line);
+                        if (parsed.version && parsed.width && parsed.height) {
+                            continue; // Skip duplicate headers
+                        }
+                        if (Array.isArray(parsed) && parsed.length >= 3) {
+                            const currentTime = Date.now() / 1000;
+                            const realTimeEvent = [currentTime - startTime, parsed[1], parsed[2]];
+                            eventData = `data: ${JSON.stringify(realTimeEvent)}\n\n`;
+                        }
+                    } catch (e) {
+                        // Handle non-JSON as raw output
+                        const currentTime = Date.now() / 1000;
+                        const castEvent = [currentTime - startTime, "o", line];
+                        eventData = `data: ${JSON.stringify(castEvent)}\n\n`;
+                    }
+                    
+                    if (eventData && streamInfo) {
+                        // Broadcast to all connected clients
+                        streamInfo.clients.forEach(client => {
+                            try {
+                                client.write(eventData);
+                            } catch (error) {
+                                console.error('Error writing to client:', error);
+                                if (streamInfo) {
+                                    streamInfo.clients.delete(client);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
+        tailProcess.on('error', (error) => {
+            console.error(`Shared tail process error for session ${sessionId}:`, error);
+            // Cleanup all clients
+            const currentStreamInfo = activeStreams.get(sessionId);
+            if (currentStreamInfo) {
+                currentStreamInfo.clients.forEach(client => {
+                    try { client.end(); } catch (e) {}
+                });
+            }
+            activeStreams.delete(sessionId);
+        });
+
+        tailProcess.on('exit', (code) => {
+            console.log(`Shared tail process exited for session ${sessionId} with code ${code}`);
+            // Cleanup all clients  
+            const currentStreamInfo = activeStreams.get(sessionId);
+            if (currentStreamInfo) {
+                currentStreamInfo.clients.forEach(client => {
+                    try { client.end(); } catch (e) {}
+                });
+            }
+            activeStreams.delete(sessionId);
+        });
+    }
+
+    // Add this client to the shared stream
+    streamInfo.clients.add(res);
+    console.log(`Added client to session ${sessionId}, total clients: ${streamInfo.clients.size}`);
+
+    // Cleanup when client disconnects
     const cleanup = () => {
-        if (!streamCleanedUp) {
-            streamCleanedUp = true;
-            console.log(`Cleaning up tail process for session ${sessionId}`);
-            tailProcess.kill('SIGTERM');
+        if (streamInfo && streamInfo.clients.has(res)) {
+            streamInfo.clients.delete(res);
+            console.log(`Removed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`);
+            
+            // If no more clients, cleanup the tail process
+            if (streamInfo.clients.size === 0) {
+                console.log(`No more clients for session ${sessionId}, cleaning up tail process`);
+                try {
+                    streamInfo.tailProcess.kill('SIGTERM');
+                } catch (e) {}
+                activeStreams.delete(sessionId);
+            }
         }
     };
 
-    // Get the session info once to get the PID
-    let sessionPid: number | null = null;
-    try {
-        const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
-        const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
-        if (sessions[sessionId]) {
-            sessionPid = sessions[sessionId].pid;
-        }
-    } catch (error) {
-        console.error('Error getting session PID:', error);
-    }
-
-    // Set a timeout to check if process is still alive
-    const sessionCheckInterval = setInterval(() => {
-        if (sessionPid) {
-            try {
-                // Signal 0 just checks if process exists without actually sending a signal
-                process.kill(sessionPid, 0);
-            } catch (error) {
-                console.log(`Session ${sessionId} process ${sessionPid} has died, terminating stream`);
-                clearInterval(sessionCheckInterval);
-                cleanup();
-                res.end();
-            }
-        } else {
-            // If we don't have a PID, fall back to checking session status
-            console.log(`No PID found for session ${sessionId}, terminating stream`);
-            clearInterval(sessionCheckInterval);
-            cleanup();
-            res.end();
-        }
-    }, 2000); // Check every 2 seconds
-
-    tailProcess.stdout.on('data', (chunk) => {
-        if (streamCleanedUp) return;
-        
-        buffer += chunk.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-            if (line.trim()) {
-                try {
-                    const parsed = JSON.parse(line);
-                    if (parsed.version && parsed.width && parsed.height) {
-                        return; // Skip duplicate headers
-                    }
-                    if (Array.isArray(parsed) && parsed.length >= 3) {
-                        const currentTime = Date.now() / 1000;
-                        const realTimeEvent = [currentTime - startTime, parsed[1], parsed[2]];
-                        res.write(`data: ${JSON.stringify(realTimeEvent)}\n\n`);
-                    }
-                } catch (e) {
-                    // Handle non-JSON as raw output
-                    const currentTime = Date.now() / 1000;
-                    const castEvent = [currentTime - startTime, "o", line];
-                    res.write(`data: ${JSON.stringify(castEvent)}\n\n`);
-                }
-            }
-        }
-    });
-
-    tailProcess.on('error', (error) => {
-        console.error(`Tail process error for session ${sessionId}:`, error);
-        clearInterval(sessionCheckInterval);
-        cleanup();
-    });
-
-    tailProcess.on('exit', (code) => {
-        console.log(`Tail process exited for session ${sessionId} with code ${code}`);
-        clearInterval(sessionCheckInterval);
-        cleanup();
-    });
-
-    // Cleanup on disconnect
-    req.on('close', () => {
-        clearInterval(sessionCheckInterval);
-        cleanup();
-    });
-    
-    req.on('aborted', () => {
-        clearInterval(sessionCheckInterval);
-        cleanup();
-    });
+    req.on('close', cleanup);
+    req.on('aborted', cleanup);
 });
 
 // Get session snapshot (asciinema cast with adjusted timestamps for immediate playback)
@@ -613,6 +633,26 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
         console.error('Error sending input via tty-fwd:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         res.status(500).json({ error: 'Failed to send input', details: errorMessage });
+    }
+});
+
+// === CAST FILE SERVING ===
+
+// Serve test cast file
+app.get('/api/test-cast', (req, res) => {
+    const testCastPath = path.join(__dirname, '..', 'public', 'stream-out');
+    
+    try {
+        if (fs.existsSync(testCastPath)) {
+            res.setHeader('Content-Type', 'text/plain');
+            const content = fs.readFileSync(testCastPath, 'utf8');
+            res.send(content);
+        } else {
+            res.status(404).json({ error: 'Test cast file not found' });
+        }
+    } catch (error) {
+        console.error('Error serving test cast file:', error);
+        res.status(500).json({ error: 'Failed to serve test cast file' });
     }
 });
 

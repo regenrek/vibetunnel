@@ -4,22 +4,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Generated shit
-public/components
-public/app-new*
-
-# Build outputs
-dist/
-build/
-public/app.js
-public/app.js.map
-public/app-new.js
-public/app-new.js.map
-public/app-new-entry.js
-public/app-new-entry.js.map
-public/components/
-public/components.js
-public/output.css
+# Generated files
+public/bundle/
 
 # Logs
 *.log
@@ -118,6 +104,3 @@ temp/
 
 # Terminal session data (don't commit user sessions)
 ~/.vibetunnel/
-public/*.js
-public/*.js.map
-public/*components*
