@@ -133,20 +133,15 @@ final class RustServer: ServerProtocol {
         process.currentDirectoryURL = URL(fileURLWithPath: resourcesPath)
         logger.info("Setting working directory to: \(resourcesPath)")
         
-        // The web directory should be at ./web relative to Resources
-        let webPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web")
-        let webPathExists = FileManager.default.fileExists(atPath: webPath.path)
-        logger.info("Web directory at \(webPath.path) exists: \(webPathExists)")
-        
-        // Check if web/public exists (the actual static files)
-        let webPublicPath = webPath.appendingPathComponent("public")
+        // The web/public directory should be at web/public relative to Resources
+        let webPublicPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/public")
         let webPublicExists = FileManager.default.fileExists(atPath: webPublicPath.path)
         logger.info("Web public directory at \(webPublicPath.path) exists: \(webPublicExists)")
         
-        let staticPath = "./web"
+        let staticPath = "web/public"
         
         // Build command to run tty-fwd through login shell
-        let ttyFwdCommand = "\"\(binaryPath)\" --serve \(port) --static-path \(staticPath)"
+        let ttyFwdCommand = "\"\(binaryPath)\" --static-path \(staticPath) --serve \(port)"
         process.arguments = ["-l", "-c", ttyFwdCommand]
         
         logger.info("Executing command: /bin/zsh -l -c \"\(ttyFwdCommand)\"")
