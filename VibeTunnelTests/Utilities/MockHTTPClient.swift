@@ -1,6 +1,5 @@
 import Foundation
 import HTTPTypes
-import HTTPTypesFoundation
 @testable import VibeTunnel
 
 /// Mock HTTP client for testing
