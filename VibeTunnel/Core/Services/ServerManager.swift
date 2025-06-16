@@ -18,7 +18,7 @@ class ServerManager {
     static let shared = ServerManager()
     
     private var serverModeString: String {
-        get { UserDefaults.standard.string(forKey: "serverMode") ?? ServerMode.hummingbird.rawValue }
+        get { UserDefaults.standard.string(forKey: "serverMode") ?? ServerMode.rust.rawValue }
         set { UserDefaults.standard.set(newValue, forKey: "serverMode") }
     }
     
@@ -42,7 +42,7 @@ class ServerManager {
     private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
     
     var serverMode: ServerMode {
-        get { ServerMode(rawValue: serverModeString) ?? .hummingbird }
+        get { ServerMode(rawValue: serverModeString) ?? .rust }
         set { serverModeString = newValue.rawValue }
     }
     
