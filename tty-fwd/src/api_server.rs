@@ -250,7 +250,7 @@ pub fn start_server(bind_address: &str, control_path: PathBuf, static_path: Opti
 }
 
 fn extract_session_id(path: &str) -> Option<String> {
-    let re = Regex::new(r"/api/sessions/([^/]+)").unwrap();
+    let re = Regex::new(r"/api/sessions/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})").unwrap();
     re.captures(path)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().to_string())
