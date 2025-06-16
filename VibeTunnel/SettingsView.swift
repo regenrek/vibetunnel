@@ -133,9 +133,12 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                } header: {
+                    Text("Application")
+                        .font(.headline)
+                }
 
-                    Divider()
-
+                Section {
                     // Update Channel
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -172,7 +175,7 @@ struct GeneralSettingsView: View {
                         .disabled(isCheckingForUpdates)
                     }
                 } header: {
-                    Text("Application")
+                    Text("Updates")
                         .font(.headline)
                 }
 
@@ -423,15 +426,6 @@ struct AdvancedSettingsView: View {
                 }
 
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Debug mode", isOn: $debugMode)
-                        Text("Enable additional logging and debugging features.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Divider()
-                    
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Install CLI Tool")
@@ -442,6 +436,13 @@ struct AdvancedSettingsView: View {
                             .buttonStyle(.bordered)
                         }
                         Text("Install the 'vt' command line tool to /usr/local/bin for terminal access.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Debug mode", isOn: $debugMode)
+                        Text("Enable additional logging and debugging features.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
