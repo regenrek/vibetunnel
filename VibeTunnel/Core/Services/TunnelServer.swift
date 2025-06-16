@@ -113,9 +113,30 @@ public final class TunnelServer {
     
     private func ensureControlDirectoryExists() throws {
         let controlDirURL = URL(fileURLWithPath: ttyFwdControlDir)
-        if !FileManager.default.fileExists(atPath: ttyFwdControlDir) {
+        
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: ttyFwdControlDir, isDirectory: &isDirectory)
+        
+        if !exists {
+            logger.info("Control directory does not exist, creating at: \(ttyFwdControlDir)")
             try FileManager.default.createDirectory(at: controlDirURL, withIntermediateDirectories: true, attributes: nil)
-            logger.info("Created control directory at: \(ttyFwdControlDir)")
+            logger.info("Successfully created control directory at: \(ttyFwdControlDir)")
+        } else if !isDirectory.boolValue {
+            logger.error("Control path exists but is not a directory: \(ttyFwdControlDir)")
+            throw NSError(domain: "TunnelServer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Control path exists but is not a directory"])
+        } else {
+            logger.info("Control directory already exists at: \(ttyFwdControlDir)")
+        }
+        
+        // Verify we can write to the directory
+        let testFile = controlDirURL.appendingPathComponent(".test")
+        do {
+            try "test".write(to: testFile, atomically: true, encoding: .utf8)
+            try FileManager.default.removeItem(at: testFile)
+            logger.info("Control directory is writable")
+        } catch {
+            logger.error("Control directory is not writable: \(error)")
+            throw NSError(domain: "TunnelServer", code: 2, userInfo: [NSLocalizedDescriptionKey: "Control directory is not writable: \(error.localizedDescription)"])
         }
     }
 
@@ -127,6 +148,14 @@ public final class TunnelServer {
         guard !isRunning else { return }
 
         logger.info("Starting TunnelServer on port \(port)")
+
+        // Ensure control directory exists at startup
+        do {
+            try ensureControlDirectoryExists()
+        } catch {
+            logger.error("Failed to create control directory: \(error)")
+            throw ServerError.failedToStart("Failed to create control directory: \(error.localizedDescription)")
+        }
 
         do {
             let router = Router(context: BasicRequestContext.self)
@@ -225,8 +254,18 @@ public final class TunnelServer {
 
             // Legacy endpoint for backwards compatibility
             router.get("/sessions") { _, _ async -> Response in
+                // Ensure control directory exists
+                do {
+                    try await MainActor.run {
+                        try self.ensureControlDirectoryExists()
+                    }
+                } catch {
+                    self.logger.error("Failed to ensure control directory exists: \(error)")
+                    return self.errorResponse(message: "Failed to initialize control directory: \(error.localizedDescription)")
+                }
+                
                 let process = await MainActor.run {
-                    TTYForwardManager.shared.createTTYForwardProcess(with: ["--list-sessions"])
+                    TTYForwardManager.shared.createTTYForwardProcess(with: ["--control-path", self.ttyFwdControlDir, "--list-sessions"])
                 }
 
                 guard let process else {
@@ -273,9 +312,16 @@ public final class TunnelServer {
                         switch statusCode {
                         case 9:
                             errorDescription = "Process was killed (SIGKILL). The control directory may not exist or be accessible."
+                        case -9:
+                            errorDescription = "Process was terminated by SIGKILL. This might be due to macOS security restrictions."
                         default:
                             errorDescription = errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
                         }
+                        
+                        // Log additional debugging information
+                        self.logger.error("tty-fwd executable path: \(process.executableURL?.path ?? "unknown")")
+                        self.logger.error("Control directory path: \(self.ttyFwdControlDir)")
+                        self.logger.error("Control directory exists: \(FileManager.default.fileExists(atPath: self.ttyFwdControlDir))")
                         
                         self.logger.error("tty-fwd failed with status \(statusCode): \(errorDescription)")
 
@@ -450,6 +496,8 @@ public final class TunnelServer {
                 errorDescription = "Misuse of shell command: \(errorString.isEmpty ? "Invalid arguments" : errorString)"
             case 9:
                 errorDescription = "Process was killed (SIGKILL). The control directory may not exist or be accessible."
+            case -9:
+                errorDescription = "Process was terminated by SIGKILL. This might be due to macOS security restrictions."
             case 126:
                 errorDescription = "Command found but not executable"
             case 127:
@@ -460,6 +508,13 @@ public final class TunnelServer {
                 errorDescription = "Segmentation fault"
             default:
                 errorDescription = errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
+            }
+            
+            // Log additional debugging information for SIGKILL
+            if statusCode == 9 || statusCode == -9 {
+                logger.error("tty-fwd executable path: \(process.executableURL?.path ?? "unknown")")
+                logger.error("Arguments: \(args.joined(separator: " "))")
+                logger.error("Control directory exists: \(FileManager.default.fileExists(atPath: self.ttyFwdControlDir))")
             }
             
             throw NSError(

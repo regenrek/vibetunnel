@@ -54,12 +54,32 @@ final class TTYForwardManager {
 
         // Log the command being executed
         logger.info("Executing tty-fwd with arguments: \(arguments.joined(separator: " "))")
+        logger.info("tty-fwd executable path: \(executableURL.path)")
+        logger.info("Current directory: \(process.currentDirectoryPath ?? FileManager.default.currentDirectoryPath)")
 
         do {
             try process.run()
+            
+            // Set up a handler to log when the process terminates
+            process.terminationHandler = { [weak self] process in
+                self?.logger.info("tty-fwd process terminated with status: \(process.terminationStatus)")
+                if process.terminationStatus != 0 {
+                    self?.logger.error("tty-fwd process failed with exit code: \(process.terminationStatus)")
+                    
+                    // Try to read stderr for error details
+                    if let errorPipe = process.standardError as? Pipe {
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        if let errorString = String(data: errorData, encoding: .utf8), !errorString.isEmpty {
+                            self?.logger.error("tty-fwd stderr: \(errorString)")
+                        }
+                    }
+                }
+            }
+            
             completion(.success(process))
         } catch {
             logger.error("Failed to execute tty-fwd: \(error.localizedDescription)")
+            logger.error("Error details: \(error)")
             completion(.failure(error))
         }
     }
