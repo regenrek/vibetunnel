@@ -105,7 +105,7 @@ export class SessionList extends LitElement {
           autoPlay: true,
           loop: false,
           controls: false,
-          fit: 'both',
+          fit: 'width',
           terminalFontSize: '8px',
           idleTimeLimit: 0.5,
           preload: true,
@@ -356,9 +356,9 @@ CREATE SESSION
                 </div>
 
                 <!-- Asciinema player (main content) -->
-                <div class="session-preview bg-black flex items-center justify-center" style="aspect-ratio: 640/480;">
+                <div class="session-preview bg-black flex items-center justify-center overflow-hidden" style="aspect-ratio: 640/480;">
                   ${this.loadedSnapshots.has(session.id) ? html`
-                    <div id="player-${session.id}" class="w-full h-full" style="overflow: hidden;"></div>
+                    <div id="player-${session.id}" class="w-full h-full overflow-hidden"></div>
                   ` : html`
                     <div class="text-vs-muted text-xs">
                       ${this.newSessionIds.has(session.id)
