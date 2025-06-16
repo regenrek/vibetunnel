@@ -153,7 +153,7 @@ struct DashboardSettingsView: View {
             showPasswordFields = false
             password = ""
             confirmPassword = ""
-            
+
             // Clear cached password in LazyBasicAuthMiddleware
             LazyBasicAuthMiddleware<BasicRequestContext>.clearCache()
 

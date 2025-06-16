@@ -2,7 +2,11 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// A custom window size animator that works with SwiftUI Settings windows
+/// A custom window size animator that works with SwiftUI Settings windows.
+///
+/// Provides smooth animated transitions when resizing windows, particularly
+/// useful for settings windows that change size based on tab selection.
+/// Works around SwiftUI limitations by using AppKit's NSViewAnimation.
 @MainActor
 @Observable
 final class WindowSizeAnimator {
@@ -73,7 +77,10 @@ final class WindowSizeAnimator {
     }
 }
 
-/// A view modifier that captures the window and enables animated resizing
+/// A view modifier that captures the window and enables animated resizing.
+///
+/// Automatically captures the host window and animates size changes
+/// when the provided size value changes.
 struct AnimatedWindowSizing: ViewModifier {
     let size: CGSize
     @State private var animator = WindowSizeAnimator.shared
