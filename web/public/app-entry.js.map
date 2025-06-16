@@ -1,1 +1,0 @@
-{"version":3,"file":"app-entry.js","sourceRoot":"","sources":["../src/client/app-entry.ts"],"names":[],"mappings":"AAAA,0BAA0B;AAC1B,OAAO,UAAU,CAAC","sourcesContent":["// Entry point for the app\nimport './app.js';"]}
