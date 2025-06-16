@@ -35,7 +35,6 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
-
             let session_json_path = path.join("session.json");
             let stream_out_path = path.join("stream-out");
             let stdin_path = path.join("stdin");
@@ -61,14 +60,15 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                     .and_then(|content| serde_json::from_str(&content).map_err(Into::into))
                     .unwrap_or_default();
 
-                let session_entry = SessionListEntry {
-                    session_info,
-                    stream_out,
-                    stdin,
-                    notification_stream,
-                };
-
-                sessions.insert(session_id.to_string(), serde_json::to_value(session_entry)?);
+                sessions.insert(
+                    session_id.to_string(),
+                    SessionListEntry {
+                        session_info,
+                        stream_out,
+                        stdin,
+                        notification_stream,
+                    },
+                );
             }
         }
     }
