@@ -84,8 +84,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize and start HTTP server
         let serverPortString = UserDefaults.standard.string(forKey: "serverPort") ?? "4020"
         print("DEBUG: serverPortString from UserDefaults: '\(serverPortString)'")
-        let serverPort = Int(serverPortString) ?? 4020
-        print("DEBUG: Parsed serverPort: \(serverPort)")
+        var serverPort = Int(serverPortString) ?? 4020
+        
+        // Fix port 800 issue - ports below 1024 require root privileges
+        if serverPort < 1024 {
+            print("WARNING: Port \(serverPort) requires root privileges. Changing to 4020.")
+            serverPort = 4020
+            // Update UserDefaults with the correct port
+            UserDefaults.standard.set(String(serverPort), forKey: "serverPort")
+        }
+        
+        print("DEBUG: Final serverPort: \(serverPort)")
         httpServer = TunnelServer(port: serverPort)
         print("DEBUG: TunnelServer initialized with port: \(httpServer?.port ?? -1)")
         
