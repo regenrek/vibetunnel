@@ -82,7 +82,7 @@ VibeTunnel offers two server implementations that can be switched at runtime:
 - Spawns and manages terminal processes
 - Records sessions in asciinema format
 - WebSocket streaming for real-time terminal I/O
-- Source: `rust/tty-fwd/` directory
+- Source: `tty-fwd/` directory
 
 Both servers expose similar APIs:
 - `POST /sessions`: Create new terminal session
@@ -184,7 +184,7 @@ Key files:
 
 2. Build the Rust server:
    ```bash
-├── tty-fwd/                # Rust TTY forwarding server  
+   cd tty-fwd
    cargo build --release
    cd ..
    ```
@@ -259,7 +259,7 @@ vibetunnel/
 │   ├── Models/              # Data models
 │   ├── Views/               # SwiftUI views
 │   └── Resources/           # Assets and bundled files
-├── rust/tty-fwd/           # Rust TTY forwarding server
+├── tty-fwd/           # Rust TTY forwarding server
 ├── web/                    # TypeScript/JavaScript frontend
 ├── scripts/                # Build and utility scripts
 └── Tests/                  # Unit and integration tests
@@ -278,7 +278,7 @@ vibetunnel/
 swift test
 
 # Run Rust tests
-cd rust/tty-fwd && cargo test
+cd tty-fwd && cargo test
 
 # Run frontend tests
 cd web && npm test
