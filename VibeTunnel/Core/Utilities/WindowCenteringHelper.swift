@@ -4,7 +4,7 @@ import AppKit
 enum WindowCenteringHelper {
     /// Centers a window on the active screen (where the mouse cursor is located)
     /// - Parameter window: The NSWindow to center
-    static func centerOnActiveScreen(_ window: NSWindow) {
+    @MainActor static func centerOnActiveScreen(_ window: NSWindow) {
         if let screen = NSScreen.main ?? NSScreen.screens.first {
             let screenFrame = screen.visibleFrame
             let windowFrame = window.frame
@@ -18,7 +18,7 @@ enum WindowCenteringHelper {
     
     /// Positions a window off-screen (useful for hidden windows)
     /// - Parameter window: The NSWindow to position off-screen
-    static func positionOffScreen(_ window: NSWindow) {
+    @MainActor static func positionOffScreen(_ window: NSWindow) {
         if let screen = NSScreen.main {
             let screenFrame = screen.frame
             window.setFrame(NSRect(x: screenFrame.midX, y: screenFrame.minY - 1000, width: 1, height: 1), display: false)
@@ -27,7 +27,7 @@ enum WindowCenteringHelper {
     
     /// Centers a window using the built-in NSWindow center method
     /// - Parameter window: The NSWindow to center
-    static func centerDefault(_ window: NSWindow) {
+    @MainActor static func centerDefault(_ window: NSWindow) {
         window.center()
     }
 }
