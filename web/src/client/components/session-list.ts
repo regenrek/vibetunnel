@@ -199,19 +199,14 @@ export class SessionList extends LitElement {
     this.requestUpdate();
 
     try {
-      const deletePromises = exitedSessions.map(async (session) => {
-        const response = await fetch(`/api/sessions/${session.id}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to delete session ${session.id}`);
-        }
-        
-        return session.id;
+      // Use the bulk cleanup API endpoint
+      const response = await fetch('/api/cleanup-exited', {
+        method: 'POST'
       });
-
-      await Promise.all(deletePromises);
+      
+      if (!response.ok) {
+        throw new Error('Failed to cleanup exited sessions');
+      }
       
       this.dispatchEvent(new CustomEvent('error', {
         detail: `Successfully cleaned ${exitedSessions.length} exited session${exitedSessions.length > 1 ? 's' : ''}`
@@ -225,7 +220,7 @@ export class SessionList extends LitElement {
     } catch (error) {
       console.error('Error cleaning exited sessions:', error);
       this.dispatchEvent(new CustomEvent('error', {
-        detail: 'Failed to clean some sessions'
+        detail: 'Failed to clean exited sessions'
       }));
     } finally {
       this.cleaningExited = false;

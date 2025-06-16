@@ -259,6 +259,22 @@ app.delete('/api/sessions/:sessionId/cleanup', async (req, res) => {
     }
 });
 
+// Cleanup all exited sessions
+app.post('/api/cleanup-exited', async (req, res) => {
+    try {
+        await executeTtyFwd([
+            '--control-path', TTY_FWD_CONTROL_DIR,
+            '--cleanup'
+        ]);
+
+        res.json({ success: true, message: 'All exited sessions cleaned up' });
+
+    } catch (error) {
+        console.error('Error cleaning up exited sessions:', error);
+        res.status(500).json({ error: 'Failed to cleanup exited sessions' });
+    }
+});
+
 // === TERMINAL I/O ===
 
 // Server-sent events for terminal output streaming
