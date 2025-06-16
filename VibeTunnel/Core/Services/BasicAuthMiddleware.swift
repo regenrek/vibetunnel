@@ -15,9 +15,10 @@ struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     }
     
     func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
-        // For BasicRequestContext, we can't easily check if it's localhost
-        // So we'll authenticate all requests when password is set
-        // The server bind address (127.0.0.1 vs 0.0.0.0) already controls network access
+        // Skip auth for health check endpoint
+        if request.uri.path == "/api/health" {
+            return try await next(request, context)
+        }
         
         // Extract authorization header
         guard let authHeader = request.headers[.authorization],
