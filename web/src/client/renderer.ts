@@ -25,7 +25,7 @@ export class Renderer {
   private fitAddon: FitAddon;
   private webLinksAddon: WebLinksAddon;
 
-  constructor(container: HTMLElement, width: number = 80, height: number = 20) {
+  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000) {
     this.container = container;
     
     // Create terminal with options similar to the custom renderer
@@ -61,7 +61,7 @@ export class Renderer {
         brightWhite: '#ebdbb2'
       },
       allowProposedApi: true,
-      scrollback: 1000,
+      scrollback: scrollback, // Configurable scrollback buffer
       convertEol: true,
       altClickMovesCursor: false,
       rightClickSelectsWord: false,

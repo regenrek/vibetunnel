@@ -1,2 +1,2 @@
 // Entry point for renderer bundle - exports XTerm-based renderer
-export { Renderer } from './renderer.js';
+export { Renderer } from './renderer';
