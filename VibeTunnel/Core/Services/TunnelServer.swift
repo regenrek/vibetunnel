@@ -22,7 +22,7 @@ enum ServerError: LocalizedError {
 /// HTTP server implementation for the macOS app
 @MainActor
 @Observable
-public final class TunnelServerDemo {
+public final class TunnelServer {
     public private(set) var isRunning = false
     public private(set) var port: Int
     public var lastError: Error?
@@ -39,7 +39,7 @@ public final class TunnelServerDemo {
     public func start() async throws {
         guard !isRunning else { return }
         
-        logger.info("Starting TunnelServerDemo on port \(port)")
+        logger.info("Starting TunnelServer on port \(port)")
         
         do {
             let router = Router(context: BasicRequestContext.self)

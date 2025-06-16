@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os.log
 import UserNotifications
 
@@ -39,14 +40,15 @@ public final class SparkleUpdaterManager: NSObject {
 /// Stub implementation of SparkleViewModel
 @MainActor
 @available(macOS 10.15, *)
-public final class SparkleViewModel: ObservableObject {
-    @Published public var canCheckForUpdates = false
-    @Published public var isCheckingForUpdates = false
-    @Published public var automaticallyChecksForUpdates = true
-    @Published public var automaticallyDownloadsUpdates = false
-    @Published public var updateCheckInterval: TimeInterval = 86400
-    @Published public var lastUpdateCheckDate: Date?
-    @Published public var updateChannel: UpdateChannel = .stable
+@Observable
+public final class SparkleViewModel {
+    public var canCheckForUpdates = false
+    public var isCheckingForUpdates = false
+    public var automaticallyChecksForUpdates = true
+    public var automaticallyDownloadsUpdates = false
+    public var updateCheckInterval: TimeInterval = 86400
+    public var lastUpdateCheckDate: Date?
+    public var updateChannel: UpdateChannel = .stable
     
     private let updaterManager = SparkleUpdaterManager.shared
     

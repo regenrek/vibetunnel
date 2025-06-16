@@ -12,7 +12,6 @@ struct VibeTunnelApp: App {
             Settings {
                 SettingsView()
             }
-            .defaultSize(width: 500, height: 450)
             .commands {
                 CommandGroup(after: .appInfo) {
                     Button("About VibeTunnel") {
@@ -37,7 +36,7 @@ struct VibeTunnelApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
-    private(set) var httpServer: TunnelServerDemo?
+    private(set) var httpServer: TunnelServer?
     private let sessionMonitor = SessionMonitor.shared
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
@@ -84,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize and start HTTP server
         let serverPort = UserDefaults.standard.integer(forKey: "serverPort")
-        httpServer = TunnelServerDemo(port: serverPort > 0 ? serverPort : 4020)
+        httpServer = TunnelServer(port: serverPort > 0 ? serverPort : 4020)
         
         Task {
             do {
@@ -117,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func setHTTPServer(_ server: TunnelServerDemo?) {
+    func setHTTPServer(_ server: TunnelServer?) {
         httpServer = server
     }
 

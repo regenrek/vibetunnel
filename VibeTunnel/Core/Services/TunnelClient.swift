@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import Logging
 
@@ -202,11 +201,13 @@ public final class TunnelWebSocketClient: NSObject, @unchecked Sendable {
     private let apiKey: String
     private var sessionId: String?
     private var webSocketTask: URLSessionWebSocketTask?
-    private let messageSubject = PassthroughSubject<WSMessage, Never>()
+    private var messageContinuation: AsyncStream<WSMessage>.Continuation?
     private let logger = Logger(label: "VibeTunnel.TunnelWebSocketClient")
 
-    public var messages: AnyPublisher<WSMessage, Never> {
-        messageSubject.eraseToAnyPublisher()
+    public var messages: AsyncStream<WSMessage> {
+        AsyncStream { continuation in
+            self.messageContinuation = continuation
+        }
     }
 
     public init(url: URL, apiKey: String, sessionId: String? = nil) {
@@ -258,6 +259,7 @@ public final class TunnelWebSocketClient: NSObject, @unchecked Sendable {
 
     public func disconnect() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
+        messageContinuation?.finish()
     }
 
     private func receiveMessage() {
@@ -269,11 +271,11 @@ public final class TunnelWebSocketClient: NSObject, @unchecked Sendable {
                     if let data = text.data(using: .utf8),
                        let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data)
                     {
-                        self?.messageSubject.send(wsMessage)
+                        self?.messageContinuation?.yield(wsMessage)
                     }
                 case .data(let data):
                     if let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data) {
-                        self?.messageSubject.send(wsMessage)
+                        self?.messageContinuation?.yield(wsMessage)
                     }
                 @unknown default:
                     break
@@ -307,7 +309,7 @@ extension TunnelWebSocketClient: URLSessionWebSocketDelegate {
         reason: Data?
     ) {
         logger.info("WebSocket disconnected with code: \(closeCode)")
-        messageSubject.send(completion: .finished)
+        messageContinuation?.finish()
     }
 }
 

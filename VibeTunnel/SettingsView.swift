@@ -31,6 +31,15 @@ extension Notification.Name {
 
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
+    @State private var contentSize: CGSize = .zero
+
+    // Define ideal sizes for each tab
+    private let tabSizes: [SettingsTab: CGSize] = [
+        .general: CGSize(width: 500, height: 300),
+        .advanced: CGSize(width: 500, height: 400),
+        .debug: CGSize(width: 600, height: 650),
+        .about: CGSize(width: 500, height: 550)
+    ]
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -58,10 +67,18 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.about)
         }
+        .frame(width: contentSize.width, height: contentSize.height)
+        .animatedWindowResizing(size: contentSize)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
             }
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            contentSize = tabSizes[newTab] ?? CGSize(width: 500, height: 400)
+        }
+        .onAppear {
+            contentSize = tabSizes[selectedTab] ?? CGSize(width: 500, height: 400)
         }
     }
 }
@@ -280,7 +297,7 @@ struct AdvancedSettingsView: View {
             }
             
             // Create and start new server with the new port
-            let newServer = TunnelServerDemo(port: port)
+            let newServer = TunnelServer(port: port)
             appDelegate.setHTTPServer(newServer)
             
             do {
@@ -307,7 +324,7 @@ struct AdvancedSettingsView: View {
 
 
 struct DebugSettingsView: View {
-    @State private var httpServer: TunnelServerDemo?
+    @State private var httpServer: TunnelServer?
     @State private var lastError: String?
     @State private var testResult: String?
     @State private var isTesting = false
@@ -531,7 +548,7 @@ struct DebugSettingsView: View {
         if shouldStart {
             // Create a new server if needed
             if httpServer == nil {
-                let newServer = TunnelServerDemo(port: serverPort)
+                let newServer = TunnelServer(port: serverPort)
                 httpServer = newServer
                 // Store reference in AppDelegate
                 if let appDelegate = NSApp.delegate as? AppDelegate {

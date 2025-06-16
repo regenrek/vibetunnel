@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct MenuBarView: View {
-    @EnvironmentObject var sessionMonitor: SessionMonitor
+    @Environment(SessionMonitor.self) var sessionMonitor
     @AppStorage("showInDock") private var showInDock = false
     
     var body: some View {
@@ -139,7 +139,7 @@ struct SessionRowView: View {
 struct MenuButtonStyle: ButtonStyle {
     @State private var isHovered = false
     
-    func makeBody(configuration: Configuration) -> some View {
+    func makeBody(configuration: ButtonStyle.Configuration) -> some View {
         configuration.label
             .font(.system(size: 13))
             .frame(maxWidth: .infinity, alignment: .leading)
