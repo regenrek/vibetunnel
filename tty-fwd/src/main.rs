@@ -372,6 +372,7 @@ fn main() -> Result<(), anyhow::Error> {
     }
 
     let session_id = Uuid::new_v4();
+    println!("{}", session_id);
     let session_path = control_path.join(session_id.to_string());
     fs::create_dir_all(&session_path)?;
 
