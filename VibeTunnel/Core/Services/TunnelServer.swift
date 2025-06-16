@@ -173,6 +173,10 @@ public final class TunnelServer {
                 return await self.sendSessionInput(request: request, sessionId: sessionId)
             }
             
+            router.post("/api/cleanup-exited") { _, _ async -> Response in
+                await self.cleanupExitedSessions()
+            }
+            
             router.get("/api/fs/browse") { request, _ async -> Response in
                 await self.browseFileSystem(request: request)
             }
@@ -794,6 +798,19 @@ public final class TunnelServer {
         } catch {
             logger.error("Error sending input via tty-fwd: \(error)")
             return errorResponse(message: "Failed to send input")
+        }
+    }
+    
+    private func cleanupExitedSessions() async -> Response {
+        do {
+            _ = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--cleanup"])
+            
+            let response = SimpleResponse(success: true, message: "All exited sessions cleaned up")
+            return jsonResponse(response)
+            
+        } catch {
+            logger.error("Error cleaning up exited sessions: \(error)")
+            return errorResponse(message: "Failed to cleanup exited sessions")
         }
     }
     

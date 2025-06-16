@@ -39,7 +39,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				Local.xcconfig,
 				Local.xcconfig.template,
 				Shared.xcconfig,
 				version.xcconfig,
