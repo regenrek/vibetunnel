@@ -36,6 +36,7 @@ struct MenuBarView: View {
                 SessionListView(sessions: sessionMonitor.sessions)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 4)
+                    .frame(minWidth: 280)
             }
 
             Divider()
@@ -212,13 +213,22 @@ struct SessionRowView: View {
             Text("  • \(sessionName)")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
             Spacer()
         }
         .padding(.vertical, 2)
     }
 
     private var sessionName: String {
-        session.value.name.isEmpty ? session.value.cmdline.first ?? "Unknown" : session.value.name
+        let name = session.value.name.isEmpty ? session.value.cmdline.first ?? "Unknown" : session.value.name
+        // Truncate long session names
+        if name.count > 35 {
+            let prefix = String(name.prefix(20))
+            let suffix = String(name.suffix(10))
+            return "\(prefix)...\(suffix)"
+        }
+        return name
     }
 }
 
