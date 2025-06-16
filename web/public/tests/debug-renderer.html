@@ -56,50 +56,50 @@
     <div id="log"></div>
 
     <script type="module">
-        import { XTermRenderer } from '../bundle/renderer.js';
+        import { Renderer } from '../bundle/renderer.js';
         
         function log(message) {
             const logDiv = document.getElementById('log');
             logDiv.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
         }
 
-        // Test XTerm renderer from bundle
-        log('Testing XTerm Renderer from bundle...');
-        log('XTermRenderer available: ' + (typeof XTermRenderer !== 'undefined'));
+        // Test renderer from bundle
+        log('Testing Renderer from bundle...');
+        log('Renderer available: ' + (typeof Renderer !== 'undefined'));
 
         window.testXTerm = function() {
             try {
-                log('Testing XTerm Renderer...');
+                log('Testing Renderer...');
                 const container = document.getElementById('terminal');
                 container.innerHTML = '';
                 
-                const renderer = new XTermRenderer(container, 80, 24);
+                const renderer = new Renderer(container, 80, 24);
                 renderer.processOutput('Hello from bundled XTerm.js!\r\n');
                 renderer.processOutput('\x1b[31mRed text\x1b[0m\r\n');
                 renderer.processOutput('\x1b[32mGreen text\x1b[0m\r\n');
                 renderer.processOutput('\x1b[1;33mBold yellow text\x1b[0m\r\n');
                 
-                log('XTerm Renderer test successful!');
+                log('Renderer test successful!');
             } catch (error) {
-                log('XTerm Renderer test failed: ' + error.message);
+                log('Renderer test failed: ' + error.message);
             }
         };
 
         window.testRenderer = function() {
             try {
-                log('Testing XTerm Renderer advanced features...');
+                log('Testing Renderer advanced features...');
                 const container = document.getElementById('terminal');
                 container.innerHTML = '';
                 
-                const renderer = new XTermRenderer(container, 80, 24);
+                const renderer = new Renderer(container, 80, 24);
                 renderer.processOutput('Hello from XTerm Renderer!\r\n');
                 renderer.processOutput('\x1b[32mGreen text from renderer\x1b[0m\r\n');
                 renderer.processOutput('\x1b[1;34mBold blue text\x1b[0m\r\n');
                 renderer.processOutput('\x1b[43mYellow background\x1b[0m\r\n');
                 
-                log('XTerm Renderer advanced test successful!');
+                log('Renderer advanced test successful!');
             } catch (error) {
-                log('XTerm Renderer advanced test failed: ' + error.message);
+                log('Renderer advanced test failed: ' + error.message);
             }
         };
 

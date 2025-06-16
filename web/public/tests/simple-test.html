@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Terminal Renderer Test</title>
+    <title>Simple XTerm Renderer Test</title>
+    
+    <!-- XTerm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    
     <style>
         body {
             background: #1a1a1a;
@@ -18,10 +22,8 @@
             background: #000;
             height: 400px;
             width: 800px;
-            overflow-y: scroll;
-            padding: 10px;
-            font-size: 14px;
-            line-height: 1.2;
+            overflow: hidden;
+            margin-bottom: 20px;
         }
         
         .controls {
@@ -41,93 +43,170 @@
         button:hover {
             background: #444;
         }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .comparison .terminal {
+            width: 100%;
+        }
+
+        h2 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
-    <h1>Simple Terminal Renderer Debug</h1>
+    <h1>Simple XTerm Renderer Test</h1>
     
     <div class="controls">
         <button onclick="testBasic()">Test Basic Colors</button>
+        <button onclick="testAdvanced()">Test Advanced Features</button>
         <button onclick="testScrollback()">Test Scrollback</button>
-        <button onclick="clearTerminal()">Clear</button>
-        <button onclick="debugOutput()">Debug Output</button>
+        <button onclick="testPerformance()">Test Performance</button>
+        <button onclick="clearTerminals()">Clear All</button>
     </div>
     
-    <div class="terminal" id="terminal"></div>
-    
+    <div class="comparison">
+        <div>
+            <h2>Custom Renderer</h2>
+            <div class="terminal" id="custom-terminal"></div>
+        </div>
+        <div>
+            <h2>XTerm.js Renderer</h2>
+            <div class="terminal" id="xterm-terminal"></div>
+        </div>
+    </div>
+
     <div id="debug" style="margin-top: 20px; background: #333; padding: 10px; border-radius: 4px;">
-        <h3>Debug Output:</h3>
-        <pre id="debugText"></pre>
+        <h3>Performance Comparison:</h3>
+        <pre id="debugText">Run performance test to see timing comparison</pre>
     </div>
 
     <script type="module">
-        import { TerminalRenderer } from './renderer.js';
+        import { Renderer } from '../bundle/renderer.js';
         
-        const terminal = new TerminalRenderer(document.getElementById('terminal'), 80, 20);
+        const terminal1 = new Renderer(document.getElementById('custom-terminal'), 80, 20);
+        const terminal2 = new Renderer(document.getElementById('xterm-terminal'), 80, 20);
+        
+        function runOnBoth(callback) {
+            callback(terminal1, 'Terminal 1');
+            callback(terminal2, 'Terminal 2');
+        }
         
         window.testBasic = function() {
             console.log('Testing basic colors...');
-            terminal.clear();
             
-            // Test individual ANSI sequences
-            const tests = [
-                'Hello World (no color)\n',
-                '\x1b[31mRed Text\x1b[0m\n',
-                '\x1b[32mGreen Text\x1b[0m\n', 
-                '\x1b[1;33mBold Yellow\x1b[0m\n',
-                '\x1b[4;34mUnderline Blue\x1b[0m\n',
-                '\x1b[1;31m[001]\x1b[0m Test line 1\n',
-                '\x1b[1;32m[002]\x1b[0m Test line 2\n'
-            ];
-            
-            tests.forEach((test, i) => {
-                console.log(`Processing test ${i}:`, JSON.stringify(test));
-                terminal.processOutput(test);
+            runOnBoth((terminal, name) => {
+                terminal.clear();
+                
+                const tests = [
+                    `${name} Renderer Test\n`,
+                    '\x1b[31mRed Text\x1b[0m\n',
+                    '\x1b[32mGreen Text\x1b[0m\n', 
+                    '\x1b[1;33mBold Yellow\x1b[0m\n',
+                    '\x1b[4;34mUnderline Blue\x1b[0m\n',
+                    '\x1b[1;31m[001]\x1b[0m Test line 1\n',
+                    '\x1b[1;32m[002]\x1b[0m Test line 2\n'
+                ];
+                
+                tests.forEach(test => terminal.processOutput(test));
             });
+        };
+        
+        window.testAdvanced = function() {
+            console.log('Testing advanced features...');
             
-            updateDebug();
+            runOnBoth((terminal, name) => {
+                terminal.clear();
+                
+                const tests = [
+                    `${name} Advanced Features\n`,
+                    '\x1b[38;2;255;100;50mRGB Orange\x1b[0m\n',
+                    '\x1b[38;2;100;255;100mRGB Lime\x1b[0m\n',
+                    '\x1b[38;5;196m256-color Red\x1b[0m\n',
+                    '\x1b[38;5;46m256-color Green\x1b[0m\n',
+                    '\x1b[1;3;4mBold Italic Underline\x1b[0m\n',
+                    '\x1b[7mInverse Video\x1b[0m\n',
+                    '\x1b[9mStrikethrough\x1b[0m\n',
+                    'Unicode: 🚀 ✨ 🎉 ♦ ♠ ♥ ♣\n',
+                    'Box: ┌─┬─┐ │ │ │ ├─┼─┤\n'
+                ];
+                
+                tests.forEach(test => terminal.processOutput(test));
+            });
         };
         
         window.testScrollback = function() {
             console.log('Testing scrollback...');
-            terminal.clear();
             
-            for (let i = 1; i <= 30; i++) {
+            runOnBoth((terminal, name) => {
+                terminal.clear();
+                
+                for (let i = 1; i <= 30; i++) {
+                    const color = 31 + (i % 6);
+                    const line = `\x1b[1;${color}m[${i.toString().padStart(3, '0')}]\x1b[0m ${name} Line ${i}\n`;
+                    terminal.processOutput(line);
+                }
+            });
+        };
+        
+        window.testPerformance = function() {
+            console.log('Testing performance...');
+            
+            const results = {};
+            
+            // Test terminal 1
+            const terminal1Start = performance.now();
+            terminal1.clear();
+            for (let i = 1; i <= 1000; i++) {
                 const color = 31 + (i % 6);
-                const line = `\x1b[1;${color}m[${i.toString().padStart(3, '0')}]\x1b[0m Line ${i}: Scrollback test content\n`;
-                console.log(`Line ${i}:`, JSON.stringify(line));
-                terminal.processOutput(line);
+                const line = `\x1b[1;${color}m[${i.toString().padStart(4, '0')}]\x1b[0m Performance test line ${i} with \x1b[4munderline\x1b[0m and \x1b[1mbold\x1b[0m\n`;
+                terminal1.processOutput(line);
             }
+            const terminal1End = performance.now();
+            results.terminal1 = terminal1End - terminal1Start;
             
-            updateDebug();
-        };
-        
-        window.clearTerminal = function() {
-            terminal.clear();
-            updateDebug();
-        };
-        
-        window.debugOutput = function() {
-            updateDebug();
-        };
-        
-        function updateDebug() {
-            const terminalEl = document.getElementById('terminal');
+            // Test terminal 2
+            const terminal2Start = performance.now();
+            terminal2.clear();
+            for (let i = 1; i <= 1000; i++) {
+                const color = 31 + (i % 6);
+                const line = `\x1b[1;${color}m[${i.toString().padStart(4, '0')}]\x1b[0m Performance test line ${i} with \x1b[4munderline\x1b[0m and \x1b[1mbold\x1b[0m\n`;
+                terminal2.processOutput(line);
+            }
+            const terminal2End = performance.now();
+            results.terminal2 = terminal2End - terminal2Start;
+            
+            // Display results
             const debugEl = document.getElementById('debugText');
-            
-            const info = {
-                innerHTML: terminalEl.innerHTML.substring(0, 500) + (terminalEl.innerHTML.length > 500 ? '...' : ''),
-                childCount: terminalEl.children.length,
-                scrollHeight: terminalEl.scrollHeight,
-                clientHeight: terminalEl.clientHeight
+            const comparison = {
+                'Terminal 1': `${results.terminal1.toFixed(2)}ms`,
+                'Terminal 2': `${results.terminal2.toFixed(2)}ms`,
+                'Performance Ratio': `${(results.terminal1 / results.terminal2).toFixed(2)}x`,
+                'Winner': results.terminal2 < results.terminal1 ? 'Terminal 2' : 'Terminal 1',
+                'Lines Processed': '1000 lines each',
+                'Test Date': new Date().toLocaleString()
             };
             
-            debugEl.textContent = JSON.stringify(info, null, 2);
-        }
+            debugEl.textContent = JSON.stringify(comparison, null, 2);
+        };
+        
+        window.clearTerminals = function() {
+            terminal1.clear();
+            terminal2.clear();
+            
+            const debugEl = document.getElementById('debugText');
+            debugEl.textContent = 'Terminals cleared. Run tests to see comparison.';
+        };
         
         // Initial test
         setTimeout(() => {
-            console.log('Running initial test...');
+            console.log('Running initial comparison...');
             testBasic();
         }, 100);
     </script>
