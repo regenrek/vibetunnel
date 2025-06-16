@@ -321,7 +321,7 @@ final class ApplicationMover {
         Task { @MainActor in
             do {
                 let configuration = NSWorkspace.OpenConfiguration()
-                _ = try await workspace.openApplication(at: appURL, configuration: configuration)
+                try await workspace.openApplication(at: appURL, configuration: configuration)
                 logger.info("Launched app from Applications, quitting current instance")
 
                 // Quit current instance after a short delay to ensure the new one starts

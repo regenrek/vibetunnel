@@ -2,7 +2,11 @@ import AppKit
 import Foundation
 import SwiftUI
 
-/// Helper to open the Settings window programmatically when SettingsLink cannot be used
+/// Helper to open the Settings window programmatically when SettingsLink cannot be used.
+///
+/// Provides workarounds for opening the Settings window in menu bar apps where
+/// SwiftUI's SettingsLink may not function correctly. Uses multiple strategies
+/// including menu item triggering and window manipulation to ensure reliable behavior.
 @MainActor
 enum SettingsOpener {
     /// SwiftUI's hardcoded settings window identifier
@@ -140,8 +144,11 @@ enum SettingsOpener {
 
 // MARK: - Hidden Window View
 
-/// A hidden window view that enables Settings to work in MenuBarExtra-only apps
-/// This is a workaround for FB10184971
+/// A hidden window view that enables Settings to work in MenuBarExtra-only apps.
+///
+/// This is a workaround for FB10184971 where SettingsLink doesn't function
+/// properly in menu bar apps. Creates an invisible window that can receive
+/// the openSettings environment action.
 struct HiddenWindowView: View {
     @Environment(\.openSettings)
     private var openSettings

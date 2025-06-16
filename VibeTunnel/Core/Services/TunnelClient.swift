@@ -2,7 +2,10 @@ import Foundation
 import HTTPTypes
 import Logging
 
-/// WebSocket message types for terminal communication
+/// WebSocket message types for terminal communication.
+///
+/// Defines the different types of messages that can be exchanged
+/// between the client and server over WebSocket connections.
 public enum WSMessageType: String, Codable {
     case connect
     case command
@@ -13,7 +16,10 @@ public enum WSMessageType: String, Codable {
     case close
 }
 
-/// WebSocket message structure
+/// WebSocket message structure.
+///
+/// Encapsulates data sent over WebSocket connections for terminal
+/// communication, including message type, session information, and payload.
 public struct WSMessage: Codable {
     public let type: WSMessageType
     public let sessionId: String?
@@ -28,7 +34,11 @@ public struct WSMessage: Codable {
     }
 }
 
-/// Client SDK for interacting with the VibeTunnel server
+/// Client SDK for interacting with the VibeTunnel server.
+///
+/// Provides a high-level interface for creating and managing terminal sessions
+/// through the VibeTunnel HTTP API. Handles authentication, request/response
+/// serialization, and error handling for all server operations.
 public class TunnelClient {
     private let baseURL: URL
     private let apiKey: String
@@ -220,7 +230,11 @@ public class TunnelClient {
     }
 }
 
-/// WebSocket client for real-time terminal communication
+/// WebSocket client for real-time terminal communication.
+///
+/// Provides WebSocket connectivity for streaming terminal I/O and
+/// receiving real-time updates from terminal sessions. Handles
+/// authentication, message encoding/decoding, and connection lifecycle.
 public final class TunnelWebSocketClient: NSObject, @unchecked Sendable {
     private let url: URL
     private let apiKey: String
@@ -340,6 +354,10 @@ extension TunnelWebSocketClient: URLSessionWebSocketDelegate {
 
 // MARK: - Errors
 
+/// Errors that can occur when using the TunnelClient.
+///
+/// Represents various failure modes including network errors,
+/// server errors, and data decoding issues.
 public enum TunnelClientError: LocalizedError, Equatable {
     case invalidResponse
     case httpError(statusCode: Int)

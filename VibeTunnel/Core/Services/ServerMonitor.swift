@@ -1,8 +1,11 @@
 import Foundation
 import Observation
 
-/// Monitors the HTTP server status and provides observable state for the UI
+/// Monitors the HTTP server status and provides observable state for the UI.
+///
 /// This class now acts as a facade over ServerManager for backward compatibility
+/// while providing a simplified interface for UI components to observe server state.
+/// It bridges the gap between the older server architecture and the new ServerManager.
 @MainActor
 @Observable
 public final class ServerMonitor {
