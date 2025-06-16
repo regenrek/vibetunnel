@@ -269,7 +269,11 @@ export class VibeTunnelApp extends LitElement {
         `) : html`
         <div class="max-w-4xl mx-auto">
           <app-header
+            .sessions=${this.sessions}
+            .hideExited=${this.hideExited}
             @create-session=${this.handleCreateSession}
+            @hide-exited-change=${this.handleHideExitedChange}
+            @kill-all-sessions=${this.handleKillAll}
           ></app-header>
           <session-list
             .sessions=${this.sessions}
