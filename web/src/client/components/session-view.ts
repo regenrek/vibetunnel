@@ -130,8 +130,7 @@ export class SessionView extends LitElement {
         // For ended sessions, load snapshot (EXACTLY like the test)
         this.renderer.loadCastFile(`/api/sessions/${this.session.id}/snapshot`);
       } else {
-        // For running sessions, connect to live stream (EXACTLY like the test)
-        this.renderer.clear();
+        // For running sessions, connect to live stream
         this.renderer.connectToStream(this.session.id);
       }
     } catch (error) {

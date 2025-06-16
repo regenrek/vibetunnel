@@ -36,29 +36,29 @@ export class Renderer {
       fontSize: fontSize,
       lineHeight: 1.2,
       theme: {
-        background: '#000000',
-        foreground: '#ffffff',
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
         cursor: '#ffffff',
-        cursorAccent: '#000000',
-        selectionBackground: '#ffffff30',
-        // Standard ANSI colors (matching the custom renderer)
+        cursorAccent: '#1e1e1e',
+        selectionBackground: '#264f78',
+        // VS Code Dark theme colors
         black: '#000000',
-        red: '#cc241d',
-        green: '#98971a',
-        yellow: '#d79921',
-        blue: '#458588',
-        magenta: '#b16286',
-        cyan: '#689d6a',
-        white: '#a89984',
-        // Bright ANSI colors
-        brightBlack: '#928374',
-        brightRed: '#fb4934',
-        brightGreen: '#b8bb26',
-        brightYellow: '#fabd2f',
-        brightBlue: '#83a598',
-        brightMagenta: '#d3869b',
-        brightCyan: '#8ec07c',
-        brightWhite: '#ebdbb2'
+        red: '#f14c4c',
+        green: '#23d18b',
+        yellow: '#f5f543',
+        blue: '#3b8eea',
+        magenta: '#d670d6',
+        cyan: '#29b8db',
+        white: '#e5e5e5',
+        // Bright colors
+        brightBlack: '#666666',
+        brightRed: '#f14c4c',
+        brightGreen: '#23d18b',
+        brightYellow: '#f5f543',
+        brightBlue: '#3b8eea',
+        brightMagenta: '#d670d6',
+        brightCyan: '#29b8db',
+        brightWhite: '#ffffff'
       },
       allowProposedApi: true,
       scrollback: scrollback, // Configurable scrollback buffer
@@ -82,7 +82,7 @@ export class Renderer {
     // Clear container and add CSS
     this.container.innerHTML = '';
     this.container.style.padding = '10px';
-    this.container.style.backgroundColor = '#000000';
+    this.container.style.backgroundColor = '#1e1e1e';
     this.container.style.overflow = 'hidden';
     
     // Create terminal wrapper
@@ -193,8 +193,7 @@ export class Renderer {
   connectToUrl(url: string): EventSource {
     const eventSource = new EventSource(url);
     
-    // Clear terminal when starting stream
-    this.terminal.clear();
+    // Don't clear terminal for live streams - just append new content
     
     eventSource.onmessage = (event) => {
       try {
@@ -202,6 +201,7 @@ export class Renderer {
         
         if (data.version && data.width && data.height) {
           // Header
+          console.log('Received header:', data);
           this.resize(data.width, data.height);
         } else if (Array.isArray(data) && data.length >= 3) {
           // Event
@@ -210,6 +210,11 @@ export class Renderer {
             type: data[1],
             data: data[2]
           };
+          console.log('Received event:', castEvent.type, 'data length:', castEvent.data.length);
+          // Log first 100 chars of data to see escape sequences
+          if (castEvent.data.length > 0) {
+            console.log('Event data preview:', JSON.stringify(castEvent.data.substring(0, 100)));
+          }
           this.processEvent(castEvent);
         }
       } catch (e) {
@@ -228,9 +233,6 @@ export class Renderer {
 
   // Load content from URL - pass isStream to determine how to handle it
   async loadFromUrl(url: string, isStream: boolean): Promise<void> {
-    // Clear terminal first
-    this.terminal.clear();
-    
     // Clean up existing connection
     if (this.eventSource) {
       this.eventSource.close();
@@ -238,10 +240,11 @@ export class Renderer {
     }
     
     if (isStream) {
-      // It's a stream URL, connect via SSE
+      // It's a stream URL, connect via SSE (don't clear - append to existing content)
       this.eventSource = this.connectToUrl(url);
     } else {
-      // It's a snapshot URL, load as cast file
+      // It's a snapshot URL, clear first then load as cast file
+      this.terminal.clear();
       await this.loadCastFile(url);
     }
   }
