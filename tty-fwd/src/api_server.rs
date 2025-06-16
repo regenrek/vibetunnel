@@ -411,7 +411,10 @@ fn handle_create_session(
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Working directory does not exist: {}", expanded_dir.display())),
+                error: Some(format!(
+                    "Working directory does not exist: {}",
+                    expanded_dir.display()
+                )),
                 session_id: None,
             };
             return json_response(StatusCode::BAD_REQUEST, &error);
@@ -691,7 +694,7 @@ fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
             Ok(sessions) => {
                 if let Some(session_entry) = sessions.get(&session_id) {
                     // Session exists, try to kill it
-                    if let Some(pid) = session_entry.session_info.pid {
+                    if let Some(_) = session_entry.session_info.pid {
                         // First try SIGTERM, then SIGKILL if needed (like Node.js version)
                         match sessions::send_signal_to_session(control_path, &session_id, 15) {
                             Ok(_) => {
@@ -706,7 +709,8 @@ fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
                             }
                             Err(_) => {
                                 // SIGTERM failed, try SIGKILL
-                                match sessions::send_signal_to_session(control_path, &session_id, 9) {
+                                match sessions::send_signal_to_session(control_path, &session_id, 9)
+                                {
                                     Ok(_) => {
                                         let response = ApiResponse {
                                             success: Some(true),
@@ -1189,7 +1193,8 @@ fn handle_stream_all_sessions(control_path: &PathBuf, req: &mut HttpRequest) {
                         if path.is_dir() && path.parent() == Some(&control_path_clone) {
                             if let Some(session_id) = path.file_name().and_then(|n| n.to_str()) {
                                 // Check if we've already seen this session
-                                let already_tracked = if let Ok(sessions) = sessions_watcher.lock() {
+                                let already_tracked = if let Ok(sessions) = sessions_watcher.lock()
+                                {
                                     sessions.contains_key(session_id)
                                 } else {
                                     false
