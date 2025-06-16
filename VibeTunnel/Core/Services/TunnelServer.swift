@@ -83,6 +83,13 @@ struct SessionIdResponse: Codable {
     let sessionId: String
 }
 
+/// Response for session creation matching Rust API format
+struct SessionCreatedResponse: Codable {
+    let success: Bool
+    let message: String
+    let sessionId: String
+}
+
 /// Response for streaming endpoints
 struct StreamResponse: Codable {
     let message: String
@@ -135,8 +142,9 @@ public final class TunnelServer {
             }
 
             // Health check endpoint
-            router.get("/api/health") { _, _ -> HTTPResponse.Status in
-                .ok
+            router.get("/api/health") { _, _ async -> Response in
+                let response = SimpleResponse(success: true, message: "OK")
+                return await self.jsonResponse(response)
             }
 
             // Info endpoint
@@ -698,6 +706,7 @@ public final class TunnelServer {
             struct CreateSessionRequest: Codable {
                 let command: [String]
                 let workingDir: String?
+                let term: String?
             }
 
             let sessionRequest = try JSONDecoder().decode(CreateSessionRequest.self, from: requestData)
@@ -708,8 +717,14 @@ public final class TunnelServer {
 
             let sessionName = "session_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(9))"
             let cwd = resolvePath(sessionRequest.workingDir ?? "", fallback: FileManager.default.currentDirectoryPath)
+            let term = sessionRequest.term ?? "xterm-256color"
 
-            var args = ["--control-path", ttyFwdControlDir, "--session-name", sessionName, "--"]
+            var args = ["--control-path", ttyFwdControlDir, "--session-name", sessionName]
+            // Add term environment variable if specified
+            if !term.isEmpty {
+                args.append(contentsOf: ["--term", term])
+            }
+            args.append("--")
             args.append(contentsOf: sessionRequest.command)
 
             logger.info("Creating session: \(args.joined(separator: " "))")
@@ -765,7 +780,11 @@ public final class TunnelServer {
                 return errorResponse(message: "Failed to create session - no session ID returned")
             }
 
-            let response = SessionIdResponse(sessionId: finalSessionId)
+            let response = SessionCreatedResponse(
+                success: true,
+                message: "Session created successfully",
+                sessionId: finalSessionId
+            )
             return jsonResponse(response)
         } catch {
             logger.error("Error creating session: \(error)")
@@ -1163,60 +1182,9 @@ public final class TunnelServer {
 
         do {
             let content = try String(contentsOfFile: streamOutPath, encoding: .utf8)
-            let lines = content.components(separatedBy: .newlines)
-                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-
-            var header: [String: Any]?
-            var events: [[Any]] = []
-
-            for line in lines {
-                if let data = line.data(using: .utf8),
-                   let parsed = try? JSONSerialization.jsonObject(with: data)
-                {
-                    if let dict = parsed as? [String: Any],
-                       dict["version"] != nil && dict["width"] != nil && dict["height"] != nil
-                    {
-                        header = dict
-                    } else if let array = parsed as? [Any], array.count >= 3 {
-                        events.append([0.0, array[1], array[2]])
-                    }
-                }
-            }
-
-            var cast: [String] = []
-
-            if let header {
-                if let headerData = try? JSONSerialization.data(withJSONObject: header),
-                   let headerString = String(data: headerData, encoding: .utf8)
-                {
-                    cast.append(headerString)
-                }
-            } else {
-                let defaultHeader: [String: Any] = [
-                    "version": 2,
-                    "width": 80,
-                    "height": 24,
-                    "timestamp": Int(Date().timeIntervalSince1970),
-                    "env": ["TERM": "xterm-256color"]
-                ]
-                if let headerData = try? JSONSerialization.data(withJSONObject: defaultHeader),
-                   let headerString = String(data: headerData, encoding: .utf8)
-                {
-                    cast.append(headerString)
-                }
-            }
-
-            for event in events {
-                if let eventData = try? JSONSerialization.data(withJSONObject: event),
-                   let eventString = String(data: eventData, encoding: .utf8)
-                {
-                    cast.append(eventString)
-                }
-            }
-
-            let result = cast.joined(separator: "\n")
+            
             var buffer = ByteBuffer()
-            buffer.writeString(result)
+            buffer.writeString(content)
 
             return Response(
                 status: .ok,
@@ -1465,10 +1433,7 @@ public final class TunnelServer {
 
     private func createDirectory(request: Request) async -> Response {
         do {
-            guard let buffer = request.body.contents else {
-                return errorResponse(message: "Request body is required", status: .badRequest)
-            }
-
+            let buffer = try await request.body.collect(upTo: 1_024 * 1_024) // 1MB limit
             let requestData = Data(buffer: buffer)
 
             struct MkdirRequest: Codable {
