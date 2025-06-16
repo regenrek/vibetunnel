@@ -572,14 +572,16 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
     println!("Starting streaming SSE for session {}", session_id);
 
     // Send SSE headers
-    let headers = "HTTP/1.1 200 OK
-Content-Type: text/event-stream
-Cache-Control: no-cache
-Connection: keep-alive
-Access-Control-Allow-Origin: *
-
-";
-    if let Err(e) = req.respond_raw(headers.as_bytes()) {
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/event-stream")
+        .header("Cache-Control", "no-cache")
+        .header("Connection", "keep-alive")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(Vec::new())
+        .unwrap();
+    
+    if let Err(e) = req.respond(response) {
         println!("Failed to send SSE headers: {}", e);
         return;
     }
