@@ -27,6 +27,19 @@ class ServerManager {
         set { UserDefaults.standard.set(newValue, forKey: "serverPort") }
     }
     
+    var bindAddress: String {
+        get { 
+            let mode = DashboardAccessMode(rawValue: UserDefaults.standard.string(forKey: "dashboardAccessMode") ?? "") ?? .localhost
+            return mode.bindAddress
+        }
+        set { 
+            // Find the mode that matches this bind address
+            if let mode = DashboardAccessMode.allCases.first(where: { $0.bindAddress == newValue }) {
+                UserDefaults.standard.set(mode.rawValue, forKey: "dashboardAccessMode")
+            }
+        }
+    }
+    
     private var cleanupOnStartup: Bool {
         get { UserDefaults.standard.bool(forKey: "cleanupOnStartup") }
         set { UserDefaults.standard.set(newValue, forKey: "cleanupOnStartup") }

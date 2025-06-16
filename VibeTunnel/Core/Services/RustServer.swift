@@ -149,7 +149,14 @@ final class RustServer: ServerProtocol {
         let staticPath = webPublicPath.path
         
         // Build command to run tty-fwd through login shell
-        let ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(port)"
+        // Use bind address from ServerManager to control server accessibility
+        let bindAddress = ServerManager.shared.bindAddress
+        var ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(bindAddress):\(port)"
+        
+        // Add password flag if password protection is enabled
+        if let password = DashboardKeychain.shared.getPassword() {
+            ttyFwdCommand += " --password \"\(password)\""
+        }
         process.arguments = ["-l", "-c", ttyFwdCommand]
         
         logger.info("Executing command: /bin/zsh -l -c \"\(ttyFwdCommand)\"")
