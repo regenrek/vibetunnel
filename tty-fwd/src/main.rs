@@ -1,5 +1,4 @@
 mod api_server;
-mod heuristics;
 mod http_server;
 mod protocol;
 mod sessions;

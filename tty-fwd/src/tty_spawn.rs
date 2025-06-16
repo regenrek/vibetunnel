@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 
-use crate::heuristics::InputDetectionHeuristics;
 use crate::protocol::{
     AsciinemaEvent, AsciinemaEventType, NotificationEvent, NotificationWriter, SessionInfo,
     StreamWriter,
@@ -195,7 +194,6 @@ pub fn create_session_info(
         status: "starting".to_string(),
         exit_code: None,
         started_at: Some(Timestamp::now()),
-        waiting: false,
         term,
     };
 
@@ -239,23 +237,6 @@ fn update_session_status(
     Ok(())
 }
 
-/// Updates the waiting status in the session JSON file
-fn update_session_waiting(session_json_path: &Path, waiting: bool) -> Result<(), io::Error> {
-    if let Ok(content) = std::fs::read_to_string(session_json_path) {
-        if let Ok(mut session_info) = serde_json::from_str::<SessionInfo>(&content) {
-            session_info.waiting = waiting;
-            let updated_content = serde_json::to_string(&session_info)?;
-
-            // Write to temporary file first, then move to final location
-            let temp_file = NamedTempFile::new_in(
-                session_json_path.parent().unwrap_or_else(|| Path::new(".")),
-            )?;
-            std::fs::write(temp_file.path(), updated_content)?;
-            temp_file.persist(session_json_path)?;
-        }
-    }
-    Ok(())
-}
 
 /// Spawns a process in a PTY in a manor similar to `script`
 /// but with separate stdout/stderr.
@@ -548,16 +529,13 @@ fn communication_loop(
     in_file: Option<&mut File>,
     stderr: Option<OwnedFd>,
     flush: bool,
-    mut notification_writer: Option<&mut NotificationWriter>,
-    session_json_path: Option<&Path>,
+    _notification_writer: Option<&mut NotificationWriter>,
+    _session_json_path: Option<&Path>,
 ) -> Result<i32, Errno> {
     let mut buf = [0; 4096];
     let mut read_stdin = is_tty;
     let mut done = false;
     let stdin = io::stdin();
-    let mut heuristics = InputDetectionHeuristics::new();
-    let mut input_notification_sent = false;
-    let mut current_waiting_state = false;
 
     let got_winch = Arc::new(AtomicBool::new(false));
     if is_tty {
@@ -575,7 +553,7 @@ fn communication_loop(
         }
 
         let mut read_fds = FdSet::new();
-        let mut timeout = TimeVal::new(2, 0); // 2 second timeout
+        let mut timeout = TimeVal::new(0, 100_000); // 100ms timeout
         read_fds.insert(master.as_fd());
         if !read_stdin && is_tty {
             read_stdin = true;
@@ -591,36 +569,7 @@ fn communication_loop(
         }
         match select(None, Some(&mut read_fds), None, None, Some(&mut timeout)) {
             Ok(0) => {
-                // Timeout occurred - check if we're waiting for input
-                let is_waiting = heuristics.check_waiting_for_input();
-
-                // Update session waiting state if it changed
-                if is_waiting != current_waiting_state {
-                    current_waiting_state = is_waiting;
-                    if let Some(session_json_path) = session_json_path {
-                        let _ = update_session_waiting(session_json_path, is_waiting);
-                    }
-                }
-
-                // Send notification only once per waiting period
-                if let Some(notification_writer) = &mut notification_writer {
-                    if is_waiting && !input_notification_sent {
-                        let event = NotificationEvent {
-                            timestamp: jiff::Timestamp::now(),
-                            event: "input_requested".to_string(),
-                            data: serde_json::json!({
-                                "title": "Input Requested",
-                                "message": "The terminal appears to be waiting for input",
-                                "debug_info": heuristics.get_debug_info()
-                            }),
-                        };
-
-                        if notification_writer.write_notification(event).is_err() {
-                            // Ignore notification write errors to not interrupt the main flow
-                        }
-                        input_notification_sent = true;
-                    }
-                }
+                // Timeout occurred - just continue
                 continue;
             }
             Err(Errno::EINTR | Errno::EAGAIN) => continue,
@@ -635,17 +584,6 @@ fn communication_loop(
                     read_stdin = false;
                 }
                 Ok(n) => {
-                    heuristics.record_input();
-                    input_notification_sent = false; // Reset notification state on user input
-
-                    // Update waiting state to false when there's input
-                    if current_waiting_state {
-                        current_waiting_state = false;
-                        if let Some(session_json_path) = session_json_path {
-                            let _ = update_session_waiting(session_json_path, false);
-                        }
-                    }
-
                     write_all(master.as_fd(), &buf[..n])?;
                 }
                 Err(Errno::EINTR | Errno::EAGAIN) => {}
@@ -665,16 +603,6 @@ fn communication_loop(
                     Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
                     Err(err) => return Err(err),
                     Ok(n) => {
-                        heuristics.record_input();
-
-                        // Update waiting state to false when there's input from FIFO
-                        if current_waiting_state {
-                            current_waiting_state = false;
-                            if let Some(session_json_path) = session_json_path {
-                                let _ = update_session_waiting(session_json_path, false);
-                            }
-                        }
-
                         write_all(master.as_fd(), &buf[..n])?;
                     }
                 }
@@ -697,7 +625,6 @@ fn communication_loop(
                     done = true;
                 }
                 Ok(n) => {
-                    heuristics.record_output(&buf[..n]);
                     forward_and_log(io::stdout().as_fd(), &mut stream_writer, &buf[..n], flush)?
                 }
                 Err(Errno::EAGAIN | Errno::EINTR) => {}
@@ -833,13 +760,10 @@ fn monitor_detached_session(
 ) -> Result<(), Errno> {
     let mut buf = [0; 4096];
     let mut done = false;
-    let mut heuristics = InputDetectionHeuristics::new();
-    let mut input_notification_sent = false;
-    let mut current_waiting_state = false;
 
     while !done {
         let mut read_fds = FdSet::new();
-        let mut timeout = TimeVal::new(2, 0); // 2 second timeout
+        let mut timeout = TimeVal::new(0, 100_000); // 100ms timeout
         read_fds.insert(master.as_fd());
 
         if let Some(ref f) = stdin_file {
@@ -848,36 +772,7 @@ fn monitor_detached_session(
 
         match select(None, Some(&mut read_fds), None, None, Some(&mut timeout)) {
             Ok(0) => {
-                // Timeout occurred - check if we're waiting for input
-                let is_waiting = heuristics.check_waiting_for_input();
-
-                // Update session waiting state if it changed
-                if is_waiting != current_waiting_state {
-                    current_waiting_state = is_waiting;
-                    if let Some(session_json_path) = session_json_path {
-                        let _ = update_session_waiting(session_json_path, is_waiting);
-                    }
-                }
-
-                // Send notification only once per waiting period
-                if let Some(notification_writer) = &mut notification_writer {
-                    if is_waiting && !input_notification_sent {
-                        let event = NotificationEvent {
-                            timestamp: jiff::Timestamp::now(),
-                            event: "input_requested".to_string(),
-                            data: serde_json::json!({
-                                "title": "Input Requested",
-                                "message": "The terminal appears to be waiting for input",
-                                "debug_info": heuristics.get_debug_info()
-                            }),
-                        };
-
-                        if notification_writer.write_notification(event).is_err() {
-                            // Ignore notification write errors to not interrupt the main flow
-                        }
-                        input_notification_sent = true;
-                    }
-                }
+                // Timeout occurred - just continue
                 continue;
             }
             Err(Errno::EINTR | Errno::EAGAIN) => continue,
@@ -891,16 +786,6 @@ fn monitor_detached_session(
                     Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
                     Err(err) => return Err(err),
                     Ok(n) => {
-                        heuristics.record_input();
-
-                        // Update waiting state to false when there's input from FIFO
-                        if current_waiting_state {
-                            current_waiting_state = false;
-                            if let Some(session_json_path) = session_json_path {
-                                let _ = update_session_waiting(session_json_path, false);
-                            }
-                        }
-
                         write_all(master.as_fd(), &buf[..n])?;
                     }
                 }
@@ -914,7 +799,6 @@ fn monitor_detached_session(
                     done = true;
                 }
                 Ok(n) => {
-                    heuristics.record_output(&buf[..n]);
                     // Only log to stream writer, don't write to stdout since we're detached
                     if let Some(writer) = &mut stream_writer {
                         let time = writer.elapsed_time();
