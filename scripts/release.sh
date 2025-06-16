@@ -123,8 +123,14 @@ echo -e "${GREEN}✅ Pre-flight check passed!${NC}"
 echo ""
 
 # Get version info
-MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$PROJECT_ROOT/Project.swift" | sed 's/.*"MARKETING_VERSION": "\(.*\)".*/\1/')
-BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$PROJECT_ROOT/Project.swift" | sed 's/.*"CURRENT_PROJECT_VERSION": "\(.*\)".*/\1/')
+VERSION_CONFIG="$PROJECT_ROOT/VibeTunnel/version.xcconfig"
+if [[ -f "$VERSION_CONFIG" ]]; then
+    MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$VERSION_CONFIG" | sed 's/.*MARKETING_VERSION = //')
+    BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$VERSION_CONFIG" | sed 's/.*CURRENT_PROJECT_VERSION = //')
+else
+    echo -e "${RED}❌ Error: Version configuration file not found at $VERSION_CONFIG${NC}"
+    exit 1
+fi
 
 # Determine release version
 if [[ "$RELEASE_TYPE" == "stable" ]]; then

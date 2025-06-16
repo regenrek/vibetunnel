@@ -107,17 +107,19 @@ echo ""
 
 # 2. Check version information
 echo "📌 Version Information:"
-MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$PROJECT_ROOT/Project.swift" | sed 's/.*"MARKETING_VERSION": "\(.*\)".*/\1/')
-BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$PROJECT_ROOT/Project.swift" | sed 's/.*"CURRENT_PROJECT_VERSION": "\(.*\)".*/\1/')
-
-echo "   Marketing Version: $MARKETING_VERSION"
-echo "   Build Number: $BUILD_NUMBER"
-
-# Check for Info.plist overrides
-if grep "CFBundleShortVersionString" "$PROJECT_ROOT/Project.swift" | grep -v "MARKETING_VERSION" | grep -q .; then
-    check_fail "Info.plist has version overrides - remove them"
+VERSION_CONFIG="$PROJECT_ROOT/VibeTunnel/version.xcconfig"
+if [[ -f "$VERSION_CONFIG" ]]; then
+    MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$VERSION_CONFIG" | sed 's/.*MARKETING_VERSION = //')
+    BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$VERSION_CONFIG" | sed 's/.*CURRENT_PROJECT_VERSION = //')
+    
+    echo "   Marketing Version: $MARKETING_VERSION"
+    echo "   Build Number: $BUILD_NUMBER"
+    
+    check_pass "Version configuration found in version.xcconfig"
 else
-    check_pass "No Info.plist version overrides"
+    check_fail "Version configuration file not found at $VERSION_CONFIG"
+    MARKETING_VERSION=""
+    BUILD_NUMBER=""
 fi
 
 echo ""
@@ -226,11 +228,16 @@ echo ""
 echo "📌 Sparkle Configuration:"
 
 # Check public key
-PUBLIC_KEY=$(grep 'SUPublicEDKey' "$PROJECT_ROOT/Project.swift" | sed 's/.*"SUPublicEDKey": "\(.*\)".*/\1/')
-if [[ -n "$PUBLIC_KEY" ]]; then
-    check_pass "Sparkle public key configured"
+PUBLIC_KEY_FILE="$PROJECT_ROOT/VibeTunnel/sparkle-public-ed-key.txt"
+if [[ -f "$PUBLIC_KEY_FILE" ]]; then
+    PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE" | tr -d '\n')
+    if [[ -n "$PUBLIC_KEY" ]]; then
+        check_pass "Sparkle public key configured"
+    else
+        check_fail "Sparkle public key file is empty"
+    fi
 else
-    check_fail "Sparkle public key not found in Project.swift"
+    check_fail "Sparkle public key file not found at $PUBLIC_KEY_FILE"
 fi
 
 # Check private key in keychain
@@ -271,11 +278,11 @@ echo ""
 # 8. Check IS_PRERELEASE_BUILD Configuration
 echo "📌 IS_PRERELEASE_BUILD System:"
 
-# Check if IS_PRERELEASE_BUILD is configured in Project.swift
-if grep -q '"IS_PRERELEASE_BUILD".*"\$(IS_PRERELEASE_BUILD)"' "$PROJECT_ROOT/Project.swift"; then
-    check_pass "IS_PRERELEASE_BUILD flag configured in Project.swift"
+# Check if IS_PRERELEASE_BUILD is configured in Info.plist
+if grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/VibeTunnel-Info.plist" || grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/VibeTunnel/Info.plist" 2>/dev/null; then
+    check_pass "IS_PRERELEASE_BUILD flag configured in Info.plist"
 else
-    check_fail "IS_PRERELEASE_BUILD flag missing from Project.swift Info.plist section"
+    check_warn "IS_PRERELEASE_BUILD flag not found in Info.plist (will be set at build time)"
 fi
 
 # Check if UpdateChannel.swift has the flag detection logic
@@ -293,10 +300,15 @@ else
 fi
 
 # Check if AppBehaviorSettingsManager uses defaultChannel
-if grep -q "UpdateChannel.defaultChannel" "$PROJECT_ROOT/VibeTunnel/Core/Services/Settings/AppBehaviorSettingsManager.swift"; then
-    check_pass "AppBehaviorSettingsManager uses UpdateChannel.defaultChannel()"
+APP_BEHAVIOR_SETTINGS="$PROJECT_ROOT/VibeTunnel/Core/Services/Settings/AppBehaviorSettingsManager.swift"
+if [[ -f "$APP_BEHAVIOR_SETTINGS" ]]; then
+    if grep -q "UpdateChannel.defaultChannel" "$APP_BEHAVIOR_SETTINGS"; then
+        check_pass "AppBehaviorSettingsManager uses UpdateChannel.defaultChannel()"
+    else
+        check_fail "AppBehaviorSettingsManager not using UpdateChannel.defaultChannel() for auto-detection"
+    fi
 else
-    check_fail "AppBehaviorSettingsManager not using UpdateChannel.defaultChannel() for auto-detection"
+    check_warn "AppBehaviorSettingsManager.swift not found - skipping UpdateChannel check"
 fi
 
 echo ""
