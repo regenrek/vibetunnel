@@ -9,6 +9,11 @@ dist/
 build/
 public/app.js
 public/app.js.map
+public/app-new.js
+public/app-new.js.map
+public/app-new-entry.js
+public/app-new-entry.js.map
+public/components/
 public/output.css
 
 # Logs
