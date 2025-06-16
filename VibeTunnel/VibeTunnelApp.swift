@@ -11,14 +11,33 @@ struct VibeTunnelApp: App {
 
     var body: some Scene {
         #if os(macOS)
+            // Hidden WindowGroup to make Settings work in MenuBarExtra-only apps
+            // This is a workaround for FB10184971
+            WindowGroup("HiddenWindow") {
+                HiddenWindowView()
+            }
+            .windowResizability(.contentSize)
+            .defaultSize(width: 1, height: 1)
+            .windowStyle(.hiddenTitleBar)
+            
             Settings {
                 SettingsView()
             }
             .commands {
                 CommandGroup(after: .appInfo) {
-                    Button("About VibeTunnel") {
-                        showAboutInSettings()
-                    }
+                    SettingsLink(label: {
+                        Text("About VibeTunnel")
+                    })
+                    .simultaneousGesture(TapGesture().onEnded {
+                        // Navigate to About tab after settings opens
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(100))
+                            NotificationCenter.default.post(
+                                name: .openSettingsTab,
+                                object: SettingsTab.about
+                            )
+                        }
+                    })
                 }
             }
 
@@ -72,16 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
 
-        // Show settings on first launch or when no window is open
-        if !showInDock {
-            // For menu bar apps, we need to ensure the settings window is accessible
-            Task {
-                try? await Task.sleep(for: .milliseconds(500))
-                if NSApp.windows.isEmpty || NSApp.windows.allSatisfy({ !$0.isVisible }) {
-                    NSApp.openSettings()
-                }
-            }
-        }
+
 
         // Listen for update check requests
         NotificationCenter.default.addObserver(
@@ -90,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: Notification.Name("checkForUpdates"),
             object: nil
         )
+        
 
         // Initialize and start HTTP server
         let serverPortString = UserDefaults.standard.string(forKey: "serverPort") ?? "4020"
@@ -172,8 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Shows the Settings window when another VibeTunnel instance asks us to.
     @objc
     private func handleShowSettingsNotification(_ notification: Notification) {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.openSettings()
+        SettingsOpener.openSettings()
     }
 
     @objc
@@ -215,17 +225,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Shows the About section in the Settings window
-@MainActor
-private func showAboutInSettings() {
-    NSApp.openSettings()
-    Task {
-        // Small delay to ensure the settings window is fully initialized
-        try? await Task.sleep(for: .milliseconds(100))
-        NotificationCenter.default.post(
-            name: .openSettingsTab,
-            object: SettingsTab.about
-        )
-    }
-    NSApp.activate(ignoringOtherApps: true)
-}
+

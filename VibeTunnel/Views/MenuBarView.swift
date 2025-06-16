@@ -77,11 +77,19 @@ struct MenuBarView: View {
                         .foregroundColor(.secondary)
 
                     // About
-                    Button(action: {
-                        showAboutInSettings()
-                    }) {
+                    SettingsLink {
                         Label("About VibeTunnel", systemImage: "info.circle")
                     }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        // Navigate to About tab after settings opens
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(100))
+                            NotificationCenter.default.post(
+                                name: .openSettingsTab,
+                                object: SettingsTab.about
+                            )
+                        }
+                    })
                 } label: {
                     Label("Help", systemImage: "questionmark.circle")
                 }
@@ -97,10 +105,7 @@ struct MenuBarView: View {
             )
 
             // Settings button
-            Button(action: {
-                NSApp.openSettings()
-                NSApp.activate(ignoringOtherApps: true)
-            }) {
+            SettingsLink {
                 Label("Settings…", systemImage: "gear")
             }
             .buttonStyle(MenuButtonStyle())
@@ -254,19 +259,3 @@ struct MenuButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Helper Functions
-
-/// Shows the About section in the Settings window
-@MainActor
-private func showAboutInSettings() {
-    NSApp.openSettings()
-    Task {
-        // Small delay to ensure the settings window is fully initialized
-        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-        NotificationCenter.default.post(
-            name: .openSettingsTab,
-            object: SettingsTab.about
-        )
-    }
-    NSApp.activate(ignoringOtherApps: true)
-}
