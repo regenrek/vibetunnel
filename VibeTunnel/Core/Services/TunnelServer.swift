@@ -110,6 +110,14 @@ public final class TunnelServer {
     private var serverTask: Task<Void, Error>?
     private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel")
         .appendingPathComponent("control").path
+    
+    private func ensureControlDirectoryExists() throws {
+        let controlDirURL = URL(fileURLWithPath: ttyFwdControlDir)
+        if !FileManager.default.fileExists(atPath: ttyFwdControlDir) {
+            try FileManager.default.createDirectory(at: controlDirURL, withIntermediateDirectories: true, attributes: nil)
+            logger.info("Created control directory at: \(ttyFwdControlDir)")
+        }
+    }
 
     public init(port: Int = 4_020) {
         self.port = port
@@ -256,11 +264,23 @@ public final class TunnelServer {
                     } else {
                         // Read error output
                         let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                        let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-                        self.logger.error("tty-fwd failed with status \(process.terminationStatus): \(errorString)")
+                        let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        
+                        // Provide more descriptive error messages based on exit code
+                        let statusCode = Int(process.terminationStatus)
+                        let errorDescription: String
+                        
+                        switch statusCode {
+                        case 9:
+                            errorDescription = "Process was killed (SIGKILL). The control directory may not exist or be accessible."
+                        default:
+                            errorDescription = errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
+                        }
+                        
+                        self.logger.error("tty-fwd failed with status \(statusCode): \(errorDescription)")
 
                         let errorJson =
-                            "{\"error\": \"Failed to list sessions: \(errorString.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+                            "{\"error\": \"Failed to list sessions: \(errorDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
                         var buffer = ByteBuffer()
                         buffer.writeString(errorJson)
                         return Response(
@@ -400,7 +420,7 @@ public final class TunnelServer {
             throw NSError(
                 domain: "TtyFwdError",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "tty-fwd binary not found"]
+                userInfo: [NSLocalizedDescriptionKey: "tty-fwd binary not found. Please ensure the app was built correctly."]
             )
         }
 
@@ -417,11 +437,35 @@ public final class TunnelServer {
             return String(data: outputData, encoding: .utf8) ?? ""
         } else {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            
+            // Provide more descriptive error messages based on exit code
+            let statusCode = Int(process.terminationStatus)
+            let errorDescription: String
+            
+            switch statusCode {
+            case 1:
+                errorDescription = "General error: \(errorString.isEmpty ? "Command failed" : errorString)"
+            case 2:
+                errorDescription = "Misuse of shell command: \(errorString.isEmpty ? "Invalid arguments" : errorString)"
+            case 9:
+                errorDescription = "Process was killed (SIGKILL). The control directory may not exist or be accessible."
+            case 126:
+                errorDescription = "Command found but not executable"
+            case 127:
+                errorDescription = "Command not found"
+            case 130:
+                errorDescription = "Process terminated by Ctrl+C"
+            case 139:
+                errorDescription = "Segmentation fault"
+            default:
+                errorDescription = errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
+            }
+            
             throw NSError(
                 domain: "TtyFwdError",
-                code: Int(process.terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: errorString]
+                code: statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorDescription]
             )
         }
     }
@@ -562,6 +606,9 @@ public final class TunnelServer {
 
     private func listSessions() async -> Response {
         do {
+            // Ensure control directory exists
+            try ensureControlDirectoryExists()
+            
             let output = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--list-sessions"])
             let sessionsData = output.data(using: .utf8) ?? Data()
 
@@ -622,6 +669,9 @@ public final class TunnelServer {
                 return errorResponse(message: "Command array is required and cannot be empty", status: .badRequest)
             }
 
+            // Ensure control directory exists
+            try ensureControlDirectoryExists()
+            
             let sessionName = "session_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(9))"
             let cwd = resolvePath(sessionRequest.workingDir ?? "", fallback: FileManager.default.currentDirectoryPath)
 
@@ -841,7 +891,7 @@ public final class TunnelServer {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
             eventMask: [.write, .extend],
-            queue: DispatchQueue.global(qos: .background)
+            queue: DispatchQueue.main
         )
         
         // Store buffer for incomplete lines
