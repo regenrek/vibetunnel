@@ -27,7 +27,6 @@
 # DEPENDENCIES:
 #   - Xcode and command line tools
 #   - xcbeautify (optional, for prettier output)
-#   - Generated Xcode project (run generate-xcproj.sh first)
 #
 # EXAMPLES:
 #   ./scripts/build.sh                           # Release build
@@ -72,6 +71,28 @@ echo "Code signing: $SIGN_APP"
 
 # Clean build directory only if it doesn't exist
 mkdir -p "$BUILD_DIR"
+
+# Build tty-fwd universal binary
+echo "🔨 Building tty-fwd universal binary..."
+if [[ -x "$PROJECT_DIR/tty-fwd/build-universal.sh" ]]; then
+    cd "$PROJECT_DIR/tty-fwd"
+    ./build-universal.sh
+    
+    # Verify the binary was built
+    if [[ -f "$PROJECT_DIR/tty-fwd/target/release/tty-fwd-universal" ]]; then
+        echo "✓ tty-fwd universal binary built successfully"
+        # Copy to Resources folder for inclusion in app bundle
+        cp "$PROJECT_DIR/tty-fwd/target/release/tty-fwd-universal" "$PROJECT_DIR/VibeTunnel/Resources/tty-fwd"
+        chmod +x "$PROJECT_DIR/VibeTunnel/Resources/tty-fwd"
+        echo "✓ Copied tty-fwd universal binary to Resources folder"
+    else
+        echo "Error: Failed to build tty-fwd universal binary"
+        exit 1
+    fi
+else
+    echo "Error: tty-fwd build script not found at $PROJECT_DIR/tty-fwd/build-universal.sh"
+    exit 1
+fi
 
 # Build the app
 cd "$PROJECT_DIR"

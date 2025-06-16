@@ -89,7 +89,7 @@ public final class TunnelServer {
                 </head>
                 <body>
                     <h1>VibeTunnel Server</h1>
-                    <p class="status">✓ Server is running on port \(portNumber)</p>
+                    <p class="status">Server is running on port \(portNumber)</p>
                     <p>Available endpoints:</p>
                     <ul>
                         <li><a href="/health">/health</a> - Health check</li>

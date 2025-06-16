@@ -10,7 +10,7 @@ final class TTYForwardManager {
     
     /// Returns the URL to the bundled tty-fwd executable
     var ttyForwardExecutableURL: URL? {
-        return Bundle.main.url(forResource: "tty-fwd", withExtension: nil, subdirectory: "Resources")
+        return Bundle.main.url(forResource: "tty-fwd", withExtension: nil)
     }
     
     /// Executes the tty-fwd binary with the specified arguments

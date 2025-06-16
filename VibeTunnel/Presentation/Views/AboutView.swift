@@ -64,12 +64,12 @@ struct AboutView: View {
                 title: "Report an Issue",
                 icon: "exclamationmark.bubble"
             )
-            HoverableLink(url: "https://x.com/steipete", title: "Follow @steipete on Twitter", icon: "bird")
+            HoverableLink(url: "https://x.com/VibeTunnel", title: "Follow @VibeTunnel", icon: "bird")
         }
     }
 
     private var copyrightSection: some View {
-        Text("© 2025 Amantus AI • MIT Licensed")
+        Text("© 2025 VibeTunnel Team • MIT Licensed")
             .font(.footnote)
             .foregroundStyle(.secondary)
             .padding(.bottom, 32)

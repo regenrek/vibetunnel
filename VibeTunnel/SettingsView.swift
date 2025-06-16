@@ -32,6 +32,7 @@ extension Notification.Name {
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var contentSize: CGSize = .zero
+    @AppStorage("debugMode") private var debugMode = false
 
     // Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
@@ -55,11 +56,13 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.advanced)
 
-            DebugSettingsView()
-                .tabItem {
-                    Label(SettingsTab.debug.displayName, systemImage: SettingsTab.debug.icon)
-                }
-                .tag(SettingsTab.debug)
+            if debugMode {
+                DebugSettingsView()
+                    .tabItem {
+                        Label(SettingsTab.debug.displayName, systemImage: SettingsTab.debug.icon)
+                    }
+                    .tag(SettingsTab.debug)
+            }
 
             AboutView()
                 .tabItem {
@@ -68,7 +71,7 @@ struct SettingsView: View {
                 .tag(SettingsTab.about)
         }
         .frame(width: contentSize.width, height: contentSize.height)
-        .animatedWindowResizing(size: contentSize)
+        .animatedWindowContainer(size: contentSize)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
@@ -79,6 +82,12 @@ struct SettingsView: View {
         }
         .onAppear {
             contentSize = tabSizes[selectedTab] ?? CGSize(width: 500, height: 400)
+        }
+        .onChange(of: debugMode) { _, _ in
+            // If debug mode is disabled and we're on the debug tab, switch to general
+            if !debugMode && selectedTab == .debug {
+                selectedTab = .general
+            }
         }
     }
 }
@@ -214,7 +223,6 @@ struct AdvancedSettingsView: View {
                         .buttonStyle(.bordered)
                         .disabled(isCheckingForUpdates)
                     }
-                    .padding(.top, 8)
                 } header: {
                     Text("Updates")
                         .font(.headline)
@@ -421,7 +429,7 @@ struct DebugSettingsView: View {
                 Section {
                     // API Endpoints with test functionality
                     VStack(alignment: .leading, spacing: 12) {
-                        ForEach(apiEndpoints, id: \.path) { endpoint in
+                        ForEach(apiEndpoints) { endpoint in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text(endpoint.method)
@@ -614,11 +622,20 @@ struct DebugSettingsView: View {
 }
 
 // API Endpoint data
-struct APIEndpoint {
+struct APIEndpoint: Identifiable {
+    let id: String
     let method: String
     let path: String
     let description: String
     let isTestable: Bool
+    
+    init(method: String, path: String, description: String, isTestable: Bool) {
+        self.id = "\(method)_\(path)"
+        self.method = method
+        self.path = path
+        self.description = description
+        self.isTestable = isTestable
+    }
 }
 
 let apiEndpoints = [
