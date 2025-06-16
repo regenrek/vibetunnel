@@ -118,3 +118,6 @@ temp/
 
 # Terminal session data (don't commit user sessions)
 ~/.vibetunnel/
+public/*.js
+public/*.js.map
+public/*components*
