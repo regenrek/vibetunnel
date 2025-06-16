@@ -17,8 +17,7 @@ const MAX_FONT_SIZE = 16;
 export class ScaleFitAddon implements ITerminalAddon {
   private _terminal: Terminal | undefined;
 
-  constructor() {
-  }
+  constructor() {}
 
   public activate(terminal: Terminal): void {
     this._terminal = terminal;
@@ -27,19 +26,19 @@ export class ScaleFitAddon implements ITerminalAddon {
   public dispose(): void {}
 
   public fit(): void {
-      // For full terminals, resize both font and dimensions
-      const dims = this.proposeDimensions();
-      if (!dims || !this._terminal || isNaN(dims.cols) || isNaN(dims.rows)) {
-        return;
-      }
+    // For full terminals, resize both font and dimensions
+    const dims = this.proposeDimensions();
+    if (!dims || !this._terminal || isNaN(dims.cols) || isNaN(dims.rows)) {
+      return;
+    }
 
-      // Only resize rows, keep cols the same (font scaling handles width)
-      if (this._terminal.rows !== dims.rows) {
-        this._terminal.resize(this._terminal.cols, dims.rows);
-      }
+    // Only resize rows, keep cols the same (font scaling handles width)
+    if (this._terminal.rows !== dims.rows) {
+      this._terminal.resize(this._terminal.cols, dims.rows);
+    }
 
-      // Force responsive sizing by overriding XTerm's fixed dimensions
-      this.forceResponsiveSizing();
+    // Force responsive sizing by overriding XTerm's fixed dimensions
+    this.forceResponsiveSizing();
   }
 
   public proposeDimensions(): ITerminalDimensions | undefined {
@@ -61,7 +60,7 @@ export class ScaleFitAddon implements ITerminalAddon {
       top: parseInt(containerStyle.getPropertyValue('padding-top')),
       bottom: parseInt(containerStyle.getPropertyValue('padding-bottom')),
       left: parseInt(containerStyle.getPropertyValue('padding-left')),
-      right: parseInt(containerStyle.getPropertyValue('padding-right'))
+      right: parseInt(containerStyle.getPropertyValue('padding-right')),
     };
 
     // Calculate exact available space using known padding
@@ -102,16 +101,19 @@ export class ScaleFitAddon implements ITerminalAddon {
       requestAnimationFrame(() => this.applyFontSize(clampedFontSize));
 
       // Log all calculations for debugging
-      console.log(`ScaleFitAddon: ${availableWidth}×${availableHeight}px available, ${currentCols}×${this._terminal.rows} terminal, charWidth=${charWidth.toFixed(2)}px, lineHeight=${lineHeight.toFixed(2)}px, currentRenderedWidth=${currentRenderedWidth.toFixed(2)}px, scaleFactor=${scaleFactor.toFixed(3)}, actualFontScaling=${actualFontScaling.toFixed(3)}, fontSize ${currentFontSize}px→${clampedFontSize.toFixed(2)}px, lineHeight ${lineHeight.toFixed(2)}px→${newLineHeight.toFixed(2)}px, rows ${this._terminal.rows}→${optimalRows}`);
+      console.log(
+        `ScaleFitAddon: ${availableWidth}×${availableHeight}px available, ${currentCols}×${this._terminal.rows} terminal, charWidth=${charWidth.toFixed(2)}px, lineHeight=${lineHeight.toFixed(2)}px, currentRenderedWidth=${currentRenderedWidth.toFixed(2)}px, scaleFactor=${scaleFactor.toFixed(3)}, actualFontScaling=${actualFontScaling.toFixed(3)}, fontSize ${currentFontSize}px→${clampedFontSize.toFixed(2)}px, lineHeight ${lineHeight.toFixed(2)}px→${newLineHeight.toFixed(2)}px, rows ${this._terminal.rows}→${optimalRows}`
+      );
 
       return {
         cols: currentCols, // ALWAYS keep exact column count
-        rows: optimalRows  // Maximize rows that fit
+        rows: optimalRows, // Maximize rows that fit
       };
     } else {
       // Fallback: estimate font size and dimensions if measurements aren't available
       const charWidthRatio = 0.63;
-      const calculatedFontSize = Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
+      const calculatedFontSize =
+        Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
       const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
 
       // Apply the calculated font size
@@ -122,7 +124,7 @@ export class ScaleFitAddon implements ITerminalAddon {
 
       return {
         cols: currentCols,
-        rows: optimalRows
+        rows: optimalRows,
       };
     }
   }
@@ -167,7 +169,7 @@ export class ScaleFitAddon implements ITerminalAddon {
     const containerWidth = parseInt(containerStyle.getPropertyValue('width'));
     const containerPadding = {
       left: parseInt(containerStyle.getPropertyValue('padding-left')),
-      right: parseInt(containerStyle.getPropertyValue('padding-right'))
+      right: parseInt(containerStyle.getPropertyValue('padding-right')),
     };
 
     const availableWidth = containerWidth - containerPadding.left - containerPadding.right;
@@ -176,7 +178,8 @@ export class ScaleFitAddon implements ITerminalAddon {
     // Calculate font size to fit columns in available width
     const charWidthRatio = 0.63;
     // Calculate font size and round down for precision
-    const calculatedFontSize = Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
+    const calculatedFontSize =
+      Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
     const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
 
     // Apply the font size without changing terminal dimensions
@@ -196,8 +199,9 @@ export class ScaleFitAddon implements ITerminalAddon {
     const parentWidth = parseInt(parentStyle.getPropertyValue('width'));
 
     const elementStyle = window.getComputedStyle(this._terminal.element);
-    const paddingHor = parseInt(elementStyle.getPropertyValue('padding-left')) +
-                      parseInt(elementStyle.getPropertyValue('padding-right'));
+    const paddingHor =
+      parseInt(elementStyle.getPropertyValue('padding-left')) +
+      parseInt(elementStyle.getPropertyValue('padding-right'));
 
     const availableWidth = parentWidth - paddingHor;
     const charWidthRatio = 0.63;
@@ -213,7 +217,9 @@ export class ScaleFitAddon implements ITerminalAddon {
     if (!this._terminal?.element) return null;
 
     // XTerm has a built-in character measurement system with multiple font styles
-    const measureContainer = this._terminal.element.querySelector('.xterm-width-cache-measure-container');
+    const measureContainer = this._terminal.element.querySelector(
+      '.xterm-width-cache-measure-container'
+    );
 
     // Find the first measurement element (normal weight, usually 'm' characters)
     // This is what XTerm uses for baseline character width calculations
@@ -242,7 +248,7 @@ export class ScaleFitAddon implements ITerminalAddon {
 
         return {
           charWidth: actualCharWidth,
-          lineHeight: lineHeight
+          lineHeight: lineHeight,
         };
       }
     }

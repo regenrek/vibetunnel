@@ -71,7 +71,7 @@ export class VibeTunnelApp extends LitElement {
           exitCode: session.exitCode,
           startedAt: session.startedAt,
           lastModified: session.lastModified,
-          pid: session.pid
+          pid: session.pid,
         }));
         this.clearError();
       } else {
@@ -116,13 +116,13 @@ export class VibeTunnelApp extends LitElement {
       await this.loadSessions();
 
       // Try to find by exact ID match first
-      let session = this.sessions.find(s => s.id === sessionId);
+      let session = this.sessions.find((s) => s.id === sessionId);
 
       // If not found by ID, find the most recently created session
       // This works around tty-fwd potentially using different IDs internally
       if (!session && this.sessions.length > 0) {
-        const sortedSessions = [...this.sessions].sort((a, b) =>
-          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+        const sortedSessions = [...this.sessions].sort(
+          (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
         );
         session = sortedSessions[0];
       }
@@ -134,15 +134,13 @@ export class VibeTunnelApp extends LitElement {
       }
 
       // Wait before next attempt
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
     // If we get here, session creation might have failed
     console.log('Session not found after all attempts');
     this.showError('Session created but could not be found. Please refresh.');
   }
-
-
 
   private handleSessionKilled(e: CustomEvent) {
     console.log('Session killed:', e.detail);
@@ -198,10 +196,10 @@ export class VibeTunnelApp extends LitElement {
     this.parseUrlAndSetState();
   }
 
-  private handlePopState = (event: PopStateEvent) => {
+  private handlePopState = (_event: PopStateEvent) => {
     // Handle browser back/forward navigation
     this.parseUrlAndSetState();
-  }
+  };
 
   private parseUrlAndSetState() {
     const url = new URL(window.location.href);
@@ -232,14 +230,14 @@ export class VibeTunnelApp extends LitElement {
   private setupHotReload(): void {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}?hotReload=true`;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}?hotReload=true`;
 
-      this.hotReloadWs = new WebSocket(wsUrl);
-      this.hotReloadWs.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message.type === 'reload') {
-          window.location.reload();
+        this.hotReloadWs = new WebSocket(wsUrl);
+        this.hotReloadWs.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          if (message.type === 'reload') {
+            window.location.reload();
           }
         };
       } catch (error) {
@@ -251,45 +249,53 @@ export class VibeTunnelApp extends LitElement {
   render() {
     return html`
       <!-- Error notification overlay -->
-      ${this.errorMessage ? html`
-        <div class="fixed top-4 right-4 z-50">
-          <div class="bg-vs-warning text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
-            ${this.errorMessage}
-            <button @click=${this.clearError} class="ml-2 text-vs-bg hover:text-vs-muted">✕</button>
-          </div>
-        </div>
-      ` : ''}
+      ${this.errorMessage
+        ? html`
+            <div class="fixed top-4 right-4 z-50">
+              <div class="bg-vs-warning text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
+                ${this.errorMessage}
+                <button @click=${this.clearError} class="ml-2 text-vs-bg hover:text-vs-muted">
+                  ✕
+                </button>
+              </div>
+            </div>
+          `
+        : ''}
 
       <!-- Main content -->
-      ${this.currentView === 'session' && this.selectedSessionId ?
-        keyed(this.selectedSessionId, html`
-          <session-view
-            .session=${this.sessions.find(s => s.id === this.selectedSessionId)}
-          ></session-view>
-        `) : html`
-        <div class="max-w-4xl mx-auto">
-          <app-header
-            .sessions=${this.sessions}
-            .hideExited=${this.hideExited}
-            @create-session=${this.handleCreateSession}
-            @hide-exited-change=${this.handleHideExitedChange}
-            @kill-all-sessions=${this.handleKillAll}
-          ></app-header>
-          <session-list
-            .sessions=${this.sessions}
-            .loading=${this.loading}
-            .hideExited=${this.hideExited}
-            .showCreateModal=${this.showCreateModal}
-            @session-killed=${this.handleSessionKilled}
-            @session-created=${this.handleSessionCreated}
-            @create-modal-close=${this.handleCreateModalClose}
-            @refresh=${this.handleRefresh}
-            @error=${this.handleError}
-            @hide-exited-change=${this.handleHideExitedChange}
-            @kill-all-sessions=${this.handleKillAll}
-          ></session-list>
-        </div>
-        `}
+      ${this.currentView === 'session' && this.selectedSessionId
+        ? keyed(
+            this.selectedSessionId,
+            html`
+              <session-view
+                .session=${this.sessions.find((s) => s.id === this.selectedSessionId)}
+              ></session-view>
+            `
+          )
+        : html`
+            <div class="max-w-4xl mx-auto">
+              <app-header
+                .sessions=${this.sessions}
+                .hideExited=${this.hideExited}
+                @create-session=${this.handleCreateSession}
+                @hide-exited-change=${this.handleHideExitedChange}
+                @kill-all-sessions=${this.handleKillAll}
+              ></app-header>
+              <session-list
+                .sessions=${this.sessions}
+                .loading=${this.loading}
+                .hideExited=${this.hideExited}
+                .showCreateModal=${this.showCreateModal}
+                @session-killed=${this.handleSessionKilled}
+                @session-created=${this.handleSessionCreated}
+                @create-modal-close=${this.handleCreateModalClose}
+                @refresh=${this.handleRefresh}
+                @error=${this.handleError}
+                @hide-exited-change=${this.handleHideExitedChange}
+                @kill-all-sessions=${this.handleKillAll}
+              ></session-list>
+            </div>
+          `}
     `;
   }
 }

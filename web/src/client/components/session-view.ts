@@ -78,8 +78,9 @@ export class SessionView extends LitElement {
     }
 
     // Detect mobile device
-    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                   window.innerWidth <= 768;
+    this.isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      window.innerWidth <= 768;
 
     // Only add listeners if not already added
     if (!this.isMobile && !this.keyboardListenerAdded) {
@@ -91,7 +92,6 @@ export class SessionView extends LitElement {
       document.addEventListener('touchend', this.touchEndHandler, { passive: true });
       this.touchListenersAdded = true;
     }
-
   }
 
   disconnectedCallback() {
@@ -112,7 +112,6 @@ export class SessionView extends LitElement {
       document.removeEventListener('touchend', this.touchEndHandler);
       this.touchListenersAdded = false;
     }
-
 
     // Stop loading animation
     this.stopLoading();
@@ -158,7 +157,7 @@ export class SessionView extends LitElement {
       // Create the interactive terminal div inside the container
       const container = this.querySelector('#terminal-container') as HTMLElement;
       if (!container) return;
-      
+
       terminalElement = document.createElement('div');
       terminalElement.id = 'interactive-terminal';
       terminalElement.className = 'w-full h-full';
@@ -186,7 +185,10 @@ export class SessionView extends LitElement {
     }, delay);
 
     // Listen for session exit events
-    terminalElement.addEventListener('session-exit', this.handleSessionExit.bind(this) as EventListener);
+    terminalElement.addEventListener(
+      'session-exit',
+      this.handleSessionExit.bind(this) as EventListener
+    );
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
@@ -200,10 +202,10 @@ export class SessionView extends LitElement {
 
     // Handle clipboard shortcuts: Cmd+C/V on macOS, Shift+Ctrl+C/V on Linux/Windows
     const isMacOS = navigator.platform.toLowerCase().includes('mac');
-    const isPasteShortcut = 
+    const isPasteShortcut =
       (isMacOS && e.metaKey && e.key === 'v' && !e.ctrlKey && !e.shiftKey) ||
       (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'V');
-    const isCopyShortcut = 
+    const isCopyShortcut =
       (isMacOS && e.metaKey && e.key === 'c' && !e.ctrlKey && !e.shiftKey) ||
       (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'C');
 
@@ -274,7 +276,8 @@ export class SessionView extends LitElement {
     // Handle Ctrl combinations (but not if we already handled Ctrl+Enter above)
     if (e.ctrlKey && e.key.length === 1 && e.key !== 'Enter') {
       const charCode = e.key.toLowerCase().charCodeAt(0);
-      if (charCode >= 97 && charCode <= 122) { // a-z
+      if (charCode >= 97 && charCode <= 122) {
+        // a-z
         inputText = String.fromCharCode(charCode - 96); // Ctrl+A = \x01, etc.
       }
     }
@@ -284,9 +287,9 @@ export class SessionView extends LitElement {
       const response = await fetch(`/api/sessions/${this.session.id}/input`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: inputText })
+        body: JSON.stringify({ text: inputText }),
       });
 
       if (!response.ok) {
@@ -318,7 +321,6 @@ export class SessionView extends LitElement {
       // Update session status to exited
       this.session = { ...this.session, status: 'exited' };
       this.requestUpdate();
-
 
       // Switch to snapshot mode
       requestAnimationFrame(() => {
@@ -366,7 +368,9 @@ export class SessionView extends LitElement {
         controls.style.transition = 'transform 0.3s ease';
 
         // Calculate available space for textarea
-        const header = this.querySelector('.flex.items-center.justify-between.p-4.border-b') as HTMLElement;
+        const header = this.querySelector(
+          '.flex.items-center.justify-between.p-4.border-b'
+        ) as HTMLElement;
         const headerHeight = header?.offsetHeight || 60;
         const controlsHeight = controls?.offsetHeight || 120;
         const padding = 48; // Additional padding for spacing
@@ -501,14 +505,13 @@ export class SessionView extends LitElement {
     }
   };
 
-
   private async handlePaste() {
     if (!this.session) return;
 
     try {
       // Try clipboard API first (requires user activation)
       const clipboardText = await navigator.clipboard.readText();
-      
+
       if (clipboardText) {
         // Send the clipboard text to the terminal
         await this.sendInputText(clipboardText);
@@ -517,7 +520,7 @@ export class SessionView extends LitElement {
       console.error('Failed to read from clipboard:', error);
       // Show user a message about using Ctrl+V instead
       console.log('Tip: Try using Ctrl+V (Cmd+V on Mac) to paste instead');
-      
+
       // Fallback: try to use the older document.execCommand method
       try {
         const textArea = document.createElement('textarea');
@@ -527,14 +530,14 @@ export class SessionView extends LitElement {
         textArea.style.top = '-9999px';
         document.body.appendChild(textArea);
         textArea.focus();
-        
+
         if (document.execCommand('paste')) {
           const pastedText = textArea.value;
           if (pastedText) {
             await this.sendInputText(pastedText);
           }
         }
-        
+
         document.body.removeChild(textArea);
       } catch (fallbackError) {
         console.error('Fallback paste method also failed:', fallbackError);
@@ -549,14 +552,17 @@ export class SessionView extends LitElement {
     try {
       // Get the terminal instance from the renderer
       const terminal = this.renderer.getTerminal();
-      
+
       // Get the selected text from the terminal
       const selectedText = terminal.getSelection();
-      
+
       if (selectedText) {
         // Write the selected text to clipboard
         await navigator.clipboard.writeText(selectedText);
-        console.log('Text copied to clipboard:', selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : ''));
+        console.log(
+          'Text copied to clipboard:',
+          selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '')
+        );
       } else {
         console.log('No text selected for copying');
       }
@@ -567,7 +573,7 @@ export class SessionView extends LitElement {
         if (this.renderer) {
           const terminal = this.renderer.getTerminal();
           const selectedText = terminal.getSelection();
-          
+
           if (selectedText) {
             const textArea = document.createElement('textarea');
             textArea.value = selectedText;
@@ -575,11 +581,14 @@ export class SessionView extends LitElement {
             textArea.style.opacity = '0';
             document.body.appendChild(textArea);
             textArea.select();
-            
+
             if (document.execCommand('copy')) {
-              console.log('Text copied to clipboard (fallback):', selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : ''));
+              console.log(
+                'Text copied to clipboard (fallback):',
+                selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '')
+              );
             }
-            
+
             document.body.removeChild(textArea);
           }
         }
@@ -596,9 +605,9 @@ export class SessionView extends LitElement {
       const response = await fetch(`/api/sessions/${this.session.id}/input`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text }),
       });
 
       if (!response.ok) {
@@ -636,30 +645,32 @@ export class SessionView extends LitElement {
     return frames[this.loadingFrame % frames.length];
   }
 
-
   render() {
     if (!this.session) {
-      return html`
-        <div class="p-4 text-vs-muted">
-          No session selected
-        </div>
-      `;
+      return html` <div class="p-4 text-vs-muted">No session selected</div> `;
     }
 
     return html`
       <style>
-        session-view *, session-view *:focus, session-view *:focus-visible {
+        session-view *,
+        session-view *:focus,
+        session-view *:focus-visible {
           outline: none !important;
           box-shadow: none !important;
         }
         session-view:focus {
-          outline: 2px solid #007ACC !important;
+          outline: 2px solid #007acc !important;
           outline-offset: -2px;
         }
       </style>
-      <div class="flex flex-col bg-vs-bg font-mono" style="height: 100vh; height: 100dvh; outline: none !important; box-shadow: none !important;">
+      <div
+        class="flex flex-col bg-vs-bg font-mono"
+        style="height: 100vh; height: 100dvh; outline: none !important; box-shadow: none !important;"
+      >
         <!-- Compact Header -->
-        <div class="flex items-center justify-between px-3 py-2 border-b border-vs-border bg-vs-bg-secondary text-sm">
+        <div
+          class="flex items-center justify-between px-3 py-2 border-b border-vs-border bg-vs-bg-secondary text-sm"
+        >
           <div class="flex items-center gap-3">
             <button
               class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-2 py-1 border-none rounded transition-colors text-xs"
@@ -680,146 +691,167 @@ export class SessionView extends LitElement {
         </div>
 
         <!-- Terminal Container -->
-        <div class="flex-1 bg-black overflow-hidden min-h-0 relative" id="terminal-container" style="max-width: 100vw; height: 100%;">
-          ${this.loading ? html`
-            <!-- Loading overlay -->
-            <div class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center">
-              <div class="text-vs-text font-mono text-center">
-                <div class="text-2xl mb-2">${this.getLoadingText()}</div>
-                <div class="text-sm text-vs-muted">Connecting to session...</div>
-              </div>
-            </div>
-          ` : ''}
+        <div
+          class="flex-1 bg-black overflow-hidden min-h-0 relative"
+          id="terminal-container"
+          style="max-width: 100vw; height: 100%;"
+        >
+          ${this.loading
+            ? html`
+                <!-- Loading overlay -->
+                <div
+                  class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center"
+                >
+                  <div class="text-vs-text font-mono text-center">
+                    <div class="text-2xl mb-2">${this.getLoadingText()}</div>
+                    <div class="text-sm text-vs-muted">Connecting to session...</div>
+                  </div>
+                </div>
+              `
+            : ''}
         </div>
 
         <!-- Mobile Input Controls -->
-        ${this.isMobile && !this.showMobileInput ? html`
-          <div class="flex-shrink-0 p-4 bg-vs-bg">
-              <!-- First row: Arrow keys -->
-              <div class="flex gap-2 mb-2">
-                <button
-                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('arrow_up')}
-                >
-                  <span class="text-xl">↑</span>
-                </button>
-                <button
-                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('arrow_down')}
-                >
-                  <span class="text-xl">↓</span>
-                </button>
-                <button
-                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('arrow_left')}
-                >
-                  <span class="text-xl">←</span>
-                </button>
-                <button
-                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('arrow_right')}
-                >
-                  <span class="text-xl">→</span>
-                </button>
-              </div>
+        ${this.isMobile && !this.showMobileInput
+          ? html`
+              <div class="flex-shrink-0 p-4 bg-vs-bg">
+                <!-- First row: Arrow keys -->
+                <div class="flex gap-2 mb-2">
+                  <button
+                    class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('arrow_up')}
+                  >
+                    <span class="text-xl">↑</span>
+                  </button>
+                  <button
+                    class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('arrow_down')}
+                  >
+                    <span class="text-xl">↓</span>
+                  </button>
+                  <button
+                    class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('arrow_left')}
+                  >
+                    <span class="text-xl">←</span>
+                  </button>
+                  <button
+                    class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('arrow_right')}
+                  >
+                    <span class="text-xl">→</span>
+                  </button>
+                </div>
 
-              <!-- Second row: Special keys -->
-              <div class="flex gap-2">
-                <button
-                  class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('\t')}
-                >
-                  <span class="text-xl">⇥</span>
-                </button>
-                <button
-                  class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('enter')}
-                >
-                  <span class="text-xl">⏎</span>
-                </button>
-                <button
-                  class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('escape')}
-                >
-                  ESC
-                </button>
-                <button
-                  class="bg-vs-error text-vs-text hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${() => this.handleSpecialKey('\x03')}
-                >
-                  ^C
-                </button>
-                <button
-                  class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                  @click=${this.handleMobileInputToggle}
-                >
-                  TYPE
-                </button>
+                <!-- Second row: Special keys -->
+                <div class="flex gap-2">
+                  <button
+                    class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('\t')}
+                  >
+                    <span class="text-xl">⇥</span>
+                  </button>
+                  <button
+                    class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('enter')}
+                  >
+                    <span class="text-xl">⏎</span>
+                  </button>
+                  <button
+                    class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('escape')}
+                  >
+                    ESC
+                  </button>
+                  <button
+                    class="bg-vs-error text-vs-text hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${() => this.handleSpecialKey('\x03')}
+                  >
+                    ^C
+                  </button>
+                  <button
+                    class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                    @click=${this.handleMobileInputToggle}
+                  >
+                    TYPE
+                  </button>
+                </div>
               </div>
-          </div>
-        ` : ''}
+            `
+          : ''}
 
         <!-- Full-Screen Input Overlay (only when opened) -->
-        ${this.isMobile && this.showMobileInput ? html`
-            <div class="fixed inset-0 bg-vs-bg-secondary bg-opacity-95 z-50 flex flex-col" style="height: 100vh; height: 100dvh;">
-              <!-- Input Header -->
-              <div class="flex items-center justify-between p-4 border-b border-vs-border flex-shrink-0">
-                <div class="text-vs-text font-mono text-sm">Terminal Input</div>
-                <button
-                  class="text-vs-muted hover:text-vs-text text-lg leading-none border-none bg-transparent cursor-pointer"
-                  @click=${this.handleMobileInputToggle}
+        ${this.isMobile && this.showMobileInput
+          ? html`
+              <div
+                class="fixed inset-0 bg-vs-bg-secondary bg-opacity-95 z-50 flex flex-col"
+                style="height: 100vh; height: 100dvh;"
+              >
+                <!-- Input Header -->
+                <div
+                  class="flex items-center justify-between p-4 border-b border-vs-border flex-shrink-0"
                 >
-                  ×
-                </button>
-              </div>
-
-              <!-- Input Area with dynamic height -->
-              <div class="flex-1 p-4 flex flex-col min-h-0">
-                <div class="text-vs-muted text-sm mb-2 flex-shrink-0">
-                  Type your command(s) below. Supports multiline input.
-                </div>
-                <textarea
-                  id="mobile-input-textarea"
-                  class="flex-1 bg-vs-bg text-vs-text border border-vs-border font-mono text-sm p-4 resize-none outline-none"
-                  placeholder="Enter your command here..."
-                  .value=${this.mobileInputText}
-                  @input=${this.handleMobileInputChange}
-                  @keydown=${(e: KeyboardEvent) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                      e.preventDefault();
-                      this.handleMobileInputSend();
-                    }
-                  }}
-                  style="min-height: 120px; margin-bottom: 16px;"
-                ></textarea>
-              </div>
-
-              <!-- Controls - Fixed above keyboard -->
-              <div id="mobile-controls" class="fixed bottom-0 left-0 right-0 p-4 border-t border-vs-border bg-vs-bg-secondary z-60" style="padding-bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateY(0px);">
-                <!-- Send Buttons Row -->
-                <div class="flex gap-2 mb-3">
+                  <div class="text-vs-text font-mono text-sm">Terminal Input</div>
                   <button
-                    class="flex-1 bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-3 border-none rounded transition-colors text-sm font-bold"
-                    @click=${this.handleMobileInputSendOnly}
-                    ?disabled=${!this.mobileInputText.trim()}
+                    class="text-vs-muted hover:text-vs-text text-lg leading-none border-none bg-transparent cursor-pointer"
+                    @click=${this.handleMobileInputToggle}
                   >
-                    SEND
-                  </button>
-                  <button
-                    class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-3 border-none rounded transition-colors text-sm font-bold"
-                    @click=${this.handleMobileInputSend}
-                    ?disabled=${!this.mobileInputText.trim()}
-                  >
-                    SEND + ENTER
+                    ×
                   </button>
                 </div>
 
-                <div class="text-vs-muted text-xs text-center">
-                  SEND: text only • SEND + ENTER: text with enter key
+                <!-- Input Area with dynamic height -->
+                <div class="flex-1 p-4 flex flex-col min-h-0">
+                  <div class="text-vs-muted text-sm mb-2 flex-shrink-0">
+                    Type your command(s) below. Supports multiline input.
+                  </div>
+                  <textarea
+                    id="mobile-input-textarea"
+                    class="flex-1 bg-vs-bg text-vs-text border border-vs-border font-mono text-sm p-4 resize-none outline-none"
+                    placeholder="Enter your command here..."
+                    .value=${this.mobileInputText}
+                    @input=${this.handleMobileInputChange}
+                    @keydown=${(e: KeyboardEvent) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        this.handleMobileInputSend();
+                      }
+                    }}
+                    style="min-height: 120px; margin-bottom: 16px;"
+                  ></textarea>
+                </div>
+
+                <!-- Controls - Fixed above keyboard -->
+                <div
+                  id="mobile-controls"
+                  class="fixed bottom-0 left-0 right-0 p-4 border-t border-vs-border bg-vs-bg-secondary z-60"
+                  style="padding-bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateY(0px);"
+                >
+                  <!-- Send Buttons Row -->
+                  <div class="flex gap-2 mb-3">
+                    <button
+                      class="flex-1 bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-3 border-none rounded transition-colors text-sm font-bold"
+                      @click=${this.handleMobileInputSendOnly}
+                      ?disabled=${!this.mobileInputText.trim()}
+                    >
+                      SEND
+                    </button>
+                    <button
+                      class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-3 border-none rounded transition-colors text-sm font-bold"
+                      @click=${this.handleMobileInputSend}
+                      ?disabled=${!this.mobileInputText.trim()}
+                    >
+                      SEND + ENTER
+                    </button>
+                  </div>
+
+                  <div class="text-vs-muted text-xs text-center">
+                    SEND: text only • SEND + ENTER: text with enter key
+                  </div>
                 </div>
               </div>
-            </div>
-        ` : ''}
+            `
+          : ''}
       </div>
     `;
   }

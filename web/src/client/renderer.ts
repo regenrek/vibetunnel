@@ -27,7 +27,13 @@ export class Renderer {
   private scaleFitAddon: ScaleFitAddon;
   private webLinksAddon: WebLinksAddon;
 
-  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14) {
+  constructor(
+    container: HTMLElement,
+    width: number = 80,
+    height: number = 20,
+    scrollback: number = 1000000,
+    fontSize: number = 14
+  ) {
     Renderer.activeCount++;
     console.log(`Renderer constructor called (active: ${Renderer.activeCount})`);
     this.container = container;
@@ -62,7 +68,7 @@ export class Renderer {
         brightBlue: '#3b8eea',
         brightMagenta: '#d670d6',
         brightCyan: '#29b8db',
-        brightWhite: '#ffffff'
+        brightWhite: '#ffffff',
       },
       allowProposedApi: true,
       scrollback: scrollback, // Configurable scrollback buffer
@@ -73,7 +79,7 @@ export class Renderer {
       cursorBlink: true,
       cursorStyle: 'block',
       cursorWidth: 1,
-      cursorInactiveStyle: "block"
+      cursorInactiveStyle: 'block',
     });
 
     // Add addons
@@ -116,7 +122,9 @@ export class Renderer {
     // Ensure cursor is visible without focus by forcing it to stay active
     requestAnimationFrame(() => {
       if (this.terminal.element) {
-        const helperTextarea = this.terminal.element.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement;
+        const helperTextarea = this.terminal.element.querySelector(
+          '.xterm-helper-textarea'
+        ) as HTMLTextAreaElement;
         if (helperTextarea) {
           // Prevent the helper textarea from stealing focus but allow cursor rendering
           helperTextarea.addEventListener('focus', (e) => {
@@ -142,7 +150,6 @@ export class Renderer {
     resizeObserver.observe(this.container);
   }
 
-
   // Public API methods - maintain compatibility with custom renderer
 
   async loadCastFile(url: string): Promise<void> {
@@ -166,14 +173,14 @@ export class Renderer {
 
         if (parsed.version && parsed.width && parsed.height) {
           // Header
-          header = parsed;
+          // header = parsed;
           this.resize(parsed.width, parsed.height);
         } else if (Array.isArray(parsed) && parsed.length >= 3) {
           // Event: [timestamp, type, data]
           const event: CastEvent = {
             timestamp: parsed[0],
             type: parsed[1],
-            data: parsed[2]
+            data: parsed[2],
           };
 
           if (event.type === 'o') {
@@ -182,7 +189,7 @@ export class Renderer {
             this.processResize(event.data);
           }
         }
-      } catch (e) {
+      } catch (_e) {
         console.warn('Failed to parse cast line:', line);
       }
     }
@@ -259,7 +266,7 @@ export class Renderer {
 
             // Dispatch custom event that session-view can listen to
             const exitEvent = new CustomEvent('session-exit', {
-              detail: { sessionId, exitCode }
+              detail: { sessionId, exitCode },
             });
             this.container.dispatchEvent(exitEvent);
             return;
@@ -269,12 +276,12 @@ export class Renderer {
           const castEvent: CastEvent = {
             timestamp: data[0],
             type: data[1],
-            data: data[2]
+            data: data[2],
           };
           // Process event without verbose logging
           this.processEvent(castEvent);
         }
-      } catch (e) {
+      } catch (_e) {
         console.warn('Failed to parse stream event:', event.data);
       }
     };
@@ -348,7 +355,7 @@ export class Renderer {
   getDimensions(): { cols: number; rows: number } {
     return {
       cols: this.terminal.cols,
-      rows: this.terminal.rows
+      rows: this.terminal.rows,
     };
   }
 

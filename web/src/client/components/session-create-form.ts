@@ -35,16 +35,16 @@ export class SessionCreateForm extends LitElement {
     try {
       const savedWorkingDir = localStorage.getItem(this.STORAGE_KEY_WORKING_DIR);
       const savedCommand = localStorage.getItem(this.STORAGE_KEY_COMMAND);
-      
+
       console.log('Loading from localStorage:', { savedWorkingDir, savedCommand });
-      
+
       if (savedWorkingDir) {
         this.workingDir = savedWorkingDir;
       }
       if (savedCommand) {
         this.command = savedCommand;
       }
-      
+
       // Force re-render to update the input values
       this.requestUpdate();
     } catch (error) {
@@ -56,9 +56,9 @@ export class SessionCreateForm extends LitElement {
     try {
       const workingDir = this.workingDir.trim();
       const command = this.command.trim();
-      
+
       console.log('Saving to localStorage:', { workingDir, command });
-      
+
       // Only save non-empty values
       if (workingDir) {
         localStorage.setItem(this.STORAGE_KEY_WORKING_DIR, workingDir);
@@ -73,7 +73,7 @@ export class SessionCreateForm extends LitElement {
 
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-    
+
     // Load from localStorage when form becomes visible
     if (changedProperties.has('visible') && this.visible) {
       this.loadFromLocalStorage();
@@ -83,9 +83,11 @@ export class SessionCreateForm extends LitElement {
   private handleWorkingDirChange(e: Event) {
     const input = e.target as HTMLInputElement;
     this.workingDir = input.value;
-    this.dispatchEvent(new CustomEvent('working-dir-change', {
-      detail: this.workingDir
-    }));
+    this.dispatchEvent(
+      new CustomEvent('working-dir-change', {
+        detail: this.workingDir,
+      })
+    );
   }
 
   private handleCommandChange(e: Event) {
@@ -108,9 +110,11 @@ export class SessionCreateForm extends LitElement {
 
   private async handleCreate() {
     if (!this.workingDir.trim() || !this.command.trim()) {
-      this.dispatchEvent(new CustomEvent('error', {
-        detail: 'Please fill in both working directory and command'
-      }));
+      this.dispatchEvent(
+        new CustomEvent('error', {
+          detail: 'Please fill in both working directory and command',
+        })
+      );
       return;
     }
 
@@ -118,37 +122,43 @@ export class SessionCreateForm extends LitElement {
 
     const sessionData: SessionCreateData = {
       command: this.parseCommand(this.command.trim()),
-      workingDir: this.workingDir.trim()
+      workingDir: this.workingDir.trim(),
     };
 
     try {
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionData)
+        body: JSON.stringify(sessionData),
       });
 
       if (response.ok) {
         const result = await response.json();
-        
+
         // Save to localStorage before clearing the command
         this.saveToLocalStorage();
-        
+
         this.command = ''; // Clear command on success
-        this.dispatchEvent(new CustomEvent('session-created', {
-          detail: result
-        }));
+        this.dispatchEvent(
+          new CustomEvent('session-created', {
+            detail: result,
+          })
+        );
       } else {
         const error = await response.json();
-        this.dispatchEvent(new CustomEvent('error', {
-          detail: `Failed to create session: ${error.error}`
-        }));
+        this.dispatchEvent(
+          new CustomEvent('error', {
+            detail: `Failed to create session: ${error.error}`,
+          })
+        );
       }
     } catch (error) {
       console.error('Error creating session:', error);
-      this.dispatchEvent(new CustomEvent('error', {
-        detail: 'Failed to create session'
-      }));
+      this.dispatchEvent(
+        new CustomEvent('error', {
+          detail: 'Failed to create session',
+        })
+      );
     } finally {
       this.isCreating = false;
     }
@@ -163,7 +173,7 @@ export class SessionCreateForm extends LitElement {
 
     for (let i = 0; i < commandStr.length; i++) {
       const char = commandStr[i];
-      
+
       if ((char === '"' || char === "'") && !inQuotes) {
         inQuotes = true;
         quoteChar = char;
@@ -179,11 +189,11 @@ export class SessionCreateForm extends LitElement {
         current += char;
       }
     }
-    
+
     if (current) {
       args.push(current);
     }
-    
+
     return args;
   }
 
@@ -197,64 +207,73 @@ export class SessionCreateForm extends LitElement {
     }
 
     return html`
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 9999;">
-        <div class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 max-w-full mx-4">
+      <div
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+        style="z-index: 9999;"
+      >
+        <div
+          class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 max-w-full mx-4"
+        >
           <div class="p-4 border-b border-vs-border flex justify-between items-center">
             <div class="text-vs-assistant text-sm">Create New Session</div>
-            <button 
+            <button
               class="text-vs-muted hover:text-vs-text text-lg leading-none border-none bg-transparent cursor-pointer"
               @click=${this.handleCancel}
-            >×</button>
-          </div>
-          
-          <div class="p-4">
-        
-        <div class="mb-4">
-          <div class="text-vs-text mb-2">Working Directory:</div>
-          <div class="flex gap-4">
-            <input
-              type="text"
-              class="flex-1 bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
-              .value=${this.workingDir}
-              @input=${this.handleWorkingDirChange}
-              placeholder="~/"
-              ?disabled=${this.disabled || this.isCreating}
-            />
-            <button 
-              class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none"
-              @click=${this.handleBrowse}
-              ?disabled=${this.disabled || this.isCreating}
             >
-              browse
+              ×
             </button>
           </div>
-        </div>
 
-        <div class="mb-4">
-          <div class="text-vs-text mb-2">Command:</div>
-          <input
-            type="text"
-            class="w-full bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
-            .value=${this.command}
-            @input=${this.handleCommandChange}
-            @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
-            placeholder="zsh"
-            ?disabled=${this.disabled || this.isCreating}
-          />
-        </div>
+          <div class="p-4">
+            <div class="mb-4">
+              <div class="text-vs-text mb-2">Working Directory:</div>
+              <div class="flex gap-4">
+                <input
+                  type="text"
+                  class="flex-1 bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
+                  .value=${this.workingDir}
+                  @input=${this.handleWorkingDirChange}
+                  placeholder="~/"
+                  ?disabled=${this.disabled || this.isCreating}
+                />
+                <button
+                  class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none"
+                  @click=${this.handleBrowse}
+                  ?disabled=${this.disabled || this.isCreating}
+                >
+                  browse
+                </button>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="text-vs-text mb-2">Command:</div>
+              <input
+                type="text"
+                class="w-full bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
+                .value=${this.command}
+                @input=${this.handleCommandChange}
+                @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
+                placeholder="zsh"
+                ?disabled=${this.disabled || this.isCreating}
+              />
+            </div>
 
             <div class="flex gap-4 justify-end">
-              <button 
+              <button
                 class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-4 py-2 border-none"
                 @click=${this.handleCancel}
                 ?disabled=${this.isCreating}
               >
                 cancel
               </button>
-              <button 
+              <button
                 class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-vs-user"
                 @click=${this.handleCreate}
-                ?disabled=${this.disabled || this.isCreating || !this.workingDir.trim() || !this.command.trim()}
+                ?disabled=${this.disabled ||
+                this.isCreating ||
+                !this.workingDir.trim() ||
+                !this.command.trim()}
               >
                 ${this.isCreating ? 'creating...' : 'create'}
               </button>
@@ -262,7 +281,7 @@ export class SessionCreateForm extends LitElement {
           </div>
         </div>
       </div>
-      
+
       <file-browser
         .visible=${this.showFileBrowser}
         .currentPath=${this.workingDir}
