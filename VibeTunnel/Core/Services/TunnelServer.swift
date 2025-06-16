@@ -129,43 +129,6 @@ public final class TunnelServer {
                 )
             }
             
-            // Simple test endpoint
-            let portNumber = self.port  // Capture port value before closure
-            router.get("/") { _, _ -> Response in
-                let html = """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>VibeTunnel Server</title>
-                    <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 40px; }
-                        h1 { color: #333; }
-                        .status { color: green; font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                    <h1>VibeTunnel Server</h1>
-                    <p class="status">Server is running on port \(portNumber)</p>
-                    <p>Available endpoints:</p>
-                    <ul>
-                        <li><a href="/health">/health</a> - Health check</li>
-                        <li><a href="/info">/info</a> - Server information</li>
-                        <li><a href="/sessions">/sessions</a> - List tty-fwd sessions</li>
-                    </ul>
-                </body>
-                </html>
-                """
-                
-                var buffer = ByteBuffer()
-                buffer.writeString(html)
-                
-                return Response(
-                    status: .ok,
-                    headers: [.contentType: "text/html"],
-                    body: ResponseBody(byteBuffer: buffer)
-                )
-            }
-            
             // API routes for session management
             router.get("/api/sessions") { _, _ async -> Response in
                 await self.listSessions()
@@ -278,6 +241,26 @@ public final class TunnelServer {
                         body: ResponseBody(byteBuffer: buffer)
                     )
                 }
+            }
+            
+            // Serve index.html from root path
+            router.get("/") { _, _ async -> Response in
+                return await self.serveStaticFile(path: "index.html")
+            }
+            
+            // Serve static files from web/public folder (catch-all route - must be last)
+            router.get("**") { request, context async -> Response in
+                // Get the full path from the request URI
+                let requestPath = request.uri.path
+                // Remove leading slash
+                let path = String(requestPath.dropFirst())
+                
+                // If it's empty (root path), we already handled it above
+                if path.isEmpty {
+                    return self.errorResponse(message: "File not found", status: .notFound)
+                }
+                
+                return await self.serveStaticFile(path: path)
             }
             
             // Create application configuration
@@ -432,6 +415,119 @@ public final class TunnelServer {
             )
         } catch {
             return errorResponse(message: "Failed to encode JSON response")
+        }
+    }
+    
+    // MARK: - Static File Serving
+    
+    private func serveStaticFile(path: String) async -> Response {
+        // Try multiple possible paths for the web/public directory
+        let possiblePaths = [
+            // Bundle resource path (for production app)
+            Bundle.main.resourcePath?.appending("/web/public"),
+            // Current working directory (for development)
+            FileManager.default.currentDirectoryPath + "/web/public",
+            // Project directory (if running from source)
+            "/Users/mitsuhiko/Development/vibetunnel/web/public",
+            // Relative to bundle path
+            Bundle.main.bundlePath + "/../../../web/public"
+        ].compactMap { $0 }
+        
+        let sanitizedPath = path.replacingOccurrences(of: "..", with: "")
+        
+        var webPublicPath: String?
+        var fullPath: String?
+        
+        // Find the first path that exists
+        for testPath in possiblePaths {
+            let testFullPath = testPath + "/" + sanitizedPath
+            if FileManager.default.fileExists(atPath: testFullPath) {
+                webPublicPath = testPath
+                fullPath = testFullPath
+                break
+            }
+        }
+        
+        // If no file found, try just checking directory existence
+        if fullPath == nil {
+            for testPath in possiblePaths {
+                if FileManager.default.fileExists(atPath: testPath, isDirectory: nil) {
+                    webPublicPath = testPath
+                    fullPath = testPath + "/" + sanitizedPath
+                    break
+                }
+            }
+        }
+        
+        guard let finalPath = fullPath, let finalWebPath = webPublicPath else {
+            logger.error("Could not find web/public directory in any of these paths:")
+            for testPath in possiblePaths {
+                logger.error("  - \(testPath)")
+            }
+            return errorResponse(message: "Web directory not found", status: .notFound)
+        }
+        
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: finalPath, isDirectory: &isDirectory) else {
+            return errorResponse(message: "File not found", status: .notFound)
+        }
+        
+        // If it's a directory, return 404 (we don't serve directory listings)
+        if isDirectory.boolValue {
+            return errorResponse(message: "Directory access not allowed", status: .notFound)
+        }
+        
+        do {
+            let fileData = try Data(contentsOf: URL(fileURLWithPath: finalPath))
+            var buffer = ByteBuffer()
+            buffer.writeBytes(fileData)
+            
+            let contentType = getContentType(for: path)
+            
+            return Response(
+                status: .ok,
+                headers: [.contentType: contentType],
+                body: ResponseBody(byteBuffer: buffer)
+            )
+        } catch {
+            return errorResponse(message: "Failed to read file", status: .internalServerError)
+        }
+    }
+    
+    private func getContentType(for path: String) -> String {
+        let pathExtension = (path as NSString).pathExtension.lowercased()
+        
+        switch pathExtension {
+        case "html", "htm":
+            return "text/html"
+        case "css":
+            return "text/css"
+        case "js":
+            return "application/javascript"
+        case "json":
+            return "application/json"
+        case "png":
+            return "image/png"
+        case "jpg", "jpeg":
+            return "image/jpeg"
+        case "gif":
+            return "image/gif"
+        case "svg":
+            return "image/svg+xml"
+        case "ico":
+            return "image/x-icon"
+        case "woff":
+            return "font/woff"
+        case "woff2":
+            return "font/woff2"
+        case "ttf":
+            return "font/ttf"
+        case "eot":
+            return "application/vnd.ms-fontobject"
+        case "map":
+            return "application/json"
+        default:
+            return "application/octet-stream"
         }
     }
     
