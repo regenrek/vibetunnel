@@ -47,7 +47,7 @@ export class SessionList extends LitElement {
       // Just mark as loaded and create the player with the endpoint URL
       this.loadedSnapshots.set(sessionId, sessionId);
       this.requestUpdate();
-      
+
       // Create asciinema player after the element is rendered
       setTimeout(() => this.createPlayer(sessionId), 10);
     } catch (error) {
@@ -72,16 +72,16 @@ export class SessionList extends LitElement {
       const newSessionIdsList = this.sessions
         .filter(session => !prevSessions.find((prev: Session) => prev.id === session.id))
         .map(session => session.id);
-      
+
       // Track new sessions
       newSessionIdsList.forEach(id => this.newSessionIds.add(id));
-      
+
       // Load existing sessions immediately
-      const existingSessions = this.sessions.filter(session => 
+      const existingSessions = this.sessions.filter(session =>
         !newSessionIdsList.includes(session.id)
       );
       existingSessions.forEach(session => this.loadSnapshot(session.id));
-      
+
       // Load new sessions after a delay to let them generate some output
       if (newSessionIdsList.length > 0) {
         setTimeout(() => {
@@ -99,9 +99,9 @@ export class SessionList extends LitElement {
     const playerElement = this.querySelector(`#player-${sessionId}`) as HTMLElement;
     if (playerElement && (window as any).AsciinemaPlayer) {
       try {
-        const snapshotUrl = `/api/sessions/${sessionId}/snapshot`;
-        
-        (window as any).AsciinemaPlayer.create(snapshotUrl, playerElement, {
+        const streamUrl = `/api/sessions/${sessionId}/stream`;
+
+        (window as any).AsciinemaPlayer.create({driver: "eventsource", url: streamUrl}, playerElement, {
           autoPlay: true,
           loop: false,
           controls: false,
@@ -191,7 +191,7 @@ export class SessionList extends LitElement {
 
   private async handleCleanExited() {
     const exitedSessions = this.sessions.filter(session => session.status === 'exited');
-    
+
     if (exitedSessions.length === 0) {
       this.dispatchEvent(new CustomEvent('error', {
         detail: 'No exited sessions to clean'
@@ -211,20 +211,20 @@ export class SessionList extends LitElement {
       const response = await fetch('/api/cleanup-exited', {
         method: 'POST'
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to cleanup exited sessions');
       }
-      
+
       this.dispatchEvent(new CustomEvent('error', {
         detail: `Successfully cleaned ${exitedSessions.length} exited session${exitedSessions.length > 1 ? 's' : ''}`
       }));
-      
+
       // Refresh the list after cleanup
       setTimeout(() => {
         this.handleRefresh();
       }, 500);
-      
+
     } catch (error) {
       console.error('Error cleaning exited sessions:', error);
       this.dispatchEvent(new CustomEvent('error', {
@@ -237,14 +237,14 @@ export class SessionList extends LitElement {
   }
 
   private get filteredSessions() {
-    return this.hideExited 
+    return this.hideExited
       ? this.sessions.filter(session => session.status === 'running')
       : this.sessions;
   }
 
   render() {
     const sessionsToShow = this.filteredSessions;
-    
+
     return html`
       <div class="font-mono text-sm p-4">
         <!-- Controls -->
@@ -252,14 +252,14 @@ export class SessionList extends LitElement {
           <!-- Mobile: Stack everything -->
           <div class="flex flex-col space-y-3 md:hidden">
             <div class="flex items-center gap-2">
-              <button 
+              <button
                 class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm flex-1"
                 @click=${() => this.showCreateModal = true}
               >
 CREATE
               </button>
-              
-              <button 
+
+              <button
                 class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors disabled:opacity-50 text-sm flex-1"
                 @click=${this.handleCleanExited}
                 ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
@@ -267,12 +267,12 @@ CREATE
                 ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN'}
               </button>
             </div>
-            
+
             <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
               <div class="relative">
-                <input 
-                  type="checkbox" 
-                  class="sr-only" 
+                <input
+                  type="checkbox"
+                  class="sr-only"
                   .checked=${this.hideExited}
                   @change=${(e: Event) => this.hideExited = (e.target as HTMLInputElement).checked}
                 >
@@ -289,18 +289,18 @@ CREATE
               --filter-exited
             </label>
           </div>
-          
+
           <!-- Desktop: Side by side -->
           <div class="hidden md:flex md:items-center md:justify-between">
             <div class="flex items-center gap-3">
-              <button 
+              <button
                 class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors"
                 @click=${() => this.showCreateModal = true}
               >
 CREATE SESSION
               </button>
-              
-              <button 
+
+              <button
                 class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
                 @click=${this.handleCleanExited}
                 ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
@@ -308,12 +308,12 @@ CREATE SESSION
                 ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
               </button>
             </div>
-            
+
             <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
               <div class="relative">
-                <input 
-                  type="checkbox" 
-                  class="sr-only" 
+                <input
+                  type="checkbox"
+                  class="sr-only"
                   .checked=${this.hideExited}
                   @change=${(e: Event) => this.hideExited = (e.target as HTMLInputElement).checked}
                 >
@@ -339,14 +339,14 @@ CREATE SESSION
         ` : html`
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             ${sessionsToShow.map(session => html`
-              <div 
+              <div
                 class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden"
                 @click=${() => this.handleSessionClick(session)}
               >
                 <!-- Compact Header -->
                 <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
                   <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${session.command}</div>
-                  <button 
+                  <button
                     class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
                     @click=${(e: Event) => this.handleKillSession(e, session.id)}
                     ?disabled=${this.killingSessionIds.has(session.id)}
@@ -361,8 +361,8 @@ CREATE SESSION
                     <div id="player-${session.id}" class="w-full h-full" style="overflow: hidden;"></div>
                   ` : html`
                     <div class="text-vs-muted text-xs">
-                      ${this.newSessionIds.has(session.id) 
-                        ? '[~] init_session...' 
+                      ${this.newSessionIds.has(session.id)
+                        ? '[~] init_session...'
                         : (this.loadingSnapshots.has(session.id) ? '[~] loading...' : '[~] loading...')
                       }
                     </div>
@@ -383,7 +383,7 @@ CREATE SESSION
             `)}
           </div>
         `}
-        
+
         <session-create-form
           .visible=${this.showCreateModal}
           @session-created=${this.handleSessionCreated}

@@ -277,7 +277,7 @@ app.post('/api/cleanup-exited', async (req, res) => {
 
 // === TERMINAL I/O ===
 
-// Server-sent events for terminal output streaming
+// Live streaming cast file for asciinema player
 app.get('/api/sessions/:sessionId/stream', (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
