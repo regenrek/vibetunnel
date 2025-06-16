@@ -296,7 +296,7 @@ pub fn start_server(
 }
 
 fn extract_session_id(path: &str) -> Option<String> {
-    let re = Regex::new(r"/api/sessions/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})").unwrap();
+    let re = Regex::new(r"/api/sessions/([^/]+)($|/)").unwrap();
     re.captures(path)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().to_string())
@@ -558,8 +558,7 @@ fn handle_cleanup_exited(control_path: &PathBuf) -> Response<String> {
 }
 
 fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<String> {
-    dbg!(path);
-    if let Some(session_id) = dbg!(extract_session_id(path)) {
+    if let Some(session_id) = extract_session_id(path) {
         let stream_path = control_path.join(&session_id).join("stream-out");
 
         match fs::read_to_string(&stream_path) {
