@@ -699,10 +699,52 @@ public final class TunnelServer {
                 return errorResponse(message: "tty-fwd binary not found")
             }
 
+            // Set up pipes to capture stdout for session ID
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+            
             process.currentDirectoryPath = cwd
             try process.run()
+            
+            // Wait for session ID from stdout (similar to Node.js implementation)
+            var sessionId: String?
+            let outputData = outputPipe.fileHandleForReading.availableData
+            if !outputData.isEmpty {
+                let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let output = output, !output.isEmpty {
+                    // First line of output should be the session ID (UUID)
+                    sessionId = output
+                    logger.info("Session created with ID: \(sessionId ?? "unknown")")
+                }
+            }
+            
+            // If we didn't get a session ID, wait a bit and try again
+            if sessionId == nil {
+                // Wait up to 3 seconds for session ID
+                let maxAttempts = 30
+                for _ in 0..<maxAttempts {
+                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                    
+                    let moreData = outputPipe.fileHandleForReading.availableData
+                    if !moreData.isEmpty {
+                        let output = String(data: moreData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let output = output, !output.isEmpty {
+                            sessionId = output
+                            logger.info("Session created with ID: \(sessionId ?? "unknown")")
+                            break
+                        }
+                    }
+                }
+            }
+            
+            guard let finalSessionId = sessionId else {
+                logger.error("Failed to get session ID from tty-fwd")
+                return errorResponse(message: "Failed to create session - no session ID returned")
+            }
 
-            let response = SessionIdResponse(sessionId: sessionName)
+            let response = SessionIdResponse(sessionId: finalSessionId)
             return jsonResponse(response)
 
         } catch {
