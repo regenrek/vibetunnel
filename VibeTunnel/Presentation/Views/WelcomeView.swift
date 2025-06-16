@@ -22,8 +22,14 @@ struct WelcomeView: View {
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                 }
                 
-                // Page 3: Accessing Dashboard
+                // Page 3: Protect Your Dashboard
                 if currentPage == 2 {
+                    ProtectDashboardPageView()
+                        .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                }
+                
+                // Page 4: Accessing Dashboard
+                if currentPage == 3 {
                     AccessDashboardPageView()
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                 }
@@ -34,7 +40,7 @@ struct WelcomeView: View {
             VStack(spacing: 16) {
                 // Page indicators
                 HStack(spacing: 8) {
-                    ForEach(0..<3) { index in
+                    ForEach(0..<4) { index in
                         Circle()
                             .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
                             .frame(width: 8, height: 8)
@@ -60,14 +66,18 @@ struct WelcomeView: View {
         }
         .frame(width: 640, height: 560)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            // Always start at the first page when the view appears
+            currentPage = 0
+        }
     }
     
     private var buttonTitle: String {
-        currentPage == 2 ? "Finish" : "Next"
+        currentPage == 3 ? "Finish" : "Next"
     }
     
     private func handleNextAction() {
-        if currentPage < 2 {
+        if currentPage < 3 {
             withAnimation {
                 currentPage += 1
             }
@@ -198,6 +208,116 @@ struct VTCommandPageView: View {
     }
 }
 
+// MARK: - Protect Dashboard Page
+struct ProtectDashboardPageView: View {
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var isPasswordSet = false
+    
+    private let dashboardKeychain = DashboardKeychain.shared
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            
+            // App icon
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
+                .resizable()
+                .frame(width: 156, height: 156)
+                .shadow(radius: 10)
+            
+            VStack(spacing: 16) {
+                Text("Protect Your Dashboard")
+                    .font(.largeTitle)
+                    .fontWeight(.semibold)
+                
+                Text("If you want to access your dashboard over the network, set a password now.\nOtherwise, it will only be accessible via localhost.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 480)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                // Password fields
+                VStack(spacing: 12) {
+                    SecureField("Password", text: $password)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 300)
+                    
+                    SecureField("Confirm Password", text: $confirmPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 300)
+                    
+                    if showError {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
+                    if isPasswordSet {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Password saved securely")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                    
+                    Button("Set Password") {
+                        setPassword()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(password.isEmpty || isPasswordSet)
+                    
+                    Text("Leave empty to skip password protection")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    private func setPassword() {
+        showError = false
+        
+        guard !password.isEmpty else {
+            return
+        }
+        
+        guard password == confirmPassword else {
+            errorMessage = "Passwords do not match"
+            showError = true
+            return
+        }
+        
+        guard password.count >= 6 else {
+            errorMessage = "Password must be at least 6 characters"
+            showError = true
+            return
+        }
+        
+        if dashboardKeychain.setPassword(password) {
+            isPasswordSet = true
+            UserDefaults.standard.set(true, forKey: "dashboardPasswordEnabled")
+            
+            // When password is set for the first time, automatically switch to network mode
+            let currentMode = DashboardAccessMode(rawValue: UserDefaults.standard.string(forKey: "dashboardAccessMode") ?? "") ?? .localhost
+            if currentMode == .localhost {
+                UserDefaults.standard.set(DashboardAccessMode.network.rawValue, forKey: "dashboardAccessMode")
+            }
+        } else {
+            errorMessage = "Failed to save password to keychain"
+            showError = true
+        }
+    }
+}
+
 // MARK: - Access Dashboard Page
 struct AccessDashboardPageView: View {
     @AppStorage("ngrokEnabled") private var ngrokEnabled = false
@@ -240,15 +360,7 @@ struct AccessDashboardPageView: View {
                     .controlSize(.large)
                     
                     // Tailscale link button
-                    Button(action: {
-                        NSWorkspace.shared.open(URL(string: "https://tailscale.com/")!)
-                    }) {
-                        HStack {
-                            Image(systemName: "link")
-                            Text("Learn more about Tailscale")
-                        }
-                    }
-                    .buttonStyle(.link)
+                    TailscaleLink()
                 }
             }
             
@@ -259,36 +371,72 @@ struct AccessDashboardPageView: View {
                     .foregroundColor(.secondary)
                 
                 HStack(spacing: 4) {
-                    Button("@badlogic") {
-                        NSWorkspace.shared.open(URL(string: "https://mariozechner.at/")!)
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
+                    CreditLink(name: "@badlogic", url: "https://mariozechner.at/")
                     
                     Text("•")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Button("@mitsuhiko") {
-                        NSWorkspace.shared.open(URL(string: "https://lucumr.pocoo.org/")!)
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
+                    CreditLink(name: "@mitsuhiko", url: "https://lucumr.pocoo.org/")
                     
                     Text("•")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Button("@steipete") {
-                        NSWorkspace.shared.open(URL(string: "https://steipete.me")!)
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
+                    CreditLink(name: "@steipete", url: "https://steipete.me")
                 }
             }
             .padding(.bottom, 8)
         }
         .padding()
+    }
+}
+
+// MARK: - Tailscale Link Component
+struct TailscaleLink: View {
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: {
+            NSWorkspace.shared.open(URL(string: "https://tailscale.com/")!)
+        }) {
+            HStack {
+                Image(systemName: "link")
+                Text("Learn more about Tailscale")
+                    .underline(isHovering, color: .accentColor)
+            }
+        }
+        .buttonStyle(.link)
+        .pointingHandCursor()
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Credit Link Component
+struct CreditLink: View {
+    let name: String
+    let url: String
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: {
+            NSWorkspace.shared.open(URL(string: url)!)
+        }) {
+            Text(name)
+                .font(.caption)
+                .underline(isHovering, color: .accentColor)
+        }
+        .buttonStyle(.link)
+        .pointingHandCursor()
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import AppKit
 /// Represents the available tabs in the Settings window
 enum SettingsTab: String, CaseIterable {
     case general
+    case dashboard
     case advanced
     case debug
     case about
@@ -11,6 +12,7 @@ enum SettingsTab: String, CaseIterable {
     var displayName: String {
         switch self {
         case .general: "General"
+        case .dashboard: "Dashboard"
         case .advanced: "Advanced"
         case .debug: "Debug"
         case .about: "About"
@@ -20,6 +22,7 @@ enum SettingsTab: String, CaseIterable {
     var icon: String {
         switch self {
         case .general: "gear"
+        case .dashboard: "server.rack"
         case .advanced: "gearshape.2"
         case .debug: "hammer"
         case .about: "info.circle"
@@ -40,6 +43,7 @@ struct SettingsView: View {
     /// Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
         .general: CGSize(width: 500, height: 520),
+        .dashboard: CGSize(width: 500, height: 520),
         .advanced: CGSize(width: 500, height: 520),
         .debug: CGSize(width: 500, height: 520),
         .about: CGSize(width: 500, height: 520)
@@ -52,6 +56,12 @@ struct SettingsView: View {
                     Label(SettingsTab.general.displayName, systemImage: SettingsTab.general.icon)
                 }
                 .tag(SettingsTab.general)
+
+            DashboardSettingsView()
+                .tabItem {
+                    Label(SettingsTab.dashboard.displayName, systemImage: SettingsTab.dashboard.icon)
+                }
+                .tag(SettingsTab.dashboard)
 
             AdvancedSettingsView()
                 .tabItem {
@@ -249,17 +259,25 @@ struct GeneralSettingsView: View {
     }
 }
 
-/// Advanced settings tab for power user options
-struct AdvancedSettingsView: View {
-    @AppStorage("debugMode")
-    private var debugMode = false
+/// Dashboard settings tab for server and access configuration
+struct DashboardSettingsView: View {
     @AppStorage("serverPort")
     private var serverPort = "4020"
     @AppStorage("ngrokEnabled")
     private var ngrokEnabled = false
-    @AppStorage("cleanupOnStartup")
-    private var cleanupOnStartup = true
-
+    @AppStorage("dashboardPasswordEnabled")
+    private var passwordEnabled = false
+    @AppStorage("ngrokTokenPresent")
+    private var ngrokTokenPresent = false
+    @AppStorage("dashboardAccessMode")
+    private var accessModeString = DashboardAccessMode.localhost.rawValue
+    
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var showPasswordFields = false
+    @State private var passwordError: String?
+    @State private var passwordSaved = false
+    
     @State private var ngrokAuthToken = ""
     @State private var ngrokStatus: NgrokTunnelStatus?
     @State private var isStartingNgrok = false
@@ -268,13 +286,126 @@ struct AdvancedSettingsView: View {
     @State private var showingKeychainAlert = false
     @State private var showingServerErrorAlert = false
     @State private var serverErrorMessage = ""
-
+    @State private var isTokenRevealed = false
+    @State private var maskedToken = ""
+    
+    private let dashboardKeychain = DashboardKeychain.shared
     private let ngrokService = NgrokService.shared
-
+    
+    private var accessMode: DashboardAccessMode {
+        DashboardAccessMode(rawValue: accessModeString) ?? .localhost
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
                 Section {
+                    // Password Protection
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Password protect dashboard", isOn: $passwordEnabled)
+                            .onChange(of: passwordEnabled) { _, newValue in
+                                if newValue && !dashboardKeychain.hasPassword() {
+                                    showPasswordFields = true
+                                } else if !newValue {
+                                    // Clear password when disabled
+                                    _ = dashboardKeychain.deletePassword()
+                                    showPasswordFields = false
+                                    passwordSaved = false
+                                }
+                            }
+                        
+                        Text("Require a password to access the dashboard from remote connections.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        if showPasswordFields || (passwordEnabled && !passwordSaved) {
+                            VStack(spacing: 8) {
+                                SecureField("Password", text: $password)
+                                    .textFieldStyle(.roundedBorder)
+                                SecureField("Confirm Password", text: $confirmPassword)
+                                    .textFieldStyle(.roundedBorder)
+                                
+                                if let error = passwordError {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
+                                
+                                HStack {
+                                    Button("Cancel") {
+                                        showPasswordFields = false
+                                        passwordEnabled = false
+                                        password = ""
+                                        confirmPassword = ""
+                                        passwordError = nil
+                                    }
+                                    .buttonStyle(.bordered)
+                                    
+                                    Button("Save Password") {
+                                        savePassword()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(password.isEmpty)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                        
+                        if passwordSaved {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Password saved")
+                                    .font(.caption)
+                                Spacer()
+                                Button("Change Password") {
+                                    showPasswordFields = true
+                                    passwordSaved = false
+                                    password = ""
+                                    confirmPassword = ""
+                                }
+                                .buttonStyle(.link)
+                                .font(.caption)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Security")
+                        .font(.headline)
+                } footer: {
+                    Text("When password protection is enabled, localhost connections can still access without a password.")
+                        .font(.caption)
+                }
+                
+                Section {
+                    // Access Mode
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Allow accessing dashboard:")
+                            Spacer()
+                            Picker("", selection: Binding(
+                                get: { accessMode },
+                                set: { newMode in
+                                    accessModeString = newMode.rawValue
+                                    restartServerWithNewBindAddress()
+                                }
+                            )) {
+                                ForEach(DashboardAccessMode.allCases, id: \.self) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                        Text(accessMode.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    // Port Configuration
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Server port:")
@@ -295,10 +426,10 @@ struct AdvancedSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Server")
+                    Text("Server Configuration")
                         .font(.headline)
                 }
-
+                
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         // ngrok Enable Toggle
@@ -332,15 +463,37 @@ struct AdvancedSettingsView: View {
                             HStack {
                                 Text("Auth token:")
                                 Spacer()
-                                SecureField("", text: $ngrokAuthToken)
-                                    .frame(width: 250)
-                                    .textFieldStyle(.roundedBorder)
-                                    .onAppear {
-                                        ngrokAuthToken = ngrokService.authToken ?? ""
+                                HStack(spacing: 4) {
+                                    if isTokenRevealed {
+                                        SecureField("", text: $ngrokAuthToken)
+                                            .frame(width: 220)
+                                            .textFieldStyle(.roundedBorder)
+                                            .onChange(of: ngrokAuthToken) { _, newValue in
+                                                ngrokService.authToken = newValue.isEmpty ? nil : newValue
+                                                ngrokTokenPresent = !newValue.isEmpty
+                                            }
+                                    } else {
+                                        TextField("", text: $maskedToken)
+                                            .frame(width: 220)
+                                            .textFieldStyle(.roundedBorder)
+                                            .disabled(true)
+                                            .onAppear {
+                                                // Show masked placeholder if token exists
+                                                if ngrokTokenPresent {
+                                                    maskedToken = String(repeating: "•", count: 12)
+                                                } else {
+                                                    maskedToken = ""
+                                                }
+                                            }
                                     }
-                                    .onChange(of: ngrokAuthToken) { _, newValue in
-                                        ngrokService.authToken = newValue.isEmpty ? nil : newValue
+                                    Button(action: {
+                                        toggleTokenVisibility()
+                                    }) {
+                                        Image(systemName: isTokenRevealed ? "eye.slash" : "eye")
                                     }
+                                    .buttonStyle(.plain)
+                                    .help(isTokenRevealed ? "Hide token" : "Reveal token")
+                                }
                             }
                             HStack {
                                 Text("Get your free auth token at")
@@ -426,7 +579,193 @@ struct AdvancedSettingsView: View {
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
                 }
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Dashboard Settings")
+        }
+        .onAppear {
+            // Check password status
+            if dashboardKeychain.hasPassword() {
+                passwordSaved = true
+                passwordEnabled = true
+            }
+            
+            // Check if token exists without triggering keychain
+            if ngrokService.hasAuthToken && !ngrokTokenPresent {
+                ngrokTokenPresent = true
+            }
+            
+            // Update masked field based on token presence
+            if ngrokTokenPresent && !isTokenRevealed {
+                maskedToken = String(repeating: "•", count: 12)
+            }
+        }
+        .alert("ngrok Auth Token Required", isPresented: $showingAuthTokenAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com")
+        }
+        .alert("Keychain Access Error", isPresented: $showingKeychainAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Failed to save the auth token to the keychain. Please check your keychain permissions and try again.")
+        }
+        .alert("Failed to Restart Server", isPresented: $showingServerErrorAlert) {
+            Button("OK") { }
+        } message: {
+            Text(serverErrorMessage)
+        }
+    }
+    
+    private func savePassword() {
+        passwordError = nil
+        
+        guard !password.isEmpty else {
+            passwordError = "Password cannot be empty"
+            return
+        }
+        
+        guard password == confirmPassword else {
+            passwordError = "Passwords do not match"
+            return
+        }
+        
+        guard password.count >= 6 else {
+            passwordError = "Password must be at least 6 characters"
+            return
+        }
+        
+        if dashboardKeychain.setPassword(password) {
+            passwordSaved = true
+            showPasswordFields = false
+            password = ""
+            confirmPassword = ""
+            
+            // When password is set for the first time, automatically switch to network mode
+            if accessMode == .localhost {
+                accessModeString = DashboardAccessMode.network.rawValue
+                restartServerWithNewBindAddress()
+            }
+        } else {
+            passwordError = "Failed to save password to keychain"
+        }
+    }
+    
+    private func restartServerWithNewPort(_ port: Int) {
+        Task {
+            // Update the port in ServerManager and restart
+            ServerManager.shared.port = String(port)
+            await ServerManager.shared.restart()
+            print("Server restarted on port \(port)")
 
+            // Restart session monitoring with new port
+            SessionMonitor.shared.stopMonitoring()
+            SessionMonitor.shared.startMonitoring()
+        }
+    }
+    
+    private func restartServerWithNewBindAddress() {
+        Task {
+            // Update the bind address in ServerManager and restart
+            ServerManager.shared.bindAddress = accessMode.bindAddress
+            await ServerManager.shared.restart()
+            print("Server restarted with bind address \(accessMode.bindAddress)")
+
+            // Restart session monitoring
+            SessionMonitor.shared.stopMonitoring()
+            SessionMonitor.shared.startMonitoring()
+        }
+    }
+    
+    private func checkAndStartNgrok() {
+        print("checkAndStartNgrok called")
+        
+        // Check if we have a token in the keychain without accessing it
+        guard ngrokTokenPresent || ngrokService.hasAuthToken else {
+            print("No auth token stored")
+            ngrokError = "Please enter your ngrok auth token first"
+            ngrokEnabled = false
+            showingAuthTokenAlert = true
+            return
+        }
+        
+        // If token hasn't been revealed yet, we need to access it from keychain
+        if !isTokenRevealed && ngrokAuthToken.isEmpty {
+            // This will trigger keychain access
+            if let token = ngrokService.authToken {
+                ngrokAuthToken = token
+                print("Retrieved token from keychain for ngrok start")
+            } else {
+                print("Failed to retrieve token from keychain")
+                ngrokError = "Failed to access auth token. Please try again."
+                ngrokEnabled = false
+                showingKeychainAlert = true
+                return
+            }
+        }
+
+        print("Starting ngrok with auth token present")
+        isStartingNgrok = true
+        ngrokError = nil
+
+        Task {
+            do {
+                let port = Int(serverPort) ?? 4_020
+                print("Starting ngrok on port \(port)")
+                _ = try await ngrokService.start(port: port)
+                isStartingNgrok = false
+                ngrokStatus = await ngrokService.getStatus()
+                print("ngrok started successfully")
+            } catch {
+                print("ngrok start error: \(error)")
+                isStartingNgrok = false
+                ngrokError = error.localizedDescription
+                ngrokEnabled = false
+            }
+        }
+    }
+
+    private func stopNgrok() {
+        Task {
+            try? await ngrokService.stop()
+            ngrokStatus = nil
+            // Don't clear the error here - let it remain visible
+        }
+    }
+    
+    private func toggleTokenVisibility() {
+        if isTokenRevealed {
+            // Hide the token
+            isTokenRevealed = false
+            ngrokAuthToken = ""
+            if ngrokTokenPresent {
+                maskedToken = String(repeating: "•", count: 12)
+            }
+        } else {
+            // Reveal the token - this will trigger keychain access
+            if let token = ngrokService.authToken {
+                ngrokAuthToken = token
+                isTokenRevealed = true
+            } else {
+                // No token stored, just reveal the empty field
+                ngrokAuthToken = ""
+                isTokenRevealed = true
+            }
+        }
+    }
+}
+
+/// Advanced settings tab for power user options
+struct AdvancedSettingsView: View {
+    @AppStorage("debugMode")
+    private var debugMode = false
+    @AppStorage("cleanupOnStartup")
+    private var cleanupOnStartup = true
+
+    var body: some View {
+        NavigationStack {
+            Form {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -464,91 +803,6 @@ struct AdvancedSettingsView: View {
             .scrollContentBackground(.hidden)
             .navigationTitle("Advanced Settings")
         }
-        .onAppear {
-            // Load existing auth token
-            ngrokAuthToken = ngrokService.authToken ?? ""
-            print("AdvancedSettingsView appeared - auth token present: \(!ngrokAuthToken.isEmpty)")
-        }
-        .alert("ngrok Auth Token Required", isPresented: $showingAuthTokenAlert) {
-            Button("OK") { }
-        } message: {
-            Text("Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com")
-        }
-        .alert("Keychain Access Error", isPresented: $showingKeychainAlert) {
-            Button("OK") { }
-        } message: {
-            Text("Failed to save the auth token to the keychain. Please check your keychain permissions and try again.")
-        }
-        .alert("Failed to Restart Server", isPresented: $showingServerErrorAlert) {
-            Button("OK") { }
-        } message: {
-            Text(serverErrorMessage)
-        }
-    }
-
-    private func restartServerWithNewPort(_ port: Int) {
-        Task {
-            // Update the port in ServerManager and restart
-            ServerManager.shared.port = String(port)
-            await ServerManager.shared.restart()
-            print("Server restarted on port \(port)")
-
-            // Restart session monitoring with new port
-            SessionMonitor.shared.stopMonitoring()
-            SessionMonitor.shared.startMonitoring()
-        }
-    }
-
-    private func checkAndStartNgrok() {
-        print("checkAndStartNgrok called")
-        print("Local auth token state: '\(ngrokAuthToken)' (length: \(ngrokAuthToken.count))")
-        print("Service auth token: '\(ngrokService.authToken ?? "nil")' (present: \(ngrokService.authToken != nil))")
-        
-        // First check the local state variable
-        guard !ngrokAuthToken.isEmpty else {
-            print("No auth token in local state")
-            ngrokError = "Please enter your ngrok auth token first"
-            ngrokEnabled = false
-            showingAuthTokenAlert = true
-            return
-        }
-        
-        // Then verify it's saved in the service
-        guard !ngrokService.authToken.isNilOrEmpty else {
-            print("Auth token not saved in keychain")
-            ngrokError = "Failed to save auth token. Please try again."
-            ngrokEnabled = false
-            showingKeychainAlert = true
-            return
-        }
-
-        print("Starting ngrok with auth token present")
-        isStartingNgrok = true
-        ngrokError = nil
-
-        Task {
-            do {
-                let port = Int(serverPort) ?? 4_020
-                print("Starting ngrok on port \(port)")
-                _ = try await ngrokService.start(port: port)
-                isStartingNgrok = false
-                ngrokStatus = await ngrokService.getStatus()
-                print("ngrok started successfully")
-            } catch {
-                print("ngrok start error: \(error)")
-                isStartingNgrok = false
-                ngrokError = error.localizedDescription
-                ngrokEnabled = false
-            }
-        }
-    }
-
-    private func stopNgrok() {
-        Task {
-            try? await ngrokService.stop()
-            ngrokStatus = nil
-            // Don't clear the error here - let it remain visible
-        }
     }
     
     private func installCLITool() {
@@ -571,7 +825,7 @@ struct DebugSettingsView: View {
     @State private var isTesting = false
     @AppStorage("debugMode") private var debugMode = false
     @AppStorage("logLevel") private var logLevel = "info"
-    @AppStorage("serverMode") private var serverModeString = ServerMode.hummingbird.rawValue
+    @AppStorage("serverMode") private var serverModeString = ServerMode.rust.rawValue
     @State private var serverManager = ServerManager.shared
     @State private var isServerHealthy = false
     @State private var heartbeatTask: Task<Void, Never>?
