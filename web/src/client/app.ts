@@ -172,7 +172,7 @@ export class VibeTunnelApp extends LitElement {
   private async handleKillAll() {
     // Find all session cards and trigger their kill buttons
     const sessionCards = this.querySelectorAll('session-card');
-    
+
     sessionCards.forEach((card: any) => {
       // Check if this session is running
       if (card.session && card.session.status === 'running') {
@@ -231,6 +231,7 @@ export class VibeTunnelApp extends LitElement {
 
   private setupHotReload(): void {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}?hotReload=true`;
 
@@ -239,8 +240,11 @@ export class VibeTunnelApp extends LitElement {
         const message = JSON.parse(event.data);
         if (message.type === 'reload') {
           window.location.reload();
-        }
-      };
+          }
+        };
+      } catch (error) {
+        console.error('Error setting up hot reload:', error);
+      }
     }
   }
 
@@ -257,7 +261,7 @@ export class VibeTunnelApp extends LitElement {
       ` : ''}
 
       <!-- Main content -->
-      ${this.currentView === 'session' && this.selectedSessionId ? 
+      ${this.currentView === 'session' && this.selectedSessionId ?
         keyed(this.selectedSessionId, html`
           <session-view
             .session=${this.sessions.find(s => s.id === this.selectedSessionId)}
