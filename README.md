@@ -2,304 +2,176 @@
 
 # VibeTunnel
 
-VibeTunnel is a macOS application that bridges terminal applications to the web, enabling remote control of terminal tools from anywhere. It creates secure tunnels between local terminal sessions and web browsers, making it possible to access and control command-line applications like Claude Code remotely.
+**Turn any browser into your Mac terminal.** VibeTunnel proxies your terminals right into the browser, so you can vibe-code anywhere. 
 
-## Architecture Overview
+[![Download](https://img.shields.io/badge/Download-macOS-blue)](https://github.com/amantus-ai/vibetunnel/releases/latest)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![macOS 14.0+](https://img.shields.io/badge/macOS-14.0+-red)](https://www.apple.com/macos/)
 
-VibeTunnel employs a multi-layered architecture designed for flexibility, security, and ease of use:
+## Why VibeTunnel?
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Web Browser (Client)                   │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  TypeScript/JavaScript Frontend                  │   │
-│  │  - Asciinema Player for Terminal Rendering      │   │
-│  │  - WebSocket for Real-time Updates              │   │
-│  │  - Tailwind CSS for UI                          │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-                            ↕ HTTPS/WebSocket
-┌─────────────────────────────────────────────────────────┐
-│                    HTTP Server Layer                     │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  Dual Implementation:                            │   │
-│  │  1. Hummingbird Server (Swift)                  │   │
-│  │  2. Rust Server (tty-fwd binary)                │   │
-│  │  - REST APIs for session management              │   │
-│  │  - WebSocket streaming for terminal I/O         │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────┐
-│                 macOS Application (Swift)                │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  Core Components:                                │   │
-│  │  - ServerManager: Orchestrates server lifecycle  │   │
-│  │  - SessionMonitor: Tracks active sessions       │   │
-│  │  - TTYForwardManager: Handles TTY forwarding    │   │
-│  │  - TerminalManager: Terminal operations         │   │
-│  │  - NgrokService: Optional tunnel exposure       │   │
-│  └─────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  UI Layer (SwiftUI):                            │   │
-│  │  - MenuBarView: System menu bar integration     │   │
-│  │  - SettingsView: Configuration interface        │   │
-│  │  - ServerConsoleView: Diagnostics & logs        │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-```
+Ever wanted to check on your AI agents while you're away? Need to monitor that long-running build from your phone? Want to share a terminal session with a colleague without complex SSH setups? VibeTunnel makes it happen with zero friction.
 
-## Core Components
+**"We wanted something that just works"** - That's exactly what we built.
 
-### 1. **Native macOS Application**
+### ✨ Key Features
 
-The main application is built with Swift and SwiftUI, providing:
+- **🌐 Browser-Based Access** - Control your Mac terminal from any device with a web browser
+- **🚀 Zero Configuration** - No SSH keys, no port forwarding, no complexity
+- **🤖 AI Agent Friendly** - Perfect for monitoring Claude Code, ChatGPT, or any terminal-based AI tools
+- **🔒 Secure by Design** - Password protection, localhost-only mode, or secure tunneling via Tailscale/ngrok
+- **📱 Mobile Ready** - Check your terminals from your phone, tablet, or any computer
+- **🎬 Session Recording** - All sessions are recorded in asciinema format for later playback
 
-- **Menu Bar Integration**: Lives in the system menu bar with optional dock mode
-- **Server Lifecycle Management**: Controls starting, stopping, and switching between server implementations
-- **System Integration**: Launch at login, single instance enforcement, application mover
-- **Auto-Updates**: Sparkle framework integration for seamless updates
+## Quick Start
 
-Key files:
-- `VibeTunnel/VibeTunnelApp.swift`: Main application entry point
-- `VibeTunnel/Services/ServerManager.swift`: Orchestrates server operations
-- `VibeTunnel/Models/TunnelSession.swift`: Core session model
+### 1. Download & Install
 
-### 2. **HTTP Server Layer**
+[Download VibeTunnel](https://github.com/amantus-ai/vibetunnel/releases/latest) and drag it to your Applications folder.
 
-VibeTunnel offers two server implementations that can be switched at runtime:
+### 2. Launch VibeTunnel
 
-#### **Hummingbird Server (Swift)**
-- Built-in Swift implementation using the Hummingbird framework
-- Native integration with the macOS app
-- RESTful APIs for session management
-- File: `VibeTunnel/Services/HummingbirdServer.swift`
+VibeTunnel lives in your menu bar. Click the icon to start the server.
 
-#### **Rust Server (tty-fwd)**
-- External binary written in Rust for high-performance TTY forwarding
-- Spawns and manages terminal processes
-- Records sessions in asciinema format
-- WebSocket streaming for real-time terminal I/O
-- Source: `rust/tty-fwd/` directory
+### 3. Use the `vt` Command
 
-Both servers expose similar APIs:
-- `POST /sessions`: Create new terminal session
-- `GET /sessions`: List active sessions
-- `GET /sessions/:id`: Get session details
-- `POST /sessions/:id/send`: Send input to terminal
-- `GET /sessions/:id/output`: Stream terminal output
-- `DELETE /sessions/:id`: Terminate session
+Prefix any command with `vt` to make it accessible in your browser:
 
-### 3. **Web Frontend**
-
-A modern web interface for terminal interaction:
-
-- **Terminal Rendering**: Uses asciinema player for accurate terminal display
-- **Real-time Updates**: WebSocket connections for live terminal output
-- **Responsive Design**: Tailwind CSS for mobile-friendly interface
-- **Session Management**: Create, list, and control multiple terminal sessions
-
-Key files:
-- `web/`: Frontend source code
-- `VibeTunnel/Resources/WebRoot/`: Bundled static assets
-
-## Session Management Flow
-
-1. **Session Creation**:
-   ```
-   Client → POST /sessions → Server spawns terminal process → Returns session ID
-   ```
-
-2. **Command Execution**:
-   ```
-   Client → POST /sessions/:id/send → Server writes to PTY → Process executes
-   ```
-
-3. **Output Streaming**:
-   ```
-   Process → PTY output → Server captures → WebSocket/HTTP stream → Client renders
-   ```
-
-4. **Session Termination**:
-   ```
-   Client → DELETE /sessions/:id → Server kills process → Cleanup resources
-   ```
-
-## Key Features
-
-### Security & Tunneling
-- **Ngrok Integration**: Optional secure tunnel exposure for remote access
-- **Keychain Storage**: Secure storage of authentication tokens
-- **Code Signing**: Full support for macOS code signing and notarization
-
-### Terminal Capabilities
-- **Full TTY Support**: Proper handling of terminal control sequences
-- **Process Management**: Spawn, monitor, and control terminal processes
-- **Session Recording**: Asciinema format recording for playback
-- **Multiple Sessions**: Concurrent terminal session support
-
-### Developer Experience
-- **Hot Reload**: Development server with live updates
-- **Comprehensive Logging**: Detailed logs for debugging
-- **Error Handling**: Robust error handling throughout the stack
-- **Swift 6 Concurrency**: Modern async/await patterns
-
-## Technology Stack
-
-### macOS Application
-- **Language**: Swift 6.0
-- **UI Framework**: SwiftUI
-- **Minimum OS**: macOS 14.0 (Sonoma)
-- **Architecture**: Universal Binary (Intel + Apple Silicon)
-
-### Dependencies
-- **Hummingbird**: HTTP server framework
-- **Sparkle**: Auto-update framework
-- **Swift Log**: Structured logging
-- **Swift HTTP Types**: Type-safe HTTP handling
-
-### Build Tools
-- **Xcode**: Main IDE and build system
-- **Swift Package Manager**: Dependency management
-- **Cargo**: Rust toolchain for tty-fwd
-- **npm**: Frontend build tooling
-
-## Installation
-
-### Prerequisites
-- macOS 14.0 or later
-- Xcode 15.0 or later (for development)
-- Rust toolchain (for building tty-fwd)
-- Node.js and npm (for frontend development)
-
-### Building from Source
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/amantus-ai/vibetunnel.git
-   cd vibetunnel
-   ```
-
-2. Build the Rust server:
-   ```bash
-   cd rust/tty-fwd
-   cargo build --release
-   cd ../..
-   ```
-
-3. Build the web frontend:
-   ```bash
-   cd web
-   npm install
-   npm run build
-   cd ..
-   ```
-
-4. Open in Xcode and build:
-   ```bash
-   open VibeTunnel.xcodeproj
-   ```
-
-## Usage
-
-### Using the `vt` Command
-
-VibeTunnel includes a command-line wrapper `vt` that forwards terminal application output through the tunnel. This allows remote monitoring and control of your terminal sessions. The command can be installed from the VibeTunnel settings or it can be found in `VibeTunnel.app/Contents/MacOS/Resources/vt` to symlink onto your `PATH`.
-
-#### Basic Usage
 ```bash
-# Run any command with VibeTunnel monitoring
-vt [command] [args...]
+# Monitor AI agents
+vt claude
 
-# Examples
-vt top                    # Monitor top command
-vt python script.py       # Run Python script with output forwarding
-vt npm test              # Run tests with VibeTunnel visibility
+# Run development servers
+vt npm run dev
+
+# Watch long-running processes
+vt python train_model.py
+
+# Or just open a shell
+vt --shell
 ```
 
-#### Claude Integration
+### 4. Open Your Dashboard
+
+Visit [http://localhost:4020](http://localhost:4020) to see all your terminal sessions in the browser.
+
+## Real-World Use Cases
+
+### 🤖 AI Development
+Monitor and control AI coding assistants like Claude Code remotely. Perfect for checking on agent progress while you're away from your desk.
+
 ```bash
+vt claude --dangerously-skip-permissions
+```
+
+### 🛠️ Remote Development
+Access your development environment from anywhere. No more "I need to check something on my work machine" moments.
+
+```bash
+vt code .
+vt npm run dev
+```
+
+### 📊 System Monitoring
+Keep an eye on system resources, logs, or long-running processes from any device.
+
+```bash
+vt htop
+vt tail -f /var/log/system.log
+```
+
+### 🎓 Teaching & Collaboration
+Share terminal sessions with colleagues or students in real-time through a simple web link.
+
+## Remote Access Options
+
+### Option 1: Tailscale (Recommended)
+1. Install [Tailscale](https://tailscale.com) on your Mac and remote device
+2. Access VibeTunnel at `http://[your-mac-name]:4020` from anywhere on your Tailnet
+
+### Option 2: ngrok
+1. Add your ngrok auth token in VibeTunnel settings
+2. Enable ngrok tunneling
+3. Share the generated URL for remote access
+
+### Option 3: Local Network
+1. Set a dashboard password in settings
+2. Switch to "Network" mode
+3. Access via `http://[your-mac-ip]:4020`
+
+## Advanced Usage
+
+### Command Options
+
+```bash
+# Claude-specific shortcuts
 vt --claude              # Auto-locate and run Claude
-vt --claude --help       # Run Claude with --help option
-vt --claude-yolo         # Run Claude with --dangerously-skip-permissions
+vt --claude-yolo         # Run Claude with dangerous permissions
+
+# Shell options
+vt --shell               # Launch interactive shell
+vt -i                    # Short form for --shell
+
+# Direct execution (bypasses shell aliases)
+vt -S ls -la            # Execute without shell wrapper
 ```
 
-#### Shell Sessions
+### Configuration
+
+Access settings through the menu bar icon:
+- **Server Port**: Change the default port (4020)
+- **Launch at Login**: Start VibeTunnel automatically
+- **Show in Dock**: Toggle between menu bar only or dock icon
+- **Server Mode**: Switch between Rust (default) or Swift backend
+
+## Architecture
+
+VibeTunnel is built with a modern, secure architecture:
+- **Native macOS app** written in Swift/SwiftUI
+- **High-performance Rust server** for terminal management
+- **Web interface** with real-time terminal rendering
+- **Secure tunneling** via Tailscale or ngrok
+
+For technical details, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Building from Source
+
 ```bash
-vt --shell               # Launch current shell
-vt -i                    # Launch current shell (short form)
+# Clone the repository
+git clone https://github.com/amantus-ai/vibetunnel.git
+cd vibetunnel
+
+# Build the Rust server
+cd tty-fwd && cargo build --release && cd ..
+
+# Build the web frontend
+cd web && npm install && npm run build && cd ..
+
+# Open in Xcode
+open VibeTunnel.xcodeproj
 ```
 
-#### Advanced Options
-```bash
-vt -S ls -la            # Execute without shell wrapper (no alias resolution)
-vt --no-shell-wrap cmd   # Same as -S
-vt --help               # Show detailed help
-```
+## The Story
 
-The `vt` wrapper automatically uses shell resolution to handle aliases, functions, and built-ins, making it work seamlessly with your existing terminal setup.
+VibeTunnel was born from a simple frustration: checking on AI agents remotely was way too complicated. During an intense coding session, we decided to solve this once and for all. The result? A tool that makes terminal access as easy as opening a web page.
 
-### Getting Started
+Read the full story: [VibeTunnel: Turn Any Browser Into Your Mac Terminal](https://steipete.me/posts/2025/vibetunnel-turn-any-browser-into-your-mac-terminal)
 
-1. **Launch VibeTunnel**: The app appears in your menu bar
-2. **Start Server**: Click the menu bar icon and select "Start Server"
-3. **Access Web UI**: Navigate to `http://localhost:4020` (default port)
-4. **Create Session**: Use the web interface to create new terminal sessions
-5. **Remote Access**: Enable ngrok integration for secure remote access
+## Credits
 
-## Development
-
-### Project Structure
-```
-vibetunnel/
-├── VibeTunnel/              # macOS app source
-│   ├── Services/            # Core services (servers, managers)
-│   ├── Models/              # Data models
-│   ├── Views/               # SwiftUI views
-│   └── Resources/           # Assets and bundled files
-├── rust/tty-fwd/           # Rust TTY forwarding server
-├── web/                    # TypeScript/JavaScript frontend
-├── scripts/                # Build and utility scripts
-└── Tests/                  # Unit and integration tests
-```
-
-### Key Design Patterns
-
-1. **Protocol-Oriented Design**: `ServerProtocol` allows swapping server implementations
-2. **Actor Pattern**: Swift actors for thread-safe state management
-3. **Dependency Injection**: Services are injected for testability
-4. **MVVM Architecture**: Clear separation of views and business logic
-
-### Testing
-```bash
-# Run Swift tests
-swift test
-
-# Run Rust tests
-cd rust/tty-fwd && cargo test
-
-# Run frontend tests
-cd web && npm test
-```
+Created with ❤️ by:
+- [@badlogic](https://mariozechner.at/) - Mario Zechner
+- [@mitsuhiko](https://lucumr.pocoo.org/) - Armin Ronacher  
+- [@steipete](https://steipete.com/) - Peter Steinberger
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-VibeTunnel is open source software licensed under the MIT License. See the LICENSE file for details.
-
-## Acknowledgments
-
-- Built with [Hummingbird](https://github.com/hummingbird-project/hummingbird) HTTP server framework
-- Terminal rendering powered by [asciinema player](https://github.com/asciinema/asciinema-player)
-- Auto-updates via [Sparkle](https://sparkle-project.org/)
+VibeTunnel is open source software licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-*VibeTunnel - Bridging terminals to the web, one session at a time.*
+**Ready to vibe?** [Download VibeTunnel](https://github.com/amantus-ai/vibetunnel/releases/latest) and start tunneling!
