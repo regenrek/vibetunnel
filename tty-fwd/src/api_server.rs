@@ -115,8 +115,11 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
     let cleaned_path = request_path.trim_start_matches('/');
     let file_path = static_root.join(cleaned_path);
 
+    println!("Static file request: '{}' -> cleaned: '{}' -> file_path: '{}'", request_path, cleaned_path, file_path.display());
+
     // Security check: ensure the file path is within the static root
     if !file_path.starts_with(static_root) {
+        println!("Security check failed: file_path does not start with static_root");
         return None;
     }
 
@@ -149,7 +152,9 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
     } else if file_path.is_dir() {
         // Try to serve index.html from the directory
         let index_path = file_path.join("index.html");
+        println!("Checking for index.html at: {}", index_path.display());
         if index_path.is_file() {
+            println!("Found index.html, serving it");
             match fs::read(&index_path) {
                 Ok(content) => Some(
                     Response::builder()
@@ -171,9 +176,11 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
                 }
             }
         } else {
+            println!("index.html not found at: {}", index_path.display());
             None // Directory doesn't have index.html
         }
     } else {
+        println!("Path is neither file nor directory: {}", file_path.display());
         None // File doesn't exist
     }
 }
@@ -212,12 +219,15 @@ pub fn start_server(
             if method == &Method::GET && !path.starts_with("/api/") {
                 if let Some(ref static_dir) = static_path {
                     let static_dir_path = Path::new(static_dir);
+                    println!("Static dir check: '{}' -> exists: {}, is_dir: {}", static_dir, static_dir_path.exists(), static_dir_path.is_dir());
                     if static_dir_path.exists() && static_dir_path.is_dir() {
                         if let Some(static_response) = serve_static_file(static_dir_path, &path) {
                             let _ = req.respond(static_response);
                             return;
                         }
                     }
+                } else {
+                    println!("No static_path configured");
                 }
             }
 
