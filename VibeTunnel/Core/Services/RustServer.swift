@@ -159,13 +159,22 @@ final class RustServer: ServerProtocol {
         var ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(bindAddress):\(port)"
 
         // Add password flag if password protection is enabled
-        if let password = DashboardKeychain.shared.getPassword() {
-            // Escape the password for shell
-            let escapedPassword = password.replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: "$", with: "\\$")
-                .replacingOccurrences(of: "`", with: "\\`")
-                .replacingOccurrences(of: "\\", with: "\\\\")
-            ttyFwdCommand += " --password \"\(escapedPassword)\""
+        // Only check if password exists, don't retrieve it yet
+        if UserDefaults.standard.bool(forKey: "dashboardPasswordEnabled") && DashboardKeychain.shared.hasPassword() {
+            // Defer actual password retrieval until first authenticated request
+            // For now, we'll use a placeholder that the Rust server will replace
+            // when it needs to authenticate
+            logger.info("Password protection enabled, deferring keychain access")
+            // Note: The Rust server needs to be updated to support lazy password loading
+            // For now, we still need to access the keychain here
+            if let password = DashboardKeychain.shared.getPassword() {
+                // Escape the password for shell
+                let escapedPassword = password.replacingOccurrences(of: "\"", with: "\\\"")
+                    .replacingOccurrences(of: "$", with: "\\$")
+                    .replacingOccurrences(of: "`", with: "\\`")
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                ttyFwdCommand += " --password \"\(escapedPassword)\""
+            }
         }
         process.arguments = ["-l", "-c", ttyFwdCommand]
 

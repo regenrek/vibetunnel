@@ -14,14 +14,14 @@ import os
 struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     private let realm: String
     private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "LazyBasicAuth")
-    
+
     /// Cached password to avoid repeated keychain access
     private static var cachedPassword: String?
-    
+
     init(realm: String = "VibeTunnel Dashboard") {
         self.realm = realm
     }
-    
+
     func handle(
         _ request: Request,
         context: Context,
@@ -33,20 +33,20 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
         if request.uri.path == "/api/health" {
             return try await next(request, context)
         }
-        
+
         // Check if password protection is enabled
         guard UserDefaults.standard.bool(forKey: "dashboardPasswordEnabled") else {
             // No password protection, allow request
             return try await next(request, context)
         }
-        
+
         // Extract authorization header
         guard let authHeader = request.headers[.authorization],
               authHeader.hasPrefix("Basic ")
         else {
             return unauthorizedResponse()
         }
-        
+
         // Decode base64 credentials
         let base64Credentials = String(authHeader.dropFirst(6))
         guard let credentialsData = Data(base64Encoded: base64Credentials),
@@ -54,16 +54,16 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
         else {
             return unauthorizedResponse()
         }
-        
+
         // Split username:password
         let parts = credentials.split(separator: ":", maxSplits: 1)
         guard parts.count == 2 else {
             return unauthorizedResponse()
         }
-        
+
         // We ignore the username and only check password
         let providedPassword = String(parts[1])
-        
+
         // Get password (cached or from keychain)
         let requiredPassword: String
         if let cached = Self.cachedPassword {
@@ -81,31 +81,31 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
             requiredPassword = password
             logger.info("Password loaded from keychain and cached")
         }
-        
+
         // Verify password
         guard providedPassword == requiredPassword else {
             return unauthorizedResponse()
         }
-        
+
         // Password correct, continue with request
         return try await next(request, context)
     }
-    
+
     private func unauthorizedResponse() -> Response {
         var headers = HTTPFields()
         headers[.wwwAuthenticate] = "Basic realm=\"\(realm)\""
-        
+
         let message = "Authentication required"
         var buffer = ByteBuffer()
         buffer.writeString(message)
-        
+
         return Response(
             status: .unauthorized,
             headers: headers,
             body: ResponseBody(byteBuffer: buffer)
         )
     }
-    
+
     /// Clears the cached password (useful when password is changed)
     static func clearCache() {
         cachedPassword = nil

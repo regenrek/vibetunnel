@@ -205,14 +205,14 @@ class ServerManager {
         // Set restarting flag to prevent UI from showing "stopped" state
         isRestarting = true
         defer { isRestarting = false }
-        
+
         // Log that we're restarting
         logSubject.send(ServerLogEntry(
             level: .info,
             message: "Restarting server...",
             source: serverMode
         ))
-        
+
         await stop()
         await start()
     }

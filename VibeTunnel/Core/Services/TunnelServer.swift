@@ -142,10 +142,8 @@ public final class TunnelServer {
             // Add middleware
             router.add(middleware: LogRequestsMiddleware(.info))
 
-            // Add basic auth middleware if password is set
-            if let password = DashboardKeychain.shared.getPassword() {
-                router.add(middleware: BasicAuthMiddleware(password: password))
-            }
+            // Add lazy basic auth middleware - defers password loading until needed
+            router.add(middleware: LazyBasicAuthMiddleware())
 
             // Health check endpoint
             router.get("/api/health") { _, _ async -> Response in

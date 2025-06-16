@@ -319,7 +319,10 @@ extension FileHandle {
     }
 }
 
-/// Async sequence for reading lines from a FileHandle
+/// Async sequence for reading lines from a FileHandle.
+///
+/// Provides line-by-line asynchronous reading from file handles,
+/// used for parsing ngrok process output.
 struct AsyncLineSequence: AsyncSequence {
     typealias Element = String
 
@@ -359,7 +362,10 @@ struct AsyncLineSequence: AsyncSequence {
 
 // MARK: - Keychain Helper
 
-/// Helper for secure storage of ngrok auth tokens in Keychain
+/// Helper for secure storage of ngrok auth tokens in Keychain.
+///
+/// Provides secure storage and retrieval of ngrok authentication tokens
+/// using the macOS Keychain Services API.
 private enum KeychainHelper {
     private static let service = "sh.vibetunnel.vibetunnel"
     private static let account = "ngrok-auth-token"
