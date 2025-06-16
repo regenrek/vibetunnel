@@ -115,7 +115,12 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
     let cleaned_path = request_path.trim_start_matches('/');
     let file_path = static_root.join(cleaned_path);
 
-    println!("Static file request: '{}' -> cleaned: '{}' -> file_path: '{}'", request_path, cleaned_path, file_path.display());
+    println!(
+        "Static file request: '{}' -> cleaned: '{}' -> file_path: '{}'",
+        request_path,
+        cleaned_path,
+        file_path.display()
+    );
 
     // Security check: ensure the file path is within the static root
     if !file_path.starts_with(static_root) {
@@ -180,7 +185,10 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
             None // Directory doesn't have index.html
         }
     } else {
-        println!("Path is neither file nor directory: {}", file_path.display());
+        println!(
+            "Path is neither file nor directory: {}",
+            file_path.display()
+        );
         None // File doesn't exist
     }
 }
@@ -219,7 +227,12 @@ pub fn start_server(
             if method == &Method::GET && !path.starts_with("/api/") {
                 if let Some(ref static_dir) = static_path {
                     let static_dir_path = Path::new(static_dir);
-                    println!("Static dir check: '{}' -> exists: {}, is_dir: {}", static_dir, static_dir_path.exists(), static_dir_path.is_dir());
+                    println!(
+                        "Static dir check: '{}' -> exists: {}, is_dir: {}",
+                        static_dir,
+                        static_dir_path.exists(),
+                        static_dir_path.is_dir()
+                    );
                     if static_dir_path.exists() && static_dir_path.is_dir() {
                         if let Some(static_response) = serve_static_file(static_dir_path, &path) {
                             let _ = req.respond(static_response);
@@ -545,7 +558,8 @@ fn handle_cleanup_exited(control_path: &PathBuf) -> Response<String> {
 }
 
 fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<String> {
-    if let Some(session_id) = extract_session_id(path) {
+    dbg!(path);
+    if let Some(session_id) = dbg!(extract_session_id(path)) {
         let stream_path = control_path.join(&session_id).join("stream-out");
 
         match fs::read_to_string(&stream_path) {
@@ -627,13 +641,30 @@ fn handle_session_input(
                         }
 
                         // Check if this is a special key (like Node.js version)
-                        let special_keys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter", "ctrl_enter", "shift_enter"];
+                        let special_keys = [
+                            "arrow_up",
+                            "arrow_down",
+                            "arrow_left",
+                            "arrow_right",
+                            "escape",
+                            "enter",
+                            "ctrl_enter",
+                            "shift_enter",
+                        ];
                         let is_special_key = special_keys.contains(&input_req.text.as_str());
 
                         let result = if is_special_key {
-                            sessions::send_key_to_session(control_path, &session_id, &input_req.text)
+                            sessions::send_key_to_session(
+                                control_path,
+                                &session_id,
+                                &input_req.text,
+                            )
                         } else {
-                            sessions::send_text_to_session(control_path, &session_id, &input_req.text)
+                            sessions::send_text_to_session(
+                                control_path,
+                                &session_id,
+                                &input_req.text,
+                            )
                         };
 
                         match result {
