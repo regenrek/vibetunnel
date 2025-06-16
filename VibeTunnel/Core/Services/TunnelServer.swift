@@ -768,13 +768,11 @@ public final class TunnelServer {
     ) async {
         let startTime = Date()
         var headerSent = false
-        var tailProcess: Process?
+        var fileMonitor: DispatchSourceFileSystemObject?
         
         defer {
-            // Ensure tail process is terminated when function exits
-            if let process = tailProcess, process.isRunning {
-                process.terminate()
-            }
+            // Ensure file monitor is cancelled when function exits
+            fileMonitor?.cancel()
         }
         
         // Send existing content first
@@ -831,11 +829,21 @@ public final class TunnelServer {
         }
         
         // Stream new content by monitoring file changes
-        tailProcess = await monitorFileChanges(
+        fileMonitor = await monitorFileChanges(
             streamOutPath: streamOutPath,
             startTime: startTime,
             continuation: continuation
         )
+        
+        // Wait for cancellation
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                // This will suspend until cancelled
+                continuation.resume()
+            }
+        } onCancel: { [fileMonitor] in
+            fileMonitor?.cancel()
+        }
         
         continuation.finish()
     }
@@ -844,61 +852,87 @@ public final class TunnelServer {
         streamOutPath: String,
         startTime: Date,
         continuation: AsyncStream<ByteBuffer>.Continuation
-    ) async -> Process? {
-        // Use tail -f to monitor file changes
-        let tailProcess = Process()
-        tailProcess.executableURL = URL(fileURLWithPath: "/usr/bin/tail")
-        tailProcess.arguments = ["-f", streamOutPath]
-        
-        let outputPipe = Pipe()
-        tailProcess.standardOutput = outputPipe
-        
-        do {
-            try tailProcess.run()
-            
-            // Process output from tail -f
-            let outputHandle = outputPipe.fileHandleForReading
-            var buffer = ""
-            
-            // Read data asynchronously
-            for try await data in outputHandle.bytes {
-                if Task.isCancelled {
-                    break
-                }
-                
-                // Accumulate data into buffer
-                if let character = String(data: Data([data]), encoding: .utf8) {
-                    buffer += character
-                    
-                    // Process complete lines
-                    let lines = buffer.components(separatedBy: .newlines)
-                    if lines.count > 1 {
-                        // Process all complete lines except the last (incomplete) one
-                        for i in 0..<(lines.count - 1) {
-                            let line = lines[i]
-                            await processNewLine(
-                                line: line,
-                                startTime: startTime,
-                                continuation: continuation
-                            )
-                        }
-                        // Keep the last incomplete line in buffer
-                        buffer = lines.last ?? ""
-                    }
-                }
-            }
-            
-        } catch {
-            logger.error("Error starting tail process: \(error)")
+    ) async -> DispatchSourceFileSystemObject? {
+        // Open file for reading
+        let fileDescriptor = open(streamOutPath, O_RDONLY)
+        guard fileDescriptor >= 0 else {
+            logger.error("Failed to open file for monitoring: \(streamOutPath)")
             return nil
         }
         
-        // Cleanup when cancelled or finished
-        if tailProcess.isRunning {
-            tailProcess.terminate()
+        // Get initial file size
+        var lastReadPosition = lseek(fileDescriptor, 0, SEEK_END)
+        
+        // Create dispatch source for monitoring file writes
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .extend],
+            queue: DispatchQueue.global(qos: .background)
+        )
+        
+        // Store buffer for incomplete lines
+        var lineBuffer = ""
+        
+        source.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            
+            // Get current file size
+            let currentPosition = lseek(fileDescriptor, 0, SEEK_END)
+            
+            // Calculate how much new data to read
+            let bytesToRead = currentPosition - lastReadPosition
+            guard bytesToRead > 0 else { return }
+            
+            // Seek to last read position
+            lseek(fileDescriptor, lastReadPosition, SEEK_SET)
+            
+            // Read new data
+            let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(bytesToRead) + 1)
+            defer { buffer.deallocate() }
+            
+            let bytesRead = read(fileDescriptor, buffer, Int(bytesToRead))
+            guard bytesRead > 0 else { return }
+            
+            // Convert to string (handle potential UTF-8 boundary issues)
+            let data = Data(bytes: buffer, count: bytesRead)
+            guard let contentString = String(data: data, encoding: .utf8) else {
+                // If UTF-8 decoding fails, it might be due to split multi-byte character
+                // Store the bytes and try again with next chunk
+                return
+            }
+            
+            // Update last read position
+            lastReadPosition = currentPosition
+            
+            // Process new content
+            lineBuffer += contentString
+            let lines = lineBuffer.components(separatedBy: .newlines)
+            
+            // Process all complete lines
+            if lines.count > 1 {
+                for i in 0..<(lines.count - 1) {
+                    let line = lines[i]
+                    Task { @MainActor in
+                        await self.processNewLine(
+                            line: line,
+                            startTime: startTime,
+                            continuation: continuation
+                        )
+                    }
+                }
+                // Keep the last incomplete line in buffer
+                lineBuffer = lines.last ?? ""
+            }
         }
         
-        return tailProcess
+        source.setCancelHandler {
+            close(fileDescriptor)
+        }
+        
+        // Start monitoring
+        source.resume()
+        
+        return source
     }
     
     private func processNewLine(

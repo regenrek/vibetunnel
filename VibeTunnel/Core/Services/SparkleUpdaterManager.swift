@@ -26,11 +26,20 @@ public final class SparkleUpdaterManager: NSObject {
         }
 
         // Initialize Sparkle with standard configuration
+        #if DEBUG
+        // In debug mode, don't start the updater automatically
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: false,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+        #else
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
+        #endif
 
         // Configure automatic updates
         if let updater = updaterController?.updater {
@@ -50,6 +59,11 @@ public final class SparkleUpdaterManager: NSObject {
             updater.updateCheckInterval = 86_400
 
             logger.info("Sparkle updater initialized successfully with automatic downloads enabled")
+            
+            // Start the updater if it wasn't started during initialization
+            if !updaterController!.startedUpdater {
+                updaterController!.updater.startUpdater()
+            }
             #endif
         }
     }
