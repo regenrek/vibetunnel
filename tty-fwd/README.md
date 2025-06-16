@@ -105,6 +105,10 @@ When running with `--serve`, the following REST API endpoints are available:
 - **GET /api/sessions/{session-id}/snapshot** - Current session output snapshot
 - **POST /api/sessions/{session-id}/input** - Send input to session (body: `{"text": "input"}`)
 
+### File System Operations
+
+- **POST /api/mkdir** - Create directory (body: `{"path": "/path/to/directory"}`)
+
 ### Static Files
 
 - **GET /** - Serves static files from `--static-path` directory
