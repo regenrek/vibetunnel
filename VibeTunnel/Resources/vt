@@ -13,14 +13,14 @@ find_claude() {
         "/usr/bin/claude"
         "$(which claude 2>/dev/null)"
     )
-    
+
     for path in "${claude_paths[@]}"; do
         if [[ -n "$path" && -x "$path" ]]; then
             echo "$path"
             return 0
         fi
     done
-    
+
     echo "Error: Claude executable not found in any of the following locations:" >&2
     printf "  %s\n" "${claude_paths[@]}" >&2
     echo "Please ensure Claude is installed or specify the full path manually." >&2
@@ -34,7 +34,7 @@ if [[ "$1" == "--claude" ]]; then
     if [[ $? -ne 0 ]]; then
         exit 1
     fi
-    
+
     # Re-execute vt with claude and remaining arguments
     exec "$0" "$claude_path" "$@"
 fi
@@ -46,9 +46,16 @@ if [[ "$1" == "--claude-yolo" ]]; then
     if [[ $? -ne 0 ]]; then
         exit 1
     fi
-    
+
     # Re-execute vt with claude --dangerously-skip-permissions and remaining arguments
     exec "$0" "$claude_path" --dangerously-skip-permissions "$@"
+fi
+
+# Handle --no-shell-wrap or -S option
+NO_SHELL_WRAP=false
+if [[ "$1" == "--no-shell-wrap" || "$1" == "-S" ]]; then
+    NO_SHELL_WRAP=true
+    shift
 fi
 
 if [[ $# -eq 0 || "$1" == "--help" || "$1" == "-h" ]]; then
@@ -59,13 +66,18 @@ USAGE:
     vt [command] [args...]
     vt --claude [args...]
     vt --claude-yolo [args...]
+    vt --no-shell-wrap [command] [args...]
+    vt -S [command] [args...]
     vt --help
 
 DESCRIPTION:
-    This wrapper script allows VibeTunnel to see the output of commands by 
-    forwarding TTY data through the tty-fwd utility. When you run commands 
-    through 'vt', VibeTunnel can monitor and display the command's output 
+    This wrapper script allows VibeTunnel to see the output of commands by
+    forwarding TTY data through the tty-fwd utility. When you run commands
+    through 'vt', VibeTunnel can monitor and display the command's output
     in real-time.
+
+    By default, commands are executed through your shell to resolve aliases,
+    functions, and builtins. Use --no-shell-wrap to execute commands directly.
 
 EXAMPLES:
     vt ls -la                # List files with VibeTunnel monitoring
@@ -74,10 +86,12 @@ EXAMPLES:
     vt --claude             # Auto-locate and run Claude
     vt --claude --help      # Run Claude with --help option
     vt --claude-yolo        # Run Claude with --dangerously-skip-permissions
+    vt -S ls -la            # List files without shell alias resolution
 
 OPTIONS:
     --claude               Auto-locate Claude executable and run it
     --claude-yolo          Auto-locate Claude and run with --dangerously-skip-permissions
+    --no-shell-wrap, -S    Execute command directly without shell wrapper
     --help, -h             Show this help message and exit
 
 NOTE:
@@ -109,5 +123,37 @@ if [[ ! -x "$TTY_FWD" ]]; then
     exit 1
 fi
 
-# Execute tty-fwd with all passed arguments
-exec "$TTY_FWD" -- "$@"
+# Function to resolve command through user's shell
+resolve_command() {
+    local user_shell="${SHELL:-/bin/bash}"
+    local cmd="$1"
+    shift
+
+    local shell_name=$(basename "$user_shell")
+
+    # Always try through shell first to handle aliases, functions, and builtins
+    # The shell will fall back to PATH lookup if no alias/function exists
+    case "$shell_name" in
+        zsh)
+            # For zsh, we need interactive mode to get aliases
+            exec "$TTY_FWD" -- "$user_shell" -i -c "$(printf '%q ' "$cmd" "$@")"
+            ;;
+        bash)
+            # For bash, expand aliases in non-interactive mode
+            exec "$TTY_FWD" -- "$user_shell" -c "shopt -s expand_aliases; source ~/.bashrc 2>/dev/null || source ~/.bash_profile 2>/dev/null || true; $(printf '%q ' "$cmd" "$@")"
+            ;;
+        *)
+            # Generic shell handling
+            exec "$TTY_FWD" -- "$user_shell" -c "$(printf '%q ' "$cmd" "$@")"
+            ;;
+    esac
+}
+
+# Resolve and execute the command
+if [[ "$NO_SHELL_WRAP" == "true" ]]; then
+    # Execute directly without shell wrapper
+    exec "$TTY_FWD" -- "$@"
+else
+    # Use shell wrapper to resolve aliases/functions/builtins
+    resolve_command "$@"
+fi
