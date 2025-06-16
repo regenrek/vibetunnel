@@ -1060,8 +1060,10 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         }
     } else {
         // Send default header if file can't be read
-        let mut default_header = crate::protocol::AsciinemaHeader::default();
-        default_header.timestamp = Some(start_time as u64);
+        let mut default_header = crate::protocol::AsciinemaHeader {
+            timestamp: Some(start_time as u64),
+            ..Default::default()
+        };
         default_header
             .env
             .get_or_insert_default()
