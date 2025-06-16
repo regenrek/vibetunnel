@@ -572,21 +572,93 @@ fn handle_session_input(
         let body_bytes = req.body();
         let body = String::from_utf8_lossy(body_bytes);
         if let Ok(input_req) = serde_json::from_str::<InputRequest>(&body) {
-            match sessions::send_text_to_session(control_path, &session_id, &input_req.text) {
-                Ok(_) => {
-                    let response = ApiResponse {
-                        success: Some(true),
-                        message: Some("Input sent successfully".to_string()),
-                        error: None,
-                        session_id: None,
-                    };
-                    json_response(StatusCode::OK, &response)
+            // Check if text is empty
+            if input_req.text.is_empty() {
+                let error = ApiResponse {
+                    success: None,
+                    message: None,
+                    error: Some("Text is required".to_string()),
+                    session_id: None,
+                };
+                return json_response(StatusCode::BAD_REQUEST, &error);
+            }
+
+            // First validate session exists and is running (like Node.js version)
+            match sessions::list_sessions(control_path) {
+                Ok(sessions) => {
+                    if let Some(session_entry) = sessions.get(&session_id) {
+                        // Check if session is running
+                        if session_entry.session_info.status != "running" {
+                            let error = ApiResponse {
+                                success: None,
+                                message: None,
+                                error: Some("Session is not running".to_string()),
+                                session_id: None,
+                            };
+                            return json_response(StatusCode::BAD_REQUEST, &error);
+                        }
+
+                        // Check if process is still alive
+                        if let Some(pid) = session_entry.session_info.pid {
+                            // Check if process exists (equivalent to Node.js process.kill(pid, 0))
+                            let result = unsafe { libc::kill(pid as i32, 0) };
+                            if result != 0 {
+                                let error = ApiResponse {
+                                    success: None,
+                                    message: None,
+                                    error: Some("Session process has died".to_string()),
+                                    session_id: None,
+                                };
+                                return json_response(StatusCode::GONE, &error);
+                            }
+                        }
+
+                        // Check if this is a special key (like Node.js version)
+                        let special_keys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter", "ctrl_enter", "shift_enter"];
+                        let is_special_key = special_keys.contains(&input_req.text.as_str());
+
+                        let result = if is_special_key {
+                            sessions::send_key_to_session(control_path, &session_id, &input_req.text)
+                        } else {
+                            sessions::send_text_to_session(control_path, &session_id, &input_req.text)
+                        };
+
+                        match result {
+                            Ok(_) => {
+                                let response = ApiResponse {
+                                    success: Some(true),
+                                    message: Some("Input sent successfully".to_string()),
+                                    error: None,
+                                    session_id: None,
+                                };
+                                json_response(StatusCode::OK, &response)
+                            }
+                            Err(e) => {
+                                let error = ApiResponse {
+                                    success: None,
+                                    message: None,
+                                    error: Some(format!("Failed to send input: {}", e)),
+                                    session_id: None,
+                                };
+                                json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+                            }
+                        }
+                    } else {
+                        // Session not found
+                        let error = ApiResponse {
+                            success: None,
+                            message: None,
+                            error: Some("Session not found".to_string()),
+                            session_id: None,
+                        };
+                        json_response(StatusCode::NOT_FOUND, &error)
+                    }
                 }
                 Err(e) => {
                     let error = ApiResponse {
                         success: None,
                         message: None,
-                        error: Some(format!("Failed to send input: {}", e)),
+                        error: Some(format!("Failed to list sessions: {}", e)),
                         session_id: None,
                     };
                     json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
