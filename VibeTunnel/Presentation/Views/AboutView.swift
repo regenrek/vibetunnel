@@ -51,13 +51,14 @@ struct AboutView: View {
     }
 
     private var descriptionSection: some View {
-        Text("Turn any browser into your Mac's terminal.")
+        Text("Turn any browser into your terminal & command your agents on the go.")
             .font(.body)
             .foregroundStyle(.secondary)
     }
 
     private var linksSection: some View {
         VStack(spacing: 12) {
+            HoverableLink(url: "https://vibetunnel.sh", title: "Website", icon: "globe")
             HoverableLink(url: "https://github.com/amantus-ai/vibetunnel", title: "View on GitHub", icon: "link")
             HoverableLink(
                 url: "https://github.com/amantus-ai/vibetunnel/issues",
