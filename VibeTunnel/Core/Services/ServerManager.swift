@@ -54,8 +54,21 @@ class ServerManager: ObservableObject {
     
     /// Start the server with current configuration
     func start() async {
-        guard currentServer == nil else {
-            logger.warning("Server already running")
+        // Check if we already have a running server
+        if let existingServer = currentServer {
+            logger.info("Server already running on port \(existingServer.port)")
+            
+            // Ensure our state is synced
+            isRunning = true
+            lastError = nil
+            ServerMonitor.shared.isServerRunning = true
+            
+            // Log for clarity
+            logSubject.send(ServerLogEntry(
+                level: .info,
+                message: "\(serverMode.displayName) server already running on port \(port)",
+                source: serverMode
+            ))
             return
         }
         
@@ -96,7 +109,16 @@ class ServerManager: ObservableObject {
                 source: serverMode
             ))
             lastError = error
-            isRunning = false
+            
+            // Check if server is actually running despite the error
+            if let server = currentServer, server.isRunning {
+                logger.warning("Server reported as running despite startup error, syncing state")
+                isRunning = true
+                ServerMonitor.shared.isServerRunning = true
+            } else {
+                isRunning = false
+                ServerMonitor.shared.isServerRunning = false
+            }
         }
     }
     

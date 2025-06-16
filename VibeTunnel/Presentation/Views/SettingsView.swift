@@ -858,7 +858,9 @@ struct DebugSettingsView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .navigationTitle("Debug Settings")
-            .task {
+            .onAppear {
+                // Ensure ServerMonitor is synced with ServerManager
+                serverMonitor.updateStatus()
                 // Start heartbeat monitoring
                 startHeartbeatMonitoring()
             }
@@ -1047,7 +1049,7 @@ let apiEndpoints = [
     APIEndpoint(method: "GET", path: "/", description: "Web interface - displays server status", isTestable: true),
     APIEndpoint(
         method: "GET",
-        path: "/health",
+        path: "/api/health",
         description: "Health check - returns OK if server is running",
         isTestable: true
     ),

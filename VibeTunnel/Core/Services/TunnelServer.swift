@@ -408,7 +408,7 @@ public final class TunnelServer {
     /// Verifies the server is listening by attempting an HTTP health check
     private func isServerListening(on port: Int) async -> Bool {
         do {
-            let url = URL(string: "http://127.0.0.1:\(port)/health")!
+            let url = URL(string: "http://127.0.0.1:\(port)/api/health")!
             let request = URLRequest(url: url, timeoutInterval: 1.0)
             let (_, response) = try await URLSession.shared.data(for: request)
 

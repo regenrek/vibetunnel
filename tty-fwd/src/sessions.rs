@@ -315,6 +315,8 @@ pub fn spawn_command(
         return Err(anyhow!("No command provided"));
     }
     let session_id = Uuid::new_v4();
+    // Print session ID to stdout for the caller to capture
+    println!("{}", session_id);
     let session_path = control_path.join(session_id.to_string());
     fs::create_dir_all(&session_path)?;
     let session_info_path = session_path.join("session.json");
