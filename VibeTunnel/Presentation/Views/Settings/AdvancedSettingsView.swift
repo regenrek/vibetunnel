@@ -29,7 +29,7 @@ struct AdvancedSettingsView: View {
                     Text("Integration")
                         .font(.headline)
                 }
-                
+
                 // Advanced section
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
@@ -42,7 +42,7 @@ struct AdvancedSettingsView: View {
                     Text("Advanced")
                         .font(.headline)
                 }
-                
+
                 // Debug section
                 Section {
                     VStack(alignment: .leading, spacing: 4) {

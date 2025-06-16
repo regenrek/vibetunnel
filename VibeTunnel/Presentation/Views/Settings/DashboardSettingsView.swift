@@ -91,7 +91,9 @@ struct DashboardSettingsView: View {
         .alert("ngrok Auth Token Required", isPresented: $showingAuthTokenAlert) {
             Button("OK") {}
         } message: {
-            Text("Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com")
+            Text(
+                "Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com"
+            )
         }
         .alert("Keychain Access Error", isPresented: $showingKeychainAlert) {
             Button("OK") {}
@@ -123,7 +125,7 @@ struct DashboardSettingsView: View {
         if ngrokTokenPresent && !isTokenRevealed {
             maskedToken = String(repeating: "•", count: 12)
         }
-        
+
         // Get local IP address
         updateLocalIPAddress()
     }
@@ -264,7 +266,7 @@ struct DashboardSettingsView: View {
             }
         }
     }
-    
+
     private func updateLocalIPAddress() {
         Task {
             if accessMode == .network {
@@ -473,12 +475,12 @@ private struct AccessModeView: View {
                 Text(accessMode.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                
+
                 // Show IP address when network access is enabled
                 if accessMode == .network {
                     if let ipAddress = localIPAddress {
                         Spacer()
-                        
+
                         Button(action: {
                             let urlString = "http://\(ipAddress):\(serverPort)"
                             if let url = URL(string: urlString) {
@@ -492,7 +494,7 @@ private struct AccessModeView: View {
                         }
                         .buttonStyle(.plain)
                         .pointingHandCursor()
-                        
+
                         Button(action: {
                             let urlString = "http://\(ipAddress):\(serverPort)"
                             NSPasteboard.general.clearContents()
@@ -521,8 +523,8 @@ private struct AccessModeView: View {
 private struct PortConfigurationView: View {
     @Binding var serverPort: String
     let restartServerWithNewPort: (Int) -> Void
-    
-    @State private var portNumber: Int = 4020
+
+    @State private var portNumber: Int = 4_020
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -541,10 +543,10 @@ private struct PortConfigurationView: View {
                                 restartServerWithNewPort(port)
                             }
                         }
-                    
+
                     VStack(spacing: 0) {
                         Button(action: {
-                            if portNumber < 65535 {
+                            if portNumber < 65_535 {
                                 portNumber += 1
                                 serverPort = String(portNumber)
                                 restartServerWithNewPort(portNumber)
@@ -556,7 +558,7 @@ private struct PortConfigurationView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Increase port number")
-                        
+
                         Button(action: {
                             if portNumber > 1 {
                                 portNumber -= 1
@@ -573,7 +575,7 @@ private struct PortConfigurationView: View {
                     }
                 }
                 .onAppear {
-                    portNumber = Int(serverPort) ?? 4020
+                    portNumber = Int(serverPort) ?? 4_020
                 }
             }
             Text("The server will automatically restart when the port is changed.")
@@ -635,12 +637,14 @@ private struct NgrokIntegrationSection: View {
             Text("ngrok Integration")
                 .font(.headline)
         } footer: {
-            Text("Alternatively, we recommend [Tailscale](https://tailscale.com/) to create a virtual network to access your Mac.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .tint(.blue)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
+            Text(
+                "Alternatively, we recommend [Tailscale](https://tailscale.com/) to create a virtual network to access your Mac."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .tint(.blue)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
     }
 }
@@ -809,4 +813,3 @@ private struct NgrokErrorView: View {
         }
     }
 }
-
