@@ -1,4 +1,4 @@
-import { LitElement, html, PropertyValues } from 'lit';
+import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { Renderer } from '../renderer.js';
 
@@ -34,6 +34,7 @@ export class SessionCard extends LitElement {
     this.createRenderer();
     this.startRefresh();
   }
+
 
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -96,13 +97,11 @@ export class SessionCard extends LitElement {
   }
 
   private handleCardClick() {
-    this.dispatchEvent(
-      new CustomEvent('session-select', {
-        detail: this.session,
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this.dispatchEvent(new CustomEvent('session-select', {
+      detail: this.session,
+      bubbles: true,
+      composed: true
+    }));
   }
 
   private async handleKillClick(e: Event) {
@@ -120,7 +119,7 @@ export class SessionCard extends LitElement {
     // Send kill request
     try {
       const response = await fetch(`/api/sessions/${this.session.id}`, {
-        method: 'DELETE',
+        method: 'DELETE'
       });
 
       if (!response.ok) {
@@ -181,69 +180,60 @@ export class SessionCard extends LitElement {
   }
 
   render() {
-    const _isRunning = this.session.status === 'running';
+    const isRunning = this.session.status === 'running';
 
     return html`
-      <div
-        class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden ${this
-          .killing
-          ? 'opacity-60'
-          : ''}"
-        @click=${this.handleCardClick}
-      >
+      <div class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden ${this.killing ? 'opacity-60' : ''}"
+           @click=${this.handleCardClick}>
         <!-- Compact Header -->
         <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
-          <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">
-            ${this.session.command}
+          <div class="text-vs-text text-xs font-mono pr-2 flex-1 min-w-0">
+            <div class="truncate" title="${this.session.command}">${this.session.command}</div>
           </div>
-          ${this.session.status === 'running'
-            ? html`
-                <button
-                  class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
-                  @click=${this.handleKillClick}
-                  ?disabled=${this.killing}
-                >
-                  ${this.killing ? 'killing...' : 'kill'}
-                </button>
-              `
-            : ''}
+          ${this.session.status === 'running' ? html`
+            <button
+              class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
+              @click=${this.handleKillClick}
+              ?disabled=${this.killing}
+            >
+              ${this.killing ? 'killing...' : 'kill'}
+            </button>
+          ` : ''}
         </div>
 
         <!-- XTerm renderer (main content) -->
         <div class="session-preview bg-black overflow-hidden" style="aspect-ratio: 640/480;">
-          ${this.killing
-            ? html`
-                <div class="w-full h-full flex items-center justify-center text-vs-warning">
-                  <div class="text-center font-mono">
-                    <div class="text-4xl mb-2">${this.getKillingText()}</div>
-                    <div class="text-sm">Killing session...</div>
-                  </div>
-                </div>
-              `
-            : html` <div id="player" class="w-full h-full"></div> `}
+          ${this.killing ? html`
+            <div class="w-full h-full flex items-center justify-center text-vs-warning">
+              <div class="text-center font-mono">
+                <div class="text-4xl mb-2">${this.getKillingText()}</div>
+                <div class="text-sm">Killing session...</div>
+              </div>
+            </div>
+          ` : html`
+            <div id="player" class="w-full h-full"></div>
+          `}
         </div>
 
         <!-- Compact Footer -->
         <div class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border">
-          <div class="flex justify-between items-center">
-            <span class="${this.getStatusColor()} text-xs flex items-center gap-1">
+          <div class="flex justify-between items-center min-w-0">
+            <span class="${this.getStatusColor()} text-xs flex items-center gap-1 flex-shrink-0">
               <div class="w-2 h-2 rounded-full ${this.getStatusDotColor()}"></div>
               ${this.getStatusText()}
             </span>
-            ${this.session.pid
-              ? html`
-                  <span
-                    class="cursor-pointer hover:text-vs-accent transition-colors"
-                    @click=${this.handlePidClick}
-                    title="Click to copy PID"
-                  >
-                    PID: ${this.session.pid} <span class="opacity-50">(click to copy)</span>
-                  </span>
-                `
-              : ''}
+            ${this.session.pid ? html`
+              <span
+                class="cursor-pointer hover:text-vs-accent transition-colors text-xs flex-shrink-0 ml-2"
+                @click=${this.handlePidClick}
+                title="Click to copy PID"
+              >
+                PID: ${this.session.pid} <span class="opacity-50">(click to copy)</span>
+              </span>
+            ` : ''}
           </div>
-          <div class="truncate text-xs opacity-75" title="${this.session.workingDir}">
-            ${this.session.workingDir}
+          <div class="text-xs opacity-75 min-w-0 mt-1">
+            <div class="truncate" title="${this.session.workingDir}">${this.session.workingDir}</div>
           </div>
         </div>
       </div>
@@ -270,4 +260,5 @@ export class SessionCard extends LitElement {
     }
     return this.session.status === 'running' ? 'bg-green-500' : 'bg-orange-500';
   }
+
 }
