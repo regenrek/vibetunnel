@@ -178,7 +178,7 @@ let SessionCreateForm = class SessionCreateForm extends LitElement {
                 cancel
               </button>
               <button 
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none"
+                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-vs-user"
                 @click=${this.handleCreate}
                 ?disabled=${this.disabled || this.isCreating || !this.workingDir.trim() || !this.command.trim()}
               >
