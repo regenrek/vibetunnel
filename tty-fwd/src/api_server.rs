@@ -103,35 +103,39 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
     if request_path.contains("../") || request_path.contains("..\\") {
         return None;
     }
-    
+
     let cleaned_path = request_path.trim_start_matches('/');
     let file_path = static_root.join(cleaned_path);
-    
+
     // Security check: ensure the file path is within the static root
     if !file_path.starts_with(static_root) {
         return None;
     }
-    
+
     if file_path.is_file() {
         // Serve the file directly
         match fs::read(&file_path) {
             Ok(content) => {
                 let mime_type = get_mime_type(&file_path);
-                
-                Some(Response::builder()
-                    .status(StatusCode::OK)
-                    .header("Content-Type", mime_type)
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(content)
-                    .unwrap())
+
+                Some(
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", mime_type)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(content)
+                        .unwrap(),
+                )
             }
             Err(_) => {
                 let error_msg = "Failed to read file".as_bytes().to_vec();
-                Some(Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .header("Content-Type", "text/plain")
-                    .body(error_msg)
-                    .unwrap())
+                Some(
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header("Content-Type", "text/plain")
+                        .body(error_msg)
+                        .unwrap(),
+                )
             }
         }
     } else if file_path.is_dir() {
@@ -139,21 +143,23 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
         let index_path = file_path.join("index.html");
         if index_path.is_file() {
             match fs::read(&index_path) {
-                Ok(content) => {
-                    Some(Response::builder()
+                Ok(content) => Some(
+                    Response::builder()
                         .status(StatusCode::OK)
                         .header("Content-Type", "text/html")
                         .header("Access-Control-Allow-Origin", "*")
                         .body(content)
-                        .unwrap())
-                }
+                        .unwrap(),
+                ),
                 Err(_) => {
                     let error_msg = "Failed to read index.html".as_bytes().to_vec();
-                    Some(Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .header("Content-Type", "text/plain")
-                        .body(error_msg)
-                        .unwrap())
+                    Some(
+                        Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .header("Content-Type", "text/plain")
+                            .body(error_msg)
+                            .unwrap(),
+                    )
                 }
             }
         } else {
@@ -164,7 +170,11 @@ fn serve_static_file(static_root: &Path, request_path: &str) -> Option<Response<
     }
 }
 
-pub fn start_server(bind_address: &str, control_path: PathBuf, static_path: Option<String>) -> Result<()> {
+pub fn start_server(
+    bind_address: &str,
+    control_path: PathBuf,
+    static_path: Option<String>,
+) -> Result<()> {
     fs::create_dir_all(&control_path)?;
 
     let server = HttpServer::bind(bind_address)
@@ -256,7 +266,6 @@ fn extract_session_id(path: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
-
 fn json_response<T: Serialize>(status: StatusCode, data: &T) -> Response<String> {
     let json = serde_json::to_string(data).unwrap_or_else(|_| "{}".to_string());
     Response::builder()
@@ -310,14 +319,158 @@ fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
 }
 
 fn handle_create_session(
-    _control_path: &PathBuf,
-    _req: &mut crate::http_server::HttpRequest,
+    control_path: &PathBuf,
+    req: &mut crate::http_server::HttpRequest,
 ) -> Response<String> {
-    // For now, return a stub response since reading request body is complex
+    // Read the request body
+    let body_bytes = req.body();
+    let body = String::from_utf8_lossy(body_bytes);
+
+    let create_request = match serde_json::from_str::<CreateSessionRequest>(&body) {
+        Ok(request) => request,
+        Err(_) => {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Invalid request body. Expected JSON with 'command' array and optional 'workingDir'".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::BAD_REQUEST, &error);
+        }
+    };
+
+    if create_request.command.is_empty() {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Command cannot be empty".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &error);
+    }
+
+    // Generate a new session ID
     let session_id = Uuid::new_v4().to_string();
+    let session_path = control_path.join(&session_id);
+
+    // Create session directory
+    if let Err(e) = fs::create_dir_all(&session_path) {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some(format!("Failed to create session directory: {}", e)),
+            session_id: None,
+        };
+        return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+    }
+
+    // Paths are set up within the spawned thread
+
+    // Convert command to OsString vector
+    let cmdline: Vec<std::ffi::OsString> = create_request
+        .command
+        .iter()
+        .map(|s| std::ffi::OsString::from(s))
+        .collect();
+
+    // Set working directory if specified
+    let current_dir = if let Some(ref working_dir) = create_request.working_dir {
+        // Validate the working directory exists
+        if !std::path::Path::new(working_dir).exists() {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some(format!("Working directory does not exist: {}", working_dir)),
+                session_id: None,
+            };
+            return json_response(StatusCode::BAD_REQUEST, &error);
+        }
+        working_dir.clone()
+    } else {
+        std::env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| "/".to_string())
+    };
+
+    // Spawn the process in a detached manner using a separate thread
+    let control_path_clone = control_path.clone();
+    let session_id_clone = session_id.clone();
+    let cmdline_clone = cmdline.clone();
+    let working_dir_clone = current_dir.clone();
+
+    std::thread::spawn(move || {
+        // Change to the specified working directory before spawning
+        let original_dir = std::env::current_dir().ok();
+        if let Err(e) = std::env::set_current_dir(&working_dir_clone) {
+            eprintln!(
+                "Failed to change to working directory {}: {}",
+                working_dir_clone, e
+            );
+            return;
+        }
+
+        // Set up TtySpawn
+        let mut tty_spawn =
+            crate::tty_spawn::TtySpawn::new_cmdline(cmdline_clone.iter().map(|s| s.as_os_str()));
+        let session_path = control_path_clone.join(&session_id_clone);
+        let session_info_path = session_path.join("session.json");
+        let stream_out_path = session_path.join("stream-out");
+        let stdin_path = session_path.join("stdin");
+        let notification_stream_path = session_path.join("notification-stream");
+
+        if let Err(e) = tty_spawn
+            .stdout_path(&stream_out_path, true)
+            .and_then(|spawn| spawn.stdin_path(&stdin_path))
+        {
+            eprintln!(
+                "Failed to set up TTY paths for session {}: {}",
+                session_id_clone, e
+            );
+            return;
+        }
+
+        tty_spawn.session_json_path(&session_info_path);
+
+        if let Err(e) = tty_spawn.notification_path(&notification_stream_path) {
+            eprintln!(
+                "Failed to set up notification path for session {}: {}",
+                session_id_clone, e
+            );
+            return;
+        }
+
+        // Set session name based on the first command
+        let session_name = cmdline_clone
+            .first()
+            .and_then(|cmd| cmd.to_str())
+            .map(|s| s.split('/').last().unwrap_or(s))
+            .unwrap_or("unknown")
+            .to_string();
+        tty_spawn.session_name(session_name);
+
+        // Spawn the process (this will block until the process exits)
+        match tty_spawn.spawn() {
+            Ok(exit_code) => {
+                println!(
+                    "Session {} exited with code {}",
+                    session_id_clone, exit_code
+                );
+            }
+            Err(e) => {
+                eprintln!("Failed to spawn session {}: {}", session_id_clone, e);
+            }
+        }
+
+        // Restore original directory
+        if let Some(original) = original_dir {
+            let _ = std::env::set_current_dir(original);
+        }
+    });
+
+    // Return success response immediately
     let response = ApiResponse {
-        success: None,
-        message: Some("Session creation stubbed".to_string()),
+        success: Some(true),
+        message: Some("Session created successfully".to_string()),
         error: None,
         session_id: Some(session_id),
     };
@@ -506,7 +659,6 @@ fn get_last_modified(file_path: &str) -> Option<String> {
         .ok()
 }
 
-
 fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut HttpRequest) {
     let session_id = match extract_session_id(path) {
         Some(id) => id,
@@ -580,7 +732,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
         .header("Access-Control-Allow-Origin", "*")
         .body(Vec::new())
         .unwrap();
-    
+
     if let Err(e) = req.respond(response) {
         println!("Failed to send SSE headers: {}", e);
         return;
@@ -606,9 +758,12 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                     && parsed.get("width").is_some()
                     && parsed.get("height").is_some()
                 {
-                    let data = format!("data: {}
+                    let data = format!(
+                        "data: {}
 
-", line);
+",
+                        line
+                    );
                     if let Err(e) = req.respond_raw(data.as_bytes()) {
                         println!("Failed to send header data: {}", e);
                         return;
@@ -620,9 +775,12 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                     // Convert to instant event for immediate playback
                     if let Some(arr) = parsed.as_array() {
                         let instant_event = serde_json::json!([0, arr[1], arr[2]]);
-                        let data = format!("data: {}
+                        let data = format!(
+                            "data: {}
 
-", instant_event);
+",
+                            instant_event
+                        );
                         if let Err(e) = req.respond_raw(data.as_bytes()) {
                             println!("Failed to send event data: {}", e);
                             return;
@@ -641,9 +799,12 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                 "timestamp": start_time as u64,
                 "env": { "TERM": "xterm-256color" }
             });
-            let data = format!("data: {}
+            let data = format!(
+                "data: {}
 
-", default_header);
+",
+                default_header
+            );
             if let Err(e) = req.respond_raw(data.as_bytes()) {
                 println!("Failed to send default header: {}", e);
                 return;
@@ -658,9 +819,12 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
             "timestamp": start_time as u64,
             "env": { "TERM": "xterm-256color" }
         });
-        let data = format!("data: {}
+        let data = format!(
+            "data: {}
 
-", default_header);
+",
+            default_header
+        );
         if let Err(e) = req.respond_raw(data.as_bytes()) {
             println!("Failed to send fallback header: {}", e);
             return;
@@ -689,7 +853,8 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
 
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line) {
                                 // Skip headers in tail output
-                                if parsed.get("version").is_some() && parsed.get("width").is_some() {
+                                if parsed.get("version").is_some() && parsed.get("width").is_some()
+                                {
                                     continue;
                                 }
 
@@ -705,9 +870,12 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                                             arr[1],
                                             arr[2]
                                         ]);
-                                        let data = format!("data: {}
+                                        let data = format!(
+                                            "data: {}
 
-", real_time_event);
+",
+                                            real_time_event
+                                        );
                                         if let Err(e) = req.respond_raw(data.as_bytes()) {
                                             println!("Failed to send streaming data: {}", e);
                                             break;
@@ -720,10 +888,14 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                                     .duration_since(SystemTime::UNIX_EPOCH)
                                     .unwrap_or_default()
                                     .as_secs_f64();
-                                let cast_event = serde_json::json!([current_time - start_time, "o", line]);
-                                let data = format!("data: {}
+                                let cast_event =
+                                    serde_json::json!([current_time - start_time, "o", line]);
+                                let data = format!(
+                                    "data: {}
 
-", cast_event);
+",
+                                    cast_event
+                                );
                                 if let Err(e) = req.respond_raw(data.as_bytes()) {
                                     println!("Failed to send raw streaming data: {}", e);
                                     break;
@@ -743,9 +915,12 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
         }
         Err(e) => {
             println!("Failed to start tail command: {}", e);
-            let error_data = format!("data: {{\"type\":\"error\",\"message\":\"Failed to start streaming: {}\"}}
+            let error_data = format!(
+                "data: {{\"type\":\"error\",\"message\":\"Failed to start streaming: {}\"}}
 
-", e);
+",
+                e
+            );
             let _ = req.respond_raw(error_data.as_bytes());
         }
     }
@@ -755,6 +930,6 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
 
 ";
     let _ = req.respond_raw(end_data.as_bytes());
-    
+
     println!("Ended streaming SSE for session {}", session_id);
 }

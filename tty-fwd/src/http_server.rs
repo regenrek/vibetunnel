@@ -173,7 +173,7 @@ impl HttpRequest {
         }
     }
 
-    fn response_to_bytes<T>(&self, response: Response<T>) -> Vec<u8> 
+    fn response_to_bytes<T>(&self, response: Response<T>) -> Vec<u8>
     where
         T: AsRef<[u8]>,
     {
@@ -198,7 +198,7 @@ impl HttpRequest {
     pub fn respond<T>(
         &mut self,
         response: Response<T>,
-    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> 
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
         T: AsRef<[u8]>,
     {

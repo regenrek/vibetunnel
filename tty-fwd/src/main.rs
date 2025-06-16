@@ -104,7 +104,9 @@ fn main() -> Result<(), anyhow::Error> {
                 );
                 println!("  --cleanup               Remove exited sessions (all if no --session specified)");
                 println!("  --serve <addr>          Start HTTP server (hostname:port or just port for 127.0.0.1)");
-                println!("  --static-path <path>    Path to static files directory for HTTP server");
+                println!(
+                    "  --static-path <path>    Path to static files directory for HTTP server"
+                );
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
