@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, PropertyValues, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Session } from './session-list.js';
 import { Renderer } from '../renderer.js';
@@ -22,16 +22,16 @@ export class SessionView extends LitElement {
 
   private keyboardHandler = (e: KeyboardEvent) => {
     if (!this.session) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     this.handleKeyboardInput(e);
   };
 
   private touchStartHandler = (e: TouchEvent) => {
     if (!this.isMobile) return;
-    
+
     const touch = e.touches[0];
     this.touchStartX = touch.clientX;
     this.touchStartY = touch.clientY;
@@ -39,19 +39,19 @@ export class SessionView extends LitElement {
 
   private touchEndHandler = (e: TouchEvent) => {
     if (!this.isMobile) return;
-    
+
     const touch = e.changedTouches[0];
     const touchEndX = touch.clientX;
     const touchEndY = touch.clientY;
-    
+
     const deltaX = touchEndX - this.touchStartX;
     const deltaY = touchEndY - this.touchStartY;
-    
+
     // Check for horizontal swipe from left edge (back gesture)
     const isSwipeRight = deltaX > 100;
     const isVerticallyStable = Math.abs(deltaY) < 100;
     const startedFromLeftEdge = this.touchStartX < 50;
-    
+
     if (isSwipeRight && isVerticallyStable && startedFromLeftEdge) {
       // Trigger back navigation
       this.handleBack();
@@ -61,11 +61,11 @@ export class SessionView extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.connected = true;
-    
+
     // Detect mobile device
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                    window.innerWidth <= 768;
-    
+
     // Add global keyboard event listener only for desktop
     if (!this.isMobile) {
       document.addEventListener('keydown', this.keyboardHandler);
@@ -74,7 +74,7 @@ export class SessionView extends LitElement {
       document.addEventListener('touchstart', this.touchStartHandler, { passive: true });
       document.addEventListener('touchend', this.touchEndHandler, { passive: true });
     }
-    
+
     // Start polling session status
     this.startSessionStatusPolling();
   }
@@ -82,7 +82,7 @@ export class SessionView extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.connected = false;
-    
+
     // Remove global keyboard event listener
     if (!this.isMobile) {
       document.removeEventListener('keydown', this.keyboardHandler);
@@ -91,10 +91,10 @@ export class SessionView extends LitElement {
       document.removeEventListener('touchstart', this.touchStartHandler);
       document.removeEventListener('touchend', this.touchEndHandler);
     }
-    
+
     // Stop polling session status
     this.stopSessionStatusPolling();
-    
+
     // Cleanup renderer if it exists
     if (this.renderer) {
       this.renderer.dispose();
@@ -102,17 +102,14 @@ export class SessionView extends LitElement {
     }
   }
 
+  firstUpdated(changedProperties: PropertyValues) {
+    super.firstUpdated(changedProperties);
+    this.createInteractiveTerminal();
+  }
+
   updated(changedProperties: any) {
     super.updated(changedProperties);
-    
-    if (changedProperties.has('session') && this.session) {
-      this.createInteractiveTerminal();
-      // Adjust terminal spacing after creating terminal
-      requestAnimationFrame(() => {
-        this.adjustTerminalForMobileButtons();
-      });
-    }
-    
+
     // Adjust terminal height for mobile buttons after render
     if (changedProperties.has('showMobileInput') || changedProperties.has('isMobile')) {
       requestAnimationFrame(() => {
@@ -123,37 +120,38 @@ export class SessionView extends LitElement {
 
   private createInteractiveTerminal() {
     if (!this.session) return;
-    
+
     const terminalElement = this.querySelector('#interactive-terminal') as HTMLElement;
     if (!terminalElement) return;
 
-    try {
-      // Clean up existing renderer
-      if (this.renderer) {
-        this.renderer.dispose();
-        this.renderer = null;
-      }
+    // Create renderer once and connect to current session
+    this.renderer = new Renderer(terminalElement);
 
-      // Create new renderer using default parameters (EXACTLY like the test)
-      this.renderer = new Renderer(terminalElement);
-      
-      if (this.session.status === 'exited') {
-        // For ended sessions, load snapshot (EXACTLY like the test)
-        this.renderer.loadCastFile(`/api/sessions/${this.session.id}/snapshot`);
-      } else {
-        // For running sessions, connect to live stream
+    // Wait a moment for freshly created sessions before connecting
+    const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
+    const delay = sessionAge < 5000 ? 2000 : 0; // 2 second delay if session is less than 5 seconds old
+
+    setTimeout(() => {
+      if (this.renderer && this.session) {
         this.renderer.connectToStream(this.session.id);
       }
-    } catch (error) {
-      console.error('Error creating interactive terminal:', error);
-    }
+    }, delay);
+
+    // Listen for session exit events
+    terminalElement.addEventListener('session-exit', this.handleSessionExit.bind(this) as EventListener);
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
     if (!this.session) return;
 
+    // Don't send input to exited sessions
+    if (this.session.status === 'exited') {
+      console.log('Ignoring keyboard input - session has exited');
+      return;
+    }
+
     let inputText = '';
-    
+
     // Handle special keys
     switch (e.key) {
       case 'Enter':
@@ -225,7 +223,17 @@ export class SessionView extends LitElement {
       });
 
       if (!response.ok) {
-        console.error('Failed to send input to session');
+        if (response.status === 400) {
+          console.log('Session no longer accepting input (likely exited)');
+          // Update session status to exited if we get 400 error
+          if (this.session && (this.session.status as string) !== 'exited') {
+            this.session = { ...this.session, status: 'exited' };
+            this.requestUpdate();
+            this.stopSessionStatusPolling();
+          }
+        } else {
+          console.error('Failed to send input to session:', response.status);
+        }
       }
     } catch (error) {
       console.error('Error sending input:', error);
@@ -234,6 +242,25 @@ export class SessionView extends LitElement {
 
   private handleBack() {
     this.dispatchEvent(new CustomEvent('back'));
+  }
+
+  private handleSessionExit(e: Event) {
+    const customEvent = e as CustomEvent;
+    console.log('Session exit event received:', customEvent.detail);
+
+    if (this.session && customEvent.detail.sessionId === this.session.id) {
+      // Update session status to exited
+      this.session = { ...this.session, status: 'exited' };
+      this.requestUpdate();
+
+      // Stop polling immediately
+      this.stopSessionStatusPolling();
+
+      // Switch to snapshot mode
+      requestAnimationFrame(() => {
+        this.createInteractiveTerminal();
+      });
+    }
   }
 
   // Mobile input methods
@@ -267,19 +294,19 @@ export class SessionView extends LitElement {
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
       const windowHeight = window.innerHeight;
       const keyboardHeight = windowHeight - viewportHeight;
-      
+
       // If keyboard is visible (viewport height is significantly smaller)
       if (keyboardHeight > 100) {
         // Move controls above the keyboard
         controls.style.transform = `translateY(-${keyboardHeight}px)`;
         controls.style.transition = 'transform 0.3s ease';
-        
+
         // Calculate available space for textarea
         const header = this.querySelector('.flex.items-center.justify-between.p-4.border-b') as HTMLElement;
         const headerHeight = header?.offsetHeight || 60;
         const controlsHeight = controls?.offsetHeight || 120;
         const padding = 48; // Additional padding for spacing
-        
+
         // Available height is viewport height minus header and controls (controls are now above keyboard)
         const maxTextareaHeight = viewportHeight - headerHeight - controlsHeight - padding;
         const inputArea = textarea.parentElement as HTMLElement;
@@ -288,7 +315,7 @@ export class SessionView extends LitElement {
           inputArea.style.height = `${maxTextareaHeight}px`;
           inputArea.style.maxHeight = `${maxTextareaHeight}px`;
           inputArea.style.overflow = 'hidden';
-          
+
           // Set textarea height within the container
           const labelHeight = 40; // Height of the label above textarea
           const textareaMaxHeight = Math.max(maxTextareaHeight - labelHeight, 80);
@@ -299,7 +326,7 @@ export class SessionView extends LitElement {
         // Reset position when keyboard is hidden
         controls.style.transform = 'translateY(0px)';
         controls.style.transition = 'transform 0.3s ease';
-        
+
         // Reset textarea height and constraints
         const inputArea = textarea.parentElement as HTMLElement;
         if (inputArea) {
@@ -338,22 +365,22 @@ export class SessionView extends LitElement {
     // Get the current value from the textarea directly
     const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
     const textToSend = textarea?.value?.trim() || this.mobileInputText.trim();
-    
+
     if (!textToSend) return;
-    
+
     try {
       // Send text without enter key
       await this.sendInputText(textToSend);
-      
+
       // Clear both the reactive property and textarea
       this.mobileInputText = '';
       if (textarea) {
         textarea.value = '';
       }
-      
+
       // Trigger re-render to update button state
       this.requestUpdate();
-      
+
       // Hide the input overlay after sending
       this.showMobileInput = false;
     } catch (error) {
@@ -366,22 +393,22 @@ export class SessionView extends LitElement {
     // Get the current value from the textarea directly
     const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
     const textToSend = textarea?.value?.trim() || this.mobileInputText.trim();
-    
+
     if (!textToSend) return;
-    
+
     try {
       // Add enter key at the end to execute the command
       await this.sendInputText(textToSend + '\n');
-      
+
       // Clear both the reactive property and textarea
       this.mobileInputText = '';
       if (textarea) {
         textarea.value = '';
       }
-      
+
       // Trigger re-render to update button state
       this.requestUpdate();
-      
+
       // Hide the input overlay after sending
       this.showMobileInput = false;
     } catch (error) {
@@ -423,11 +450,13 @@ export class SessionView extends LitElement {
     if (this.sessionStatusInterval) {
       clearInterval(this.sessionStatusInterval);
     }
-    
-    // Poll every 2 seconds
-    this.sessionStatusInterval = window.setInterval(() => {
-      this.checkSessionStatus();
-    }, 2000);
+
+    // Only poll for running sessions - exited sessions don't need polling
+    if (this.session?.status !== 'exited') {
+      this.sessionStatusInterval = window.setInterval(() => {
+        this.checkSessionStatus();
+      }, 2000);
+    }
   }
 
   private stopSessionStatusPolling() {
@@ -443,25 +472,20 @@ export class SessionView extends LitElement {
     try {
       const response = await fetch('/api/sessions');
       if (!response.ok) return;
-      
+
       const sessions = await response.json();
       const currentSession = sessions.find((s: Session) => s.id === this.session!.id);
-      
+
       if (currentSession && currentSession.status !== this.session.status) {
+        // Store old status before updating
+        const oldStatus = this.session.status;
+
         // Session status changed
         this.session = { ...this.session, status: currentSession.status };
         this.requestUpdate();
-        
-        // If session ended, switch from stream to snapshot to prevent restarts
-        if (currentSession.status === 'exited' && this.session.status === 'running') {
-          console.log('Session ended, switching to snapshot view');
-          try {
-            // Recreate with snapshot
-            this.createInteractiveTerminal();
-          } catch (error) {
-            console.error('Error switching to snapshot:', error);
-          }
-        }
+
+        // Session status polling is now only for detecting new sessions
+        // Exit events are handled via SSE stream directly
       }
     } catch (error) {
       console.error('Error checking session status:', error);
@@ -541,7 +565,7 @@ export class SessionView extends LitElement {
                   →
                 </button>
               </div>
-              
+
               <!-- Second row: Special keys -->
               <div class="flex gap-2">
                 <button
@@ -612,7 +636,7 @@ export class SessionView extends LitElement {
                   style="min-height: 120px; margin-bottom: 16px;"
                 ></textarea>
               </div>
-                
+
               <!-- Controls - Fixed above keyboard -->
               <div id="mobile-controls" class="fixed bottom-0 left-0 right-0 p-4 border-t border-vs-border bg-vs-bg-secondary z-60" style="padding-bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateY(0px);">
                 <!-- Send Buttons Row -->
@@ -632,7 +656,7 @@ export class SessionView extends LitElement {
                     SEND + ENTER
                   </button>
                 </div>
-                
+
                 <div class="text-vs-muted text-xs text-center">
                   SEND: text only • SEND + ENTER: text with enter key
                 </div>

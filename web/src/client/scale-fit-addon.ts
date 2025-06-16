@@ -11,6 +11,8 @@ interface ITerminalDimensions {
 }
 
 const MINIMUM_ROWS = 1;
+const MIN_FONT_SIZE = 6;
+const MAX_FONT_SIZE = 16;
 
 export class ScaleFitAddon implements ITerminalAddon {
   private _terminal: Terminal | undefined;
@@ -38,40 +40,48 @@ export class ScaleFitAddon implements ITerminalAddon {
       return undefined;
     }
 
-    // Get container dimensions
-    const parentElement = this._terminal.element.parentElement;
-    const parentStyle = window.getComputedStyle(parentElement);
-    const parentWidth = parseInt(parentStyle.getPropertyValue('width'));
-    const parentHeight = parseInt(parentStyle.getPropertyValue('height'));
+    // Get the renderer container (parent of parent - the one with 10px padding)
+    const terminalWrapper = this._terminal.element.parentElement;
+    const rendererContainer = terminalWrapper.parentElement;
 
-    // Get terminal element padding
-    const elementStyle = window.getComputedStyle(this._terminal.element);
-    const padding = {
-      top: parseInt(elementStyle.getPropertyValue('padding-top')),
-      bottom: parseInt(elementStyle.getPropertyValue('padding-bottom')),
-      left: parseInt(elementStyle.getPropertyValue('padding-left')),
-      right: parseInt(elementStyle.getPropertyValue('padding-right'))
+    if (!rendererContainer) return undefined;
+
+    // Get container dimensions and exact padding
+    const containerStyle = window.getComputedStyle(rendererContainer);
+    const containerWidth = parseInt(containerStyle.getPropertyValue('width'));
+    const containerHeight = parseInt(containerStyle.getPropertyValue('height'));
+    const containerPadding = {
+      top: parseInt(containerStyle.getPropertyValue('padding-top')),
+      bottom: parseInt(containerStyle.getPropertyValue('padding-bottom')),
+      left: parseInt(containerStyle.getPropertyValue('padding-left')),
+      right: parseInt(containerStyle.getPropertyValue('padding-right'))
     };
 
-    // Calculate available space
-    const availableWidth = parentWidth - padding.left - padding.right - 20; // Extra margin
-    const availableHeight = parentHeight - padding.top - padding.bottom - 20;
+    // Calculate exact available space using known padding
+    const availableWidth = containerWidth - containerPadding.left - containerPadding.right;
+    const availableHeight = containerHeight - containerPadding.top - containerPadding.bottom;
 
     // Current terminal dimensions
     const currentCols = this._terminal.cols;
-    
+
     // Calculate optimal font size to fit current cols in available width
     // Character width is approximately 0.6 * fontSize for monospace fonts
     const charWidthRatio = 0.6;
-    const optimalFontSize = Math.max(6, availableWidth / (currentCols * charWidthRatio));
-    
+    const calculatedFontSize = availableWidth / (currentCols * charWidthRatio);
+    const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
+
     // Apply the calculated font size (outside of proposeDimensions to avoid recursion)
-    setTimeout(() => this.applyFontSize(optimalFontSize), 0);
-    
-    // Calculate line height (typically 1.2 * fontSize)
-    const lineHeight = optimalFontSize * 1.2;
-    
-    // Calculate how many rows fit with this font size
+    requestAnimationFrame(() => this.applyFontSize(optimalFontSize));
+
+    // Get the actual line height from the rendered XTerm element
+    const xtermElement = this._terminal.element;
+    const currentStyle = window.getComputedStyle(xtermElement);
+    const actualLineHeight = parseFloat(currentStyle.lineHeight);
+
+    // If we can't get the line height, fall back to configuration
+    const lineHeight = actualLineHeight || (optimalFontSize * (this._terminal.options.lineHeight || 1.2));
+
+    // Calculate how many rows fit with this line height
     const optimalRows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / lineHeight));
 
     return {
@@ -88,13 +98,13 @@ export class ScaleFitAddon implements ITerminalAddon {
     if (Math.abs(fontSize - currentFontSize) < 0.1) return;
 
     const terminalElement = this._terminal.element;
-    
+
     // Update terminal's font size
     this._terminal.options.fontSize = fontSize;
-    
+
     // Apply CSS font size to the element
     terminalElement.style.fontSize = `${fontSize}px`;
-    
+
     // Force a refresh to apply the new font size
     requestAnimationFrame(() => {
       if (this._terminal) {
@@ -114,14 +124,15 @@ export class ScaleFitAddon implements ITerminalAddon {
     const parentElement = this._terminal.element.parentElement;
     const parentStyle = window.getComputedStyle(parentElement);
     const parentWidth = parseInt(parentStyle.getPropertyValue('width'));
-    
+
     const elementStyle = window.getComputedStyle(this._terminal.element);
-    const paddingHor = parseInt(elementStyle.getPropertyValue('padding-left')) + 
+    const paddingHor = parseInt(elementStyle.getPropertyValue('padding-left')) +
                       parseInt(elementStyle.getPropertyValue('padding-right'));
-    
+
     const availableWidth = parentWidth - paddingHor;
     const charWidthRatio = 0.6;
-    
-    return availableWidth / (this._terminal.cols * charWidthRatio);
+    const calculatedFontSize = availableWidth / (this._terminal.cols * charWidthRatio);
+
+    return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
   }
 }

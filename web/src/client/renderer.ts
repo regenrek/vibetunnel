@@ -21,6 +21,8 @@ interface CastEvent {
 }
 
 export class Renderer {
+  private static activeCount: number = 0;
+  
   private container: HTMLElement;
   private terminal: Terminal;
   private fitAddon: FitAddon;
@@ -29,6 +31,8 @@ export class Renderer {
   private isPreview: boolean;
 
   constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14, isPreview: boolean = false) {
+    Renderer.activeCount++;
+    console.log(`Renderer constructor called (active: ${Renderer.activeCount})`);
     this.container = container;
     this.isPreview = isPreview;
 
@@ -194,11 +198,13 @@ export class Renderer {
 
   // Stream support - connect to SSE endpoint
   connectToStream(sessionId: string): EventSource {
+    console.log('connectToStream called for session:', sessionId);
     return this.connectToUrl(`/api/sessions/${sessionId}/stream`);
   }
 
   // Connect to any SSE URL
   connectToUrl(url: string): EventSource {
+    console.log('Creating new EventSource connection to:', url);
     const eventSource = new EventSource(url);
 
     // Don't clear terminal for live streams - just append new content
@@ -212,17 +218,34 @@ export class Renderer {
           console.log('Received header:', data);
           this.resize(data.width, data.height);
         } else if (Array.isArray(data) && data.length >= 3) {
-          // Event
+          // Check if this is an exit event
+          if (data[0] === 'exit') {
+            const exitCode = data[1];
+            const sessionId = data[2];
+            console.log(`Session ${sessionId} exited with code ${exitCode}`);
+            
+            // Close the SSE connection immediately
+            if (this.eventSource) {
+              console.log('Closing SSE connection due to session exit');
+              this.eventSource.close();
+              this.eventSource = null;
+            }
+            
+            // Dispatch custom event that session-view can listen to
+            const exitEvent = new CustomEvent('session-exit', {
+              detail: { sessionId, exitCode }
+            });
+            this.container.dispatchEvent(exitEvent);
+            return;
+          }
+          
+          // Regular cast event
           const castEvent: CastEvent = {
             timestamp: data[0],
             type: data[1],
             data: data[2]
           };
-          console.log('Received event:', castEvent.type, 'data length:', castEvent.data.length);
-          // Log first 100 chars of data to see escape sequences
-          if (castEvent.data.length > 0) {
-            console.log('Event data preview:', JSON.stringify(castEvent.data.substring(0, 100)));
-          }
+          // Process event without verbose logging
           this.processEvent(castEvent);
         }
       } catch (e) {
@@ -232,6 +255,13 @@ export class Renderer {
 
     eventSource.onerror = (error) => {
       console.error('Stream error:', error);
+      // Close the connection to prevent automatic reconnection attempts
+      if (eventSource.readyState === EventSource.CLOSED) {
+        console.log('Stream closed, cleaning up...');
+        if (this.eventSource === eventSource) {
+          this.eventSource = null;
+        }
+      }
     };
 
     return eventSource;
@@ -243,6 +273,7 @@ export class Renderer {
   async loadFromUrl(url: string, isStream: boolean): Promise<void> {
     // Clean up existing connection
     if (this.eventSource) {
+      console.log('Explicitly closing existing EventSource connection');
       this.eventSource.close();
       this.eventSource = null;
     }
@@ -273,10 +304,13 @@ export class Renderer {
 
   dispose(): void {
     if (this.eventSource) {
+      console.log('Explicitly closing EventSource connection in dispose()');
       this.eventSource.close();
       this.eventSource = null;
     }
     this.terminal.dispose();
+    Renderer.activeCount--;
+    console.log(`Renderer disposed (active: ${Renderer.activeCount})`);
   }
 
   // Method to fit terminal to container (useful for responsive layouts)

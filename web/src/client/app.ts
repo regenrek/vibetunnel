@@ -6,6 +6,7 @@ import './components/app-header.js';
 import './components/session-create-form.js';
 import './components/session-list.js';
 import './components/session-view.js';
+import './components/session-card.js';
 
 import type { Session } from './components/session-list.js';
 
@@ -84,24 +85,24 @@ export class VibeTunnelApp extends LitElement {
   }
 
   private startAutoRefresh() {
-    // Refresh sessions every 3 seconds
+    // Refresh sessions every 3 seconds, but only when showing session list
     setInterval(() => {
-      this.loadSessions();
+      if (this.currentView === 'list') {
+        this.loadSessions();
+      }
     }, 3000);
   }
 
   private async handleSessionCreated(e: CustomEvent) {
-    console.log('Session created event detail:', e.detail);
     const sessionId = e.detail.sessionId;
-    console.log('Extracted sessionId:', sessionId);
-    
+
     if (!sessionId) {
       this.showError('Session created but ID not found in response');
       return;
     }
-    
+
     this.showCreateModal = false;
-    
+
     // Wait for session to appear in the list and then switch to it
     await this.waitForSessionAndSwitch(sessionId);
   }
@@ -109,43 +110,35 @@ export class VibeTunnelApp extends LitElement {
   private async waitForSessionAndSwitch(sessionId: string) {
     const maxAttempts = 10;
     const delay = 500; // 500ms between attempts
-    
-    console.log(`Waiting for session ${sessionId} to appear...`);
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(`Attempt ${attempt + 1}/${maxAttempts} to find session ${sessionId}`);
       await this.loadSessions();
-      
-      console.log('Current sessions:', this.sessions.map(s => ({ id: s.id, command: s.command })));
+
       // Try to find by exact ID match first
       let session = this.sessions.find(s => s.id === sessionId);
-      
+
       // If not found by ID, find the most recently created session
       // This works around tty-fwd potentially using different IDs internally
       if (!session && this.sessions.length > 0) {
-        console.log('Session not found by ID, trying to find newest session...');
-        const sortedSessions = [...this.sessions].sort((a, b) => 
+        const sortedSessions = [...this.sessions].sort((a, b) =>
           new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
         );
         session = sortedSessions[0];
-        console.log('Using newest session:', session.id);
       }
-      
+
       if (session) {
         // Session found, switch to session view
-        console.log('Session found, switching to session view');
         this.selectedSession = session;
         this.currentView = 'session';
         // Update URL to include session ID
         this.updateUrl(session.id);
-        this.showError('Session created successfully!');
         return;
       }
-      
+
       // Wait before next attempt
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
+
     // If we get here, session creation might have failed
     console.log('Session not found after all attempts');
     this.showError('Session created but could not be found. Please refresh.');
@@ -166,6 +159,7 @@ export class VibeTunnelApp extends LitElement {
     // Update URL to remove session parameter
     this.updateUrl();
   }
+
 
   private handleSessionKilled(e: CustomEvent) {
     console.log('Session killed:', e.detail);
@@ -196,7 +190,7 @@ export class VibeTunnelApp extends LitElement {
   private setupRouting() {
     // Handle browser back/forward navigation
     window.addEventListener('popstate', this.handlePopState.bind(this));
-    
+
     // Parse initial URL and set state
     this.parseUrlAndSetState();
   }
@@ -209,7 +203,7 @@ export class VibeTunnelApp extends LitElement {
   private parseUrlAndSetState() {
     const url = new URL(window.location.href);
     const sessionId = url.searchParams.get('session');
-    
+
     if (sessionId) {
       // Load the specific session
       this.loadSessionFromUrl(sessionId);
@@ -225,7 +219,7 @@ export class VibeTunnelApp extends LitElement {
     if (this.sessions.length === 0) {
       await this.loadSessions();
     }
-    
+
     // Find the session
     const session = this.sessions.find(s => s.id === sessionId);
     if (session) {
@@ -242,13 +236,13 @@ export class VibeTunnelApp extends LitElement {
 
   private updateUrl(sessionId?: string) {
     const url = new URL(window.location.href);
-    
+
     if (sessionId) {
       url.searchParams.set('session', sessionId);
     } else {
       url.searchParams.delete('session');
     }
-    
+
     // Update browser URL without triggering page reload
     window.history.pushState(null, '', url.toString());
   }

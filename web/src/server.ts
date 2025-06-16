@@ -206,21 +206,64 @@ app.post('/api/sessions', async (req, res) => {
             stdio: 'pipe'
         });
 
-        // Log output for debugging
+        // Capture session ID from stdout
+        let sessionId = '';
         child.stdout.on('data', (data) => {
-            console.log(`Session ${sessionName} stdout:`, data.toString());
+            const output = data.toString().trim();
+            if (output && !sessionId) {
+                // First line of output should be the session ID
+                sessionId = output;
+                console.log(`Session created with ID: ${sessionId}`);
+            }
         });
 
         child.stderr.on('data', (data) => {
-            console.log(`Session ${sessionName} stderr:`, data.toString());
+            // Only log stderr if it contains actual errors
+            const output = data.toString();
+            if (output.includes('error') || output.includes('Error')) {
+                console.error(`Session ${sessionName} stderr:`, output);
+            }
         });
 
-        child.on('close', (code) => {
-            console.log(`Session ${sessionName} exited with code: ${code}`);
+        child.on('close', async (code) => {
+            console.log(`Session ${sessionId || sessionName} exited with code: ${code}`);
+
+            // Send exit event to all clients watching this session
+            const streamInfo = activeStreams.get(sessionId);
+            if (streamInfo) {
+                console.log(`Sending exit event to stream ${sessionId}`);
+                const exitEvent = JSON.stringify(['exit', code, sessionId]);
+                const eventData = `data: ${exitEvent}\n\n`;
+
+                streamInfo.clients.forEach(client => {
+                    try {
+                        client.write(eventData);
+                    } catch (error) {
+                        console.error('Error sending exit event to client:', error);
+                    }
+                });
+            }
         });
 
-        // Respond immediately - don't wait for completion
-        res.json({ sessionId: sessionName });
+        // Wait for session ID from tty-fwd or timeout after 3 seconds
+        const waitForSessionId = new Promise<string>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Failed to get session ID from tty-fwd within 3 seconds'));
+            }, 3000);
+
+            const checkSessionId = () => {
+                if (sessionId) {
+                    clearTimeout(timeout);
+                    resolve(sessionId);
+                } else {
+                    setTimeout(checkSessionId, 100);
+                }
+            };
+            checkSessionId();
+        });
+
+        const finalSessionId = await waitForSessionId;
+        res.json({ sessionId: finalSessionId });
 
     } catch (error) {
         console.error('Error creating session:', error);
@@ -313,10 +356,10 @@ app.post('/api/cleanup-exited', async (req, res) => {
 // === TERMINAL I/O ===
 
 // Track active streams per session to avoid multiple tail processes
-const activeStreams = new Map<string, { 
-    clients: Set<any>, 
-    tailProcess: any, 
-    lastPosition: number 
+const activeStreams = new Map<string, {
+    clients: Set<any>,
+    tailProcess: any,
+    lastPosition: number
 }>();
 
 // Live streaming cast file for XTerm renderer
@@ -328,7 +371,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
         return res.status(404).json({ error: 'Session not found' });
     }
 
-    console.log(`New SSE client connected to session ${sessionId}`);
+    console.log(`New SSE client connected to session ${sessionId} from ${req.get('User-Agent')?.substring(0, 50) || 'unknown'}`);
 
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -380,22 +423,22 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
 
     // Get or create shared stream for this session
     let streamInfo = activeStreams.get(sessionId);
-    
+
     if (!streamInfo) {
         console.log(`Creating new shared tail process for session ${sessionId}`);
-        
+
         // Create new tail process for this session
         const tailProcess = spawn('tail', ['-f', streamOutPath]);
         let buffer = '';
-        
+
         streamInfo = {
             clients: new Set(),
             tailProcess,
             lastPosition: 0
         };
-        
+
         activeStreams.set(sessionId, streamInfo);
-        
+
         // Handle tail output - broadcast to all clients
         tailProcess.stdout.on('data', (chunk) => {
             buffer += chunk.toString();
@@ -421,7 +464,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
                         const castEvent = [currentTime - startTime, "o", line];
                         eventData = `data: ${JSON.stringify(castEvent)}\n\n`;
                     }
-                    
+
                     if (eventData && streamInfo) {
                         // Broadcast to all connected clients
                         streamInfo.clients.forEach(client => {
@@ -431,6 +474,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
                                 console.error('Error writing to client:', error);
                                 if (streamInfo) {
                                     streamInfo.clients.delete(client);
+                                    console.log(`Removed failed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`);
                                 }
                             }
                         });
@@ -453,7 +497,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
 
         tailProcess.on('exit', (code) => {
             console.log(`Shared tail process exited for session ${sessionId} with code ${code}`);
-            // Cleanup all clients  
+            // Cleanup all clients
             const currentStreamInfo = activeStreams.get(sessionId);
             if (currentStreamInfo) {
                 currentStreamInfo.clients.forEach(client => {
@@ -473,7 +517,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
         if (streamInfo && streamInfo.clients.has(res)) {
             streamInfo.clients.delete(res);
             console.log(`Removed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`);
-            
+
             // If no more clients, cleanup the tail process
             if (streamInfo.clients.size === 0) {
                 console.log(`No more clients for session ${sessionId}, cleaning up tail process`);
@@ -487,6 +531,9 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
 
     req.on('close', cleanup);
     req.on('aborted', cleanup);
+    req.on('error', cleanup);
+    res.on('close', cleanup);
+    res.on('finish', cleanup);
 });
 
 // Get session snapshot (cast with adjusted timestamps for immediate playback)
@@ -573,7 +620,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
         // Validate session exists and is running
         const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
         const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
-        
+
         if (!sessions[sessionId]) {
             console.error(`Session ${sessionId} not found in active sessions`);
             return res.status(404).json({ error: 'Session not found' });
@@ -610,21 +657,21 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
         const isSpecialKey = specialKeys.includes(text);
 
         const startTime = Date.now();
-        
+
         if (isSpecialKey) {
             await executeTtyFwd([
                 '--control-path', TTY_FWD_CONTROL_DIR,
                 '--session', sessionId,
                 '--send-key', text
             ]);
-            console.log(`Successfully sent key: ${text} (${Date.now() - startTime}ms)`);
+            // Key sent successfully (removed verbose logging)
         } else {
             await executeTtyFwd([
                 '--control-path', TTY_FWD_CONTROL_DIR,
                 '--session', sessionId,
                 '--send-text', text
             ]);
-            console.log(`Successfully sent text: ${text} (${Date.now() - startTime}ms)`);
+            // Text sent successfully (removed verbose logging)
         }
 
         res.json({ success: true });
@@ -641,7 +688,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
 // Serve test cast file
 app.get('/api/test-cast', (req, res) => {
     const testCastPath = path.join(__dirname, '..', 'public', 'stream-out');
-    
+
     try {
         if (fs.existsSync(testCastPath)) {
             res.setHeader('Content-Type', 'text/plain');
