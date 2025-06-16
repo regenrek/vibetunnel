@@ -227,12 +227,7 @@ struct DebugSettingsView: View {
             return "Switching..."
         }
         
-        // If server is running and we have a current server, use its type
-        if isServerRunning, let serverType = serverManager.currentServer?.serverType {
-            return serverType.displayName
-        }
-        
-        // Otherwise, show the configured mode from settings
+        // Always use the configured mode from settings to ensure immediate UI update
         return ServerMode(rawValue: serverModeString)?.displayName ?? "None"
     }
 
@@ -496,6 +491,8 @@ private struct APIEndpointsSection: View {
         } footer: {
             Text("Click 'Test' to send a request to the endpoint and see the response.")
                 .font(.caption)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
         }
     }
 }

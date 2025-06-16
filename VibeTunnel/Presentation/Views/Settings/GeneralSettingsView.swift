@@ -30,14 +30,6 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
-                    // Show Notifications
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Show notifications", isOn: $showNotifications)
-                        Text("Display notifications for important events.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 } header: {
                     Text("Application")
                         .font(.headline)

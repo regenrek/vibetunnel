@@ -141,8 +141,8 @@ struct DashboardSettingsView: View {
             return
         }
 
-        guard password.count >= 6 else {
-            passwordError = "Password must be at least 6 characters"
+        guard password.count >= 4 else {
+            passwordError = "Password must be at least 4 characters"
             return
         }
 
@@ -331,7 +331,7 @@ private struct SecuritySection: View {
             Text("Security")
                 .font(.headline)
         } footer: {
-            Text("When password protection is enabled, localhost connections can still access without a password. For remote access, any username is accepted - only the password is verified.")
+            Text("Localhost always accessible without password. Username is ignored in remote connections.")
                 .font(.caption)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
@@ -469,7 +469,7 @@ private struct AccessModeView: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
             }
-            VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
                 Text(accessMode.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -477,38 +477,35 @@ private struct AccessModeView: View {
                 // Show IP address when network access is enabled
                 if accessMode == .network {
                     if let ipAddress = localIPAddress {
-                        HStack(spacing: 4) {
-                            Text("Access from other devices at:")
+                        Spacer()
+                        
+                        Button(action: {
+                            let urlString = "http://\(ipAddress):\(serverPort)"
+                            if let url = URL(string: urlString) {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }) {
+                            Text("http://\(ipAddress):\(serverPort)")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                                .underline()
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHandCursor()
+                        
+                        Button(action: {
+                            let urlString = "http://\(ipAddress):\(serverPort)"
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(urlString, forType: .string)
+                        }) {
+                            Image(systemName: "doc.on.doc")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            
-                            Button(action: {
-                                let urlString = "http://\(ipAddress):\(serverPort)"
-                                if let url = URL(string: urlString) {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            }) {
-                                Text("http://\(ipAddress):\(serverPort)")
-                                    .font(.caption)
-                                    .foregroundStyle(.blue)
-                                    .underline()
-                            }
-                            .buttonStyle(.plain)
-                            .pointingHandCursor()
-                            
-                            Button(action: {
-                                let urlString = "http://\(ipAddress):\(serverPort)"
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(urlString, forType: .string)
-                            }) {
-                                Image(systemName: "doc.on.doc")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Copy URL")
                         }
+                        .buttonStyle(.plain)
+                        .help("Copy URL")
                     } else {
+                        Spacer()
                         Text("Unable to determine local IP address")
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -524,22 +521,60 @@ private struct AccessModeView: View {
 private struct PortConfigurationView: View {
     @Binding var serverPort: String
     let restartServerWithNewPort: (Int) -> Void
+    
+    @State private var portNumber: Int = 4020
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Server port:")
                 Spacer()
-                TextField("", text: $serverPort)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
-                    .multilineTextAlignment(.center)
-                    .onChange(of: serverPort) { _, newValue in
-                        // Validate port number
-                        if let port = Int(newValue), port > 0, port < 65_536 {
-                            restartServerWithNewPort(port)
+                HStack(spacing: 4) {
+                    TextField("", text: $serverPort)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .multilineTextAlignment(.center)
+                        .onChange(of: serverPort) { _, newValue in
+                            // Validate port number
+                            if let port = Int(newValue), port > 0, port < 65_536 {
+                                portNumber = port
+                                restartServerWithNewPort(port)
+                            }
                         }
+                    
+                    VStack(spacing: 0) {
+                        Button(action: {
+                            if portNumber < 65535 {
+                                portNumber += 1
+                                serverPort = String(portNumber)
+                                restartServerWithNewPort(portNumber)
+                            }
+                        }) {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 10))
+                                .frame(width: 16, height: 12)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Increase port number")
+                        
+                        Button(action: {
+                            if portNumber > 1 {
+                                portNumber -= 1
+                                serverPort = String(portNumber)
+                                restartServerWithNewPort(portNumber)
+                            }
+                        }) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10))
+                                .frame(width: 16, height: 12)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Decrease port number")
                     }
+                }
+                .onAppear {
+                    portNumber = Int(serverPort) ?? 4020
+                }
             }
             Text("The server will automatically restart when the port is changed.")
                 .font(.caption)
