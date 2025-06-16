@@ -161,6 +161,37 @@ fn cleanup_session(control_path: &Path, session_id: &str) -> Result<bool, anyhow
     Ok(true)
 }
 
+fn send_signal_to_session(
+    control_path: &Path,
+    session_id: &str,
+    signal: i32,
+) -> Result<(), anyhow::Error> {
+    let session_path = control_path.join(session_id);
+    let session_json_path = session_path.join("session.json");
+
+    if !session_json_path.exists() {
+        return Err(anyhow!("Session {} not found", session_id));
+    }
+
+    let content = fs::read_to_string(&session_json_path)?;
+    let session_info: SessionInfo = serde_json::from_str(&content)?;
+
+    if let Some(pid) = session_info.pid {
+        if is_pid_alive(pid) {
+            let result = unsafe { libc::kill(pid as i32, signal) };
+            if result == 0 {
+                Ok(())
+            } else {
+                Err(anyhow!("Failed to send signal {} to PID {}", signal, pid))
+            }
+        } else {
+            Err(anyhow!("Session {} process (PID: {}) is not running", session_id, pid))
+        }
+    } else {
+        Err(anyhow!("Session {} has no PID recorded", session_id))
+    }
+}
+
 fn cleanup_sessions(
     control_path: &Path,
     specific_session: Option<&str>,
@@ -221,6 +252,9 @@ fn main() -> Result<(), anyhow::Error> {
     let mut session_id = None::<String>;
     let mut send_key = None::<String>;
     let mut send_text = None::<String>;
+    let mut signal = None::<i32>;
+    let mut stop = false;
+    let mut kill = false;
     let mut cleanup = false;
     let mut cmdline = Vec::<OsString>::new();
 
@@ -244,6 +278,16 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("send-text") => {
                 send_text = Some(parser.value()?);
             }
+            p if p.is_long("signal") => {
+                let signal_str: String = parser.value()?;
+                signal = Some(signal_str.parse().map_err(|_| anyhow!("Invalid signal number: {}", signal_str))?);
+            }
+            p if p.is_long("stop") => {
+                stop = true;
+            }
+            p if p.is_long("kill") => {
+                kill = true;
+            }
             p if p.is_long("cleanup") => {
                 cleanup = true;
             }
@@ -260,6 +304,9 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("  --send-key <key>        Send key input to session");
                 println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter");
                 println!("  --send-text <text>      Send text input to session");
+                println!("  --signal <number>       Send signal number to session PID");
+                println!("  --stop                  Send SIGTERM to session (equivalent to --signal 15)");
+                println!("  --kill                  Send SIGKILL to session (equivalent to --signal 9)");
                 println!("  --cleanup               Remove exited sessions (all if no --session specified)");
                 println!("  --help                  Show this help message");
                 return Ok(());
@@ -283,6 +330,33 @@ fn main() -> Result<(), anyhow::Error> {
             return send_text_to_session(&control_path, sid, &text);
         } else {
             return Err(anyhow!("--send-text requires --session <session_id>"));
+        }
+    }
+
+    // Handle signal command
+    if let Some(sig) = signal {
+        if let Some(sid) = &session_id {
+            return send_signal_to_session(&control_path, sid, sig);
+        } else {
+            return Err(anyhow!("--signal requires --session <session_id>"));
+        }
+    }
+
+    // Handle stop command (SIGTERM)
+    if stop {
+        if let Some(sid) = &session_id {
+            return send_signal_to_session(&control_path, sid, 15);
+        } else {
+            return Err(anyhow!("--stop requires --session <session_id>"));
+        }
+    }
+
+    // Handle kill command (SIGKILL)
+    if kill {
+        if let Some(sid) = &session_id {
+            return send_signal_to_session(&control_path, sid, 9);
+        } else {
+            return Err(anyhow!("--kill requires --session <session_id>"));
         }
     }
 
