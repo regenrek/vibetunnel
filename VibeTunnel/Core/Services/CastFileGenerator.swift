@@ -68,7 +68,7 @@ struct CastFileGenerator {
             
             // Check if it's a header
             if let dict = parsed as? [String: Any],
-               let version = dict["version"] as? Int,
+               dict["version"] as? Int != nil,
                let w = dict["width"] as? Int,
                let h = dict["height"] as? Int {
                 sessionWidth = w
