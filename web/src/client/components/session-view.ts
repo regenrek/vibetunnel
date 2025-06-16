@@ -178,6 +178,25 @@ export class SessionView extends LitElement {
       return;
     }
 
+    // Handle clipboard shortcuts: Cmd+C/V on macOS, Shift+Ctrl+C/V on Linux/Windows
+    const isMacOS = navigator.platform.toLowerCase().includes('mac');
+    const isPasteShortcut = 
+      (isMacOS && e.metaKey && e.key === 'v' && !e.ctrlKey && !e.shiftKey) ||
+      (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'V');
+    const isCopyShortcut = 
+      (isMacOS && e.metaKey && e.key === 'c' && !e.ctrlKey && !e.shiftKey) ||
+      (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'C');
+
+    if (isPasteShortcut) {
+      await this.handlePaste();
+      return;
+    }
+
+    if (isCopyShortcut) {
+      await this.handleCopy();
+      return;
+    }
+
     let inputText = '';
 
     // Handle special keys
@@ -444,6 +463,87 @@ export class SessionView extends LitElement {
 
   private async handleSpecialKey(key: string) {
     await this.sendInputText(key);
+  }
+
+  private async handlePaste() {
+    if (!this.session) return;
+
+    try {
+      // Read text from clipboard
+      const clipboardText = await navigator.clipboard.readText();
+      
+      if (clipboardText) {
+        // Send the clipboard text to the terminal
+        await this.sendInputText(clipboardText);
+      }
+    } catch (error) {
+      console.error('Failed to read from clipboard:', error);
+      // Fallback: try to use the older document.execCommand method
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        
+        if (document.execCommand('paste')) {
+          const pastedText = textArea.value;
+          if (pastedText) {
+            await this.sendInputText(pastedText);
+          }
+        }
+        
+        document.body.removeChild(textArea);
+      } catch (fallbackError) {
+        console.error('Fallback paste method also failed:', fallbackError);
+      }
+    }
+  }
+
+  private async handleCopy() {
+    if (!this.renderer) return;
+
+    try {
+      // Get the terminal instance from the renderer
+      const terminal = this.renderer.getTerminal();
+      
+      // Get the selected text from the terminal
+      const selectedText = terminal.getSelection();
+      
+      if (selectedText) {
+        // Write the selected text to clipboard
+        await navigator.clipboard.writeText(selectedText);
+        console.log('Text copied to clipboard:', selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : ''));
+      } else {
+        console.log('No text selected for copying');
+      }
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      // Fallback: try to use the older document.execCommand method
+      try {
+        if (this.renderer) {
+          const terminal = this.renderer.getTerminal();
+          const selectedText = terminal.getSelection();
+          
+          if (selectedText) {
+            const textArea = document.createElement('textarea');
+            textArea.value = selectedText;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            if (document.execCommand('copy')) {
+              console.log('Text copied to clipboard (fallback):', selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : ''));
+            }
+            
+            document.body.removeChild(textArea);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback copy method also failed:', fallbackError);
+      }
+    }
   }
 
   private async sendInputText(text: string) {
