@@ -17,6 +17,7 @@ export class SessionCreateForm extends LitElement {
   @property({ type: String }) workingDir = '~/';
   @property({ type: String }) command = '';
   @property({ type: Boolean }) disabled = false;
+  @property({ type: Boolean }) visible = false;
 
   @state() private isCreating = false;
   @state() private showFileBrowser = false;
@@ -124,10 +125,27 @@ export class SessionCreateForm extends LitElement {
     return args;
   }
 
+  private handleCancel() {
+    this.dispatchEvent(new CustomEvent('cancel'));
+  }
+
   render() {
+    if (!this.visible) {
+      return html``;
+    }
+
     return html`
-      <div class="border border-vs-accent font-mono text-sm p-4 m-4 rounded">
-        <div class="text-vs-assistant text-sm mb-4">Create New Session</div>
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 9999;">
+        <div class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 max-w-full mx-4">
+          <div class="p-4 border-b border-vs-border flex justify-between items-center">
+            <div class="text-vs-assistant text-sm">Create New Session</div>
+            <button 
+              class="text-vs-muted hover:text-vs-text text-lg leading-none border-none bg-transparent cursor-pointer"
+              @click=${this.handleCancel}
+            >×</button>
+          </div>
+          
+          <div class="p-4">
         
         <div class="mb-4">
           <div class="text-vs-muted mb-2">Working Directory:</div>
@@ -163,13 +181,24 @@ export class SessionCreateForm extends LitElement {
           />
         </div>
 
-        <button 
-          class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none"
-          @click=${this.handleCreate}
-          ?disabled=${this.disabled || this.isCreating || !this.workingDir.trim() || !this.command.trim()}
-        >
-          ${this.isCreating ? 'creating...' : 'create'}
-        </button>
+            <div class="flex gap-4 justify-end">
+              <button 
+                class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-4 py-2 border-none"
+                @click=${this.handleCancel}
+                ?disabled=${this.isCreating}
+              >
+                cancel
+              </button>
+              <button 
+                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none"
+                @click=${this.handleCreate}
+                ?disabled=${this.disabled || this.isCreating || !this.workingDir.trim() || !this.command.trim()}
+              >
+                ${this.isCreating ? 'creating...' : 'create'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
       
       <file-browser

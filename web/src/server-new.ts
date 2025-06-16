@@ -65,11 +65,11 @@ async function executeTtyFwd(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn(TTY_FWD_PATH, args);
         let output = '';
-        
+
         child.stdout.on('data', (data) => {
             output += data.toString();
         });
-        
+
         child.on('close', (code) => {
             if (code === 0) {
                 resolve(output);
@@ -77,7 +77,7 @@ async function executeTtyFwd(args: string[]): Promise<string> {
                 reject(new Error(`tty-fwd failed with code ${code}`));
             }
         });
-        
+
         child.on('error', (error) => {
             reject(error);
         });
@@ -89,11 +89,11 @@ function resolvePath(inputPath: string, fallback?: string): string {
     if (!inputPath) {
         return fallback || process.cwd();
     }
-    
+
     if (inputPath.startsWith('~')) {
         return path.join(os.homedir(), inputPath.slice(1));
     }
-    
+
     return path.resolve(inputPath);
 }
 
@@ -111,7 +111,7 @@ app.get('/api/sessions', async (req, res) => {
     try {
         const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
         const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
-        
+
         const sessionData = Object.entries(sessions).map(([sessionId, sessionInfo]) => {
             // Get actual last modified time from stream-out file
             let lastModified = sessionInfo.started_at;
@@ -123,7 +123,7 @@ app.get('/api/sessions', async (req, res) => {
             } catch (e) {
                 // Use started_at as fallback
             }
-            
+
             return {
                 id: sessionId,
                 command: sessionInfo.cmdline.join(' '),
@@ -135,7 +135,7 @@ app.get('/api/sessions', async (req, res) => {
                 pid: sessionInfo.pid
             };
         });
-        
+
         // Sort by lastModified, most recent first
         sessionData.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
         res.json(sessionData);
@@ -149,44 +149,44 @@ app.get('/api/sessions', async (req, res) => {
 app.post('/api/sessions', async (req, res) => {
     try {
         const { command, workingDir } = req.body;
-        
+
         if (!command || !Array.isArray(command) || command.length === 0) {
             return res.status(400).json({ error: 'Command array is required and cannot be empty' });
         }
-        
+
         const sessionName = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const cwd = resolvePath(workingDir, process.cwd());
-        
+
         const args = [
             '--control-path', TTY_FWD_CONTROL_DIR,
             '--session-name', sessionName,
             '--'
         ].concat(command);
-        
+
         console.log(`Creating session: ${TTY_FWD_PATH} ${args.join(' ')}`);
-        
+
         const child = spawn(TTY_FWD_PATH, args, {
             cwd: cwd,
             detached: false,
             stdio: 'pipe'
         });
-        
+
         // Log output for debugging
         child.stdout.on('data', (data) => {
             console.log(`Session ${sessionName} stdout:`, data.toString());
         });
-        
+
         child.stderr.on('data', (data) => {
             console.log(`Session ${sessionName} stderr:`, data.toString());
         });
-        
+
         child.on('close', (code) => {
             console.log(`Session ${sessionName} exited with code: ${code}`);
         });
-        
+
         // Respond immediately - don't wait for completion
         res.json({ sessionId: sessionName });
-        
+
     } catch (error) {
         console.error('Error creating session:', error);
         res.status(500).json({ error: 'Failed to create session' });
@@ -196,16 +196,16 @@ app.post('/api/sessions', async (req, res) => {
 // Kill session (just kill the process)
 app.delete('/api/sessions/:sessionId', async (req, res) => {
     const sessionId = req.params.sessionId;
-    
+
     try {
         const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
         const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
         const session = sessions[sessionId];
-        
+
         if (!session) {
             return res.status(404).json({ error: 'Session not found' });
         }
-        
+
         if (session.pid) {
             try {
                 process.kill(session.pid, 'SIGTERM');
@@ -221,9 +221,9 @@ app.delete('/api/sessions/:sessionId', async (req, res) => {
                 // Process already dead
             }
         }
-        
+
         res.json({ success: true, message: 'Session killed' });
-        
+
     } catch (error) {
         console.error('Error killing session:', error);
         res.status(500).json({ error: 'Failed to kill session' });
@@ -233,16 +233,16 @@ app.delete('/api/sessions/:sessionId', async (req, res) => {
 // Cleanup session files
 app.delete('/api/sessions/:sessionId/cleanup', async (req, res) => {
     const sessionId = req.params.sessionId;
-    
+
     try {
         await executeTtyFwd([
             '--control-path', TTY_FWD_CONTROL_DIR,
             '--session', sessionId,
             '--cleanup'
         ]);
-        
+
         res.json({ success: true, message: 'Session cleaned up' });
-        
+
     } catch (error) {
         // If tty-fwd cleanup fails, force remove directory
         console.log('tty-fwd cleanup failed, force removing directory');
@@ -265,11 +265,11 @@ app.delete('/api/sessions/:sessionId/cleanup', async (req, res) => {
 app.get('/api/sessions/:sessionId/stream', (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
-    
+
     if (!fs.existsSync(streamOutPath)) {
         return res.status(404).json({ error: 'Session not found' });
     }
-    
+
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -277,16 +277,16 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Cache-Control'
     });
-    
+
     const startTime = Date.now() / 1000;
     let headerSent = false;
-    
+
     // Send existing content first
     // NOTE: Small race condition possible between reading file and starting tail
     try {
         const content = fs.readFileSync(streamOutPath, 'utf8');
         const lines = content.trim().split('\n');
-        
+
         for (const line of lines) {
             if (line.trim()) {
                 try {
@@ -306,7 +306,7 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
     } catch (error) {
         console.error('Error reading existing content:', error);
     }
-    
+
     // Send default header if none found
     if (!headerSent) {
         const defaultHeader = {
@@ -318,16 +318,16 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
         };
         res.write(`data: ${JSON.stringify(defaultHeader)}\n\n`);
     }
-    
+
     // Stream new content
     const tailProcess = spawn('tail', ['-f', streamOutPath]);
     let buffer = '';
-    
+
     tailProcess.stdout.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-        
+
         for (const line of lines) {
             if (line.trim()) {
                 try {
@@ -349,7 +349,7 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
             }
         }
     });
-    
+
     // Cleanup on disconnect
     req.on('close', () => tailProcess.kill('SIGTERM'));
     req.on('aborted', () => tailProcess.kill('SIGTERM'));
@@ -359,24 +359,24 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
 app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
-    
+
     if (!fs.existsSync(streamOutPath)) {
         return res.status(404).json({ error: 'Session not found' });
     }
-    
+
     try {
         const content = fs.readFileSync(streamOutPath, 'utf8');
         const lines = content.trim().split('\n');
-        
+
         let header = null;
         const events = [];
         let startTime = null;
-        
+
         for (const line of lines) {
             if (line.trim()) {
                 try {
                     const parsed = JSON.parse(line);
-                    
+
                     // Header line
                     if (parsed.version && parsed.width && parsed.height) {
                         header = parsed;
@@ -386,19 +386,17 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
                         if (startTime === null) {
                             startTime = parsed[0];
                         }
-                        // Adjust timestamp to start from 0 and compress time
-                        const adjustedTime = (parsed[0] - startTime) * 0.1; // 10x speed
-                        events.push([adjustedTime, parsed[1], parsed[2]]);
+                        events.push([0, parsed[1], parsed[2]]);
                     }
                 } catch (e) {
                     // Skip invalid lines
                 }
             }
         }
-        
+
         // Build the complete asciinema cast
         const cast = [];
-        
+
         // Add header if found, otherwise use default
         if (header) {
             cast.push(JSON.stringify(header));
@@ -411,15 +409,15 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
                 env: { TERM: "xterm-256color" }
             }));
         }
-        
+
         // Add all events
         events.forEach(event => {
             cast.push(JSON.stringify(event));
         });
-        
+
         res.setHeader('Content-Type', 'text/plain');
         res.send(cast.join('\n'));
-        
+
     } catch (error) {
         console.error('Error reading session snapshot:', error);
         res.status(500).json({ error: 'Failed to read session snapshot' });
@@ -430,18 +428,18 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
 app.post('/api/sessions/:sessionId/input', async (req, res) => {
     const sessionId = req.params.sessionId;
     const { text } = req.body;
-    
+
     if (text === undefined || text === null) {
         return res.status(400).json({ error: 'Text is required' });
     }
-    
+
     console.log(`Sending input to session ${sessionId}:`, JSON.stringify(text));
-    
+
     try {
         // Check if this is a special key that should use --send-key
         const specialKeys = ['arrow_up', 'arrow_down', 'arrow_left', 'arrow_right', 'escape', 'enter'];
         const isSpecialKey = specialKeys.includes(text);
-        
+
         if (isSpecialKey) {
             await executeTtyFwd([
                 '--control-path', TTY_FWD_CONTROL_DIR,
@@ -457,9 +455,9 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
             ]);
             console.log(`Successfully sent text: ${text}`);
         }
-        
+
         res.json({ success: true });
-        
+
     } catch (error) {
         console.error('Error sending input via tty-fwd:', error);
         res.status(500).json({ error: 'Failed to send input' });
@@ -471,23 +469,23 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
 // Directory listing for file browser
 app.get('/api/fs/browse', (req, res) => {
     const dirPath = req.query.path as string || '~';
-    
+
     try {
         const expandedPath = resolvePath(dirPath, '~');
-        
+
         if (!fs.existsSync(expandedPath)) {
             return res.status(404).json({ error: 'Directory not found' });
         }
-        
+
         const stats = fs.statSync(expandedPath);
         if (!stats.isDirectory()) {
             return res.status(400).json({ error: 'Path is not a directory' });
         }
-        
+
         const files = fs.readdirSync(expandedPath).map(name => {
             const filePath = path.join(expandedPath, name);
             const fileStats = fs.statSync(filePath);
-            
+
             return {
                 name,
                 created: fileStats.birthtime.toISOString(),
@@ -496,7 +494,7 @@ app.get('/api/fs/browse', (req, res) => {
                 isDir: fileStats.isDirectory()
             };
         });
-        
+
         res.json({
             absolutePath: expandedPath,
             files: files.sort((a, b) => {
@@ -506,7 +504,7 @@ app.get('/api/fs/browse', (req, res) => {
                 return a.name.localeCompare(b.name);
             })
         });
-        
+
     } catch (error) {
         console.error('Error listing directory:', error);
         res.status(500).json({ error: 'Failed to list directory' });
@@ -519,7 +517,7 @@ app.get('/api/fs/browse', (req, res) => {
 wss.on('connection', (ws, req) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);
     const isHotReload = url.searchParams.get('hotReload') === 'true';
-    
+
     if (isHotReload) {
         hotReloadClients.add(ws);
         ws.on('close', () => {
@@ -527,7 +525,7 @@ wss.on('connection', (ws, req) => {
         });
         return;
     }
-    
+
     ws.close(1008, 'Only hot reload connections supported');
 });
 

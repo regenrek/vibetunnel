@@ -1,6 +1,0 @@
-{"version":2,"width":80,"height":24}
-[0.000356917,"o","^D\b\b"]
-[0.00358725,"o","\r\nThe default interactive shell is now zsh.\r\nTo update your account to use zsh, please run `chsh -s /bin/zsh`.\r\nFor more details, please visit https://support.apple.com/kb/HT208050.\r\n"]
-[0.003765042,"o","\u001b[?1034h"]
-[0.003780584,"o","bash-3.2$ "]
-[0.00379075,"o","exit\r\n"]

@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import './session-create-form.js';
 
 export interface Session {
   id: string;
@@ -25,7 +26,8 @@ export class SessionList extends LitElement {
   @state() private killingSessionIds = new Set<string>();
   @state() private loadedSnapshots = new Map<string, string>();
   @state() private loadingSnapshots = new Set<string>();
-  @state() private hideExited = false;
+  @state() private hideExited = true;
+  @state() private showCreateModal = false;
 
   private handleRefresh() {
     this.dispatchEvent(new CustomEvent('refresh'));
@@ -165,6 +167,19 @@ export class SessionList extends LitElement {
     return id.length > 8 ? `${id.substring(0, 8)}...` : id;
   }
 
+  private handleSessionCreated(e: CustomEvent) {
+    this.showCreateModal = false;
+    this.dispatchEvent(new CustomEvent('session-created', {
+      detail: e.detail
+    }));
+  }
+
+  private handleCreateError(e: CustomEvent) {
+    this.dispatchEvent(new CustomEvent('error', {
+      detail: e.detail
+    }));
+  }
+
   private get filteredSessions() {
     return this.hideExited 
       ? this.sessions.filter(session => session.status === 'running')
@@ -176,8 +191,15 @@ export class SessionList extends LitElement {
     
     return html`
       <div class="font-mono text-sm p-4">
-        <!-- Filter Controls -->
-        <div class="mb-4 flex items-center justify-end">
+        <!-- Controls -->
+        <div class="mb-4 flex items-center justify-between">
+          <button 
+            class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded"
+            @click=${() => this.showCreateModal = true}
+          >
+            Create Session
+          </button>
+          
           <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
             <div class="relative">
               <input 
@@ -248,6 +270,13 @@ export class SessionList extends LitElement {
             `)}
           </div>
         `}
+        
+        <session-create-form
+          .visible=${this.showCreateModal}
+          @session-created=${this.handleSessionCreated}
+          @cancel=${() => this.showCreateModal = false}
+          @error=${this.handleCreateError}
+        ></session-create-form>
       </div>
     `;
   }

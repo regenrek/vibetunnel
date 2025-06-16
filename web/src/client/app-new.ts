@@ -126,15 +126,12 @@ export class VibeTunnelAppNew extends LitElement {
     return html`
       <div class="max-w-4xl mx-auto">
         <app-header></app-header>
-        <session-create-form
-          @session-created=${this.handleSessionCreated}
-          @error=${this.handleError}
-        ></session-create-form>
         <session-list
           .sessions=${this.sessions}
           .loading=${this.loading}
           @session-select=${this.handleSessionSelect}
           @session-killed=${this.handleSessionKilled}
+          @session-created=${this.handleSessionCreated}
           @refresh=${this.handleRefresh}
           @error=${this.handleError}
         ></session-list>
