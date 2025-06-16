@@ -1,6 +1,4 @@
-<div align="center">
-  <img src="VibeTunnel/AppIcon.icon/Assets/vibe_tunnel_clean.png" alt="VibeTunnel Logo" width="128" height="128">
-</div>
+![VibeTunnel Banner](assets/banner.png)
 
 # VibeTunnel
 

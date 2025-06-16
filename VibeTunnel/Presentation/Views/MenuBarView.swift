@@ -52,8 +52,6 @@ struct MenuBarView: View {
                         Label("Show Tutorial", systemImage: "book")
                     }
                     
-                    Divider()
-                    
                     // Website
                     Button(action: {
                         if let url = URL(string: "http://vibetunnel.sh") {
@@ -72,8 +70,6 @@ struct MenuBarView: View {
                         Label("Report Issue", systemImage: "exclamationmark.triangle")
                     }
 
-                    Divider()
-
                     // Check for Updates
                     Button(action: {
                         SparkleUpdaterManager.shared.checkForUpdates()
@@ -84,6 +80,8 @@ struct MenuBarView: View {
                     // Version (non-interactive)
                     Text("Version \(appVersion)")
                         .foregroundColor(.secondary)
+
+                    Divider()
 
                     // About
                     SettingsLink {
