@@ -290,6 +290,7 @@ struct DashboardSettingsView: View {
     @State private var serverErrorMessage = ""
     @State private var isTokenRevealed = false
     @State private var maskedToken = ""
+    @State private var localIPAddress: String?
 
     private let dashboardKeychain = DashboardKeychain.shared
     private let ngrokService = NgrokService.shared
@@ -380,13 +381,15 @@ struct DashboardSettingsView: View {
                         "When password protection is enabled, localhost connections can still access without a password. For remote access, any username is accepted - only the password is verified."
                     )
                     .font(.caption)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
                 }
 
                 Section {
                     // Access Mode
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Allow accessing dashboard:")
+                            Text("Allow accessing the dashboard from:")
                             Spacer()
                             Picker("", selection: Binding(
                                 get: { accessMode },
@@ -402,13 +405,53 @@ struct DashboardSettingsView: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                         }
-                        Text(accessMode.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(accessMode.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            // Show IP address when network access is enabled
+                            if accessMode == .network {
+                                if let ipAddress = localIPAddress {
+                                    HStack(spacing: 4) {
+                                        Text("Access from other devices at:")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        
+                                        Button(action: {
+                                            let urlString = "http://\(ipAddress):\(serverPort)"
+                                            if let url = URL(string: urlString) {
+                                                NSWorkspace.shared.open(url)
+                                            }
+                                        }) {
+                                            Text("http://\(ipAddress):\(serverPort)")
+                                                .font(.caption)
+                                                .foregroundStyle(.blue)
+                                                .underline()
+                                        }
+                                        .buttonStyle(.plain)
+                                        .cursor(.pointingHand)
+                                        
+                                        Button(action: {
+                                            let urlString = "http://\(ipAddress):\(serverPort)"
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(urlString, forType: .string)
+                                        }) {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Copy URL")
+                                    }
+                                } else {
+                                    Text("Unable to determine local IP address")
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                        }
                     }
-
-                    Divider()
-                        .padding(.vertical, 4)
 
                     // Port Configuration
                     VStack(alignment: .leading, spacing: 4) {
@@ -606,6 +649,13 @@ struct DashboardSettingsView: View {
             if ngrokTokenPresent && !isTokenRevealed {
                 maskedToken = String(repeating: "•", count: 12)
             }
+            
+            // Get local IP address
+            updateLocalIPAddress()
+        }
+        .onChange(of: accessMode) { _, _ in
+            // Update IP address when access mode changes
+            updateLocalIPAddress()
         }
         .alert("ngrok Auth Token Required", isPresented: $showingAuthTokenAlert) {
             Button("OK") {}
@@ -762,6 +812,16 @@ struct DashboardSettingsView: View {
             }
         }
     }
+    
+    private func updateLocalIPAddress() {
+        Task {
+            if accessMode == .network {
+                localIPAddress = NetworkUtility.getLocalIPAddress()
+            } else {
+                localIPAddress = nil
+            }
+        }
+    }
 }
 
 /// Advanced settings tab for power user options
@@ -774,6 +834,7 @@ struct AdvancedSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Integration section
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -788,14 +849,26 @@ struct AdvancedSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
+                } header: {
+                    Text("Integration")
+                        .font(.headline)
+                }
+                
+                // Advanced section
+                Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Clean up old sessions on startup", isOn: $cleanupOnStartup)
                         Text("Automatically remove terminated sessions when the app starts.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
+                } header: {
+                    Text("Advanced")
+                        .font(.headline)
+                }
+                
+                // Debug section
+                Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Debug mode", isOn: $debugMode)
                         Text("Enable additional logging and debugging features.")
@@ -803,7 +876,7 @@ struct AdvancedSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Advanced")
+                    Text("Debug")
                         .font(.headline)
                 }
             }
@@ -920,7 +993,12 @@ struct DebugSettingsView: View {
                             Spacer()
                             Picker("", selection: Binding(
                                 get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
-                                set: { serverModeString = $0.rawValue }
+                                set: { newMode in
+                                    serverModeString = newMode.rawValue
+                                    Task {
+                                        await serverManager.switchMode(to: newMode)
+                                    }
+                                }
                             )) {
                                 ForEach(ServerMode.allCases, id: \.self) { mode in
                                     VStack(alignment: .leading) {
@@ -984,7 +1062,7 @@ struct DebugSettingsView: View {
                         }
 
                         LabeledContent("Mode") {
-                            Text(serverManager.currentServer?.serverType.displayName ?? "None")
+                            Text(getCurrentServerMode())
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -1171,6 +1249,7 @@ struct DebugSettingsView: View {
                 // Clear health status when switching modes
                 isServerHealthy = false
             }
+            // Server changes are automatically observed through serverManager
             .alert("Purge All User Defaults?", isPresented: $showPurgeConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Purge", role: .destructive) {
@@ -1328,6 +1407,21 @@ struct DebugSettingsView: View {
                 NSApplication.shared.terminate(nil)
             }
         }
+    }
+    
+    private func getCurrentServerMode() -> String {
+        // If server is switching, show transitioning state
+        if serverManager.isSwitching {
+            return "Switching..."
+        }
+        
+        // If server is running and we have a current server, use its type
+        if isServerRunning, let serverType = serverManager.currentServer?.serverType {
+            return serverType.displayName
+        }
+        
+        // Otherwise, show the configured mode from settings
+        return ServerMode(rawValue: serverModeString)?.displayName ?? "None"
     }
 }
 
