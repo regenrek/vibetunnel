@@ -201,8 +201,9 @@ pub fn start_server(
 
             let method = req.method();
             let path = req.uri().path().to_string();
+            let full_uri = req.uri().to_string();
 
-            println!("{:?} {}", method, path);
+            println!("{:?} {} (full URI: {})", method, path, full_uri);
 
             // Check for static file serving first
             if method == &Method::GET && !path.starts_with("/api/") {
@@ -379,19 +380,37 @@ fn handle_create_session(
         .map(|s| std::ffi::OsString::from(s))
         .collect();
 
-    // Set working directory if specified
+    // Set working directory if specified, with tilde expansion
     let current_dir = if let Some(ref working_dir) = create_request.working_dir {
-        // Validate the working directory exists
-        if !std::path::Path::new(working_dir).exists() {
+        // Expand ~ to home directory if needed
+        let expanded_dir = if working_dir.starts_with('~') {
+            if let Some(home_dir) = std::env::var_os("HOME") {
+                let home_path = std::path::Path::new(&home_dir);
+                let remaining_path = &working_dir[1..]; // Remove the ~ character
+                if remaining_path.is_empty() {
+                    home_path.to_path_buf()
+                } else {
+                    home_path.join(remaining_path.trim_start_matches('/'))
+                }
+            } else {
+                // Fall back to the original path if HOME is not set
+                std::path::PathBuf::from(working_dir)
+            }
+        } else {
+            std::path::PathBuf::from(working_dir)
+        };
+
+        // Validate the expanded directory exists
+        if !expanded_dir.exists() {
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some(format!("Working directory does not exist: {}", working_dir)),
+                error: Some(format!("Working directory does not exist: {}", expanded_dir.display())),
                 session_id: None,
             };
             return json_response(StatusCode::BAD_REQUEST, &error);
         }
-        working_dir.clone()
+        expanded_dir.to_string_lossy().to_string()
     } else {
         std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
@@ -589,21 +608,74 @@ fn handle_session_input(
 
 fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
-        match sessions::send_signal_to_session(control_path, &session_id, 9) {
-            Ok(_) => {
-                let response = ApiResponse {
-                    success: Some(true),
-                    message: Some("Session killed".to_string()),
-                    error: None,
-                    session_id: None,
-                };
-                json_response(StatusCode::OK, &response)
+        // First check if session exists by listing sessions
+        match sessions::list_sessions(control_path) {
+            Ok(sessions) => {
+                if let Some(session_entry) = sessions.get(&session_id) {
+                    // Session exists, try to kill it
+                    if let Some(pid) = session_entry.session_info.pid {
+                        // First try SIGTERM, then SIGKILL if needed (like Node.js version)
+                        match sessions::send_signal_to_session(control_path, &session_id, 15) {
+                            Ok(_) => {
+                                // Successfully sent SIGTERM
+                                let response = ApiResponse {
+                                    success: Some(true),
+                                    message: Some("Session killed".to_string()),
+                                    error: None,
+                                    session_id: None,
+                                };
+                                json_response(StatusCode::OK, &response)
+                            }
+                            Err(_) => {
+                                // SIGTERM failed, try SIGKILL
+                                match sessions::send_signal_to_session(control_path, &session_id, 9) {
+                                    Ok(_) => {
+                                        let response = ApiResponse {
+                                            success: Some(true),
+                                            message: Some("Session killed".to_string()),
+                                            error: None,
+                                            session_id: None,
+                                        };
+                                        json_response(StatusCode::OK, &response)
+                                    }
+                                    Err(e) => {
+                                        let error = ApiResponse {
+                                            success: None,
+                                            message: None,
+                                            error: Some(format!("Failed to kill session: {}", e)),
+                                            session_id: None,
+                                        };
+                                        json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Session has no PID, consider it already dead
+                        let response = ApiResponse {
+                            success: Some(true),
+                            message: Some("Session killed".to_string()),
+                            error: None,
+                            session_id: None,
+                        };
+                        json_response(StatusCode::OK, &response)
+                    }
+                } else {
+                    // Session not found
+                    let error = ApiResponse {
+                        success: None,
+                        message: None,
+                        error: Some("Session not found".to_string()),
+                        session_id: None,
+                    };
+                    json_response(StatusCode::NOT_FOUND, &error)
+                }
             }
             Err(e) => {
                 let error = ApiResponse {
                     success: None,
                     message: None,
-                    error: Some(format!("Failed to kill session: {}", e)),
+                    error: Some(format!("Failed to list sessions: {}", e)),
                     session_id: None,
                 };
                 json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
