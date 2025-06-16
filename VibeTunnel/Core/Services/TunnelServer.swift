@@ -181,72 +181,6 @@ public final class TunnelServer {
                 await self.browseFileSystem(request: request)
             }
             
-            // Legacy endpoint for backwards compatibility
-            router.get("/sessions") { _, _ async -> Response in
-                let process = await MainActor.run {
-                    TTYForwardManager.shared.createTTYForwardProcess(with: ["--list-sessions"])
-                }
-                
-                guard let process = process else {
-                    self.logger.error("Failed to create tty-fwd process")
-                    let errorJson = "{\"error\": \"tty-fwd binary not found\"}"
-                    var buffer = ByteBuffer()
-                    buffer.writeString(errorJson)
-                    return Response(
-                        status: .internalServerError,
-                        headers: [.contentType: "application/json"],
-                        body: ResponseBody(byteBuffer: buffer)
-                    )
-                }
-                
-                let outputPipe = Pipe()
-                let errorPipe = Pipe()
-                process.standardOutput = outputPipe
-                process.standardError = errorPipe
-                
-                do {
-                    try process.run()
-                    process.waitUntilExit()
-                    
-                    if process.terminationStatus == 0 {
-                        // Read the JSON output
-                        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                        var buffer = ByteBuffer()
-                        buffer.writeBytes(outputData)
-                        
-                        return Response(
-                            status: .ok,
-                            headers: [.contentType: "application/json"],
-                            body: ResponseBody(byteBuffer: buffer)
-                        )
-                    } else {
-                        // Read error output
-                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                        let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-                        self.logger.error("tty-fwd failed with status \(process.terminationStatus): \(errorString)")
-                        
-                        let errorJson = "{\"error\": \"Failed to list sessions: \(errorString.replacingOccurrences(of: "\"", with: "\\\""))\"}"
-                        var buffer = ByteBuffer()
-                        buffer.writeString(errorJson)
-                        return Response(
-                            status: .internalServerError,
-                            headers: [.contentType: "application/json"],
-                            body: ResponseBody(byteBuffer: buffer)
-                        )
-                    }
-                } catch {
-                    self.logger.error("Failed to run tty-fwd: \(error)")
-                    let errorJson = "{\"error\": \"Failed to execute tty-fwd: \(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
-                    var buffer = ByteBuffer()
-                    buffer.writeString(errorJson)
-                    return Response(
-                        status: .internalServerError,
-                        headers: [.contentType: "application/json"],
-                        body: ResponseBody(byteBuffer: buffer)
-                    )
-                }
-            }
-            
             // Serve index.html from root path
             router.get("/") { _, _ async -> Response in
                 return await self.serveStaticFile(path: "index.html")
@@ -713,13 +647,7 @@ public final class TunnelServer {
                        dict["version"] != nil && dict["width"] != nil && dict["height"] != nil {
                         header = dict
                     } else if let array = parsed as? [Any], array.count >= 3 {
-                        if let timestamp = array[0] as? Double {
-                            if startTime == nil {
-                                startTime = timestamp
-                            }
-                            let adjustedTime = (timestamp - (startTime ?? 0)) * 0.1
-                            events.append([adjustedTime, array[1], array[2]])
-                        }
+                        events.append([0.0, array[1], array[2]])
                     }
                 }
             }
