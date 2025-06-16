@@ -109,9 +109,12 @@ public final class TunnelServer {
             }
             
             // Sessions endpoint - calls tty-fwd --list-sessions
-            router.get("/sessions") { _, _ -> Response in
-                let ttyManager = TTYForwardManager.shared
-                guard let process = ttyManager.createTTYForwardProcess(with: ["--list-sessions"]) else {
+            router.get("/sessions") { _, _ async -> Response in
+                let process = await MainActor.run {
+                    TTYForwardManager.shared.createTTYForwardProcess(with: ["--list-sessions"])
+                }
+                
+                guard let process = process else {
                     self.logger.error("Failed to create tty-fwd process")
                     let errorJson = "{\"error\": \"tty-fwd binary not found\"}"
                     var buffer = ByteBuffer()

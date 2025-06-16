@@ -12,3 +12,7 @@
 // These will be used if Local.xcconfig doesn't exist or doesn't define them
 DEVELOPMENT_TEAM = $(inherited)
 CODE_SIGN_STYLE = $(inherited)
+
+// Swift version and concurrency settings
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete

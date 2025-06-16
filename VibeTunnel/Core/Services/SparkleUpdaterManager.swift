@@ -6,6 +6,7 @@ import UserNotifications
 /// Stub implementation of SparkleUpdaterManager
 /// TODO: Add Sparkle dependency through Xcode Package Manager and restore full implementation
 @available(macOS 10.15, *)
+@MainActor
 public final class SparkleUpdaterManager: NSObject {
     
     public static let shared = SparkleUpdaterManager()

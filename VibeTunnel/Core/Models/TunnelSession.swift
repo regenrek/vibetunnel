@@ -22,7 +22,7 @@ public struct TunnelSession: Identifiable, Codable, Sendable {
 }
 
 /// Request to create a new terminal session
-public struct CreateSessionRequest: Codable {
+public struct CreateSessionRequest: Codable, Sendable {
     public let workingDirectory: String?
     public let environment: [String: String]?
     public let shell: String?
@@ -35,7 +35,7 @@ public struct CreateSessionRequest: Codable {
 }
 
 /// Response after creating a session
-public struct CreateSessionResponse: Codable {
+public struct CreateSessionResponse: Codable, Sendable {
     public let sessionId: String
     public let createdAt: Date
 
@@ -46,7 +46,7 @@ public struct CreateSessionResponse: Codable {
 }
 
 /// Command execution request
-public struct CommandRequest: Codable {
+public struct CommandRequest: Codable, Sendable {
     public let sessionId: String
     public let command: String
     public let args: [String]?
@@ -61,7 +61,7 @@ public struct CommandRequest: Codable {
 }
 
 /// Command execution response
-public struct CommandResponse: Codable {
+public struct CommandResponse: Codable, Sendable {
     public let sessionId: String
     public let output: String?
     public let error: String?
@@ -84,7 +84,7 @@ public struct CommandResponse: Codable {
 }
 
 /// Session information
-public struct SessionInfo: Codable {
+public struct SessionInfo: Codable, Sendable {
     public let id: String
     public let createdAt: Date
     public let lastActivity: Date
@@ -99,7 +99,7 @@ public struct SessionInfo: Codable {
 }
 
 /// List sessions response
-public struct ListSessionsResponse: Codable {
+public struct ListSessionsResponse: Codable, Sendable {
     public let sessions: [SessionInfo]
 
     public init(sessions: [SessionInfo]) {
@@ -134,7 +134,7 @@ extension TunnelSession {
     }
     
     /// Request to create a new session
-    public struct CreateRequest: Codable {
+    public struct CreateRequest: Codable, Sendable {
         public let clientInfo: ClientInfo?
         
         public init(clientInfo: ClientInfo? = nil) {
@@ -143,7 +143,7 @@ extension TunnelSession {
     }
     
     /// Response after creating a session
-    public struct CreateResponse: Codable {
+    public struct CreateResponse: Codable, Sendable {
         public let id: String
         public let session: TunnelSession
         
@@ -154,7 +154,7 @@ extension TunnelSession {
     }
     
     /// Request to execute a command
-    public struct ExecuteCommandRequest: Codable {
+    public struct ExecuteCommandRequest: Codable, Sendable {
         public let sessionId: String
         public let command: String
         public let environment: [String: String]?
@@ -174,7 +174,7 @@ extension TunnelSession {
     }
     
     /// Response from command execution
-    public struct ExecuteCommandResponse: Codable {
+    public struct ExecuteCommandResponse: Codable, Sendable {
         public let exitCode: Int32
         public let stdout: String
         public let stderr: String
@@ -187,7 +187,7 @@ extension TunnelSession {
     }
     
     /// Health check response
-    public struct HealthResponse: Codable {
+    public struct HealthResponse: Codable, Sendable {
         public let status: String
         public let timestamp: Date
         public let sessions: Int
@@ -202,7 +202,7 @@ extension TunnelSession {
     }
     
     /// List sessions response
-    public struct ListResponse: Codable {
+    public struct ListResponse: Codable, Sendable {
         public let sessions: [TunnelSession]
         
         public init(sessions: [TunnelSession]) {
@@ -211,7 +211,7 @@ extension TunnelSession {
     }
     
     /// Error response from server
-    public struct ErrorResponse: Codable {
+    public struct ErrorResponse: Codable, Sendable {
         public let error: String
         public let code: String?
         

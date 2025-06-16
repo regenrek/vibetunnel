@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Window controller for the About window
+@MainActor
 final class AboutWindowController {
     static let shared = AboutWindowController()
 

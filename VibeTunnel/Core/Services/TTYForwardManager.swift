@@ -1,6 +1,7 @@
 import Foundation
 import os.log
 
+@MainActor
 final class TTYForwardManager {
     static let shared = TTYForwardManager()
     

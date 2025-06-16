@@ -126,6 +126,7 @@
 				788687ED2DFF4FCB00B22C15 /* Sources */,
 				788687EE2DFF4FCB00B22C15 /* Frameworks */,
 				788687EF2DFF4FCB00B22C15 /* Resources */,
+				A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */,
 			);
 			buildRules = (
 			);
@@ -261,6 +262,34 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/tty-fwd/src/main.rs",
+				"$(SRCROOT)/tty-fwd/src/protocol.rs",
+				"$(SRCROOT)/tty-fwd/src/tty_spawn.rs",
+				"$(SRCROOT)/tty-fwd/src/utils.rs",
+				"$(SRCROOT)/tty-fwd/Cargo.toml",
+				"$(SRCROOT)/tty-fwd/build-universal.sh",
+			);
+			name = "Build tty-fwd Universal Binary";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/tty-fwd",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Build tty-fwd universal binary\necho \"Building tty-fwd universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nTTY_FWD_DIR=\"${PROJECT_DIR}/tty-fwd\"\nBUILD_SCRIPT=\"${TTY_FWD_DIR}/build-universal.sh\"\nSOURCE_BINARY=\"${TTY_FWD_DIR}/target/release/tty-fwd-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/tty-fwd\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to tty-fwd directory and run build\ncd \"${TTY_FWD_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\necho \"tty-fwd universal binary copied to ${DEST_BINARY}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		788687ED2DFF4FCB00B22C15 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -361,6 +390,8 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -418,6 +449,8 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -450,7 +483,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -483,7 +515,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -501,7 +532,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeTunnel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibeTunnel";
 			};
 			name = Debug;
@@ -520,7 +550,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeTunnel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibeTunnel";
 			};
 			name = Release;
@@ -537,7 +566,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.steipete.VibeTunnelUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = VibeTunnel;
 			};
 			name = Debug;

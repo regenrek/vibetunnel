@@ -158,6 +158,7 @@ struct MenuButtonStyle: ButtonStyle {
 // MARK: - Helper Functions
 
 /// Shows the About section in the Settings window
+@MainActor
 private func showAboutInSettings() {
     NSApp.openSettings()
     Task {

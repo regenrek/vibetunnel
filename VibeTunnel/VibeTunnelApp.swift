@@ -130,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DistributedNotificationCenter.default().post(name: Self.showSettingsNotification, object: nil)
 
             // Show alert that another instance is running
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 let alert = NSAlert()
                 alert.messageText = "VibeTunnel is already running"
                 alert
@@ -202,6 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Shows the About section in the Settings window
+@MainActor
 private func showAboutInSettings() {
     NSApp.openSettings()
     Task {
