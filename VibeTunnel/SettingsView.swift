@@ -419,6 +419,22 @@ struct AdvancedSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Install CLI Tool")
+                            Spacer()
+                            Button("Install 'vt' Command") {
+                                installCLITool()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        Text("Install the 'vt' command line tool to /usr/local/bin for terminal access.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } header: {
                     Text("Advanced")
                         .font(.headline)
@@ -531,6 +547,11 @@ struct AdvancedSettingsView: View {
             ngrokStatus = nil
             // Don't clear the error here - let it remain visible
         }
+    }
+    
+    private func installCLITool() {
+        let installer = CLIInstaller()
+        installer.installCLITool()
     }
 }
 
