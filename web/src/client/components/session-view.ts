@@ -16,6 +16,8 @@ export class SessionView extends LitElement {
   @state() private showMobileInput = false;
   @state() private mobileInputText = '';
   @state() private isMobile = false;
+  @state() private touchStartX = 0;
+  @state() private touchStartY = 0;
 
   private keyboardHandler = (e: KeyboardEvent) => {
     if (!this.session) return;
@@ -24,6 +26,35 @@ export class SessionView extends LitElement {
     e.stopPropagation();
     
     this.handleKeyboardInput(e);
+  };
+
+  private touchStartHandler = (e: TouchEvent) => {
+    if (!this.isMobile) return;
+    
+    const touch = e.touches[0];
+    this.touchStartX = touch.clientX;
+    this.touchStartY = touch.clientY;
+  };
+
+  private touchEndHandler = (e: TouchEvent) => {
+    if (!this.isMobile) return;
+    
+    const touch = e.changedTouches[0];
+    const touchEndX = touch.clientX;
+    const touchEndY = touch.clientY;
+    
+    const deltaX = touchEndX - this.touchStartX;
+    const deltaY = touchEndY - this.touchStartY;
+    
+    // Check for horizontal swipe from left edge (back gesture)
+    const isSwipeRight = deltaX > 100;
+    const isVerticallyStable = Math.abs(deltaY) < 100;
+    const startedFromLeftEdge = this.touchStartX < 50;
+    
+    if (isSwipeRight && isVerticallyStable && startedFromLeftEdge) {
+      // Trigger back navigation
+      this.handleBack();
+    }
   };
 
   connectedCallback() {
@@ -37,6 +68,10 @@ export class SessionView extends LitElement {
     // Add global keyboard event listener only for desktop
     if (!this.isMobile) {
       document.addEventListener('keydown', this.keyboardHandler);
+    } else {
+      // Add touch event listeners for mobile swipe gestures
+      document.addEventListener('touchstart', this.touchStartHandler, { passive: true });
+      document.addEventListener('touchend', this.touchEndHandler, { passive: true });
     }
     
     // Start polling session status
@@ -50,6 +85,10 @@ export class SessionView extends LitElement {
     // Remove global keyboard event listener
     if (!this.isMobile) {
       document.removeEventListener('keydown', this.keyboardHandler);
+    } else {
+      // Remove touch event listeners
+      document.removeEventListener('touchstart', this.touchStartHandler);
+      document.removeEventListener('touchend', this.touchEndHandler);
     }
     
     // Stop polling session status
@@ -297,21 +336,60 @@ export class SessionView extends LitElement {
     this.mobileInputText = textarea.value;
   }
 
-  private async handleMobileInputSend() {
-    if (!this.mobileInputText.trim()) return;
-    
-    // Add enter key at the end to execute the command
-    await this.sendInputText(this.mobileInputText + '\n');
-    this.mobileInputText = '';
-    
-    // Update the textarea
+  private async handleMobileInputSendOnly() {
+    // Get the current value from the textarea directly
     const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
-    if (textarea) {
-      textarea.value = '';
-    }
+    const textToSend = textarea?.value?.trim() || this.mobileInputText.trim();
     
-    // Hide the input overlay after sending
-    this.showMobileInput = false;
+    if (!textToSend) return;
+    
+    try {
+      // Send text without enter key
+      await this.sendInputText(textToSend);
+      
+      // Clear both the reactive property and textarea
+      this.mobileInputText = '';
+      if (textarea) {
+        textarea.value = '';
+      }
+      
+      // Trigger re-render to update button state
+      this.requestUpdate();
+      
+      // Hide the input overlay after sending
+      this.showMobileInput = false;
+    } catch (error) {
+      console.error('Error sending mobile input:', error);
+      // Don't hide the overlay if there was an error
+    }
+  }
+
+  private async handleMobileInputSend() {
+    // Get the current value from the textarea directly
+    const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
+    const textToSend = textarea?.value?.trim() || this.mobileInputText.trim();
+    
+    if (!textToSend) return;
+    
+    try {
+      // Add enter key at the end to execute the command
+      await this.sendInputText(textToSend + '\n');
+      
+      // Clear both the reactive property and textarea
+      this.mobileInputText = '';
+      if (textarea) {
+        textarea.value = '';
+      }
+      
+      // Trigger re-render to update button state
+      this.requestUpdate();
+      
+      // Hide the input overlay after sending
+      this.showMobileInput = false;
+    } catch (error) {
+      console.error('Error sending mobile input:', error);
+      // Don't hide the overlay if there was an error
+    }
   }
 
   private async handleSpecialKey(key: string) {
@@ -419,7 +497,7 @@ export class SessionView extends LitElement {
               class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-2 py-1 border-none rounded transition-colors text-xs"
               @click=${this.handleBack}
             >
-              ← BACK
+              BACK
             </button>
             <div class="text-vs-text">
               <span class="text-vs-accent">${this.session.command}</span>
@@ -445,31 +523,68 @@ export class SessionView extends LitElement {
         ${this.isMobile ? html`
           <!-- Quick Action Buttons (only when overlay is closed) -->
           ${!this.showMobileInput ? html`
-            <div class="fixed bottom-4 left-4 right-4 flex gap-2 z-40">
-              <button
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors text-sm"
-                @click=${() => this.handleSpecialKey('\t')}
-              >
-                TAB
-              </button>
-              <button
-                class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors text-sm"
-                @click=${() => this.handleSpecialKey('escape')}
-              >
-                ESC
-              </button>
-              <button
-                class="bg-vs-error text-vs-text hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors text-sm"
-                @click=${() => this.handleSpecialKey('\x03')}
-              >
-                ^C
-              </button>
-              <button
-                class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors text-sm"
-                @click=${this.handleMobileInputToggle}
-              >
-                TYPE
-              </button>
+            <div class="fixed bottom-4 left-4 right-4 z-40">
+              <!-- First row: Arrow keys -->
+              <div class="flex gap-2 mb-2">
+                <button
+                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('arrow_up')}
+                >
+                  ↑
+                </button>
+                <button
+                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('arrow_down')}
+                >
+                  ↓
+                </button>
+                <button
+                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('arrow_left')}
+                >
+                  ←
+                </button>
+                <button
+                  class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('arrow_right')}
+                >
+                  →
+                </button>
+              </div>
+              
+              <!-- Second row: Special keys -->
+              <div class="flex gap-2">
+                <button
+                  class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('\t')}
+                >
+                  TAB
+                </button>
+                <button
+                  class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('enter')}
+                >
+                  ENTER
+                </button>
+                <button
+                  class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('escape')}
+                >
+                  ESC
+                </button>
+                <button
+                  class="bg-vs-error text-vs-text hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${() => this.handleSpecialKey('\x03')}
+                >
+                  ^C
+                </button>
+                <button
+                  class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
+                  @click=${this.handleMobileInputToggle}
+                >
+                  TYPE
+                </button>
+              </div>
             </div>
           ` : ''}
 
@@ -510,46 +625,26 @@ export class SessionView extends LitElement {
                 
               <!-- Controls - Fixed above keyboard -->
               <div id="mobile-controls" class="fixed bottom-0 left-0 right-0 p-4 border-t border-vs-border bg-vs-bg-secondary z-60" style="padding-bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateY(0px);">
-                <!-- Special Keys Row -->
+                <!-- Send Buttons Row -->
                 <div class="flex gap-2 mb-3">
                   <button
-                    class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                    @click=${() => {
-                      this.mobileInputText += '\t';
-                      const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
-                      if (textarea) {
-                        textarea.value = this.mobileInputText;
-                        textarea.focus();
-                      }
-                    }}
+                    class="flex-1 bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-3 border-none rounded transition-colors text-sm font-bold"
+                    @click=${this.handleMobileInputSendOnly}
+                    ?disabled=${!this.mobileInputText.trim()}
                   >
-                    +TAB
+                    SEND
                   </button>
                   <button
-                    class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                    @click=${() => this.handleSpecialKey('escape')}
+                    class="flex-1 bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-3 border-none rounded transition-colors text-sm font-bold"
+                    @click=${this.handleMobileInputSend}
+                    ?disabled=${!this.mobileInputText.trim()}
                   >
-                    ESC
-                  </button>
-                  <button
-                    class="bg-vs-error text-vs-text hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
-                    @click=${() => this.handleSpecialKey('\x03')}
-                  >
-                    ^C
+                    SEND + ENTER
                   </button>
                 </div>
-
-                <!-- Send Button -->
-                <button
-                  class="w-full bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-6 py-3 border-none rounded transition-colors text-sm font-bold"
-                  @click=${this.handleMobileInputSend}
-                  ?disabled=${!this.mobileInputText.trim()}
-                >
-                  SEND + ENTER
-                </button>
                 
-                <div class="text-vs-muted text-xs mt-2 text-center">
-                  Ctrl+Enter to send • Commands auto-execute with Enter
+                <div class="text-vs-muted text-xs text-center">
+                  SEND: text only • SEND + ENTER: text with enter key
                 </div>
               </div>
             </div>

@@ -31,6 +31,7 @@ export class VibeTunnelApp extends LitElement {
     this.setupHotReload();
     this.loadSessions();
     this.startAutoRefresh();
+    this.setupRouting();
   }
 
   disconnectedCallback() {
@@ -38,6 +39,8 @@ export class VibeTunnelApp extends LitElement {
     if (this.hotReloadWs) {
       this.hotReloadWs.close();
     }
+    // Clean up routing listeners
+    window.removeEventListener('popstate', this.handlePopState);
   }
 
   private showError(message: string) {
@@ -133,6 +136,8 @@ export class VibeTunnelApp extends LitElement {
         console.log('Session found, switching to session view');
         this.selectedSession = session;
         this.currentView = 'session';
+        // Update URL to include session ID
+        this.updateUrl(session.id);
         this.showError('Session created successfully!');
         return;
       }
@@ -151,11 +156,15 @@ export class VibeTunnelApp extends LitElement {
     console.log('Session selected:', session);
     this.selectedSession = session;
     this.currentView = 'session';
+    // Update URL to include session ID
+    this.updateUrl(session.id);
   }
 
   private handleBack() {
     this.currentView = 'list';
     this.selectedSession = null;
+    // Update URL to remove session parameter
+    this.updateUrl();
   }
 
   private handleSessionKilled(e: CustomEvent) {
@@ -181,6 +190,67 @@ export class VibeTunnelApp extends LitElement {
 
   private handleCreateModalClose() {
     this.showCreateModal = false;
+  }
+
+  // URL Routing methods
+  private setupRouting() {
+    // Handle browser back/forward navigation
+    window.addEventListener('popstate', this.handlePopState.bind(this));
+    
+    // Parse initial URL and set state
+    this.parseUrlAndSetState();
+  }
+
+  private handlePopState = (event: PopStateEvent) => {
+    // Handle browser back/forward navigation
+    this.parseUrlAndSetState();
+  }
+
+  private parseUrlAndSetState() {
+    const url = new URL(window.location.href);
+    const sessionId = url.searchParams.get('session');
+    
+    if (sessionId) {
+      // Load the specific session
+      this.loadSessionFromUrl(sessionId);
+    } else {
+      // Show session list
+      this.currentView = 'list';
+      this.selectedSession = null;
+    }
+  }
+
+  private async loadSessionFromUrl(sessionId: string) {
+    // First ensure sessions are loaded
+    if (this.sessions.length === 0) {
+      await this.loadSessions();
+    }
+    
+    // Find the session
+    const session = this.sessions.find(s => s.id === sessionId);
+    if (session) {
+      this.selectedSession = session;
+      this.currentView = 'session';
+    } else {
+      // Session not found, go to list view
+      this.currentView = 'list';
+      this.selectedSession = null;
+      // Update URL to remove invalid session ID
+      this.updateUrl();
+    }
+  }
+
+  private updateUrl(sessionId?: string) {
+    const url = new URL(window.location.href);
+    
+    if (sessionId) {
+      url.searchParams.set('session', sessionId);
+    } else {
+      url.searchParams.delete('session');
+    }
+    
+    // Update browser URL without triggering page reload
+    window.history.pushState(null, '', url.toString());
   }
 
   private setupHotReload(): void {
