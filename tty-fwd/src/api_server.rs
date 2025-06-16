@@ -62,6 +62,11 @@ struct InputRequest {
     text: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct MkdirRequest {
+    path: String,
+}
+
 #[derive(Debug, Serialize)]
 struct ApiResponse {
     success: Option<bool>,
@@ -216,6 +221,7 @@ pub fn start_server(
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
                 (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &mut req),
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
+                (&Method::POST, "/api/mkdir") => handle_mkdir(&mut req),
                 (&Method::GET, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/stream") =>
                 {
@@ -932,4 +938,53 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
     let _ = req.respond_raw(end_data.as_bytes());
 
     println!("Ended streaming SSE for session {}", session_id);
+}
+
+fn handle_mkdir(req: &mut crate::http_server::HttpRequest) -> Response<String> {
+    let body_bytes = req.body();
+    let body = String::from_utf8_lossy(body_bytes);
+
+    let mkdir_request = match serde_json::from_str::<MkdirRequest>(&body) {
+        Ok(request) => request,
+        Err(_) => {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Invalid request body. Expected JSON with 'path' field".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::BAD_REQUEST, &error);
+        }
+    };
+
+    if mkdir_request.path.is_empty() {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Path cannot be empty".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &error);
+    }
+
+    match fs::create_dir_all(&mkdir_request.path) {
+        Ok(_) => {
+            let response = ApiResponse {
+                success: Some(true),
+                message: Some("Directory created successfully".to_string()),
+                error: None,
+                session_id: None,
+            };
+            json_response(StatusCode::OK, &response)
+        }
+        Err(e) => {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some(format!("Failed to create directory: {}", e)),
+                session_id: None,
+            };
+            json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+        }
+    }
 }
