@@ -24,10 +24,12 @@ export class Renderer {
   private terminal: Terminal;
   private fitAddon: FitAddon;
   private webLinksAddon: WebLinksAddon;
+  private isPreview: boolean;
 
-  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14) {
+  constructor(container: HTMLElement, width: number = 80, height: number = 20, scrollback: number = 1000000, fontSize: number = 14, isPreview: boolean = false) {
     this.container = container;
-    
+    this.isPreview = isPreview;
+
     // Create terminal with options similar to the custom renderer
     this.terminal = new Terminal({
       cols: width,
@@ -65,13 +67,13 @@ export class Renderer {
       convertEol: true,
       altClickMovesCursor: false,
       rightClickSelectsWord: false,
-      disableStdin: true // We handle input separately
+      disableStdin: true, // We handle input separately
     });
 
     // Add addons
     this.fitAddon = new FitAddon();
     this.webLinksAddon = new WebLinksAddon();
-    
+
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(this.webLinksAddon);
 
@@ -84,7 +86,7 @@ export class Renderer {
     this.container.style.padding = '10px';
     this.container.style.backgroundColor = '#1e1e1e';
     this.container.style.overflow = 'hidden';
-    
+
     // Create terminal wrapper
     const terminalWrapper = document.createElement('div');
     terminalWrapper.style.width = '100%';
@@ -93,16 +95,17 @@ export class Renderer {
 
     // Open terminal in the wrapper
     this.terminal.open(terminalWrapper);
-    
-    // Fit terminal to container
+
+    // Just use FitAddon
     this.fitAddon.fit();
-    
+
     // Handle container resize
     const resizeObserver = new ResizeObserver(() => {
       this.fitAddon.fit();
     });
     resizeObserver.observe(this.container);
   }
+
 
   // Public API methods - maintain compatibility with custom renderer
 
@@ -115,16 +118,16 @@ export class Renderer {
   parseCastFile(content: string): void {
     const lines = content.trim().split('\n');
     let header: CastHeader | null = null;
-    
+
     // Clear terminal
     this.terminal.clear();
-    
+
     for (const line of lines) {
       if (!line.trim()) continue;
-      
+
       try {
         const parsed = JSON.parse(line);
-        
+
         if (parsed.version && parsed.width && parsed.height) {
           // Header
           header = parsed;
@@ -136,7 +139,7 @@ export class Renderer {
             type: parsed[1],
             data: parsed[2]
           };
-          
+
           if (event.type === 'o') {
             this.processOutput(event.data);
           } else if (event.type === 'r') {
@@ -173,11 +176,8 @@ export class Renderer {
   }
 
   resize(width: number, height: number): void {
-    this.terminal.resize(width, height);
-    // Fit addon will handle the visual resize
-    setTimeout(() => {
-      this.fitAddon.fit();
-    }, 0);
+    // Ignore session resize and just use FitAddon
+    this.fitAddon.fit();
   }
 
   clear(): void {
@@ -192,13 +192,13 @@ export class Renderer {
   // Connect to any SSE URL
   connectToUrl(url: string): EventSource {
     const eventSource = new EventSource(url);
-    
+
     // Don't clear terminal for live streams - just append new content
-    
+
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         if (data.version && data.width && data.height) {
           // Header
           console.log('Received header:', data);
@@ -221,11 +221,11 @@ export class Renderer {
         console.warn('Failed to parse stream event:', event.data);
       }
     };
-    
+
     eventSource.onerror = (error) => {
       console.error('Stream error:', error);
     };
-    
+
     return eventSource;
   }
 
@@ -238,7 +238,7 @@ export class Renderer {
       this.eventSource.close();
       this.eventSource = null;
     }
-    
+
     if (isStream) {
       // It's a stream URL, connect via SSE (don't clear - append to existing content)
       this.eventSource = this.connectToUrl(url);
@@ -250,7 +250,7 @@ export class Renderer {
   }
 
   // Additional methods for terminal control
-  
+
   focus(): void {
     this.terminal.focus();
   }
@@ -301,6 +301,14 @@ export class Renderer {
       this.terminal.onData(() => {
         // Do nothing - input disabled
       });
+    }
+  }
+
+  // Disable all pointer events for previews so clicks pass through to parent
+  setPointerEventsEnabled(enabled: boolean): void {
+    const terminalElement = this.container.querySelector('.xterm') as HTMLElement;
+    if (terminalElement) {
+      terminalElement.style.pointerEvents = enabled ? 'auto' : 'none';
     }
   }
 }

@@ -107,6 +107,17 @@ export class SessionView extends LitElement {
     
     if (changedProperties.has('session') && this.session) {
       this.createInteractiveTerminal();
+      // Adjust terminal spacing after creating terminal
+      requestAnimationFrame(() => {
+        this.adjustTerminalForMobileButtons();
+      });
+    }
+    
+    // Adjust terminal height for mobile buttons after render
+    if (changedProperties.has('showMobileInput') || changedProperties.has('isMobile')) {
+      requestAnimationFrame(() => {
+        this.adjustTerminalForMobileButtons();
+      });
     }
   }
 
@@ -230,13 +241,13 @@ export class SessionView extends LitElement {
     this.showMobileInput = !this.showMobileInput;
     if (this.showMobileInput) {
       // Focus the textarea after a short delay to ensure it's rendered
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
         if (textarea) {
           textarea.focus();
           this.adjustTextareaForKeyboard();
         }
-      }, 100);
+      });
     } else {
       // Clean up viewport listener when closing overlay
       const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
@@ -315,7 +326,7 @@ export class SessionView extends LitElement {
     }
 
     // Initial adjustment
-    setTimeout(adjustLayout, 300);
+    requestAnimationFrame(adjustLayout);
   }
 
   private handleMobileInputChange(e: Event) {
@@ -403,6 +414,11 @@ export class SessionView extends LitElement {
     }
   }
 
+  private adjustTerminalForMobileButtons() {
+    // Disabled for now to avoid viewport issues
+    // The mobile buttons will overlay the terminal
+  }
+
   private startSessionStatusPolling() {
     if (this.sessionStatusInterval) {
       clearInterval(this.sessionStatusInterval);
@@ -468,7 +484,7 @@ export class SessionView extends LitElement {
           box-shadow: none !important;
         }
       </style>
-      <div class="h-screen flex flex-col bg-vs-bg font-mono" style="outline: none !important; box-shadow: none !important;">
+      <div class="flex flex-col bg-vs-bg font-mono" style="height: 100vh; outline: none !important; box-shadow: none !important;">
         <!-- Compact Header -->
         <div class="flex items-center justify-between px-3 py-2 border-b border-vs-border bg-vs-bg-secondary text-sm">
           <div class="flex items-center gap-3">
@@ -479,14 +495,11 @@ export class SessionView extends LitElement {
               BACK
             </button>
             <div class="text-vs-text">
-              <span class="text-vs-accent">${this.session.command}</span>
-              <span class="text-vs-muted text-xs ml-2">(${this.session.id.substring(0, 8)}...)</span>
+              <div class="text-vs-accent">${this.session.command}</div>
+              <div class="text-vs-muted text-xs">${this.session.workingDir}</div>
             </div>
           </div>
           <div class="flex items-center gap-3 text-xs">
-            <span class="text-vs-muted">
-              ${this.session.workingDir}
-            </span>
             <span class="${this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'}">
               ${this.session.status.toUpperCase()}
             </span>
@@ -494,15 +507,13 @@ export class SessionView extends LitElement {
         </div>
 
         <!-- Terminal Container -->
-        <div class="flex-1 bg-black overflow-hidden">
+        <div class="flex-1 bg-black overflow-x-auto overflow-y-hidden min-h-0" id="terminal-container">
           <div id="interactive-terminal" class="w-full h-full"></div>
         </div>
 
         <!-- Mobile Input Controls -->
-        ${this.isMobile ? html`
-          <!-- Quick Action Buttons (only when overlay is closed) -->
-          ${!this.showMobileInput ? html`
-            <div class="fixed bottom-4 left-4 right-4 z-40">
+        ${this.isMobile && !this.showMobileInput ? html`
+          <div class="flex-shrink-0 p-4 bg-vs-bg">
               <!-- First row: Arrow keys -->
               <div class="flex gap-2 mb-2">
                 <button
@@ -564,11 +575,11 @@ export class SessionView extends LitElement {
                   TYPE
                 </button>
               </div>
-            </div>
-          ` : ''}
+          </div>
+        ` : ''}
 
-          <!-- Full-Screen Input Overlay (only when opened) -->
-          ${this.showMobileInput ? html`
+        <!-- Full-Screen Input Overlay (only when opened) -->
+        ${this.isMobile && this.showMobileInput ? html`
             <div class="fixed inset-0 bg-vs-bg-secondary bg-opacity-95 z-50 flex flex-col" style="height: 100vh; height: 100dvh;">
               <!-- Input Header -->
               <div class="flex items-center justify-between p-4 border-b border-vs-border flex-shrink-0">
@@ -627,7 +638,6 @@ export class SessionView extends LitElement {
                 </div>
               </div>
             </div>
-          ` : ''}
         ` : ''}
       </div>
     `;

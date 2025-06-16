@@ -145,8 +145,9 @@ export class SessionList extends LitElement {
       const session = this.sessions.find(s => s.id === sessionId);
       if (!session) return;
       
-      // Create renderer with smaller dimensions and font for preview
-      const renderer = new Renderer(playerElement, 40, 12, 10000, 8); // 40x12 chars, 8px font
+      // Create renderer with smaller dimensions for preview
+      // Use responsive font sizing, starting with smaller font for previews
+      const renderer = new Renderer(playerElement, 40, 12, 10000, 6, true); // 40x12 chars, 6px base font, isPreview=true
       this.renderers.set(sessionId, renderer);
       
       // Terminal is already configured with disableStdin: true in renderer constructor
@@ -159,6 +160,11 @@ export class SessionList extends LitElement {
       
       // Let the renderer handle the URL
       await renderer.loadFromUrl(url, isStream);
+      
+      // Disable pointer events so clicks pass through to the card (after terminal is rendered)
+      requestAnimationFrame(() => {
+        renderer.setPointerEventsEnabled(false);
+      });
     } catch (error) {
       console.error('Error creating renderer:', error);
     }
