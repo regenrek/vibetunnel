@@ -2,7 +2,8 @@
 
 import Foundation
 
-let ttyFwdPath = "/Users/steipete/Projects/vibetunnel/build/Build/Products/Debug/VibeTunnel.app/Contents/Resources/tty-fwd"
+let ttyFwdPath =
+    "/Users/steipete/Projects/vibetunnel/build/Build/Products/Debug/VibeTunnel.app/Contents/Resources/tty-fwd"
 let controlPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel/control").path
 
 print("Testing tty-fwd execution...")
@@ -37,25 +38,25 @@ process.standardError = errorPipe
 do {
     print("\nStarting process...")
     try process.run()
-    
+
     // Wait for it to complete
     process.waitUntilExit()
-    
+
     let exitCode = process.terminationStatus
     print("Process terminated with exit code: \(exitCode)")
-    
+
     // Read output
     let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
     if let output = String(data: outputData, encoding: .utf8), !output.isEmpty {
         print("Output: \(output)")
     }
-    
+
     // Read error
     let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
     if let error = String(data: errorData, encoding: .utf8), !error.isEmpty {
         print("Error: \(error)")
     }
-    
+
 } catch {
     print("Failed to run process: \(error)")
 }
