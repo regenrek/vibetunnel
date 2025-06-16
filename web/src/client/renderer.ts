@@ -5,13 +5,13 @@ import { Terminal } from '@xterm/xterm';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ScaleFitAddon } from './scale-fit-addon.js';
 
-interface CastHeader {
-  version: number;
-  width: number;
-  height: number;
-  timestamp?: number;
-  env?: Record<string, string>;
-}
+// interface CastHeader {
+//   version: number;
+//   width: number;
+//   height: number;
+//   timestamp?: number;
+//   env?: Record<string, string>;
+// }
 
 interface CastEvent {
   timestamp: number;
@@ -160,7 +160,7 @@ export class Renderer {
 
   parseCastFile(content: string): void {
     const lines = content.trim().split('\n');
-    let header: CastHeader | null = null;
+    // const header: CastHeader | null = null;
 
     // Clear terminal
     this.terminal.clear();

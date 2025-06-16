@@ -683,7 +683,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
     ];
     const isSpecialKey = specialKeys.includes(text);
 
-    const startTime = Date.now();
+    // const startTime = Date.now();
 
     if (isSpecialKey) {
       await executeTtyFwd([
