@@ -196,6 +196,13 @@ public final class TunnelServer {
                 return await self.sendSessionInput(request: request, sessionId: sessionId)
             }
 
+            router.get("/api/sessions/:sessionId/cast") { _, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.getSessionCast(sessionId: sessionId)
+            }
+
             router.post("/api/cleanup-exited") { _, _ async -> Response in
                 await self.cleanupExitedSessions()
             }
@@ -1145,6 +1152,61 @@ public final class TunnelServer {
         } catch {
             logger.error("Error reading session snapshot: \(error)")
             return errorResponse(message: "Failed to read session snapshot")
+        }
+    }
+
+    private func getSessionCast(sessionId: String) async -> Response {
+        let streamOutPath = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId)
+            .appendingPathComponent("stream-out").path
+        
+        guard FileManager.default.fileExists(atPath: streamOutPath) else {
+            return errorResponse(message: "Session not found", status: .notFound)
+        }
+        
+        do {
+            // Get session info to extract command and title
+            let sessionInfoOutput = try await executeTtyFwd(args: [
+                "--control-path",
+                ttyFwdControlDir,
+                "--list-sessions"
+            ])
+            
+            var sessionCommand: String?
+            var sessionTitle: String?
+            
+            if let sessionData = sessionInfoOutput.data(using: .utf8),
+               let sessions = try? JSONDecoder().decode([TtyFwdSession].self, from: sessionData),
+               let session = sessions.first(where: { $0.name == sessionId }) {
+                sessionCommand = session.cmdline.joined(separator: " ")
+                sessionTitle = "VibeTunnel Session: \(session.name)"
+            }
+            
+            // Generate cast file
+            let castGenerator = CastFileGenerator()
+            let castData = try castGenerator.generateCastFile(
+                sessionId: sessionId,
+                streamOutPath: streamOutPath,
+                width: 80,
+                height: 24,
+                title: sessionTitle,
+                command: sessionCommand
+            )
+            
+            var buffer = ByteBuffer()
+            buffer.writeBytes(castData)
+            
+            return Response(
+                status: .ok,
+                headers: [
+                    .contentType: "application/x-asciicast",
+                    .contentDisposition: "attachment; filename=\"\(sessionId).cast\""
+                ],
+                body: ResponseBody(byteBuffer: buffer)
+            )
+            
+        } catch {
+            logger.error("Error generating cast file: \(error)")
+            return errorResponse(message: "Failed to generate cast file")
         }
     }
 
