@@ -31,7 +31,14 @@ class SessionMonitor {
         let started_at: String
         let status: String
         let stdin: String
-        let `stream-out`: String
+        let streamOut: String
+        
+        enum CodingKeys: String, CodingKey {
+            case cmdline, cwd, name, pid, status, stdin
+            case exit_code = "exit_code"
+            case started_at = "started_at"
+            case streamOut = "stream-out"
+        }
         
         var isRunning: Bool {
             status == "running"
