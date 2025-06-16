@@ -533,8 +533,8 @@ export class SessionView extends LitElement {
         </div>
 
         <!-- Terminal Container -->
-        <div class="flex-1 bg-black overflow-x-auto overflow-y-hidden min-h-0 relative" id="terminal-container">
-          <div id="interactive-terminal" class="w-full h-full"></div>
+        <div class="flex-1 bg-black overflow-hidden min-h-0 relative" id="terminal-container" style="max-width: 100vw;">
+          <div id="interactive-terminal" class="w-full h-full" style="max-width: 100%;"></div>
           
           ${this.loading ? html`
             <!-- Loading overlay -->

@@ -169,6 +169,26 @@ export class VibeTunnelApp extends LitElement {
     this.showCreateModal = false;
   }
 
+  private async handleKillAll() {
+    // Find all session cards and trigger their kill buttons
+    const sessionCards = this.querySelectorAll('session-card');
+    
+    sessionCards.forEach((card: any) => {
+      // Check if this session is running
+      if (card.session && card.session.status === 'running') {
+        // Find all buttons within this card and look for the kill button
+        const buttons = card.querySelectorAll('button');
+        buttons.forEach((button: HTMLButtonElement) => {
+          const buttonText = button.textContent?.toLowerCase() || '';
+          if (buttonText.includes('kill') && !buttonText.includes('killing')) {
+            // This is the kill button, click it to trigger the animation
+            button.click();
+          }
+        });
+      }
+    });
+  }
+
   // URL Routing methods
   private setupRouting() {
     // Handle browser back/forward navigation
@@ -258,6 +278,7 @@ export class VibeTunnelApp extends LitElement {
             @refresh=${this.handleRefresh}
             @error=${this.handleError}
             @hide-exited-change=${this.handleHideExitedChange}
+            @kill-all-sessions=${this.handleKillAll}
           ></session-list>
         </div>
         `}

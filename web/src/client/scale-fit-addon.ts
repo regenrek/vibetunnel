@@ -11,7 +11,7 @@ interface ITerminalDimensions {
 }
 
 const MINIMUM_ROWS = 1;
-const MIN_FONT_SIZE = 6;
+const MIN_FONT_SIZE = 4;
 const MAX_FONT_SIZE = 16;
 
 export class ScaleFitAddon implements ITerminalAddon {
@@ -77,9 +77,10 @@ export class ScaleFitAddon implements ITerminalAddon {
 
     // Calculate optimal font size to fit current cols in available width
     // Character width is approximately 0.6 * fontSize for monospace fonts
-    // Use a slightly smaller ratio for better fitting in constrained spaces
-    const charWidthRatio = 0.55;
-    const calculatedFontSize = availableWidth / (currentCols * charWidthRatio);
+    // For 80 cols exactly, we need to be more conservative to prevent wrapping
+    const charWidthRatio = 0.63;
+    // Calculate font size and round down for precision
+    const calculatedFontSize = Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
     const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
 
     // Apply the calculated font size (outside of proposeDimensions to avoid recursion)
@@ -150,8 +151,9 @@ export class ScaleFitAddon implements ITerminalAddon {
     const currentCols = this._terminal.cols;
 
     // Calculate font size to fit columns in available width
-    const charWidthRatio = 0.55;
-    const calculatedFontSize = availableWidth / (currentCols * charWidthRatio);
+    const charWidthRatio = 0.63;
+    // Calculate font size and round down for precision
+    const calculatedFontSize = Math.floor((availableWidth / (currentCols * charWidthRatio)) * 10) / 10;
     const optimalFontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));
 
     // Apply the font size without changing terminal dimensions
@@ -172,7 +174,7 @@ export class ScaleFitAddon implements ITerminalAddon {
                       parseInt(elementStyle.getPropertyValue('padding-right'));
 
     const availableWidth = parentWidth - paddingHor;
-    const charWidthRatio = 0.6;
+    const charWidthRatio = 0.63;
     const calculatedFontSize = availableWidth / (this._terminal.cols * charWidthRatio);
 
     return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, calculatedFontSize));

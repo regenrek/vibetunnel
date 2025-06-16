@@ -98,21 +98,47 @@ export class Renderer {
       this.container.style.padding = '0';
       this.container.style.backgroundColor = '#1e1e1e';
       this.container.style.overflow = 'hidden';
+      this.container.style.maxWidth = '100%';
+      this.container.style.boxSizing = 'border-box';
     } else {
       // Full terminals get padding
       this.container.style.padding = '10px';
       this.container.style.backgroundColor = '#1e1e1e';
       this.container.style.overflow = 'hidden';
+      this.container.style.maxWidth = '100%';
+      this.container.style.boxSizing = 'border-box';
     }
 
     // Create terminal wrapper
     const terminalWrapper = document.createElement('div');
     terminalWrapper.style.width = '100%';
     terminalWrapper.style.height = '100%';
+    terminalWrapper.style.maxWidth = '100%';
+    terminalWrapper.style.overflow = 'hidden';
     this.container.appendChild(terminalWrapper);
 
     // Open terminal in the wrapper
     this.terminal.open(terminalWrapper);
+
+    // Add CSS to override XTerm's fixed width/height on .xterm-screen within this container
+    // Apply to both previews and full terminals
+    const containerId = `terminal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    this.container.id = containerId;
+    
+    const style = document.createElement('style');
+    style.textContent = `
+      #${containerId} .xterm-screen {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+      }
+      #${containerId} .xterm-viewport {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+    `;
+    document.head.appendChild(style);
 
     // Always use ScaleFitAddon for better scaling
     this.scaleFitAddon.fit();
