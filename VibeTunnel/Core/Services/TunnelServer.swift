@@ -1221,11 +1221,61 @@ public final class TunnelServer {
 
             let inputRequest = try JSONDecoder().decode(InputRequest.self, from: requestData)
 
+            // Validate text is provided
+            if inputRequest.text.isEmpty {
+                return errorResponse(message: "Text is required", status: .badRequest)
+            }
+
             logger.info("Sending input to session \(sessionId): \(inputRequest.text)")
+
+            // Validate session exists and is running
+            let sessionInfoOutput = try await executeTtyFwd(args: [
+                "--control-path",
+                ttyFwdControlDir,
+                "--list-sessions"
+            ])
+
+            guard let sessionData = sessionInfoOutput.data(using: .utf8),
+                  let sessions = try? JSONDecoder().decode([TtyFwdSession].self, from: sessionData),
+                  let session = sessions.first(where: { $0.name == sessionId }) else {
+                logger.error("Session \(sessionId) not found in active sessions")
+                return errorResponse(message: "Session not found", status: .notFound)
+            }
+
+            // Check if session is running
+            if session.status != "running" {
+                logger.error("Session \(sessionId) is not running (status: \(session.status))")
+                return errorResponse(message: "Session is not running", status: .badRequest)
+            }
+
+            // Check if the process is actually still alive
+            if session.pid > 0 {
+                let processExists = kill(pid_t(session.pid), 0) == 0
+                if !processExists {
+                    logger.error("Session \(sessionId) process \(session.pid) is dead, cleaning up")
+                    
+                    // Try to cleanup the stale session
+                    do {
+                        _ = try await executeTtyFwd(args: [
+                            "--control-path",
+                            ttyFwdControlDir,
+                            "--session",
+                            sessionId,
+                            "--cleanup"
+                        ])
+                    } catch {
+                        logger.error("Failed to cleanup stale session: \(error)")
+                    }
+                    
+                    return errorResponse(message: "Session process has died", status: HTTPResponse.Status(code: 410))
+                }
+            }
 
             let specialKeys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter"]
             let isSpecialKey = specialKeys.contains(inputRequest.text)
 
+            let startTime = Date()
+            
             if isSpecialKey {
                 _ = try await executeTtyFwd(args: [
                     "--control-path",
@@ -1235,7 +1285,8 @@ public final class TunnelServer {
                     "--send-key",
                     inputRequest.text
                 ])
-                logger.info("Successfully sent key: \(inputRequest.text)")
+                let elapsed = Date().timeIntervalSince(startTime) * 1000
+                logger.info("Successfully sent key: \(inputRequest.text) (\(Int(elapsed))ms)")
             } else {
                 _ = try await executeTtyFwd(args: [
                     "--control-path",
@@ -1245,15 +1296,20 @@ public final class TunnelServer {
                     "--send-text",
                     inputRequest.text
                 ])
-                logger.info("Successfully sent text: \(inputRequest.text)")
+                let elapsed = Date().timeIntervalSince(startTime) * 1000
+                logger.info("Successfully sent text: \(inputRequest.text) (\(Int(elapsed))ms)")
             }
 
             let response = SimpleResponse(success: true, message: "Input sent successfully")
             return jsonResponse(response)
 
+        } catch let decodingError as DecodingError {
+            logger.error("Error decoding input request: \(decodingError)")
+            return errorResponse(message: "Invalid request format", status: .badRequest)
         } catch {
             logger.error("Error sending input via tty-fwd: \(error)")
-            return errorResponse(message: "Failed to send input")
+            let errorMessage = error.localizedDescription
+            return errorResponse(message: "Failed to send input: \(errorMessage)", status: .internalServerError)
         }
     }
 
