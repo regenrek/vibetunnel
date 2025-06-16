@@ -21,8 +21,8 @@ enum DashboardAccessMode: String, CaseIterable {
 
     var description: String {
         switch self {
-        case .localhost: "Only accessible from this Mac"
-        case .network: "Accessible from other devices on the network"
+        case .localhost: "Only accessible from this Mac."
+        case .network: "Accessible from other devices on this network."
         }
     }
 }
