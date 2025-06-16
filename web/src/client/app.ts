@@ -5,6 +5,7 @@ import { customElement, state } from 'lit/decorators.js';
 import './components/app-header.js';
 import './components/session-create-form.js';
 import './components/session-list.js';
+import './components/session-view.js';
 
 import type { Session } from './components/session-list.js';
 
@@ -18,6 +19,8 @@ export class VibeTunnelApp extends LitElement {
   @state() private errorMessage = '';
   @state() private sessions: Session[] = [];
   @state() private loading = false;
+  @state() private currentView: 'list' | 'session' = 'list';
+  @state() private selectedSession: Session | null = null;
 
   private hotReloadWs: WebSocket | null = null;
 
@@ -91,7 +94,13 @@ export class VibeTunnelApp extends LitElement {
   private handleSessionSelect(e: CustomEvent) {
     const session = e.detail as Session;
     console.log('Session selected:', session);
-    this.showError(`Terminal view not implemented yet for session: ${session.id}`);
+    this.selectedSession = session;
+    this.currentView = 'session';
+  }
+
+  private handleBack() {
+    this.currentView = 'list';
+    this.selectedSession = null;
   }
 
   private handleSessionKilled(e: CustomEvent) {
@@ -124,18 +133,36 @@ export class VibeTunnelApp extends LitElement {
 
   render() {
     return html`
-      <div class="max-w-4xl mx-auto">
-        <app-header></app-header>
-        <session-list
-          .sessions=${this.sessions}
-          .loading=${this.loading}
-          @session-select=${this.handleSessionSelect}
-          @session-killed=${this.handleSessionKilled}
-          @session-created=${this.handleSessionCreated}
-          @refresh=${this.handleRefresh}
-          @error=${this.handleError}
-        ></session-list>
-      </div>
+      <!-- Error notification overlay -->
+      ${this.errorMessage ? html`
+        <div class="fixed top-4 right-4 z-50">
+          <div class="bg-vs-warning text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
+            ${this.errorMessage}
+            <button @click=${this.clearError} class="ml-2 text-vs-bg hover:text-vs-muted">✕</button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Main content -->
+      ${this.currentView === 'session' ? html`
+        <session-view
+          .session=${this.selectedSession}
+          @back=${this.handleBack}
+        ></session-view>
+      ` : html`
+        <div class="max-w-4xl mx-auto">
+          <app-header></app-header>
+          <session-list
+            .sessions=${this.sessions}
+            .loading=${this.loading}
+            @session-select=${this.handleSessionSelect}
+            @session-killed=${this.handleSessionKilled}
+            @session-created=${this.handleSessionCreated}
+            @refresh=${this.handleRefresh}
+            @error=${this.handleError}
+          ></session-list>
+        </div>
+      `}
     `;
   }
 }
