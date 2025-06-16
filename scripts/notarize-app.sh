@@ -85,8 +85,8 @@ EOF
     <true/>
     <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
     <array>
-        <string>com.amantus.vibetunnel-spks</string>
-        <string>com.amantus.vibetunnel-spkd</string>
+        <string>sh.vibetunnel.vibetunnel-spks</string>
+        <string>sh.vibetunnel.vibetunnel-spkd</string>
     </array>
 EOF
     fi

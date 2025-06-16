@@ -28,7 +28,7 @@ if [ -f "$ENTITLEMENTS_FILE" ]; then
     log "Using entitlements from $ENTITLEMENTS_FILE"
     
     # Get the bundle identifier from the Info.plist
-    BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "com.amantus.vibetunnel")
+    BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "sh.vibetunnel.vibetunnel")
     log "Bundle identifier: $BUNDLE_ID"
     
     # Copy entitlements and replace variables
@@ -42,7 +42,7 @@ if [ -f "$ENTITLEMENTS_FILE" ]; then
 else
     log "Creating entitlements file with hardened runtime..."
     # Get the bundle identifier
-    BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "com.amantus.vibetunnel")
+    BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "sh.vibetunnel.vibetunnel")
     log "Bundle identifier: $BUNDLE_ID"
     
     cat > "$TMP_ENTITLEMENTS" << EOF

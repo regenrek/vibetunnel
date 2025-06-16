@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let ngrokService = NgrokService.shared
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
-    private static let showSettingsNotification = Notification.Name("com.amantus.vibetunnel.showSettings")
+    private static let showSettingsNotification = Notification.Name("sh.vibetunnel.vibetunnel.showSettings")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let processInfo = ProcessInfo.processInfo
