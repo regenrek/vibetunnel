@@ -5,17 +5,12 @@ mod sessions;
 mod tty_spawn;
 mod utils;
 
+use std::env;
 use std::ffi::OsString;
 use std::path::Path;
-use std::process::Command;
-use std::{env, fs};
 
 use anyhow::anyhow;
 use argument_parser::Parser;
-use uuid::Uuid;
-
-use crate::protocol::SessionInfo;
-use crate::tty_spawn::TtySpawn;
 
 fn main() -> Result<(), anyhow::Error> {
     let mut parser = Parser::from_env();
@@ -41,7 +36,7 @@ fn main() -> Result<(), anyhow::Error> {
             }
             p if p.is_long("list-sessions") => {
                 let control_path: &Path = &control_path;
-                let sessions = crate::sessions::list_sessions(control_path)?;
+                let sessions = sessions::list_sessions(control_path)?;
                 println!("{}", serde_json::to_string(&sessions)?);
                 return Ok(());
             }
@@ -114,7 +109,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle send-key command
     if let Some(key) = send_key {
         if let Some(sid) = &session_id {
-            return crate::sessions::send_key_to_session(&control_path, sid, &key);
+            return sessions::send_key_to_session(&control_path, sid, &key);
         } else {
             return Err(anyhow!("--send-key requires --session <session_id>"));
         }
@@ -123,7 +118,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle send-text command
     if let Some(text) = send_text {
         if let Some(sid) = &session_id {
-            return crate::sessions::send_text_to_session(&control_path, sid, &text);
+            return sessions::send_text_to_session(&control_path, sid, &text);
         } else {
             return Err(anyhow!("--send-text requires --session <session_id>"));
         }
@@ -132,7 +127,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle signal command
     if let Some(sig) = signal {
         if let Some(sid) = &session_id {
-            return crate::sessions::send_signal_to_session(&control_path, sid, sig);
+            return sessions::send_signal_to_session(&control_path, sid, sig);
         } else {
             return Err(anyhow!("--signal requires --session <session_id>"));
         }
@@ -141,7 +136,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle stop command (SIGTERM)
     if stop {
         if let Some(sid) = &session_id {
-            return crate::sessions::send_signal_to_session(&control_path, sid, 15);
+            return sessions::send_signal_to_session(&control_path, sid, 15);
         } else {
             return Err(anyhow!("--stop requires --session <session_id>"));
         }
@@ -150,7 +145,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle kill command (SIGKILL)
     if kill {
         if let Some(sid) = &session_id {
-            return crate::sessions::send_signal_to_session(&control_path, sid, 9);
+            return sessions::send_signal_to_session(&control_path, sid, 9);
         } else {
             return Err(anyhow!("--kill requires --session <session_id>"));
         }
@@ -158,7 +153,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Handle cleanup command
     if cleanup {
-        return crate::sessions::cleanup_sessions(&control_path, session_id.as_deref());
+        return sessions::cleanup_sessions(&control_path, session_id.as_deref());
     }
 
     // Handle serve command
@@ -166,37 +161,6 @@ fn main() -> Result<(), anyhow::Error> {
         return crate::server::start_server(&addr, control_path);
     }
 
-    if cmdline.is_empty() {
-        return Err(anyhow!("No command provided"));
-    }
-
-    let session_id = Uuid::new_v4();
-    println!("{}", session_id);
-    let session_path = control_path.join(session_id.to_string());
-    fs::create_dir_all(&session_path)?;
-
-    let session_info_path = session_path.join("session.json");
-
-    // Set up stream-out and stdin paths
-    let stream_out_path = session_path.join("stream-out");
-    let stdin_path = session_path.join("stdin");
-    let notification_stream_path = session_path.join("notification-stream");
-
-    // Create and configure TtySpawn
-    let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| s.as_os_str()));
-    tty_spawn
-        .stdout_path(&stream_out_path, true)?
-        .stdin_path(&stdin_path)?
-        .session_json_path(&session_info_path);
-
-    if let Some(name) = session_name {
-        tty_spawn.session_name(name);
-    }
-
-    // Always enable notification stream
-    tty_spawn.notification_path(&notification_stream_path)?;
-
-    // Spawn the process
-    let exit_code = tty_spawn.spawn()?;
+    let exit_code = sessions::spawn_command(control_path, session_name, cmdline)?;
     std::process::exit(exit_code);
 }

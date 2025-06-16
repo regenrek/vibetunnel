@@ -1,12 +1,15 @@
 use anyhow::anyhow;
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
+use uuid::Uuid;
 
 use crate::protocol::{SessionInfo, SessionListEntry};
+use crate::tty_spawn::TtySpawn;
 
 pub fn list_sessions(
     control_path: &Path,
@@ -236,4 +239,32 @@ pub fn cleanup_sessions(
     }
 
     Ok(())
+}
+
+pub fn spawn_command(
+    control_path: std::path::PathBuf,
+    session_name: Option<String>,
+    cmdline: Vec<OsString>,
+) -> Result<i32, anyhow::Error> {
+    if cmdline.is_empty() {
+        return Err(anyhow!("No command provided"));
+    }
+    let session_id = Uuid::new_v4();
+    let session_path = control_path.join(session_id.to_string());
+    fs::create_dir_all(&session_path)?;
+    let session_info_path = session_path.join("session.json");
+    let stream_out_path = session_path.join("stream-out");
+    let stdin_path = session_path.join("stdin");
+    let notification_stream_path = session_path.join("notification-stream");
+    let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| s.as_os_str()));
+    tty_spawn
+        .stdout_path(&stream_out_path, true)?
+        .stdin_path(&stdin_path)?
+        .session_json_path(&session_info_path);
+    if let Some(name) = session_name {
+        tty_spawn.session_name(name);
+    }
+    tty_spawn.notification_path(&notification_stream_path)?;
+    let exit_code = tty_spawn.spawn()?;
+    Ok(exit_code)
 }
