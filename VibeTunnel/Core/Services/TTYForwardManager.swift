@@ -55,7 +55,7 @@ final class TTYForwardManager {
         // Log the command being executed
         logger.info("Executing tty-fwd with arguments: \(arguments.joined(separator: " "))")
         logger.info("tty-fwd executable path: \(executableURL.path)")
-        logger.info("Current directory: \(process.currentDirectoryPath ?? FileManager.default.currentDirectoryPath)")
+        logger.info("Current directory: \(process.currentDirectoryPath)")
 
         do {
             try process.run()
