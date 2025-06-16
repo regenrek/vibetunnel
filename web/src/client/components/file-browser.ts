@@ -85,13 +85,13 @@ export class FileBrowser extends LitElement {
 
     return html`
       <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 9999;">
-        <div class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 h-96">
-          <div class="p-4 border-b border-vs-border">
+        <div class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 h-96 flex flex-col">
+          <div class="p-4 border-b border-vs-border flex-shrink-0">
             <div class="text-vs-assistant text-sm mb-2">Select Directory</div>
             <div class="text-vs-muted text-sm break-all">${this.currentPath}</div>
           </div>
           
-          <div class="p-4 h-64 overflow-y-auto">
+          <div class="p-4 flex-1 overflow-y-auto">
             ${this.loading ? html`
               <div class="text-vs-muted">Loading...</div>
             ` : html`
@@ -124,7 +124,7 @@ export class FileBrowser extends LitElement {
             `}
           </div>
           
-          <div class="p-4 border-t border-vs-border flex gap-4 justify-end">
+          <div class="p-4 border-t border-vs-border flex gap-4 justify-end flex-shrink-0">
             <button 
               class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-4 py-2 border-none"
               @click=${this.handleCancel}

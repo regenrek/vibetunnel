@@ -1,0 +1,1 @@
+{"version":3,"file":"app-new-entry.js","sourceRoot":"","sources":["../src/client/app-new-entry.ts"],"names":[],"mappings":"AAAA,8BAA8B;AAC9B,OAAO,cAAc,CAAC","sourcesContent":["// Entry point for the new app\nimport './app-new.js';"]}
