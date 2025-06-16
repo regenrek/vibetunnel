@@ -373,7 +373,7 @@ struct DashboardSettingsView: View {
                     Text("Security")
                         .font(.headline)
                 } footer: {
-                    Text("When password protection is enabled, localhost connections can still access without a password.")
+                    Text("When password protection is enabled, localhost connections can still access without a password. For remote access, any username is accepted - only the password is verified.")
                         .font(.caption)
                 }
                 
