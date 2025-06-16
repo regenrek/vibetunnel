@@ -32,7 +32,7 @@ if (!TTY_FWD_PATH) {
     process.exit(1);
 }
 
-const TTY_FWD_CONTROL_DIR = process.env.TTY_FWD_CONTROL_DIR || path.join(os.homedir(), '.vibetunnel');
+const TTY_FWD_CONTROL_DIR = process.env.TTY_FWD_CONTROL_DIR || path.join(os.homedir(), '.vibetunnel/control');
 
 // Ensure control directory exists and is clean
 if (fs.existsSync(TTY_FWD_CONTROL_DIR)) {
@@ -767,13 +767,13 @@ app.post('/api/mkdir', (req, res) => {
         }
 
         // Expand tilde in path
-        const expandedPath = dirPath.startsWith('~') 
+        const expandedPath = dirPath.startsWith('~')
             ? path.join(os.homedir(), dirPath.slice(1))
             : path.resolve(dirPath);
 
         // Security check: ensure we're not trying to access outside allowed areas
         const allowedBasePaths = [os.homedir(), process.cwd()];
-        const isAllowed = allowedBasePaths.some(basePath => 
+        const isAllowed = allowedBasePaths.some(basePath =>
             expandedPath.startsWith(path.resolve(basePath))
         );
 
@@ -801,10 +801,10 @@ app.post('/api/mkdir', (req, res) => {
         // Create the directory
         fs.mkdirSync(newDirPath, { recursive: false });
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             path: newDirPath,
-            message: `Directory '${name}' created successfully` 
+            message: `Directory '${name}' created successfully`
         });
 
     } catch (error) {
