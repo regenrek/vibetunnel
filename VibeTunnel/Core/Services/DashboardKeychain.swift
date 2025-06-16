@@ -7,9 +7,9 @@ import os
 final class DashboardKeychain {
     static let shared = DashboardKeychain()
     
-    private let service = "com.amantus.vibetunnel"
+    private let service = "sh.vibetunnel.vibetunnel"
     private let account = "dashboard-password"
-    private let logger = Logger(subsystem: "com.amantus.vibetunnel", category: "DashboardKeychain")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "DashboardKeychain")
     
     private init() {}
     
