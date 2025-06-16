@@ -1055,12 +1055,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                     && parsed.get("width").is_some()
                     && parsed.get("height").is_some()
                 {
-                    let data = format!(
-                        "data: {}
-
-",
-                        line
-                    );
+                    let data = format!("data: {}\n\n", line);
                     if let Err(e) = req.respond_raw(data.as_bytes()) {
                         println!("Failed to send header data: {}", e);
                         return;
@@ -1072,12 +1067,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                     // Convert to instant event for immediate playback
                     if let Some(arr) = parsed.as_array() {
                         let instant_event = serde_json::json!([0, arr[1], arr[2]]);
-                        let data = format!(
-                            "data: {}
-
-",
-                            instant_event
-                        );
+                        let data = format!("data: {}\n\n", instant_event);
                         if let Err(e) = req.respond_raw(data.as_bytes()) {
                             println!("Failed to send event data: {}", e);
                             return;
@@ -1096,12 +1086,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                 "timestamp": start_time as u64,
                 "env": { "TERM": session_entry.session_info.term.clone() }
             });
-            let data = format!(
-                "data: {}
-
-",
-                default_header
-            );
+            let data = format!("data: {}\n\n", default_header);
             if let Err(e) = req.respond_raw(data.as_bytes()) {
                 println!("Failed to send default header: {}", e);
                 return;
@@ -1116,12 +1101,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
             "timestamp": start_time as u64,
             "env": { "TERM": session_entry.session_info.term.clone() }
         });
-        let data = format!(
-            "data: {}
-
-",
-            default_header
-        );
+        let data = format!("data: {}\n\n", default_header);
         if let Err(e) = req.respond_raw(data.as_bytes()) {
             println!("Failed to send fallback header: {}", e);
             return;
