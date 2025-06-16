@@ -21,7 +21,7 @@ struct VibeTunnelApp: App {
                     }
                 }
             }
-        
+
             MenuBarExtra {
                 MenuBarView()
                     .environment(sessionMonitor)
@@ -59,6 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !isRunningInPreview, !isRunningInTests, !isRunningInDebug {
             handleSingleInstanceCheck()
             registerForDistributedNotifications()
+            
+            // Check if app needs to be moved to Applications folder
+            let applicationMover = ApplicationMover()
+            applicationMover.checkAndOfferToMoveToApplications()
         }
 
         // Initialize Sparkle updater manager
@@ -89,24 +93,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize and start HTTP server
         let serverPortString = UserDefaults.standard.string(forKey: "serverPort") ?? "4020"
-        let serverPort = Int(serverPortString) ?? 4020
+        let serverPort = Int(serverPortString) ?? 4_020
         httpServer = TunnelServer(port: serverPort)
         serverMonitor.setServer(httpServer)
-        
+
         Task {
             do {
-                print("Attempting to start HTTP server on port \(httpServer?.port ?? 4020)...")
+                print("Attempting to start HTTP server on port \(httpServer?.port ?? 4_020)...")
                 try await httpServer?.start()
                 serverMonitor.updateStatus()
-                print("HTTP server started successfully on port \(httpServer?.port ?? 4020)")
+                print("HTTP server started successfully on port \(httpServer?.port ?? 4_020)")
                 print("Server is running: \(httpServer?.isRunning ?? false)")
-                
+
                 // Start monitoring sessions after server starts
                 sessionMonitor.startMonitoring()
-                
+
                 // Test the server after a short delay
                 try await Task.sleep(for: .milliseconds(500))
-                if let url = URL(string: "http://127.0.0.1:\(httpServer?.port ?? 4020)/health") {
+                if let url = URL(string: "http://127.0.0.1:\(httpServer?.port ?? 4_020)/health") {
                     let (_, response) = try await URLSession.shared.data(from: url)
                     if let httpResponse = response as? HTTPURLResponse {
                         print("Server health check response: \(httpResponse.statusCode)")
@@ -125,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
-    
+
     func setHTTPServer(_ server: TunnelServer?) {
         httpServer = server
         serverMonitor.setServer(server)
@@ -180,13 +184,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stop session monitoring
         sessionMonitor.stopMonitoring()
-        
+
         // Stop HTTP server
         Task {
             try? await httpServer?.stop()
             serverMonitor.updateStatus()
         }
-        
+
         // Remove distributed notification observer
         let processInfo = ProcessInfo.processInfo
         let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -209,7 +213,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
     }
-
 }
 
 /// Shows the About section in the Settings window

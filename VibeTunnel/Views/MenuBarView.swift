@@ -1,10 +1,3 @@
-//
-//  MenuBarView.swift
-//  VibeTunnel
-//
-//  SwiftUI menu bar implementation
-//
-
 import SwiftUI
 
 /// Main menu bar view displaying session status and app controls
@@ -12,32 +5,45 @@ struct MenuBarView: View {
     @Environment(SessionMonitor.self) var sessionMonitor
     @Environment(ServerMonitor.self) var serverMonitor
     @AppStorage("showInDock") private var showInDock = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Server status header
             ServerStatusView(isRunning: serverMonitor.isRunning, port: serverMonitor.port)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-            
+
             Divider()
                 .padding(.horizontal, 12)
-            
+
+            // Open Dashboard button
+            Button(action: {
+                let dashboardURL = URL(string: "http://127.0.0.1:\(serverMonitor.port)")!
+                NSWorkspace.shared.open(dashboardURL)
+            }) {
+                Label("Open Dashboard", systemImage: "safari")
+            }
+            .buttonStyle(MenuButtonStyle())
+            .disabled(!serverMonitor.isRunning)
+
+            Divider()
+                .padding(.vertical, 4)
+
             // Session count header
             SessionCountView(count: sessionMonitor.sessionCount)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-            
+
             // Session list
             if sessionMonitor.sessionCount > 0 {
                 SessionListView(sessions: sessionMonitor.sessions)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 4)
             }
-            
+
             Divider()
                 .padding(.vertical, 4)
-            
+
             // Help menu with submenu indicator
             HStack {
                 Menu {
@@ -49,7 +55,7 @@ struct MenuBarView: View {
                     }) {
                         Label("Website", systemImage: "globe")
                     }
-                    
+
                     // Report Issue
                     Button(action: {
                         if let url = URL(string: "https://github.com/amantus-ai/vibetunnel/issues") {
@@ -58,20 +64,20 @@ struct MenuBarView: View {
                     }) {
                         Label("Report Issue", systemImage: "exclamationmark.triangle")
                     }
-                    
+
                     Divider()
-                    
+
                     // Check for Updates
                     Button(action: {
                         SparkleUpdaterManager.shared.checkForUpdates()
                     }) {
                         Label("Check for Updates…", systemImage: "arrow.down.circle")
                     }
-                    
+
                     // Version (non-interactive)
                     Text("Version \(appVersion)")
                         .foregroundColor(.secondary)
-                    
+
                     // About
                     Button(action: {
                         showAboutInSettings()
@@ -91,7 +97,7 @@ struct MenuBarView: View {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color.accentColor.opacity(0.001))
             )
-            
+
             // Settings button
             Button(action: {
                 NSApp.openSettings()
@@ -101,10 +107,10 @@ struct MenuBarView: View {
             }
             .buttonStyle(MenuButtonStyle())
             .keyboardShortcut(",", modifiers: .command)
-            
+
             Divider()
                 .padding(.vertical, 4)
-            
+
             // Quit button
             Button(action: {
                 NSApplication.shared.terminate(nil)
@@ -116,7 +122,7 @@ struct MenuBarView: View {
         }
         .frame(minWidth: 200)
     }
-    
+
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
@@ -128,13 +134,13 @@ struct MenuBarView: View {
 struct ServerStatusView: View {
     let isRunning: Bool
     let port: Int
-    
+
     var body: some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(isRunning ? Color.green : Color.red)
                 .frame(width: 8, height: 8)
-            
+
             Text(statusText)
                 .font(.system(size: 13))
                 .foregroundColor(.primary)
@@ -142,7 +148,7 @@ struct ServerStatusView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
     }
-    
+
     private var statusText: String {
         isRunning ? "Server running on port \(port)" : "Server stopped"
     }
@@ -153,7 +159,7 @@ struct ServerStatusView: View {
 /// Displays the count of active SSH sessions
 struct SessionCountView: View {
     let count: Int
-    
+
     var body: some View {
         HStack(spacing: 6) {
             Text(sessionText)
@@ -163,7 +169,7 @@ struct SessionCountView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
     }
-    
+
     private var sessionText: String {
         count == 1 ? "1 active session" : "\(count) active sessions"
     }
@@ -174,13 +180,13 @@ struct SessionCountView: View {
 /// Lists active SSH sessions with truncation for large lists
 struct SessionListView: View {
     let sessions: [String: SessionMonitor.SessionInfo]
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(Array(activeSessions.prefix(5)), id: \.key) { session in
                 SessionRowView(session: session)
             }
-            
+
             if activeSessions.count > 5 {
                 HStack {
                     Text("  • ...")
@@ -191,10 +197,10 @@ struct SessionListView: View {
             }
         }
     }
-    
+
     private var activeSessions: [(key: String, value: SessionMonitor.SessionInfo)] {
-        sessions.filter { $0.value.isRunning }
-            .sorted { $0.value.started_at > $1.value.started_at }
+        sessions.filter(\.value.isRunning)
+            .sorted { $0.value.startedAt > $1.value.startedAt }
     }
 }
 
@@ -203,7 +209,7 @@ struct SessionListView: View {
 /// Individual row displaying session information
 struct SessionRowView: View {
     let session: (key: String, value: SessionMonitor.SessionInfo)
-    
+
     var body: some View {
         HStack {
             Text("  • \(sessionName)")
@@ -213,7 +219,7 @@ struct SessionRowView: View {
         }
         .padding(.vertical, 2)
     }
-    
+
     private var sessionName: String {
         session.value.name.isEmpty ? session.value.cmdline.first ?? "Unknown" : session.value.name
     }
@@ -224,7 +230,7 @@ struct SessionRowView: View {
 /// Custom button style for menu items with hover effects
 struct MenuButtonStyle: ButtonStyle {
     @State private var isHovered = false
-    
+
     func makeBody(configuration: ButtonStyle.Configuration) -> some View {
         configuration.label
             .font(.system(size: 13))
@@ -240,8 +246,6 @@ struct MenuButtonStyle: ButtonStyle {
             }
     }
 }
-
-
 
 // MARK: - Helper Functions
 
@@ -259,4 +263,3 @@ private func showAboutInSettings() {
     }
     NSApp.activate(ignoringOtherApps: true)
 }
-

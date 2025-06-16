@@ -15,8 +15,10 @@ extension NSApplication {
 
         // For macOS 15+ with SwiftUI Settings scene
         if let internalItemAction = NSApp.mainMenu?.item(
-            withInternalIdentifier: kAppMenuInternalIdentifier)?.submenu?.item(
-            withLocalizedTitle: kSettingsLocalizedStringKey)?.internalItemAction {
+            withInternalIdentifier: kAppMenuInternalIdentifier
+        )?.submenu?.item(
+            withLocalizedTitle: kSettingsLocalizedStringKey
+        )?.internalItemAction {
             internalItemAction()
 
             // Additional step to ensure the settings window comes to front
@@ -49,7 +51,8 @@ extension NSMenuItem {
     /// An internal SwiftUI menu item identifier that should be a public property on `NSMenuItem`.
     var internalIdentifier: String? {
         guard let id = Mirror.firstChild(
-            withLabel: "id", in: self)?.value
+            withLabel: "id", in: self
+        )?.value
         else {
             return nil
         }
@@ -59,17 +62,19 @@ extension NSMenuItem {
 
     /// A callback which is associated directly with this `NSMenuItem`.
     var internalItemAction: (() -> Void)? {
-        guard
-            let platformItemAction = Mirror.firstChild(
-                withLabel: "platformItemAction", in: self)?.value,
+        guard let platformItemAction = Mirror.firstChild(
+            withLabel: "platformItemAction", in: self
+        )?.value,
             let typeErasedCallback = Mirror.firstChild(
-                in: platformItemAction)?.value
+                in: platformItemAction
+            )?.value
         else {
             return nil
         }
 
         return Mirror.firstChild(
-            in: typeErasedCallback)?.value as? () -> Void
+            in: typeErasedCallback
+        )?.value as? () -> Void
     }
 }
 
@@ -93,7 +98,10 @@ extension NSMenu {
     func item(
         withLocalizedTitle localizedTitleKey: String,
         inTable tableName: String = "MenuCommands",
-        fromBundle bundlePath: String = "/System/Library/Frameworks/AppKit.framework") -> NSMenuItem? {
+        fromBundle bundlePath: String = "/System/Library/Frameworks/AppKit.framework"
+    )
+        -> NSMenuItem?
+    {
         guard let localizationResource = Bundle(path: bundlePath) else {
             return nil
         }
@@ -102,7 +110,8 @@ extension NSMenu {
             localizedTitleKey,
             tableName: tableName,
             bundle: localizationResource,
-            comment: ""))
+            comment: ""
+        ))
     }
 }
 
@@ -112,25 +121,28 @@ extension NSMenu {
 ///
 /// This private extension provides a safe way to access object properties
 /// through reflection, used for accessing internal AppKit properties.
-private extension Mirror {
+extension Mirror {
     /// The unconditional first child of the reflection subject.
-    var firstChild: Child? { children.first }
+    fileprivate var firstChild: Child? { children.first }
 
     /// The first child of the reflection subject whose label matches the given string.
-    func firstChild(withLabel label: String) -> Child? {
+    fileprivate func firstChild(withLabel label: String) -> Child? {
         children.first(where: {
             $0.label?.elementsEqual(label) ?? false
         })
     }
 
     /// The unconditional first child of the given subject.
-    static func firstChild(in subject: Any) -> Child? {
+    fileprivate static func firstChild(in subject: Any) -> Child? {
         Mirror(reflecting: subject).firstChild
     }
 
     /// The first child of the given subject whose label matches the given string.
-    static func firstChild(
-        withLabel label: String, in subject: Any) -> Child? {
+    fileprivate static func firstChild(
+        withLabel label: String, in subject: Any
+    )
+        -> Child?
+    {
         Mirror(reflecting: subject).firstChild(withLabel: label)
     }
 }

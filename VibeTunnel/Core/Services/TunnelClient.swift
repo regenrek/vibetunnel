@@ -49,9 +49,9 @@ public class TunnelClient {
         // Use a static default URL that we know is valid
         self.baseURL = baseURL ?? Self.defaultBaseURL
         self.apiKey = apiKey
-        
+
         // Use injected client or create default with API key in session config
-        if let httpClient = httpClient {
+        if let httpClient {
             self.httpClient = httpClient
         } else {
             let config = URLSessionConfiguration.default
@@ -68,41 +68,43 @@ public class TunnelClient {
     public func checkHealth() async throws -> TunnelSession.HealthResponse {
         let request = buildRequest(path: "/health", method: .get)
         let (data, response) = try await httpClient.data(for: request, body: nil)
-        
+
         guard response.status == .ok else {
             throw TunnelClientError.httpError(statusCode: response.status.code)
         }
-        
+
         return try decoder.decode(TunnelSession.HealthResponse.self, from: data)
     }
 
     // MARK: - Session Management
 
-    public func createSession(clientInfo: TunnelSession.ClientInfo? = nil) async throws -> TunnelSession.CreateResponse {
+    public func createSession(clientInfo: TunnelSession.ClientInfo? = nil) async throws -> TunnelSession
+        .CreateResponse
+    {
         let requestBody = TunnelSession.CreateRequest(clientInfo: clientInfo)
         let request = buildRequest(path: "/api/sessions", method: .post)
         let body = try encoder.encode(requestBody)
-        
+
         let (data, response) = try await httpClient.data(for: request, body: body)
-        
+
         guard response.status == .created || response.status == .ok else {
             if let errorResponse = try? decoder.decode(TunnelSession.ErrorResponse.self, from: data) {
                 throw TunnelClientError.serverError(errorResponse.error)
             }
             throw TunnelClientError.httpError(statusCode: response.status.code)
         }
-        
+
         return try decoder.decode(TunnelSession.CreateResponse.self, from: data)
     }
 
     public func listSessions() async throws -> [TunnelSession] {
         let request = buildRequest(path: "/api/sessions", method: .get)
         let (data, response) = try await httpClient.data(for: request, body: nil)
-        
+
         guard response.status == .ok else {
             throw TunnelClientError.httpError(statusCode: response.status.code)
         }
-        
+
         let listResponse = try decoder.decode(TunnelSession.ListResponse.self, from: data)
         return listResponse.sessions
     }
@@ -110,21 +112,21 @@ public class TunnelClient {
     public func getSession(id: String) async throws -> TunnelSession {
         let request = buildRequest(path: "/api/sessions/\(id)", method: .get)
         let (data, response) = try await httpClient.data(for: request, body: nil)
-        
+
         guard response.status == .ok else {
             if response.status == .notFound {
                 throw TunnelClientError.sessionNotFound
             }
             throw TunnelClientError.httpError(statusCode: response.status.code)
         }
-        
+
         return try decoder.decode(TunnelSession.self, from: data)
     }
 
     public func deleteSession(id: String) async throws {
         let request = buildRequest(path: "/api/sessions/\(id)", method: .delete)
         let (_, response) = try await httpClient.data(for: request, body: nil)
-        
+
         guard response.status == .noContent || response.status == .ok else {
             if response.status == .notFound {
                 throw TunnelClientError.sessionNotFound
@@ -140,19 +142,21 @@ public class TunnelClient {
         command: String,
         environment: [String: String]? = nil,
         workingDirectory: String? = nil
-    ) async throws -> TunnelSession.ExecuteCommandResponse {
+    )
+        async throws -> TunnelSession.ExecuteCommandResponse
+    {
         let requestBody = TunnelSession.ExecuteCommandRequest(
             sessionId: sessionId,
             command: command,
             environment: environment,
             workingDirectory: workingDirectory
         )
-        
+
         let request = buildRequest(path: "/api/sessions/\(sessionId)/execute", method: .post)
         let body = try encoder.encode(requestBody)
-        
+
         let (data, response) = try await httpClient.data(for: request, body: body)
-        
+
         guard response.status == .ok else {
             if response.status == .notFound {
                 throw TunnelClientError.sessionNotFound
@@ -162,7 +166,7 @@ public class TunnelClient {
             }
             throw TunnelClientError.httpError(statusCode: response.status.code)
         }
-        
+
         return try decoder.decode(TunnelSession.ExecuteCommandResponse.self, from: data)
     }
 
@@ -189,12 +193,12 @@ public class TunnelClient {
 
     private func buildRequest(path: String, method: HTTPRequest.Method) -> HTTPRequest {
         let url = baseURL.appendingPathComponent(path)
-        
+
         // Use URLComponents to get scheme, host, and path
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
             fatalError("Invalid URL")
         }
-        
+
         var request = HTTPRequest(
             method: method,
             scheme: components.scheme,
@@ -203,15 +207,15 @@ public class TunnelClient {
             },
             path: components.path
         )
-        
+
         // Add authentication
         request.headerFields[.authorization] = "Bearer \(apiKey)"
-        
+
         // Add content type for POST/PUT requests
         if method == .post || method == .put {
             request.headerFields[.contentType] = "application/json"
         }
-        
+
         return request
     }
 }
@@ -346,32 +350,32 @@ public enum TunnelClientError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "Invalid response from server"
+            "Invalid response from server"
         case .httpError(let statusCode):
-            return "HTTP error: \(statusCode)"
+            "HTTP error: \(statusCode)"
         case .serverError(let message):
-            return "Server error: \(message)"
+            "Server error: \(message)"
         case .sessionNotFound:
-            return "Session not found"
+            "Session not found"
         case .decodingError(let error):
-            return "Decoding error: \(error)"
+            "Decoding error: \(error)"
         }
     }
-    
+
     public static func == (lhs: TunnelClientError, rhs: TunnelClientError) -> Bool {
         switch (lhs, rhs) {
         case (.invalidResponse, .invalidResponse):
-            return true
+            true
         case (.httpError(let code1), .httpError(let code2)):
-            return code1 == code2
+            code1 == code2
         case (.serverError(let msg1), .serverError(let msg2)):
-            return msg1 == msg2
+            msg1 == msg2
         case (.sessionNotFound, .sessionNotFound):
-            return true
+            true
         case (.decodingError(let msg1), .decodingError(let msg2)):
-            return msg1 == msg2
+            msg1 == msg2
         default:
-            return false
+            false
         }
     }
 }

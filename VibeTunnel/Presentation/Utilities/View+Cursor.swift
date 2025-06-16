@@ -48,7 +48,7 @@ struct CursorTrackingView: NSViewRepresentable {
 }
 
 /// Custom NSView that properly handles cursor tracking
-/// 
+///
 /// This view ensures the pointing hand cursor is displayed when hovering over interactive elements
 class CursorTrackingNSView: NSView {
     override func resetCursorRects() {

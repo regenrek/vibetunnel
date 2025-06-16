@@ -117,7 +117,7 @@ extension TunnelSession {
         public let homeDirectory: String
         public let operatingSystem: String
         public let architecture: String
-        
+
         public init(
             hostname: String,
             username: String,
@@ -132,34 +132,34 @@ extension TunnelSession {
             self.architecture = architecture
         }
     }
-    
+
     /// Request to create a new session
     public struct CreateRequest: Codable, Sendable {
         public let clientInfo: ClientInfo?
-        
+
         public init(clientInfo: ClientInfo? = nil) {
             self.clientInfo = clientInfo
         }
     }
-    
+
     /// Response after creating a session
     public struct CreateResponse: Codable, Sendable {
         public let id: String
         public let session: TunnelSession
-        
+
         public init(id: String, session: TunnelSession) {
             self.id = id
             self.session = session
         }
     }
-    
+
     /// Request to execute a command
     public struct ExecuteCommandRequest: Codable, Sendable {
         public let sessionId: String
         public let command: String
         public let environment: [String: String]?
         public let workingDirectory: String?
-        
+
         public init(
             sessionId: String,
             command: String,
@@ -172,27 +172,27 @@ extension TunnelSession {
             self.workingDirectory = workingDirectory
         }
     }
-    
+
     /// Response from command execution
     public struct ExecuteCommandResponse: Codable, Sendable {
         public let exitCode: Int32
         public let stdout: String
         public let stderr: String
-        
+
         public init(exitCode: Int32, stdout: String, stderr: String) {
             self.exitCode = exitCode
             self.stdout = stdout
             self.stderr = stderr
         }
     }
-    
+
     /// Health check response
     public struct HealthResponse: Codable, Sendable {
         public let status: String
         public let timestamp: Date
         public let sessions: Int
         public let version: String
-        
+
         public init(status: String, timestamp: Date, sessions: Int, version: String) {
             self.status = status
             self.timestamp = timestamp
@@ -200,21 +200,21 @@ extension TunnelSession {
             self.version = version
         }
     }
-    
+
     /// List sessions response
     public struct ListResponse: Codable, Sendable {
         public let sessions: [TunnelSession]
-        
+
         public init(sessions: [TunnelSession]) {
             self.sessions = sessions
         }
     }
-    
+
     /// Error response from server
     public struct ErrorResponse: Codable, Sendable {
         public let error: String
         public let code: String?
-        
+
         public init(error: String, code: String? = nil) {
             self.error = error
             self.code = code

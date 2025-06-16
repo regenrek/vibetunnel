@@ -2,11 +2,18 @@ import Combine
 import Foundation
 import Logging
 
+/// Holds pipes for a terminal session
+private struct SessionPipes {
+    let stdin: Pipe
+    let stdout: Pipe
+    let stderr: Pipe
+}
+
 /// Manages terminal sessions and command execution
 actor TerminalManager {
     private var sessions: [UUID: TunnelSession] = [:]
     private var processes: [UUID: Process] = [:]
-    private var pipes: [UUID: (stdin: Pipe, stdout: Pipe, stderr: Pipe)] = [:]
+    private var pipes: [UUID: SessionPipes] = [:]
     private let logger = Logger(label: "VibeTunnel.TerminalManager")
 
     /// Create a new terminal session
@@ -38,7 +45,7 @@ actor TerminalManager {
         do {
             try process.run()
             processes[session.id] = process
-            pipes[session.id] = (stdinPipe, stdoutPipe, stderrPipe)
+            pipes[session.id] = SessionPipes(stdin: stdinPipe, stdout: stdoutPipe, stderr: stderrPipe)
 
             logger.info("Created session \(session.id) with process \(process.processIdentifier)")
         } catch {
@@ -53,7 +60,7 @@ actor TerminalManager {
     func executeCommand(sessionId: UUID, command: String) async throws -> (output: String, error: String) {
         guard var session = sessions[sessionId],
               let process = processes[sessionId],
-              let (stdin, stdout, stderr) = pipes[sessionId],
+              let sessionPipes = pipes[sessionId],
               process.isRunning
         else {
             throw TunnelError.sessionNotFound
@@ -67,15 +74,15 @@ actor TerminalManager {
         guard let commandData = (command + "\n").data(using: .utf8) else {
             throw TunnelError.commandExecutionFailed("Failed to encode command")
         }
-        stdin.fileHandleForWriting.write(commandData)
+        sessionPipes.stdin.fileHandleForWriting.write(commandData)
 
         // Read output with timeout
         let outputData = try await withTimeout(seconds: 5) {
-            stdout.fileHandleForReading.availableData
+            sessionPipes.stdout.fileHandleForReading.availableData
         }
 
         let errorData = try await withTimeout(seconds: 0.1) {
-            stderr.fileHandleForReading.availableData
+            sessionPipes.stderr.fileHandleForReading.availableData
         }
 
         let output = String(data: outputData, encoding: .utf8) ?? ""
@@ -117,7 +124,12 @@ actor TerminalManager {
     }
 
     /// Helper function for timeout
-    private func withTimeout<T: Sendable>(seconds: TimeInterval, operation: @escaping @Sendable () async throws -> T) async throws -> T {
+    private func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    )
+        async throws -> T
+    {
         try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
                 try await operation()

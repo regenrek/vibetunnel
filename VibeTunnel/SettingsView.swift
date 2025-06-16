@@ -36,7 +36,7 @@ struct SettingsView: View {
     @State private var contentSize: CGSize = .zero
     @AppStorage("debugMode") private var debugMode = false
 
-    // Define ideal sizes for each tab
+    /// Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
         .general: CGSize(width: 500, height: 300),
         .advanced: CGSize(width: 500, height: 500),
@@ -102,8 +102,16 @@ struct GeneralSettingsView: View {
     private var showNotifications = true
     @AppStorage("showInDock")
     private var showInDock = false
+    @AppStorage("updateChannel")
+    private var updateChannelRaw = UpdateChannel.stable.rawValue
+
+    @State private var isCheckingForUpdates = false
 
     private let startupManager = StartupManager()
+
+    var updateChannel: UpdateChannel {
+        UpdateChannel(rawValue: updateChannelRaw) ?? .stable
+    }
 
     var body: some View {
         NavigationStack {
@@ -123,6 +131,44 @@ struct GeneralSettingsView: View {
                         Text("Display notifications for important events.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    // Update Channel
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Update Channel")
+                            Spacer()
+                            Picker("", selection: updateChannelBinding) {
+                                ForEach(UpdateChannel.allCases) { channel in
+                                    Text(channel.displayName).tag(channel)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                        Text(updateChannel.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Check for Updates
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Check for Updates")
+                            Text("Check for new versions of VibeTunnel")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Button("Check Now") {
+                            checkForUpdates()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isCheckingForUpdates)
                     }
                 } header: {
                     Text("Application")
@@ -171,6 +217,32 @@ struct GeneralSettingsView: View {
             }
         )
     }
+
+    private var updateChannelBinding: Binding<UpdateChannel> {
+        Binding(
+            get: { updateChannel },
+            set: { newValue in
+                updateChannelRaw = newValue.rawValue
+                // Notify the updater manager about the channel change
+                NotificationCenter.default.post(
+                    name: Notification.Name("UpdateChannelChanged"),
+                    object: nil,
+                    userInfo: ["channel": newValue]
+                )
+            }
+        )
+    }
+
+    private func checkForUpdates() {
+        isCheckingForUpdates = true
+        NotificationCenter.default.post(name: Notification.Name("checkForUpdates"), object: nil)
+
+        // Reset after a delay
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            isCheckingForUpdates = false
+        }
+    }
 }
 
 /// Advanced settings tab for power user options
@@ -179,68 +251,19 @@ struct AdvancedSettingsView: View {
     private var debugMode = false
     @AppStorage("serverPort")
     private var serverPort = "4020"
-    @AppStorage("updateChannel")
-    private var updateChannelRaw = UpdateChannel.stable.rawValue
     @AppStorage("ngrokEnabled")
     private var ngrokEnabled = false
-    
+
     @State private var ngrokAuthToken = ""
     @State private var ngrokStatus: NgrokTunnelStatus?
     @State private var isStartingNgrok = false
     @State private var ngrokError: String?
-    
+
     private let ngrokService = NgrokService.shared
-
-    @State private var isCheckingForUpdates = false
-
-    var updateChannel: UpdateChannel {
-        UpdateChannel(rawValue: updateChannelRaw) ?? .stable
-    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    // Update Channel
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Update Channel")
-                            Spacer()
-                            Picker("", selection: updateChannelBinding) {
-                                ForEach(UpdateChannel.allCases) { channel in
-                                    Text(channel.displayName).tag(channel)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                        }
-                        Text(updateChannel.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Check for Updates
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Check for Updates")
-                            Text("Check for new versions of VibeTunnel")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Button("Check Now") {
-                            checkForUpdates()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isCheckingForUpdates)
-                    }
-                } header: {
-                    Text("Updates")
-                        .font(.headline)
-                }
-
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -250,7 +273,7 @@ struct AdvancedSettingsView: View {
                                 .frame(width: 80)
                                 .onChange(of: serverPort) { oldValue, newValue in
                                     // Validate port number
-                                    if let port = Int(newValue), port > 0, port < 65536 {
+                                    if let port = Int(newValue), port > 0, port < 65_536 {
                                         restartServerWithNewPort(port)
                                     }
                                 }
@@ -275,13 +298,17 @@ struct AdvancedSettingsView: View {
                                         checkAndStartNgrok()
                                     } else {
                                         stopNgrok()
+                                        // Clear error only when user manually turns off the toggle
+                                        if oldValue == true {
+                                            ngrokError = nil
+                                        }
                                     }
                                 }
                             Text("Expose VibeTunnel to the internet using ngrok.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        
+
                         // Auth Token - Always visible so users can set it before enabling
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -302,13 +329,14 @@ struct AdvancedSettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Button("ngrok.com") {
-                                    NSWorkspace.shared.open(URL(string: "https://dashboard.ngrok.com/auth/your-authtoken")!)
+                                    NSWorkspace.shared
+                                        .open(URL(string: "https://dashboard.ngrok.com/auth/your-authtoken")!)
                                 }
                                 .buttonStyle(.link)
                                 .font(.caption)
                             }
                         }
-                        
+
                         // Status - Only show when ngrok is enabled
                         if ngrokEnabled {
                             if let publicUrl = ngrokService.publicUrl {
@@ -341,7 +369,7 @@ struct AdvancedSettingsView: View {
                                 }
                             }
                         }
-                        
+
                         // Error display - Always visible if there's an error
                         if let error = ngrokError {
                             VStack(alignment: .leading, spacing: 4) {
@@ -361,12 +389,14 @@ struct AdvancedSettingsView: View {
                     Text("ngrok Integration")
                         .font(.headline)
                 } footer: {
-                    Text("Alternatively, we recommend [Tailscale](https://tailscale.com/) to create a virtual network to access your Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .tint(.blue)
+                    Text(
+                        "Alternatively, we recommend [Tailscale](https://tailscale.com/) to create a virtual network to access your Mac."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .tint(.blue)
                 }
-                
+
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Debug mode", isOn: $debugMode)
@@ -390,49 +420,23 @@ struct AdvancedSettingsView: View {
         }
     }
 
-    private var updateChannelBinding: Binding<UpdateChannel> {
-        Binding(
-            get: { updateChannel },
-            set: { newValue in
-                updateChannelRaw = newValue.rawValue
-                // Notify the updater manager about the channel change
-                NotificationCenter.default.post(
-                    name: Notification.Name("UpdateChannelChanged"),
-                    object: nil,
-                    userInfo: ["channel": newValue]
-                )
-            }
-        )
-    }
-
-    private func checkForUpdates() {
-        isCheckingForUpdates = true
-        NotificationCenter.default.post(name: Notification.Name("checkForUpdates"), object: nil)
-
-        // Reset after a delay
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            isCheckingForUpdates = false
-        }
-    }
-    
     private func restartServerWithNewPort(_ port: Int) {
         guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
-        
+
         Task {
             // Stop the current server if running
             if let server = appDelegate.httpServer, server.isRunning {
                 try? await server.stop()
             }
-            
+
             // Create and start new server with the new port
             let newServer = TunnelServer(port: port)
             appDelegate.setHTTPServer(newServer)
-            
+
             do {
                 try await newServer.start()
                 print("Server restarted on port \(port)")
-                
+
                 // Restart session monitoring with new port
                 SessionMonitor.shared.stopMonitoring()
                 SessionMonitor.shared.startMonitoring()
@@ -449,7 +453,7 @@ struct AdvancedSettingsView: View {
             }
         }
     }
-    
+
     private func checkAndStartNgrok() {
         print("checkAndStartNgrok called")
         guard !ngrokService.authToken.isNilOrEmpty else {
@@ -458,14 +462,14 @@ struct AdvancedSettingsView: View {
             ngrokEnabled = false
             return
         }
-        
+
         print("Starting ngrok with auth token present")
         isStartingNgrok = true
         ngrokError = nil
-        
+
         Task {
             do {
-                let port = Int(serverPort) ?? 4020
+                let port = Int(serverPort) ?? 4_020
                 print("Starting ngrok on port \(port)")
                 _ = try await ngrokService.start(port: port)
                 isStartingNgrok = false
@@ -479,22 +483,21 @@ struct AdvancedSettingsView: View {
             }
         }
     }
-    
+
     private func stopNgrok() {
         Task {
             try? await ngrokService.stop()
             ngrokStatus = nil
-            ngrokError = nil
+            // Don't clear the error here - let it remain visible
         }
     }
 }
 
-extension Optional where Wrapped == String {
+extension String? {
     var isNilOrEmpty: Bool {
-        return self?.isEmpty ?? true
+        self?.isEmpty ?? true
     }
 }
-
 
 /// Debug settings tab for development and troubleshooting
 struct DebugSettingsView: View {
@@ -505,15 +508,15 @@ struct DebugSettingsView: View {
     @State private var isTesting = false
     @AppStorage("debugMode") private var debugMode = false
     @AppStorage("logLevel") private var logLevel = "info"
-    
+
     private var isServerRunning: Bool {
         serverMonitor.isRunning
     }
-    
+
     private var serverPort: Int {
         serverMonitor.port
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -532,9 +535,9 @@ struct DebugSettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            
+
                             Spacer()
-                            
+
                             Toggle("", isOn: Binding(
                                 get: { isServerRunning },
                                 set: { newValue in
@@ -545,13 +548,13 @@ struct DebugSettingsView: View {
                             ))
                             .toggleStyle(.switch)
                         }
-                        
+
                         if isServerRunning, let serverURL = URL(string: "http://127.0.0.1:\(serverPort)") {
                             Link("Open in Browser", destination: serverURL)
                                 .font(.caption)
                         }
-                        
-                        if let lastError = lastError {
+
+                        if let lastError {
                             Text(lastError)
                                 .font(.caption)
                                 .foregroundStyle(.red)
@@ -565,7 +568,7 @@ struct DebugSettingsView: View {
                     Text("The HTTP server provides REST API endpoints for terminal session management.")
                         .font(.caption)
                 }
-                
+
                 Section {
                     // Server Information
                     VStack(alignment: .leading, spacing: 8) {
@@ -576,11 +579,11 @@ struct DebugSettingsView: View {
                                 Text(isServerRunning ? "Running" : "Stopped")
                             }
                         }
-                        
+
                         LabeledContent("Port") {
                             Text("\(serverPort)")
                         }
-                        
+
                         LabeledContent("Base URL") {
                             Text("http://127.0.0.1:\(serverPort)")
                                 .font(.system(.body, design: .monospaced))
@@ -590,7 +593,7 @@ struct DebugSettingsView: View {
                     Text("Server Information")
                         .font(.headline)
                 }
-                
+
                 Section {
                     // API Endpoints with test functionality
                     VStack(alignment: .leading, spacing: 12) {
@@ -601,12 +604,12 @@ struct DebugSettingsView: View {
                                         .font(.system(.caption, design: .monospaced))
                                         .foregroundStyle(.blue)
                                         .frame(width: 45, alignment: .leading)
-                                    
+
                                     Text(endpoint.path)
                                         .font(.system(.caption, design: .monospaced))
-                                    
+
                                     Spacer()
-                                    
+
                                     if isServerRunning && endpoint.isTestable {
                                         Button("Test") {
                                             testEndpoint(endpoint)
@@ -616,15 +619,15 @@ struct DebugSettingsView: View {
                                         .disabled(isTesting)
                                     }
                                 }
-                                
+
                                 Text(endpoint.description)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.vertical, 2)
                         }
-                        
-                        if let testResult = testResult {
+
+                        if let testResult {
                             Text(testResult)
                                 .font(.caption)
                                 .foregroundStyle(.green)
@@ -638,7 +641,7 @@ struct DebugSettingsView: View {
                     Text("Click 'Test' to send a request to the endpoint and see the response.")
                         .font(.caption)
                 }
-                
+
                 // Debug Options
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
@@ -647,7 +650,7 @@ struct DebugSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Log Level")
@@ -669,7 +672,7 @@ struct DebugSettingsView: View {
                     Text("Debug Options")
                         .font(.headline)
                 }
-                
+
                 // Developer Tools
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
@@ -685,7 +688,7 @@ struct DebugSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Application Support")
@@ -714,10 +717,10 @@ struct DebugSettingsView: View {
             }
         }
     }
-    
+
     private func toggleServer(_ shouldStart: Bool) async {
         lastError = nil
-        
+
         if shouldStart {
             do {
                 try await serverMonitor.startServer()
@@ -732,19 +735,19 @@ struct DebugSettingsView: View {
             }
         }
     }
-    
+
     private func testEndpoint(_ endpoint: APIEndpoint) {
         isTesting = true
         testResult = nil
-        
+
         Task {
             do {
                 let url = URL(string: "http://127.0.0.1:\(serverPort)\(endpoint.path)")!
                 var request = URLRequest(url: url)
                 request.httpMethod = endpoint.method
-                
+
                 let (data, response) = try await URLSession.shared.data(for: request)
-                
+
                 if let httpResponse = response as? HTTPURLResponse {
                     let statusEmoji = httpResponse.statusCode == 200 ? "✅" : "❌"
                     let preview = String(data: data, encoding: .utf8)?.prefix(100) ?? ""
@@ -753,9 +756,9 @@ struct DebugSettingsView: View {
             } catch {
                 testResult = "❌ Error: \(error.localizedDescription)"
             }
-            
+
             isTesting = false
-            
+
             // Clear result after 5 seconds
             Task {
                 try? await Task.sleep(for: .seconds(5))
@@ -763,11 +766,11 @@ struct DebugSettingsView: View {
             }
         }
     }
-    
+
     private func openConsole() {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Console.app"))
     }
-    
+
     private func showApplicationSupport() {
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             let appDirectory = appSupport.appendingPathComponent("VibeTunnel")
@@ -776,7 +779,7 @@ struct DebugSettingsView: View {
     }
 }
 
-// API Endpoint data
+/// API Endpoint data
 /// Represents an API endpoint for testing in debug mode
 struct APIEndpoint: Identifiable {
     let id: String
@@ -784,7 +787,7 @@ struct APIEndpoint: Identifiable {
     let path: String
     let description: String
     let isTestable: Bool
-    
+
     init(method: String, path: String, description: String, isTestable: Bool) {
         self.id = "\(method)_\(path)"
         self.method = method
@@ -796,11 +799,26 @@ struct APIEndpoint: Identifiable {
 
 let apiEndpoints = [
     APIEndpoint(method: "GET", path: "/", description: "Web interface - displays server status", isTestable: true),
-    APIEndpoint(method: "GET", path: "/health", description: "Health check - returns OK if server is running", isTestable: true),
-    APIEndpoint(method: "GET", path: "/info", description: "Server information - returns version and uptime", isTestable: true),
+    APIEndpoint(
+        method: "GET",
+        path: "/health",
+        description: "Health check - returns OK if server is running",
+        isTestable: true
+    ),
+    APIEndpoint(
+        method: "GET",
+        path: "/info",
+        description: "Server information - returns version and uptime",
+        isTestable: true
+    ),
     APIEndpoint(method: "GET", path: "/sessions", description: "List tty-fwd sessions", isTestable: true),
     APIEndpoint(method: "POST", path: "/sessions", description: "Create new terminal session", isTestable: false),
-    APIEndpoint(method: "GET", path: "/sessions/:id", description: "Get specific session information", isTestable: false),
+    APIEndpoint(
+        method: "GET",
+        path: "/sessions/:id",
+        description: "Get specific session information",
+        isTestable: false
+    ),
     APIEndpoint(method: "DELETE", path: "/sessions/:id", description: "Close a terminal session", isTestable: false),
     APIEndpoint(method: "POST", path: "/execute", description: "Execute command in a session", isTestable: false),
     APIEndpoint(method: "POST", path: "/api/ngrok/start", description: "Start ngrok tunnel", isTestable: true),
