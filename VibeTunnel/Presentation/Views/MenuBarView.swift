@@ -45,7 +45,10 @@ struct MenuBarView: View {
                     Button(action: {
                         AppDelegate.showWelcomeScreen()
                     }, label: {
-                        Label("Show Tutorial", systemImage: "book")
+                        HStack {
+                            Image(systemName: "book")
+                            Text("Show Tutorial")
+                        }
                     })
 
                     Divider()
@@ -56,7 +59,10 @@ struct MenuBarView: View {
                             NSWorkspace.shared.open(url)
                         }
                     }, label: {
-                        Label("Website", systemImage: "globe")
+                        HStack {
+                            Image(systemName: "globe")
+                            Text("Website")
+                        }
                     })
 
                     // Report Issue
@@ -65,7 +71,10 @@ struct MenuBarView: View {
                             NSWorkspace.shared.open(url)
                         }
                     }, label: {
-                        Label("Report Issue", systemImage: "exclamationmark.triangle")
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                            Text("Report Issue")
+                        }
                     })
 
                     Divider()
@@ -74,7 +83,10 @@ struct MenuBarView: View {
                     Button(action: {
                         SparkleUpdaterManager.shared.checkForUpdates()
                     }, label: {
-                        Label("Check for Updates…", systemImage: "arrow.down.circle")
+                        HStack {
+                            Image(systemName: "arrow.down.circle")
+                            Text("Check for Updates…")
+                        }
                     })
 
                     // Version (non-interactive)
@@ -85,7 +97,10 @@ struct MenuBarView: View {
 
                     // About
                     SettingsLink {
-                        Label("About VibeTunnel", systemImage: "info.circle")
+                        HStack {
+                            Image(systemName: "info.circle")
+                            Text("About VibeTunnel")
+                        }
                     }
                     .simultaneousGesture(TapGesture().onEnded {
                         // Navigate to About tab after settings opens
