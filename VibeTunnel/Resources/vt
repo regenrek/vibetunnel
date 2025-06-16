@@ -3,12 +3,62 @@
 # vt - VibeTunnel TTY Forward Wrapper
 # This script wraps tty-fwd to enable VibeTunnel to see command output
 
+# Function to find Claude executable in common locations
+find_claude() {
+    local claude_paths=(
+        "$HOME/.claude/local/claude"
+        "$HOME/.claude/local/node_modules/.bin/claude"
+        "/opt/homebrew/bin/claude"
+        "/usr/local/bin/claude"
+        "/usr/bin/claude"
+        "$(which claude 2>/dev/null)"
+    )
+    
+    for path in "${claude_paths[@]}"; do
+        if [[ -n "$path" && -x "$path" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    
+    echo "Error: Claude executable not found in any of the following locations:" >&2
+    printf "  %s\n" "${claude_paths[@]}" >&2
+    echo "Please ensure Claude is installed or specify the full path manually." >&2
+    return 1
+}
+
+# Handle --claude option
+if [[ "$1" == "--claude" ]]; then
+    shift
+    claude_path="$(find_claude)"
+    if [[ $? -ne 0 ]]; then
+        exit 1
+    fi
+    
+    # Re-execute vt with claude and remaining arguments
+    exec "$0" "$claude_path" "$@"
+fi
+
+# Handle --claude-yolo option
+if [[ "$1" == "--claude-yolo" ]]; then
+    shift
+    claude_path="$(find_claude)"
+    if [[ $? -ne 0 ]]; then
+        exit 1
+    fi
+    
+    # Re-execute vt with claude --dangerously-skip-permissions and remaining arguments
+    exec "$0" "$claude_path" --dangerously-skip-permissions "$@"
+fi
+
 if [[ $# -eq 0 || "$1" == "--help" || "$1" == "-h" ]]; then
     cat << 'EOF'
 vt - VibeTunnel TTY Forward Wrapper
 
 USAGE:
     vt [command] [args...]
+    vt --claude [args...]
+    vt --claude-yolo [args...]
     vt --help
 
 DESCRIPTION:
@@ -21,9 +71,14 @@ EXAMPLES:
     vt ls -la                # List files with VibeTunnel monitoring
     vt python script.py     # Run Python script with output forwarding
     vt npm test             # Run tests with VibeTunnel visibility
+    vt --claude             # Auto-locate and run Claude
+    vt --claude --help      # Run Claude with --help option
+    vt --claude-yolo        # Run Claude with --dangerously-skip-permissions
 
 OPTIONS:
-    --help, -h              Show this help message and exit
+    --claude               Auto-locate Claude executable and run it
+    --claude-yolo          Auto-locate Claude and run with --dangerously-skip-permissions
+    --help, -h             Show this help message and exit
 
 NOTE:
     This script automatically uses the tty-fwd executable bundled with
