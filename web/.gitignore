@@ -10,6 +10,7 @@ public/*.js
 public/*.js.map
 public/components/*.js
 public/components/*.js.map
+dist/
 
 # Logs
 *.log
