@@ -7,9 +7,11 @@
 
 import SwiftUI
 
+/// Main menu bar view displaying session status and app controls
 struct MenuBarView: View {
     @Environment(SessionMonitor.self) var sessionMonitor
     @AppStorage("showInDock") private var showInDock = false
+    @State private var showHelpMenu = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,6 +30,23 @@ struct MenuBarView: View {
             Divider()
                 .padding(.vertical, 4)
             
+            // Help menu
+            Button(action: {
+                showHelpMenu.toggle()
+            }) {
+                HStack {
+                    Label("Help", systemImage: "questionmark.circle")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(MenuButtonStyle())
+            .popover(isPresented: $showHelpMenu, arrowEdge: .trailing) {
+                HelpMenuView(showAboutInSettings: showAboutInSettings)
+            }
+            
             // Settings button
             Button(action: {
                 NSApp.openSettings()
@@ -37,17 +56,6 @@ struct MenuBarView: View {
             }
             .buttonStyle(MenuButtonStyle())
             .keyboardShortcut(",", modifiers: .command)
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            // About button
-            Button(action: {
-                showAboutInSettings()
-            }) {
-                Label("About VibeTunnel", systemImage: "info.circle")
-            }
-            .buttonStyle(MenuButtonStyle())
             
             Divider()
                 .padding(.vertical, 4)
@@ -67,6 +75,7 @@ struct MenuBarView: View {
 
 // MARK: - Session Count View
 
+/// Displays the count of active SSH sessions
 struct SessionCountView: View {
     let count: Int
     
@@ -91,6 +100,7 @@ struct SessionCountView: View {
 
 // MARK: - Session List View
 
+/// Lists active SSH sessions with truncation for large lists
 struct SessionListView: View {
     let sessions: [String: SessionMonitor.SessionInfo]
     
@@ -119,6 +129,7 @@ struct SessionListView: View {
 
 // MARK: - Session Row View
 
+/// Individual row displaying session information
 struct SessionRowView: View {
     let session: (key: String, value: SessionMonitor.SessionInfo)
     
@@ -139,6 +150,7 @@ struct SessionRowView: View {
 
 // MARK: - Menu Button Style
 
+/// Custom button style for menu items with hover effects
 struct MenuButtonStyle: ButtonStyle {
     @State private var isHovered = false
     
@@ -155,6 +167,77 @@ struct MenuButtonStyle: ButtonStyle {
             .onHover { hovering in
                 isHovered = hovering
             }
+    }
+}
+
+// MARK: - Help Menu View
+
+/// Help menu with links and app information
+struct HelpMenuView: View {
+    @Environment(\.dismiss) private var dismiss
+    let showAboutInSettings: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Website
+            Button(action: {
+                dismiss()
+                if let url = URL(string: "http://vibetunnel.sh") {
+                    NSWorkspace.shared.open(url)
+                }
+            }) {
+                Label("Website", systemImage: "globe")
+            }
+            .buttonStyle(MenuButtonStyle())
+            
+            // Report Issue
+            Button(action: {
+                dismiss()
+                if let url = URL(string: "https://github.com/amantus-ai/vibetunnel/issues") {
+                    NSWorkspace.shared.open(url)
+                }
+            }) {
+                Label("Report Issue", systemImage: "exclamationmark.triangle")
+            }
+            .buttonStyle(MenuButtonStyle())
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Check for Updates
+            Button(action: {
+                dismiss()
+                SparkleUpdaterManager.shared.checkForUpdates()
+            }) {
+                Label("Check for Updates…", systemImage: "arrow.down.circle")
+            }
+            .buttonStyle(MenuButtonStyle())
+            
+            // Version
+            HStack {
+                Text("Version \(appVersion)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            
+            // About
+            Button(action: {
+                dismiss()
+                showAboutInSettings()
+            }) {
+                Label("About VibeTunnel", systemImage: "info.circle")
+            }
+            .buttonStyle(MenuButtonStyle())
+        }
+        .frame(minWidth: 200)
+        .padding(.vertical, 4)
+    }
+    
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
 }
 

@@ -51,7 +51,7 @@ struct AboutView: View {
     }
 
     private var descriptionSection: some View {
-        Text("Connect to AI providers with a unified interface")
+        Text("Turn any browser into your Mac's terminal.")
             .font(.body)
             .foregroundStyle(.secondary)
     }
