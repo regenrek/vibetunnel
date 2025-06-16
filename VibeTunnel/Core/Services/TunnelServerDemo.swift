@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import HTTPTypes
 import Hummingbird
 import HummingbirdCore
@@ -21,17 +21,18 @@ enum ServerError: LocalizedError {
 
 /// HTTP server implementation for the macOS app
 @MainActor
-public final class TunnelServerDemo: ObservableObject {
-    @Published public private(set) var isRunning = false
-    @Published public private(set) var port: Int
-    @Published public var lastError: Error?
+@Observable
+public final class TunnelServerDemo {
+    public private(set) var isRunning = false
+    public private(set) var port: Int
+    public var lastError: Error?
     
     private var app: Application<Router<BasicRequestContext>.Responder>?
     private let logger = Logger(label: "VibeTunnel.TunnelServer")
     private let terminalManager = TerminalManager()
     private var serverTask: Task<Void, Error>?
     
-    public init(port: Int = 8080) {
+    public init(port: Int = 4020) {
         self.port = port
     }
     
@@ -246,7 +247,7 @@ public final class TunnelServerDemo: ObservableObject {
     /// Check if the server is actually listening on the specified port
     private func isServerListening(on port: Int) async -> Bool {
         do {
-            let url = URL(string: "http://localhost:\(port)/health")!
+            let url = URL(string: "http://127.0.0.1:\(port)/health")!
             let request = URLRequest(url: url, timeoutInterval: 1.0)
             let (_, response) = try await URLSession.shared.data(for: request)
             

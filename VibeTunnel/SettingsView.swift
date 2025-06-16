@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 enum SettingsTab: String, CaseIterable {
     case general
@@ -59,7 +58,6 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.about)
         }
-        .frame(minWidth: 200, idealWidth: 200, minHeight: 400, idealHeight: 400)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
@@ -106,7 +104,7 @@ struct GeneralSettingsView: View {
                     // Show in Dock
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Show in Dock", isOn: showInDockBinding)
-                        Text("Display VibeTunnel in the Dock. When disabled, VibeTunnel runs as a menu bar app only.")
+                        Text("Show VibeTunnel icon in the Dock.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -150,7 +148,7 @@ struct AdvancedSettingsView: View {
     @AppStorage("debugMode")
     private var debugMode = false
     @AppStorage("serverPort")
-    private var serverPort = "8080"
+    private var serverPort = "4020"
     @AppStorage("updateChannel")
     private var updateChannelRaw = UpdateChannel.stable.rawValue
 
@@ -209,6 +207,7 @@ struct AdvancedSettingsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Server port:")
+                            Spacer()
                             TextField("", text: $serverPort)
                                 .frame(width: 80)
                                 .onChange(of: serverPort) { oldValue, newValue in
@@ -306,43 +305,22 @@ struct AdvancedSettingsView: View {
     }
 }
 
-// Helper class to observe server state
-@MainActor
-class ServerObserver: ObservableObject {
-    @Published var httpServer: TunnelServerDemo?
-    @Published var isServerRunning = false
-    @Published var serverPort = 8080
-    
-    private var cancellable: AnyCancellable?
-    
-    init() {
-        setupServerConnection()
-    }
-    
-    func setupServerConnection() {
-        if let appDelegate = NSApp.delegate as? AppDelegate {
-            httpServer = appDelegate.httpServer
-            isServerRunning = appDelegate.httpServer?.isRunning ?? false
-            serverPort = appDelegate.httpServer?.port ?? 8080
-            
-            // Observe server state changes
-            cancellable = httpServer?.objectWillChange.sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.isServerRunning = self?.httpServer?.isRunning ?? false
-                    self?.serverPort = self?.httpServer?.port ?? 8080
-                }
-            }
-        }
-    }
-}
 
 struct DebugSettingsView: View {
-    @StateObject private var serverObserver = ServerObserver()
+    @State private var httpServer: TunnelServerDemo?
     @State private var lastError: String?
     @State private var testResult: String?
     @State private var isTesting = false
     @AppStorage("debugMode") private var debugMode = false
     @AppStorage("logLevel") private var logLevel = "info"
+    
+    private var isServerRunning: Bool {
+        httpServer?.isRunning ?? false
+    }
+    
+    private var serverPort: Int {
+        httpServer?.port ?? 4020
+    }
     
     var body: some View {
         NavigationStack {
@@ -354,13 +332,13 @@ struct DebugSettingsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text("HTTP Server")
-                                    if serverObserver.isServerRunning {
+                                    if isServerRunning {
                                         Circle()
                                             .fill(.green)
                                             .frame(width: 8, height: 8)
                                     }
                                 }
-                                Text(serverObserver.isServerRunning ? "Server is running on port \(serverObserver.serverPort)" : "Server is stopped")
+                                Text(isServerRunning ? "Server is running on port \(serverPort)" : "Server is stopped")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -368,7 +346,7 @@ struct DebugSettingsView: View {
                             Spacer()
                             
                             Toggle("", isOn: Binding(
-                                get: { serverObserver.isServerRunning },
+                                get: { isServerRunning },
                                 set: { newValue in
                                     Task {
                                         await toggleServer(newValue)
@@ -378,7 +356,7 @@ struct DebugSettingsView: View {
                             .toggleStyle(.switch)
                         }
                         
-                        if serverObserver.isServerRunning, let serverURL = URL(string: "http://localhost:\(serverObserver.serverPort)") {
+                        if isServerRunning, let serverURL = URL(string: "http://127.0.0.1:\(serverPort)") {
                             Link("Open in Browser", destination: serverURL)
                                 .font(.caption)
                         }
@@ -403,18 +381,18 @@ struct DebugSettingsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         LabeledContent("Status") {
                             HStack {
-                                Image(systemName: serverObserver.isServerRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundStyle(serverObserver.isServerRunning ? .green : .secondary)
-                                Text(serverObserver.isServerRunning ? "Running" : "Stopped")
+                                Image(systemName: isServerRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundStyle(isServerRunning ? .green : .secondary)
+                                Text(isServerRunning ? "Running" : "Stopped")
                             }
                         }
                         
                         LabeledContent("Port") {
-                            Text("\(serverObserver.serverPort)")
+                            Text("\(serverPort)")
                         }
                         
                         LabeledContent("Base URL") {
-                            Text("http://localhost:\(serverObserver.serverPort)")
+                            Text("http://127.0.0.1:\(serverPort)")
                                 .font(.system(.body, design: .monospaced))
                         }
                     }
@@ -439,7 +417,7 @@ struct DebugSettingsView: View {
                                     
                                     Spacer()
                                     
-                                    if serverObserver.isServerRunning && endpoint.isTestable {
+                                    if isServerRunning && endpoint.isTestable {
                                         Button("Test") {
                                             testEndpoint(endpoint)
                                         }
@@ -539,8 +517,10 @@ struct DebugSettingsView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .navigationTitle("Debug Settings")
-            .onAppear {
-                serverObserver.setupServerConnection()
+            .task {
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    httpServer = appDelegate.httpServer
+                }
             }
         }
     }
@@ -550,9 +530,9 @@ struct DebugSettingsView: View {
         
         if shouldStart {
             // Create a new server if needed
-            if serverObserver.httpServer == nil {
-                let newServer = TunnelServerDemo(port: serverObserver.serverPort)
-                serverObserver.httpServer = newServer
+            if httpServer == nil {
+                let newServer = TunnelServerDemo(port: serverPort)
+                httpServer = newServer
                 // Store reference in AppDelegate
                 if let appDelegate = NSApp.delegate as? AppDelegate {
                     appDelegate.setHTTPServer(newServer)
@@ -560,16 +540,13 @@ struct DebugSettingsView: View {
             }
             
             do {
-                try await serverObserver.httpServer?.start()
-                serverObserver.isServerRunning = true
+                try await httpServer?.start()
             } catch {
                 lastError = error.localizedDescription
-                serverObserver.isServerRunning = false
             }
         } else {
             do {
-                try await serverObserver.httpServer?.stop()
-                serverObserver.isServerRunning = false
+                try await httpServer?.stop()
             } catch {
                 lastError = error.localizedDescription
             }
@@ -582,7 +559,7 @@ struct DebugSettingsView: View {
         
         Task {
             do {
-                let url = URL(string: "http://localhost:\(serverObserver.serverPort)\(endpoint.path)")!
+                let url = URL(string: "http://127.0.0.1:\(serverPort)\(endpoint.path)")!
                 var request = URLRequest(url: url)
                 request.httpMethod = endpoint.method
                 
@@ -601,7 +578,7 @@ struct DebugSettingsView: View {
             
             // Clear result after 5 seconds
             Task {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(for: .seconds(5))
                 testResult = nil
             }
         }

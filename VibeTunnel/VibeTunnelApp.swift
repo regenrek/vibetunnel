@@ -5,13 +5,14 @@ import SwiftUI
 struct VibeTunnelApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
-    @StateObject private var sessionMonitor = SessionMonitor.shared
+    @State private var sessionMonitor = SessionMonitor.shared
 
     var body: some Scene {
         #if os(macOS)
             Settings {
                 SettingsView()
             }
+            .defaultSize(width: 500, height: 450)
             .commands {
                 CommandGroup(after: .appInfo) {
                     Button("About VibeTunnel") {
@@ -22,7 +23,7 @@ struct VibeTunnelApp: App {
         
             MenuBarExtra {
                 MenuBarView()
-                    .environmentObject(sessionMonitor)
+                    .environment(sessionMonitor)
             } label: {
                 Image("menubar")
                     .renderingMode(.template)
@@ -65,7 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Show settings on first launch or when no window is open
         if !showInDock {
             // For menu bar apps, we need to ensure the settings window is accessible
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
                 if NSApp.windows.isEmpty || NSApp.windows.allSatisfy({ !$0.isVisible }) {
                     NSApp.openSettings()
                 }
@@ -82,21 +84,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize and start HTTP server
         let serverPort = UserDefaults.standard.integer(forKey: "serverPort")
-        httpServer = TunnelServerDemo(port: serverPort > 0 ? serverPort : 8080)
+        httpServer = TunnelServerDemo(port: serverPort > 0 ? serverPort : 4020)
         
         Task {
             do {
-                print("Attempting to start HTTP server on port \(httpServer?.port ?? 8080)...")
+                print("Attempting to start HTTP server on port \(httpServer?.port ?? 4020)...")
                 try await httpServer?.start()
-                print("HTTP server started successfully on port \(httpServer?.port ?? 8080)")
+                print("HTTP server started successfully on port \(httpServer?.port ?? 4020)")
                 print("Server is running: \(httpServer?.isRunning ?? false)")
                 
                 // Start monitoring sessions after server starts
                 sessionMonitor.startMonitoring()
                 
                 // Test the server after a short delay
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                if let url = URL(string: "http://localhost:\(httpServer?.port ?? 8080)/health") {
+                try await Task.sleep(for: .milliseconds(500))
+                if let url = URL(string: "http://127.0.0.1:\(httpServer?.port ?? 4020)/health") {
                     let (_, response) = try await URLSession.shared.data(from: url)
                     if let httpResponse = response as? HTTPURLResponse {
                         print("Server health check response: \(httpResponse.statusCode)")
@@ -204,7 +206,7 @@ private func showAboutInSettings() {
     NSApp.openSettings()
     Task {
         // Small delay to ensure the settings window is fully initialized
-        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        try? await Task.sleep(for: .milliseconds(100))
         NotificationCenter.default.post(
             name: .openSettingsTab,
             object: SettingsTab.about

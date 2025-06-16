@@ -6,18 +6,19 @@
 //
 
 import Foundation
-import Combine
+import Observation
 
 /// Monitors tty-fwd sessions and provides real-time session count
 @MainActor
-class SessionMonitor: ObservableObject {
+@Observable
+class SessionMonitor {
     static let shared = SessionMonitor()
     
-    @Published var sessionCount: Int = 0
-    @Published var sessions: [String: SessionInfo] = [:]
-    @Published var lastError: String?
+    var sessionCount: Int = 0
+    var sessions: [String: SessionInfo] = [:]
+    var lastError: String?
     
-    private var timer: Timer?
+    private var monitoringTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 5.0 // Check every 5 seconds
     private var serverPort: Int
     
@@ -39,7 +40,7 @@ class SessionMonitor: ObservableObject {
     
     private init() {
         let port = UserDefaults.standard.integer(forKey: "serverPort")
-        self.serverPort = port > 0 ? port : 8080
+        self.serverPort = port > 0 ? port : 4020
     }
     
     func startMonitoring() {
@@ -47,31 +48,33 @@ class SessionMonitor: ObservableObject {
         
         // Update port from UserDefaults in case it changed
         let port = UserDefaults.standard.integer(forKey: "serverPort")
-        self.serverPort = port > 0 ? port : 8080
+        self.serverPort = port > 0 ? port : 4020
         
-        // Initial fetch
-        Task {
+        // Start monitoring task
+        monitoringTask = Task {
+            // Initial fetch
             await fetchSessions()
-        }
-        
-        // Set up periodic fetching
-        timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { _ in
-            Task { @MainActor in
-                await self.fetchSessions()
+            
+            // Set up periodic fetching
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(refreshInterval))
+                if !Task.isCancelled {
+                    await fetchSessions()
+                }
             }
         }
     }
     
     func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
+        monitoringTask?.cancel()
+        monitoringTask = nil
     }
     
     @MainActor
     private func fetchSessions() async {
         do {
             // First check if server is running
-            let healthURL = URL(string: "http://localhost:\(serverPort)/health")!
+            let healthURL = URL(string: "http://127.0.0.1:\(serverPort)/health")!
             let healthRequest = URLRequest(url: healthURL, timeoutInterval: 2.0)
             
             do {
@@ -93,7 +96,7 @@ class SessionMonitor: ObservableObject {
             }
             
             // Server is running, fetch sessions
-            let url = URL(string: "http://localhost:\(serverPort)/sessions")!
+            let url = URL(string: "http://127.0.0.1:\(serverPort)/sessions")!
             let request = URLRequest(url: url, timeoutInterval: 5.0)
             let (data, response) = try await URLSession.shared.data(for: request)
             
