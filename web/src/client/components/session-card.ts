@@ -11,6 +11,7 @@ export interface Session {
   startedAt: string;
   lastModified: string;
   pid?: number;
+  waiting?: boolean;
 }
 
 @customElement('session-card')
@@ -215,8 +216,9 @@ export class SessionCard extends LitElement {
         <!-- Compact Footer -->
         <div class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border">
           <div class="flex justify-between items-center">
-            <span class="${this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'} text-xs">
-              ${this.session.status}
+            <span class="${this.getStatusColor()} text-xs flex items-center gap-1">
+              <div class="w-2 h-2 rounded-full ${this.getStatusDotColor()}"></div>
+              ${this.getStatusText()}
             </span>
             ${this.session.pid ? html`
               <span 
@@ -232,6 +234,27 @@ export class SessionCard extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  private getStatusText(): string {
+    if (this.session.waiting) {
+      return 'waiting';
+    }
+    return this.session.status;
+  }
+
+  private getStatusColor(): string {
+    if (this.session.waiting) {
+      return 'text-vs-muted';
+    }
+    return this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning';
+  }
+
+  private getStatusDotColor(): string {
+    if (this.session.waiting) {
+      return 'bg-gray-500';
+    }
+    return this.session.status === 'running' ? 'bg-green-500' : 'bg-orange-500';
   }
 
 }

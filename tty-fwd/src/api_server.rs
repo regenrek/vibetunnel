@@ -847,7 +847,7 @@ fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
                                 // Successfully sent SIGTERM
                                 let response = ApiResponse {
                                     success: Some(true),
-                                    message: Some("Session killed".to_string()),
+                                    message: Some("Session killed (SIGTERM)".to_string()),
                                     error: None,
                                     session_id: None,
                                 };
@@ -860,7 +860,7 @@ fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
                                     Ok(_) => {
                                         let response = ApiResponse {
                                             success: Some(true),
-                                            message: Some("Session killed".to_string()),
+                                            message: Some("Session killed (SIGKILL)".to_string()),
                                             error: None,
                                             session_id: None,
                                         };
@@ -873,7 +873,7 @@ fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
                                             error: Some(format!("Failed to kill session: {}", e)),
                                             session_id: None,
                                         };
-                                        json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+                                        json_response(StatusCode::GONE, &error)
                                     }
                                 }
                             }
@@ -1553,7 +1553,7 @@ fn resolve_path(path: &str, home_dir: &str) -> PathBuf {
         if path == "~" {
             PathBuf::from(home_dir)
         } else {
-            PathBuf::from(home_dir).join(&path[2..]) // Skip ~/ 
+            PathBuf::from(home_dir).join(&path[2..]) // Skip ~/
         }
     } else {
         PathBuf::from(path)
@@ -1562,7 +1562,7 @@ fn resolve_path(path: &str, home_dir: &str) -> PathBuf {
 
 fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> {
     let query_string = req.uri().query().unwrap_or("");
-    
+
     let query: BrowseQuery = match serde_urlencoded::from_str(query_string) {
         Ok(query) => query,
         Err(_) => {
@@ -1577,7 +1577,7 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
     };
 
     let dir_path = query.path.as_deref().unwrap_or("~");
-    
+
     // Get home directory
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
     let expanded_path = resolve_path(dir_path, &home_dir);
@@ -1633,9 +1633,10 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
         if let Ok(entry) = entry {
             if let Ok(file_metadata) = entry.metadata() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                
+
                 fn system_time_to_iso_string(time: SystemTime) -> String {
-                    let duration = time.duration_since(SystemTime::UNIX_EPOCH)
+                    let duration = time
+                        .duration_since(SystemTime::UNIX_EPOCH)
                         .unwrap_or_default();
                     let timestamp = Timestamp::from_second(duration.as_secs() as i64)
                         .unwrap_or_else(|_| Timestamp::UNIX_EPOCH);

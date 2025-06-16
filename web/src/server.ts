@@ -71,6 +71,7 @@ interface TtyFwdSession {
     status: "running" | "exited";
     stdin: string;
     "stream-out": string;
+    waiting: boolean;
 }
 
 interface TtyFwdListResponse {
@@ -167,7 +168,8 @@ app.get('/api/sessions', async (req, res) => {
                 exitCode: sessionInfo.exit_code,
                 startedAt: sessionInfo.started_at,
                 lastModified: lastModified,
-                pid: sessionInfo.pid
+                pid: sessionInfo.pid,
+                waiting: sessionInfo.waiting
             };
         });
 
