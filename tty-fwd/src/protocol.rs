@@ -65,6 +65,13 @@ pub struct AsciinemaEvent {
     pub data: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NotificationEvent {
+    pub timestamp: Timestamp,
+    pub event: String,
+    pub data: serde_json::Value,
+}
+
 pub struct StreamWriter {
     file: std::fs::File,
     start_time: std::time::Instant,
@@ -107,5 +114,25 @@ impl StreamWriter {
 
     pub fn elapsed_time(&self) -> f64 {
         self.start_time.elapsed().as_secs_f64()
+    }
+}
+
+pub struct NotificationWriter {
+    file: std::fs::File,
+}
+
+impl NotificationWriter {
+    pub fn new(file: std::fs::File) -> Self {
+        Self { file }
+    }
+
+    pub fn write_notification(&mut self, event: NotificationEvent) -> Result<(), std::io::Error> {
+        use std::io::Write;
+
+        let event_json = serde_json::to_string(&event)?;
+        writeln!(self.file, "{}", event_json)?;
+        self.file.flush()?;
+
+        Ok(())
     }
 }

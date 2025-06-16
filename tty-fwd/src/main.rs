@@ -38,6 +38,7 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
             let session_json_path = path.join("session.json");
             let stream_out_path = path.join("stream-out");
             let stdin_path = path.join("stdin");
+            let notification_stream_path = path.join("notification-stream");
 
             if session_json_path.exists() {
                 let session_data = if let Ok(content) = fs::read_to_string(&session_json_path) {
@@ -51,7 +52,8 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                             "exit_code": session_info.exit_code,
                             "started_at": session_info.started_at,
                             "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
-                            "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy()
+                            "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
+                            "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()
                         })
                     } else {
                         // Fallback to old behavior if JSON parsing fails
@@ -63,7 +65,8 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                         serde_json::json!({
                             "status": status,
                             "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
-                            "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy()
+                            "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
+                            "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()
                         })
                     }
                 } else {
@@ -76,7 +79,8 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                     serde_json::json!({
                         "status": status,
                         "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
-                        "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy()
+                        "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
+                        "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()
                     })
                 };
 
@@ -316,6 +320,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Set up stream-out and stdin paths
     let stream_out_path = session_path.join("stream-out");
     let stdin_path = session_path.join("stdin");
+    let notification_stream_path = session_path.join("notification-stream");
 
     // Create and configure TtySpawn
     let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| s.as_os_str()));
@@ -327,6 +332,9 @@ fn main() -> Result<(), anyhow::Error> {
     if let Some(name) = session_name {
         tty_spawn.session_name(name);
     }
+
+    // Always enable notification stream
+    tty_spawn.notification_path(&notification_stream_path)?;
 
     // Spawn the process
     let exit_code = tty_spawn.spawn()?;

@@ -10,7 +10,8 @@ use std::sync::Arc;
 use tempfile::NamedTempFile;
 
 use crate::protocol::{
-    AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, SessionInfo, StreamWriter,
+    AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, NotificationEvent, NotificationWriter,
+    SessionInfo, StreamWriter,
 };
 use crate::utils;
 use jiff::Timestamp;
@@ -55,6 +56,7 @@ impl TtySpawn {
                 command,
                 stdin_file: None,
                 stream_writer: None,
+                notification_writer: None,
                 session_json_path: None,
                 session_name: None,
             }),
@@ -127,6 +129,18 @@ impl TtySpawn {
         self
     }
 
+    /// Sets a path as output file for notifications.
+    pub fn notification_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, io::Error> {
+        let file = File::options()
+            .create(true)
+            .append(true)
+            .open(path)?;
+
+        let notification_writer = NotificationWriter::new(file);
+        self.options_mut().notification_writer = Some(notification_writer);
+        Ok(self)
+    }
+
     /// Spawns the application in the TTY.
     pub fn spawn(&mut self) -> Result<i32, io::Error> {
         Ok(spawn(
@@ -143,6 +157,7 @@ struct SpawnOptions {
     command: Vec<OsString>,
     stdin_file: Option<File>,
     stream_writer: Option<StreamWriter>,
+    notification_writer: Option<NotificationWriter>,
     session_json_path: Option<PathBuf>,
     session_name: Option<String>,
 }
@@ -226,7 +241,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "unknown".to_string());
 
-        let cmdline = opts
+        let cmdline: Vec<String> = opts
             .command
             .iter()
             .map(|s| s.to_string_lossy().to_string())
@@ -234,8 +249,22 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
 
         let session_name = opts.session_name.unwrap_or(executable_name);
 
-        create_session_info(session_json_path, cmdline, session_name, current_dir)
+        create_session_info(session_json_path, cmdline.clone(), session_name.clone(), current_dir.clone())
             .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?;
+
+        // Send session started notification
+        if let Some(ref mut notification_writer) = opts.notification_writer {
+            let notification = NotificationEvent {
+                timestamp: Timestamp::now(),
+                event: "session_started".to_string(),
+                data: serde_json::json!({
+                    "cmdline": cmdline,
+                    "name": session_name,
+                    "cwd": current_dir
+                }),
+            };
+            let _ = notification_writer.write_notification(notification);
+        }
     }
     // if we can't retrieve the terminal atts we're not directly connected
     // to a pty in which case we won't do any of the terminal related
@@ -293,11 +322,24 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             opts.stdin_file.as_mut(),
             stderr_pty,
             true, // flush is always enabled
+            opts.notification_writer.as_mut(),
         )?;
 
         // Update session status to exited with exit code
         if let Some(ref session_json_path) = opts.session_json_path {
             let _ = update_session_status(session_json_path, None, "exited", Some(exit_code));
+        }
+
+        // Send session exited notification
+        if let Some(ref mut notification_writer) = opts.notification_writer {
+            let notification = NotificationEvent {
+                timestamp: Timestamp::now(),
+                event: "session_exited".to_string(),
+                data: serde_json::json!({
+                    "exit_code": exit_code
+                }),
+            };
+            let _ = notification_writer.write_notification(notification);
         }
 
         return Ok(exit_code);
@@ -333,6 +375,7 @@ fn communication_loop(
     in_file: Option<&mut File>,
     stderr: Option<OwnedFd>,
     flush: bool,
+    _notification_writer: Option<&mut NotificationWriter>,
 ) -> Result<i32, Errno> {
     let mut buf = [0; 4096];
     let mut read_stdin = true;
