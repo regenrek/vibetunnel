@@ -30,3 +30,8 @@ lipo -create -output target/release/tty-fwd-universal \
 echo "Universal binary created: target/release/tty-fwd-universal"
 echo "Verifying architecture support:"
 lipo -info target/release/tty-fwd-universal
+
+# Sign the universal binary
+echo "Signing universal binary..."
+codesign --force --sign - target/release/tty-fwd-universal
+echo "Code signing complete"

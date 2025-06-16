@@ -111,34 +111,6 @@ public final class TunnelServer {
     private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel")
         .appendingPathComponent("control").path
     
-    private func ensureControlDirectoryExists() throws {
-        let controlDirURL = URL(fileURLWithPath: ttyFwdControlDir)
-        
-        var isDirectory: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: ttyFwdControlDir, isDirectory: &isDirectory)
-        
-        if !exists {
-            logger.info("Control directory does not exist, creating at: \(ttyFwdControlDir)")
-            try FileManager.default.createDirectory(at: controlDirURL, withIntermediateDirectories: true, attributes: nil)
-            logger.info("Successfully created control directory at: \(ttyFwdControlDir)")
-        } else if !isDirectory.boolValue {
-            logger.error("Control path exists but is not a directory: \(ttyFwdControlDir)")
-            throw NSError(domain: "TunnelServer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Control path exists but is not a directory"])
-        } else {
-            logger.info("Control directory already exists at: \(ttyFwdControlDir)")
-        }
-        
-        // Verify we can write to the directory
-        let testFile = controlDirURL.appendingPathComponent(".test")
-        do {
-            try "test".write(to: testFile, atomically: true, encoding: .utf8)
-            try FileManager.default.removeItem(at: testFile)
-            logger.info("Control directory is writable")
-        } catch {
-            logger.error("Control directory is not writable: \(error)")
-            throw NSError(domain: "TunnelServer", code: 2, userInfo: [NSLocalizedDescriptionKey: "Control directory is not writable: \(error.localizedDescription)"])
-        }
-    }
 
     public init(port: Int = 4_020) {
         self.port = port
@@ -149,13 +121,6 @@ public final class TunnelServer {
 
         logger.info("Starting TunnelServer on port \(port)")
 
-        // Ensure control directory exists at startup
-        do {
-            try ensureControlDirectoryExists()
-        } catch {
-            logger.error("Failed to create control directory: \(error)")
-            throw ServerError.failedToStart("Failed to create control directory: \(error.localizedDescription)")
-        }
 
         do {
             let router = Router(context: BasicRequestContext.self)
@@ -254,15 +219,6 @@ public final class TunnelServer {
 
             // Legacy endpoint for backwards compatibility
             router.get("/sessions") { _, _ async -> Response in
-                // Ensure control directory exists
-                do {
-                    try await MainActor.run {
-                        try self.ensureControlDirectoryExists()
-                    }
-                } catch {
-                    self.logger.error("Failed to ensure control directory exists: \(error)")
-                    return self.errorResponse(message: "Failed to initialize control directory: \(error.localizedDescription)")
-                }
                 
                 let process = await MainActor.run {
                     TTYForwardManager.shared.createTTYForwardProcess(with: ["--control-path", self.ttyFwdControlDir, "--list-sessions"])
@@ -661,8 +617,6 @@ public final class TunnelServer {
 
     private func listSessions() async -> Response {
         do {
-            // Ensure control directory exists
-            try ensureControlDirectoryExists()
             
             let output = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--list-sessions"])
             let sessionsData = output.data(using: .utf8) ?? Data()
@@ -724,8 +678,6 @@ public final class TunnelServer {
                 return errorResponse(message: "Command array is required and cannot be empty", status: .badRequest)
             }
 
-            // Ensure control directory exists
-            try ensureControlDirectoryExists()
             
             let sessionName = "session_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(9))"
             let cwd = resolvePath(sessionRequest.workingDir ?? "", fallback: FileManager.default.currentDirectoryPath)
@@ -939,7 +891,49 @@ public final class TunnelServer {
             return nil
         }
         
-        // Get initial file size
+        // Store buffer for incomplete lines
+        var lineBuffer = ""
+        
+        // Read existing file content first
+        let fileSize = lseek(fileDescriptor, 0, SEEK_END)
+        if fileSize > 0 {
+            // Read the entire file (or last portion if very large)
+            let maxInitialRead: Int64 = 1024 * 1024 // 1MB max initial read
+            let readSize = min(fileSize, maxInitialRead)
+            let startOffset = max(0, fileSize - readSize)
+            
+            lseek(fileDescriptor, startOffset, SEEK_SET)
+            
+            let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(readSize) + 1)
+            defer { buffer.deallocate() }
+            
+            let bytesRead = read(fileDescriptor, buffer, Int(readSize))
+            if bytesRead > 0 {
+                let data = Data(bytes: buffer, count: bytesRead)
+                if let initialContent = String(data: data, encoding: .utf8) {
+                    lineBuffer = initialContent
+                    let lines = lineBuffer.components(separatedBy: .newlines)
+                    
+                    // Process all complete lines from existing content
+                    if lines.count > 1 {
+                        for i in 0..<(lines.count - 1) {
+                            let line = lines[i]
+                            Task { @MainActor in
+                                await self.processNewLine(
+                                    line: line,
+                                    startTime: startTime,
+                                    continuation: continuation
+                                )
+                            }
+                        }
+                        // Keep the last incomplete line in buffer
+                        lineBuffer = lines.last ?? ""
+                    }
+                }
+            }
+        }
+        
+        // Set position to current end for monitoring new content
         var lastReadPosition = lseek(fileDescriptor, 0, SEEK_END)
         
         // Create dispatch source for monitoring file writes
@@ -948,9 +942,6 @@ public final class TunnelServer {
             eventMask: [.write, .extend],
             queue: DispatchQueue.main
         )
-        
-        // Store buffer for incomplete lines
-        var lineBuffer = ""
         
         source.setEventHandler { [weak self] in
             guard let self = self else { return }
