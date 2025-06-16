@@ -51,6 +51,13 @@ if [[ "$1" == "--claude-yolo" ]]; then
     exec "$0" "$claude_path" --dangerously-skip-permissions "$@"
 fi
 
+# Handle --shell or -i option (launch current shell)
+if [[ "$1" == "--shell" || "$1" == "-i" ]]; then
+    shift
+    # Execute current shell through tty-fwd
+    exec "$0" "${SHELL:-/bin/bash}" "$@"
+fi
+
 # Handle --no-shell-wrap or -S option
 NO_SHELL_WRAP=false
 if [[ "$1" == "--no-shell-wrap" || "$1" == "-S" ]]; then
@@ -66,6 +73,8 @@ USAGE:
     vt [command] [args...]
     vt --claude [args...]
     vt --claude-yolo [args...]
+    vt --shell [args...]
+    vt -i [args...]
     vt --no-shell-wrap [command] [args...]
     vt -S [command] [args...]
     vt --help
@@ -80,17 +89,20 @@ DESCRIPTION:
     functions, and builtins. Use --no-shell-wrap to execute commands directly.
 
 EXAMPLES:
-    vt ls -la                # List files with VibeTunnel monitoring
+    vt top                  # Watch top with VibeTunnel monitoring
     vt python script.py     # Run Python script with output forwarding
     vt npm test             # Run tests with VibeTunnel visibility
     vt --claude             # Auto-locate and run Claude
     vt --claude --help      # Run Claude with --help option
     vt --claude-yolo        # Run Claude with --dangerously-skip-permissions
+    vt --shell              # Launch current shell (equivalent to vt $SHELL)
+    vt -i                   # Launch current shell (short form)
     vt -S ls -la            # List files without shell alias resolution
 
 OPTIONS:
     --claude               Auto-locate Claude executable and run it
     --claude-yolo          Auto-locate Claude and run with --dangerously-skip-permissions
+    --shell, -i            Launch current shell (equivalent to vt $SHELL)
     --no-shell-wrap, -S    Execute command directly without shell wrapper
     --help, -h             Show this help message and exit
 

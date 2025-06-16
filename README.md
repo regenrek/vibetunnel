@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="VibeTunnel/AppIcon.icon/Assets/vibe_tunnel_clean.png" alt="VibeTunnel Logo" width="128" height="128">
+</div>
+
 # VibeTunnel
 
 VibeTunnel is a macOS application that bridges terminal applications to the web, enabling remote control of terminal tools from anywhere. It creates secure tunnels between local terminal sessions and web browsers, making it possible to access and control command-line applications like Claude Code remotely.
@@ -199,6 +203,45 @@ Key files:
    ```
 
 ## Usage
+
+### Using the `vt` Command
+
+VibeTunnel includes a command-line wrapper `vt` that forwards terminal application output through the tunnel. This allows remote monitoring and control of your terminal sessions. The command can be installed from the VibeTunnel settings or it can be found in `VibeTunnel.app/Contents/MacOS/Resources/vt` to symlink onto your `PATH`.
+
+#### Basic Usage
+```bash
+# Run any command with VibeTunnel monitoring
+vt [command] [args...]
+
+# Examples
+vt top                    # Monitor top command
+vt python script.py       # Run Python script with output forwarding
+vt npm test              # Run tests with VibeTunnel visibility
+```
+
+#### Claude Integration
+```bash
+vt --claude              # Auto-locate and run Claude
+vt --claude --help       # Run Claude with --help option
+vt --claude-yolo         # Run Claude with --dangerously-skip-permissions
+```
+
+#### Shell Sessions
+```bash
+vt --shell               # Launch current shell
+vt -i                    # Launch current shell (short form)
+```
+
+#### Advanced Options
+```bash
+vt -S ls -la            # Execute without shell wrapper (no alias resolution)
+vt --no-shell-wrap cmd   # Same as -S
+vt --help               # Show detailed help
+```
+
+The `vt` wrapper automatically uses shell resolution to handle aliases, functions, and built-ins, making it work seamlessly with your existing terminal setup.
+
+### Getting Started
 
 1. **Launch VibeTunnel**: The app appears in your menu bar
 2. **Start Server**: Click the menu bar icon and select "Start Server"

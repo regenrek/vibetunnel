@@ -29,6 +29,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut cleanup = false;
     let mut serve_address = None::<String>;
     let mut static_path = None::<String>;
+    let mut shell_flag = false;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -82,6 +83,9 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("static-path") => {
                 static_path = Some(parser.value()?);
             }
+            p if p.is_long("shell") || p.is_short("i") => {
+                shell_flag = true;
+            }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
             }
@@ -107,6 +111,7 @@ fn main() -> Result<(), anyhow::Error> {
                 println!(
                     "  --static-path <path>    Path to static files directory for HTTP server"
                 );
+                println!("  --shell, -i             Launch current shell");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
@@ -172,6 +177,12 @@ fn main() -> Result<(), anyhow::Error> {
         })
         .unwrap();
         return crate::api_server::start_server(&addr, control_path, static_path);
+    }
+
+    // Handle shell flag
+    if shell_flag {
+        let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        cmdline = vec![OsString::from(shell)];
     }
 
     let exit_code = sessions::spawn_command(control_path, session_name, cmdline)?;
