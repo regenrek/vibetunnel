@@ -39,7 +39,7 @@ struct SettingsView: View {
 
     /// Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
-        .general: CGSize(width: 500, height: 400),
+        .general: CGSize(width: 500, height: 450),
         .advanced: CGSize(width: 500, height: 500),
         .debug: CGSize(width: 600, height: 650),
         .about: CGSize(width: 500, height: 550)
@@ -275,7 +275,9 @@ struct AdvancedSettingsView: View {
                             Text("Server port:")
                             Spacer()
                             TextField("", text: $serverPort)
+                                .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
+                                .multilineTextAlignment(.center)
                                 .onChange(of: serverPort) { oldValue, newValue in
                                     // Validate port number
                                     if let port = Int(newValue), port > 0, port < 65_536 {
@@ -406,6 +408,8 @@ struct AdvancedSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .tint(.blue)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
                 }
 
                 Section {
