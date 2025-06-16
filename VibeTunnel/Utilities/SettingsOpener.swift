@@ -11,6 +11,9 @@ enum SettingsOpener {
     /// Opens the Settings window using the environment action via notification
     /// This is needed for cases where we can't use SettingsLink (e.g., from notifications)
     static func openSettings() {
+        // Temporarily switch to regular app to ensure window comes to front
+        let currentPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         
         // Try the direct menu item approach first (from VibeMeter)
@@ -19,6 +22,10 @@ enum SettingsOpener {
             Task {
                 try? await Task.sleep(for: .milliseconds(100))
                 focusSettingsWindow()
+                
+                // Restore activation policy after a delay
+                try? await Task.sleep(for: .milliseconds(200))
+                NSApp.setActivationPolicy(currentPolicy)
             }
         } else {
             // Fallback to notification approach
@@ -27,6 +34,10 @@ enum SettingsOpener {
             Task {
                 try? await Task.sleep(for: .milliseconds(150))
                 focusSettingsWindow()
+                
+                // Restore activation policy after a delay
+                try? await Task.sleep(for: .milliseconds(200))
+                NSApp.setActivationPolicy(currentPolicy)
             }
         }
     }
@@ -51,9 +62,7 @@ enum SettingsOpener {
         if let settingsWindow = NSApp.windows.first(where: { 
             $0.identifier?.rawValue == settingsWindowIdentifier 
         }) {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            settingsWindow.orderFrontRegardless()
-            NSApp.activate(ignoringOtherApps: true)
+            bringWindowToFront(settingsWindow)
         } else if let settingsWindow = NSApp.windows.first(where: { window in
             // Fallback to title-based search
             window.isVisible && 
@@ -61,9 +70,49 @@ enum SettingsOpener {
             (window.title.localizedCaseInsensitiveContains("settings") ||
              window.title.localizedCaseInsensitiveContains("preferences"))
         }) {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            settingsWindow.orderFrontRegardless()
-            NSApp.activate(ignoringOtherApps: true)
+            bringWindowToFront(settingsWindow)
+        }
+    }
+    
+    /// Brings a window to front using the most reliable method
+    private static func bringWindowToFront(_ window: NSWindow) {
+        // Ensure window is on screen
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        
+        // Multiple methods to ensure window comes to front
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        window.level = .floating  // Temporarily set to floating level
+        
+        // Reset level after a short delay
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            window.level = .normal
+        }
+        
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Setup window close observer to restore activation policy
+        setupWindowCloseObserver(for: window)
+    }
+    
+    /// Observes when settings window closes to restore activation policy
+    private static func setupWindowCloseObserver(for window: NSWindow) {
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                // Check if this is the last window
+                let visibleWindows = NSApp.windows.filter { $0.isVisible && $0 != window }
+                if visibleWindows.isEmpty {
+                    // Restore menu bar app behavior
+                    NSApp.setActivationPolicy(.accessory)
+                }
+            }
         }
     }
     

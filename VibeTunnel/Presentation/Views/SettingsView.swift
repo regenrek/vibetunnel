@@ -257,6 +257,8 @@ struct AdvancedSettingsView: View {
     private var serverPort = "4020"
     @AppStorage("ngrokEnabled")
     private var ngrokEnabled = false
+    @AppStorage("cleanupOnStartup")
+    private var cleanupOnStartup = true
 
     @State private var ngrokAuthToken = ""
     @State private var ngrokStatus: NgrokTunnelStatus?
@@ -436,6 +438,13 @@ struct AdvancedSettingsView: View {
                             .buttonStyle(.bordered)
                         }
                         Text("Install the 'vt' command line tool to /usr/local/bin for terminal access.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Clean up old sessions on startup", isOn: $cleanupOnStartup)
+                        Text("Automatically remove terminated sessions when the app starts.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -843,7 +852,7 @@ struct DebugSettingsView: View {
                             Button("Purge All") {
                                 showPurgeConfirmation = true
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
                             .tint(.red)
                         }
                         Text("Remove all stored preferences and reset to defaults")

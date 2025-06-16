@@ -17,6 +17,7 @@ class ServerManager: ObservableObject {
     
     @AppStorage("serverMode") private var serverModeString: String = ServerMode.hummingbird.rawValue
     @AppStorage("serverPort") var port: String = "4020"
+    @AppStorage("cleanupOnStartup") private var cleanupOnStartup: Bool = true
     
     @Published private(set) var currentServer: ServerProtocol?
     @Published private(set) var isRunning = false
@@ -100,6 +101,9 @@ class ServerManager: ObservableObject {
             
             // Update ServerMonitor for compatibility
             ServerMonitor.shared.isServerRunning = true
+            
+            // Trigger cleanup of old sessions after server starts
+            await triggerInitialCleanup()
             
         } catch {
             logger.error("Failed to start server: \(error.localizedDescription)")
@@ -233,6 +237,63 @@ class ServerManager: ObservableObject {
             return HummingbirdServer()
         case .rust:
             return RustServer()
+        }
+    }
+    
+    /// Trigger cleanup of exited sessions after server startup
+    private func triggerInitialCleanup() async {
+        // Check if cleanup on startup is enabled
+        guard cleanupOnStartup else {
+            logger.info("Cleanup on startup is disabled in settings")
+            return
+        }
+        
+        logger.info("Triggering initial cleanup of exited sessions")
+        
+        // Small delay to ensure server is fully ready
+        try? await Task.sleep(for: .milliseconds(500))
+        
+        do {
+            // Create URL for cleanup endpoint
+            let url = URL(string: "http://localhost:\(port)/api/cleanup-exited")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 10
+            
+            // Make the cleanup request
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 200 {
+                    // Try to parse the response
+                    if let jsonData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let cleanedCount = jsonData["cleaned_count"] as? Int {
+                        logger.info("Initial cleanup completed: cleaned \(cleanedCount) exited sessions")
+                        logSubject.send(ServerLogEntry(
+                            level: .info,
+                            message: "Cleaned up \(cleanedCount) exited sessions on startup",
+                            source: serverMode
+                        ))
+                    } else {
+                        logger.info("Initial cleanup completed successfully")
+                        logSubject.send(ServerLogEntry(
+                            level: .info,
+                            message: "Cleaned up exited sessions on startup",
+                            source: serverMode
+                        ))
+                    }
+                } else {
+                    logger.warning("Initial cleanup returned status code: \(httpResponse.statusCode)")
+                }
+            }
+        } catch {
+            // Log the error but don't fail startup
+            logger.warning("Failed to trigger initial cleanup: \(error.localizedDescription)")
+            logSubject.send(ServerLogEntry(
+                level: .warning,
+                message: "Could not clean up old sessions: \(error.localizedDescription)",
+                source: serverMode
+            ))
         }
     }
 }
