@@ -73,7 +73,7 @@ final class RustServer: ServerProtocol {
     
     private(set) var isRunning = false
     
-    var port: String = "4020" {
+    var port: String = "" {
         didSet {
             // If server is running and port changed, we need to restart
             if isRunning && oldValue != port {
@@ -92,6 +92,13 @@ final class RustServer: ServerProtocol {
         guard !isRunning else {
             logger.warning("Rust server already running")
             return
+        }
+        
+        guard !port.isEmpty else {
+            let error = RustServerError.invalidPort
+            logger.error("Port not configured")
+            logSubject.send(ServerLogEntry(level: .error, message: error.localizedDescription, source: .rust))
+            throw error
         }
         
         logger.info("Starting Rust tty-fwd server on port \(self.port)")
@@ -138,10 +145,11 @@ final class RustServer: ServerProtocol {
         let webPublicExists = FileManager.default.fileExists(atPath: webPublicPath.path)
         logger.info("Web public directory at \(webPublicPath.path) exists: \(webPublicExists)")
         
-        let staticPath = "web/public"
+        // Use absolute path for static directory
+        let staticPath = webPublicPath.path
         
         // Build command to run tty-fwd through login shell
-        let ttyFwdCommand = "\"\(binaryPath)\" --static-path \(staticPath) --serve \(port)"
+        let ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(port)"
         process.arguments = ["-l", "-c", ttyFwdCommand]
         
         logger.info("Executing command: /bin/zsh -l -c \"\(ttyFwdCommand)\"")
@@ -468,6 +476,7 @@ enum RustServerError: LocalizedError {
     case binaryNotFound
     case processFailedToStart
     case serverNotResponding
+    case invalidPort
     
     var errorDescription: String? {
         switch self {
@@ -477,6 +486,8 @@ enum RustServerError: LocalizedError {
             return "The server process failed to start"
         case .serverNotResponding:
             return "The server process started but is not responding to health checks"
+        case .invalidPort:
+            return "Server port is not configured"
         }
     }
 }
