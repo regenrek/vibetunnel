@@ -1,0 +1,117 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint TypeScript/JavaScript Code
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: web
+      run: npm ci
+      
+    - name: Check formatting with Prettier
+      working-directory: web
+      run: npm run format:check
+      
+    - name: Run ESLint
+      working-directory: web
+      run: npm run lint
+
+  build-and-test:
+    name: Build and Test
+    needs: lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: web
+      run: npm ci
+      
+    - name: Build frontend and backend
+      working-directory: web
+      run: npm run build
+      
+    - name: Run tests
+      working-directory: web
+      run: npm test -- --passWithNoTests
+      # Added --passWithNoTests since there are no test files yet
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: node-build-artifacts
+        path: |
+          web/dist/
+          web/public/bundle/
+
+  type-check:
+    name: TypeScript Type Checking
+    needs: lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: web
+      run: npm ci
+      
+    - name: Check TypeScript types
+      working-directory: web
+      run: npx tsc --noEmit
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+        
+    - name: Run npm audit
+      working-directory: web
+      run: npm audit --audit-level=moderate || true
+      # || true to not fail the build on vulnerabilities, but still report them
