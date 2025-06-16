@@ -11,13 +11,6 @@
   background-color: transparent !important;
 }
 
-/* Hide XTerm input textarea in session views (we handle input separately) */
-session-view .xterm-helper-textarea {
-  display: none !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
 /* Ensure terminal container has proper size */
 #terminal-player,
 #interactive-terminal {
@@ -64,4 +57,8 @@ session-view .xterm-helper-textarea {
 
 .session-preview .xterm .xterm-viewport {
   overflow: hidden !important;
+}
+
+.xterm .xterm-helper-textarea {
+  opacity: 0 !important;
 }

@@ -243,7 +243,7 @@ export class VibeTunnelApp extends LitElement {
           }
         };
       } catch (error) {
-        console.error('Error setting up hot reload:', error);
+        console.log('Error setting up hot reload:', error);
       }
     }
   }

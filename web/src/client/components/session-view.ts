@@ -67,6 +67,11 @@ export class SessionView extends LitElement {
     super.connectedCallback();
     this.connected = true;
 
+    // Make session-view focusable for copy/paste without interfering with XTerm cursor
+    this.tabIndex = 0;
+    this.addEventListener('paste', this.handlePasteEvent);
+    this.addEventListener('click', () => this.focus());
+
     // Show loading animation if no session yet
     if (!this.session) {
       this.startLoading();
@@ -92,6 +97,10 @@ export class SessionView extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.connected = false;
+
+    // Remove paste event listener and click handler
+    this.removeEventListener('paste', this.handlePasteEvent);
+    this.removeEventListener('click', () => this.focus());
 
     // Remove global keyboard event listener
     if (!this.isMobile && this.keyboardListenerAdded) {
@@ -476,11 +485,28 @@ export class SessionView extends LitElement {
     await this.sendInputText(key);
   }
 
+  private handlePasteEvent = async (e: ClipboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!this.session) return;
+
+    try {
+      const clipboardText = e.clipboardData?.getData('text/plain');
+      if (clipboardText) {
+        await this.sendInputText(clipboardText);
+      }
+    } catch (error) {
+      console.error('Failed to handle paste event:', error);
+    }
+  };
+
+
   private async handlePaste() {
     if (!this.session) return;
 
     try {
-      // Read text from clipboard
+      // Try clipboard API first (requires user activation)
       const clipboardText = await navigator.clipboard.readText();
       
       if (clipboardText) {
@@ -489,11 +515,16 @@ export class SessionView extends LitElement {
       }
     } catch (error) {
       console.error('Failed to read from clipboard:', error);
+      // Show user a message about using Ctrl+V instead
+      console.log('Tip: Try using Ctrl+V (Cmd+V on Mac) to paste instead');
+      
       // Fallback: try to use the older document.execCommand method
       try {
         const textArea = document.createElement('textarea');
         textArea.style.position = 'fixed';
         textArea.style.opacity = '0';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
         document.body.appendChild(textArea);
         textArea.focus();
         
@@ -507,6 +538,7 @@ export class SessionView extends LitElement {
         document.body.removeChild(textArea);
       } catch (fallbackError) {
         console.error('Fallback paste method also failed:', fallbackError);
+        console.log('Please focus the terminal and use Ctrl+V (Cmd+V on Mac) to paste');
       }
     }
   }
@@ -619,6 +651,10 @@ export class SessionView extends LitElement {
         session-view *, session-view *:focus, session-view *:focus-visible {
           outline: none !important;
           box-shadow: none !important;
+        }
+        session-view:focus {
+          outline: 2px solid #007ACC !important;
+          outline-offset: -2px;
         }
       </style>
       <div class="flex flex-col bg-vs-bg font-mono" style="height: 100vh; height: 100dvh; outline: none !important; box-shadow: none !important;">

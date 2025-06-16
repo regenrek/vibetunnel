@@ -42,7 +42,7 @@ export class Renderer {
       theme: {
         background: '#1e1e1e',
         foreground: '#d4d4d4',
-        cursor: '#ffffff',
+        cursor: '#00ff00',
         cursorAccent: '#1e1e1e',
         selectionBackground: '#264f78',
         // VS Code Dark theme colors
@@ -70,7 +70,10 @@ export class Renderer {
       altClickMovesCursor: false,
       rightClickSelectsWord: false,
       disableStdin: true, // We handle input separately
+      cursorBlink: true,
+      cursorStyle: 'block',
       cursorWidth: 1,
+      cursorInactiveStyle: "block"
     });
 
     // Add addons
@@ -104,6 +107,25 @@ export class Renderer {
 
     // Open terminal in the wrapper
     this.terminal.open(terminalWrapper);
+
+    // Disable XTerm's input handling completely while preserving cursor
+    this.terminal.onData(() => {
+      // Do nothing - we handle input via our own system
+    });
+
+    // Ensure cursor is visible without focus by forcing it to stay active
+    requestAnimationFrame(() => {
+      if (this.terminal.element) {
+        const helperTextarea = this.terminal.element.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement;
+        if (helperTextarea) {
+          // Prevent the helper textarea from stealing focus but allow cursor rendering
+          helperTextarea.addEventListener('focus', (e) => {
+            e.preventDefault();
+            helperTextarea.blur();
+          });
+        }
+      }
+    });
 
     // Add CSS to override XTerm's fixed width/height on .xterm-screen within this container
     // Apply to both previews and full terminals
