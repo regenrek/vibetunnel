@@ -25,14 +25,7 @@ jobs:
         xcodebuild -version
         swift --version
         
-    - name: Install Tuist
-      run: |
-        curl -Ls https://install.tuist.io | bash
-        echo "/usr/local/bin" >> $GITHUB_PATH
-        
-    - name: Generate Xcode project
-      run: ./scripts/generate-xcproj.sh
-      
+    
     - name: Install build tools
       run: |
         brew install xcbeautify
@@ -41,7 +34,7 @@ jobs:
       run: |
         set -o pipefail && \
         xcodebuild build \
-          -project VibeTunnel.xcodeproj \
+          -workspace VibeTunnel.xcworkspace \
           -scheme VibeTunnel \
           -configuration Debug \
           -destination "platform=macOS" \
@@ -53,7 +46,7 @@ jobs:
       run: |
         set -o pipefail && \
         xcodebuild build \
-          -project VibeTunnel.xcodeproj \
+          -workspace VibeTunnel.xcworkspace \
           -scheme VibeTunnel \
           -configuration Release \
           -destination "platform=macOS" \
@@ -65,7 +58,7 @@ jobs:
       run: |
         set -o pipefail && \
         xcodebuild test \
-          -project VibeTunnel.xcodeproj \
+          -workspace VibeTunnel.xcworkspace \
           -scheme VibeTunnel \
           -configuration Debug \
           -destination "platform=macOS" \
