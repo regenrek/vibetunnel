@@ -43,10 +43,17 @@ struct WelcomeView: View {
                 // Page indicators
                 HStack(spacing: 8) {
                     ForEach(0..<4) { index in
-                        Circle()
-                            .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                            .animation(.easeInOut, value: currentPage)
+                        Button(action: {
+                            withAnimation {
+                                currentPage = index
+                            }
+                        }) {
+                            Circle()
+                                .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                        }
+                        .buttonStyle(.plain)
+                        .cursor(NSCursor.pointingHand)
                     }
                 }
                 .padding(.top, 12)
@@ -256,10 +263,22 @@ struct ProtectDashboardPageView: View {
                     SecureField("Password", text: $password)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 300)
+                        .onChange(of: password) { _, _ in
+                            // Reset password saved state when user starts typing
+                            if isPasswordSet {
+                                isPasswordSet = false
+                            }
+                        }
 
                     SecureField("Confirm Password", text: $confirmPassword)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 300)
+                        .onChange(of: confirmPassword) { _, _ in
+                            // Reset password saved state when user starts typing
+                            if isPasswordSet {
+                                isPasswordSet = false
+                            }
+                        }
 
                     if showError {
                         Text(errorMessage)
@@ -275,13 +294,13 @@ struct ProtectDashboardPageView: View {
                                 .foregroundColor(.secondary)
                         }
                         .font(.caption)
+                    } else {
+                        Button("Set Password") {
+                            setPassword()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(password.isEmpty)
                     }
-
-                    Button("Set Password") {
-                        setPassword()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(password.isEmpty || isPasswordSet)
 
                     Text("Leave empty to skip password protection")
                         .font(.caption)
