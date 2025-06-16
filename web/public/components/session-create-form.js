@@ -11,7 +11,7 @@ let SessionCreateForm = class SessionCreateForm extends LitElement {
     constructor() {
         super(...arguments);
         this.workingDir = '~/';
-        this.command = '';
+        this.command = 'zsh';
         this.disabled = false;
         this.visible = false;
         this.isCreating = false;
@@ -136,7 +136,7 @@ let SessionCreateForm = class SessionCreateForm extends LitElement {
           <div class="p-4">
         
         <div class="mb-4">
-          <div class="text-vs-muted mb-2">Working Directory:</div>
+          <div class="text-vs-text mb-2">Working Directory:</div>
           <div class="flex gap-4">
             <input
               type="text"
@@ -157,7 +157,7 @@ let SessionCreateForm = class SessionCreateForm extends LitElement {
         </div>
 
         <div class="mb-4">
-          <div class="text-vs-muted mb-2">Command:</div>
+          <div class="text-vs-text mb-2">Command:</div>
           <input
             type="text"
             class="w-full bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"

@@ -7,7 +7,7 @@ import UserNotifications
 /// SparkleUpdaterManager with automatic update downloads enabled
 @available(macOS 10.15, *)
 @MainActor
-public final class SparkleUpdaterManager: NSObject {
+public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
     public static let shared = SparkleUpdaterManager()
 
     fileprivate var updaterController: SPUStandardUpdaterController?
@@ -30,13 +30,13 @@ public final class SparkleUpdaterManager: NSObject {
         // In debug mode, don't start the updater automatically
         updaterController = SPUStandardUpdaterController(
             startingUpdater: false,
-            updaterDelegate: nil,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
         #else
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
         #endif
@@ -65,12 +65,17 @@ public final class SparkleUpdaterManager: NSObject {
                 updaterController!.updater.startUpdater()
             }
             #endif
+            
+            // Note: feedURL configuration happens through delegate methods
         }
     }
 
     public func setUpdateChannel(_ channel: UpdateChannel) {
-        // This would require custom feed URL handling - for now just log
+        // Save the channel preference
+        UserDefaults.standard.set(channel.rawValue, forKey: "updateChannel")
         logger.info("Update channel set to: \(channel.rawValue)")
+        
+        // The actual feed URL will be provided by the delegate method
     }
 
     public func checkForUpdatesInBackground() {
@@ -107,6 +112,33 @@ public final class SparkleUpdaterManager: NSObject {
     }
 }
 
+// MARK: - SPUUpdaterDelegate
+
+extension SparkleUpdaterManager {
+    nonisolated public func updater(_ updater: SPUUpdater, mayPerformUpdateCheck updateCheck: SPUUpdateCheck) throws {
+        // Allow update checks by default - not throwing an error means the check is allowed
+        // We could add logic here to prevent checks during certain conditions
+    }
+    
+    nonisolated public func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        // Get the current update channel from UserDefaults
+        if let savedChannel = UserDefaults.standard.string(forKey: "updateChannel"),
+           let channel = UpdateChannel(rawValue: savedChannel) {
+            return channel.includesPreReleases ? Set(["", "prerelease"]) : Set([""])
+        }
+        return Set([""]) // Default to stable channel only
+    }
+    
+    nonisolated public func feedURLString(for updater: SPUUpdater) -> String? {
+        // Provide the appropriate feed URL based on the current update channel
+        if let savedChannel = UserDefaults.standard.string(forKey: "updateChannel"),
+           let channel = UpdateChannel(rawValue: savedChannel) {
+            return channel.appcastURL.absoluteString
+        }
+        return UpdateChannel.defaultChannel.appcastURL.absoluteString
+    }
+}
+
 // MARK: - SparkleViewModel
 
 @MainActor
@@ -134,9 +166,11 @@ public final class SparkleViewModel {
         }
 
         // Load saved update channel
-        let savedChannel = UserDefaults.standard.string(forKey: "updateChannel") ?? UpdateChannel.stable.rawValue
-        if let channel = UpdateChannel(rawValue: savedChannel) {
+        if let savedChannel = UserDefaults.standard.string(forKey: "updateChannel"),
+           let channel = UpdateChannel(rawValue: savedChannel) {
             updateChannel = channel
+        } else {
+            updateChannel = UpdateChannel.stable
         }
     }
 

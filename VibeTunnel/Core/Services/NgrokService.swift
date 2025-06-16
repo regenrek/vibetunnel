@@ -143,6 +143,13 @@ final class NgrokService: NgrokTunnelProtocol {
         let checkProcess = Process()
         checkProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         checkProcess.arguments = ["ngrok"]
+        
+        // Add common Homebrew paths to PATH for the check
+        var environment = ProcessInfo.processInfo.environment
+        let currentPath = environment["PATH"] ?? "/usr/bin:/bin"
+        let homebrewPaths = "/opt/homebrew/bin:/usr/local/bin"
+        environment["PATH"] = "\(homebrewPaths):\(currentPath)"
+        checkProcess.environment = environment
 
         let checkPipe = Pipe()
         checkProcess.standardOutput = checkPipe
