@@ -49,7 +49,8 @@ final class HummingbirdServer: ServerProtocol {
         
         do {
             let portInt = Int(port) ?? 4020
-            let server = TunnelServer(port: portInt)
+            let bindAddress = ServerManager.shared.bindAddress
+            let server = TunnelServer(port: portInt, bindAddress: bindAddress)
             tunnelServer = server
             
             try await server.start()

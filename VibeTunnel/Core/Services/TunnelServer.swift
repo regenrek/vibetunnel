@@ -112,8 +112,11 @@ public final class TunnelServer {
         .appendingPathComponent("control").path
     
 
-    public init(port: Int = 4_020) {
+    private var bindAddress: String
+    
+    public init(port: Int = 4_020, bindAddress: String = "127.0.0.1") {
         self.port = port
+        self.bindAddress = bindAddress
     }
 
     public func start() async throws {
@@ -127,6 +130,11 @@ public final class TunnelServer {
 
             // Add middleware
             router.add(middleware: LogRequestsMiddleware(.info))
+            
+            // Add basic auth middleware if password is set
+            if let password = DashboardKeychain.shared.getPassword() {
+                router.add(middleware: BasicAuthMiddleware(password: password))
+            }
 
             // Health check endpoint
             router.get("/api/health") { _, _ -> HTTPResponse.Status in
@@ -333,8 +341,9 @@ public final class TunnelServer {
             }
 
             // Create application configuration
+            // Use bindAddress to control server accessibility
             let configuration = ApplicationConfiguration(
-                address: .hostname("127.0.0.1", port: port),
+                address: .hostname(bindAddress, port: port),
                 serverName: "VibeTunnel"
             )
 
