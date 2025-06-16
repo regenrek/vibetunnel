@@ -2,15 +2,21 @@
 
 set -e
 
+# Set up Cargo environment
+if [ -z "$CARGO_HOME" ]; then
+    export CARGO_HOME="$HOME/.cargo"
+fi
+export CARGO="$CARGO_HOME/bin/cargo"
+
 echo "Building universal binary for tty-fwd..."
 
 # Build for x86_64
 echo "Building x86_64 target..."
-cargo build --release --target x86_64-apple-darwin
+$CARGO build --release --target x86_64-apple-darwin
 
 # Build for aarch64 (Apple Silicon)
 echo "Building aarch64 target..."
-cargo build --release --target aarch64-apple-darwin
+$CARGO build --release --target aarch64-apple-darwin
 
 # Create target/release directory if it doesn't exist
 mkdir -p target/release
