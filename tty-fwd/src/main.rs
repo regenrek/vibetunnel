@@ -4,7 +4,6 @@ mod http_server;
 mod protocol;
 mod sessions;
 mod tty_spawn;
-mod utils;
 
 use std::env;
 use std::ffi::OsString;

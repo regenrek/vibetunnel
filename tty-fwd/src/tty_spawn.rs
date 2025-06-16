@@ -14,7 +14,6 @@ use crate::protocol::{
     AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, NotificationEvent, NotificationWriter,
     SessionInfo, StreamWriter,
 };
-use crate::utils;
 use jiff::Timestamp;
 
 use nix::errno::Errno;
@@ -58,7 +57,7 @@ impl TtySpawn {
             options: Some(SpawnOptions {
                 command,
                 stdin_file: None,
-                stream_writer: None,
+                stdout_file: None,
                 notification_writer: None,
                 session_json_path: None,
                 session_name: None,
@@ -103,22 +102,7 @@ impl TtySpawn {
                 .open(path)?
         };
 
-        // Create a basic asciinema header with actual terminal size
-        let term_size = utils::terminal_size();
-        let header = AsciinemaHeader {
-            version: 2,
-            width: term_size.width as u32,
-            height: term_size.height as u32,
-            timestamp: None,
-            duration: None,
-            command: None,
-            title: None,
-            env: None,
-            theme: None,
-        };
-
-        let stream_writer = StreamWriter::new(file, header)?;
-        self.options_mut().stream_writer = Some(stream_writer);
+        self.options_mut().stdout_file = Some(file);
         Ok(self)
     }
 
@@ -170,7 +154,7 @@ impl TtySpawn {
 struct SpawnOptions {
     command: Vec<OsString>,
     stdin_file: Option<File>,
-    stream_writer: Option<StreamWriter>,
+    stdout_file: Option<File>,
     notification_writer: Option<NotificationWriter>,
     session_json_path: Option<PathBuf>,
     session_name: Option<String>,
@@ -284,7 +268,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             .map(|s| s.to_string_lossy().to_string())
             .collect();
 
-        let session_name = opts.session_name.unwrap_or(executable_name);
+        let session_name = opts.session_name.clone().unwrap_or(executable_name);
 
         create_session_info(
             session_json_path,
@@ -371,8 +355,48 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
                 let master_fd = pty.master;
                 let session_json_path = opts.session_json_path.clone();
                 let notification_writer = opts.notification_writer;
-                let stream_writer = opts.stream_writer;
                 let stdin_file = opts.stdin_file;
+
+                // Create StreamWriter for detached session if we have an output file
+                let stream_writer = if let Some(stdout_file) = opts.stdout_file {
+                    // Collect relevant environment variables
+                    let mut env_vars = std::collections::HashMap::new();
+                    env_vars.insert("TERM".to_string(), opts.term.clone());
+
+                    // Include other important terminal-related environment variables if they exist
+                    for var in ["SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"] {
+                        if let Ok(value) = std::env::var(var) {
+                            env_vars.insert(var.to_string(), value);
+                        }
+                    }
+
+                    let header = AsciinemaHeader {
+                        version: 2,
+                        width: winsize.as_ref().map_or(80, |x| x.ws_col as u32),
+                        height: winsize.as_ref().map_or(24, |x| x.ws_row as u32),
+                        timestamp: Some(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                        ),
+                        duration: None,
+                        command: Some(
+                            opts.command
+                                .iter()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                        ),
+                        title: opts.session_name.clone(),
+                        env: Some(env_vars),
+                        theme: None,
+                    };
+
+                    StreamWriter::new(stdout_file, header).ok()
+                } else {
+                    None
+                };
 
                 std::thread::spawn(move || {
                     // Monitor the session by watching the PTY and session files
@@ -415,11 +439,55 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             );
         }
 
+        // Create StreamWriter if we have an output file
+        let mut stream_writer = if let Some(stdout_file) = opts.stdout_file.take() {
+            // Collect relevant environment variables
+            let mut env_vars = std::collections::HashMap::new();
+            env_vars.insert("TERM".to_string(), opts.term.clone());
+
+            // Include other important terminal-related environment variables if they exist
+            for var in ["SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"] {
+                if let Ok(value) = std::env::var(var) {
+                    env_vars.insert(var.to_string(), value);
+                }
+            }
+
+            let header = AsciinemaHeader {
+                version: 2,
+                width: winsize.as_ref().map_or(80, |x| x.ws_col as u32),
+                height: winsize.as_ref().map_or(24, |x| x.ws_row as u32),
+                timestamp: Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                ),
+                duration: None,
+                command: Some(
+                    opts.command
+                        .iter()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                ),
+                title: opts.session_name.clone(),
+                env: Some(env_vars),
+                theme: None,
+            };
+
+            Some(
+                StreamWriter::new(stdout_file, header)
+                    .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?,
+            )
+        } else {
+            None
+        };
+
         let exit_code = communication_loop(
             pty.master,
             child,
             term_attrs.is_some() && !opts.detached,
-            opts.stream_writer.as_mut(),
+            stream_writer.as_mut(),
             opts.stdin_file.as_mut(),
             stderr_pty,
             true, // flush is always enabled

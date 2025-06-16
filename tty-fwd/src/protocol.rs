@@ -54,6 +54,25 @@ pub struct AsciinemaHeader {
     pub theme: Option<AsciinemaTheme>,
 }
 
+impl Default for AsciinemaHeader {
+    fn default() -> Self {
+        let mut env = HashMap::new();
+        env.insert("TERM".to_string(), "xterm".to_string());
+
+        Self {
+            version: 2,
+            width: 80,
+            height: 24,
+            timestamp: None,
+            duration: None,
+            command: None,
+            title: None,
+            env: Some(env),
+            theme: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AsciinemaTheme {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,24 +113,27 @@ pub struct NotificationEvent {
 pub struct StreamWriter {
     file: std::fs::File,
     start_time: std::time::Instant,
+    header: Option<AsciinemaHeader>,
+    header_written: bool,
 }
 
 impl StreamWriter {
-    pub fn new(mut file: std::fs::File, header: AsciinemaHeader) -> Result<Self, std::io::Error> {
-        use std::io::Write;
-
-        let header_json = serde_json::to_string(&header)?;
-        writeln!(file, "{}", header_json)?;
-        file.flush()?;
-
+    pub fn new(file: std::fs::File, header: AsciinemaHeader) -> Result<Self, std::io::Error> {
         Ok(Self {
             file,
             start_time: std::time::Instant::now(),
+            header: Some(header),
+            header_written: false,
         })
     }
 
     pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), std::io::Error> {
         use std::io::Write;
+
+        // Write header if not already written
+        if !self.header_written {
+            self.write_header()?;
+        }
 
         let event_array = [
             serde_json::json!(event.time),
@@ -131,8 +153,28 @@ impl StreamWriter {
         Ok(())
     }
 
+    fn write_header(&mut self) -> Result<(), std::io::Error> {
+        use std::io::Write;
+
+        if let Some(header) = self.header.take() {
+            let header_json = serde_json::to_string(&header)?;
+            writeln!(self.file, "{}", header_json)?;
+            self.file.flush()?;
+            self.header_written = true;
+        }
+        Ok(())
+    }
+
     pub fn elapsed_time(&self) -> f64 {
         self.start_time.elapsed().as_secs_f64()
+    }
+
+    /// Force write the header if it hasn't been written yet
+    pub fn ensure_header_written(&mut self) -> Result<(), std::io::Error> {
+        if !self.header_written {
+            self.write_header()?;
+        }
+        Ok(())
     }
 }
 

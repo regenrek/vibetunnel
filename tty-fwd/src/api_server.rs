@@ -1042,28 +1042,14 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
 
     // First, send existing content from the file
     if let Ok(content) = fs::read_to_string(stream_out_path) {
-        let mut header_sent = false;
-
         for line in content.lines() {
             if line.trim().is_empty() {
                 continue;
             }
 
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
-                // Check if this is a header line
-                if parsed.get("version").is_some()
-                    && parsed.get("width").is_some()
-                    && parsed.get("height").is_some()
-                {
-                    let data = format!("data: {}\n\n", line);
-                    if let Err(e) = req.respond_raw(data.as_bytes()) {
-                        println!("Failed to send header data: {}", e);
-                        return;
-                    }
-                    header_sent = true;
-                }
                 // Check if this is an event line [timestamp, type, data]
-                else if parsed.as_array().map(|arr| arr.len() >= 3).unwrap_or(false) {
+                if parsed.as_array().map(|arr| arr.len() >= 3).unwrap_or(false) {
                     // Convert to instant event for immediate playback
                     if let Some(arr) = parsed.as_array() {
                         let instant_event = serde_json::json!([0, arr[1], arr[2]]);
@@ -1076,32 +1062,17 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                 }
             }
         }
-
-        // Send default header if none found
-        if !header_sent {
-            let default_header = serde_json::json!({
-                "version": 2,
-                "width": 80,
-                "height": 24,
-                "timestamp": start_time as u64,
-                "env": { "TERM": session_entry.session_info.term.clone() }
-            });
-            let data = format!("data: {}\n\n", default_header);
-            if let Err(e) = req.respond_raw(data.as_bytes()) {
-                println!("Failed to send default header: {}", e);
-                return;
-            }
-        }
     } else {
         // Send default header if file can't be read
-        let default_header = serde_json::json!({
-            "version": 2,
-            "width": 80,
-            "height": 24,
-            "timestamp": start_time as u64,
-            "env": { "TERM": session_entry.session_info.term.clone() }
-        });
-        let data = format!("data: {}\n\n", default_header);
+        let mut default_header = crate::protocol::AsciinemaHeader::default();
+        default_header.timestamp = Some(start_time as u64);
+        if let Some(ref mut env) = default_header.env {
+            env.insert("TERM".to_string(), session_entry.session_info.term.clone());
+        }
+        let data = format!(
+            "data: {}\n\n",
+            serde_json::to_string(&default_header).unwrap()
+        );
         if let Err(e) = req.respond_raw(data.as_bytes()) {
             println!("Failed to send fallback header: {}", e);
             return;
@@ -1258,18 +1229,13 @@ fn handle_stream_all_sessions(control_path: &Path, req: &mut HttpRequest) {
     };
 
     // Send default header first
-    let default_header = serde_json::json!({
-        "version": 2,
-        "width": 80,
-        "height": 24,
-        "timestamp": start_time as u64,
-        "env": { "TERM": "xterm" }
-    });
+    let mut default_header = crate::protocol::AsciinemaHeader::default();
+    default_header.timestamp = Some(start_time as u64);
     let header_data = format!(
         "data: {}
 
 ",
-        default_header
+        serde_json::to_string(&default_header).unwrap()
     );
     if let Err(e) = req.respond_raw(header_data.as_bytes()) {
         println!("Failed to send header: {}", e);
