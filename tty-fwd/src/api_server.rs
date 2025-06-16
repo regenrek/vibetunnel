@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::http_server::{HttpRequest, HttpServer, Method, Response, StatusCode};
 use crate::sessions;
+use crate::tty_spawn::DEFAULT_TERM;
 
 // Types matching the TypeScript interface
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,7 +62,7 @@ struct CreateSessionRequest {
 }
 
 fn default_term_value() -> String {
-    "xterm".to_string()
+    DEFAULT_TERM.to_string()
 }
 
 #[derive(Debug, Deserialize)]
@@ -1067,9 +1068,10 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         // Send default header if file can't be read
         let mut default_header = crate::protocol::AsciinemaHeader::default();
         default_header.timestamp = Some(start_time as u64);
-        if let Some(ref mut env) = default_header.env {
-            env.insert("TERM".to_string(), session_entry.session_info.term.clone());
-        }
+        default_header
+            .env
+            .get_or_insert_default()
+            .insert("TERM".to_string(), session_entry.session_info.term.clone());
         let data = format!(
             "data: {}\n\n",
             serde_json::to_string(&default_header).unwrap()

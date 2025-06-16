@@ -31,6 +31,8 @@ use nix::unistd::{
 };
 use signal_hook::consts::SIGWINCH;
 
+pub const DEFAULT_TERM: &str = "xterm-256color";
+
 /// Creates environment variables for AsciinemaHeader
 fn create_env_vars(term: &str) -> std::collections::HashMap<String, String> {
     let mut env_vars = std::collections::HashMap::new();
@@ -77,7 +79,7 @@ impl TtySpawn {
                 session_json_path: None,
                 session_name: None,
                 detached: false,
-                term: "xterm".to_string(),
+                term: DEFAULT_TERM.to_string(),
             }),
         }
     }

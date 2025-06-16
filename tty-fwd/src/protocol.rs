@@ -2,6 +2,8 @@ use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::tty_spawn::DEFAULT_TERM;
+
 #[derive(Serialize, Deserialize, Default)]
 pub struct SessionInfo {
     pub cmdline: Vec<String>,
@@ -16,12 +18,12 @@ pub struct SessionInfo {
     pub started_at: Option<Timestamp>,
     #[serde(default)]
     pub waiting: bool,
-    #[serde(default = "default_term")]
+    #[serde(default = "get_default_term")]
     pub term: String,
 }
 
-fn default_term() -> String {
-    "xterm".to_string()
+fn get_default_term() -> String {
+    DEFAULT_TERM.to_string()
 }
 
 #[derive(Serialize)]
@@ -56,9 +58,6 @@ pub struct AsciinemaHeader {
 
 impl Default for AsciinemaHeader {
     fn default() -> Self {
-        let mut env = HashMap::new();
-        env.insert("TERM".to_string(), "xterm".to_string());
-
         Self {
             version: 2,
             width: 80,
@@ -67,7 +66,7 @@ impl Default for AsciinemaHeader {
             duration: None,
             command: None,
             title: None,
-            env: Some(env),
+            env: None,
             theme: None,
         }
     }
