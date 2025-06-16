@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Represents the available tabs in the Settings window
 enum SettingsTab: String, CaseIterable {
@@ -460,6 +461,16 @@ struct AdvancedSettingsView: View {
             print("No auth token found")
             ngrokError = "Please enter your ngrok auth token first"
             ngrokEnabled = false
+            
+            // Show alert dialog
+            Task { @MainActor in
+                let alert = NSAlert()
+                alert.messageText = "ngrok Auth Token Required"
+                alert.informativeText = "Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
             return
         }
 

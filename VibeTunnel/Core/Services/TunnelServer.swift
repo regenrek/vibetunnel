@@ -950,7 +950,6 @@ public final class TunnelServer {
             }
         }
     }
-    }
 
     private func getSessionSnapshot(sessionId: String) async -> Response {
         let streamOutPath = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId)

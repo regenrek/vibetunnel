@@ -159,23 +159,22 @@ final class ApplicationMover {
         task.standardError = Pipe() // Suppress stderr
 
         do {
-            logger.info("ApplicationMover: Running hdiutil info -plist")
+            logger.debug("ApplicationMover: Running hdiutil info -plist")
             try task.run()
             task.waitUntilExit()
 
             guard task.terminationStatus == 0 else {
-                logger.warning("ApplicationMover: hdiutil command failed with status: \(task.terminationStatus)")
+                logger.debug("ApplicationMover: hdiutil command failed with status: \(task.terminationStatus)")
                 return nil
             }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            logger.info("ApplicationMover: hdiutil returned \(data.count) bytes")
+            logger.debug("ApplicationMover: hdiutil returned \(data.count) bytes")
 
             guard let plist = try PropertyListSerialization
                 .propertyList(from: data, options: [], format: nil) as? [String: Any],
                 let images = plist["images"] as? [[String: Any]] else {
-                logger.info("ApplicationMover: Failed to parse hdiutil plist or no images found")
-                logger.warning("Failed to parse hdiutil output")
+                logger.debug("ApplicationMover: No disk images found in hdiutil output")
                 return nil
             }
 
@@ -196,7 +195,7 @@ final class ApplicationMover {
             return nil
 
         } catch {
-            logger.error("Error running hdiutil: \(error)")
+            logger.debug("ApplicationMover: Unable to run hdiutil (expected in some environments): \(error)")
             return nil
         }
     }

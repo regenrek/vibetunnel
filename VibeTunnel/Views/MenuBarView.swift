@@ -13,9 +13,6 @@ struct MenuBarView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
 
-            Divider()
-                .padding(.horizontal, 12)
-
             // Open Dashboard button
             Button(action: {
                 let dashboardURL = URL(string: "http://127.0.0.1:\(serverMonitor.port)")!
