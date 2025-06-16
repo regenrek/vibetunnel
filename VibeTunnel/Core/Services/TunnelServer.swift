@@ -474,54 +474,28 @@ public final class TunnelServer {
     // MARK: - Static File Serving
 
     private func serveStaticFile(path: String) async -> Response {
-        // Try multiple possible paths for the web/public directory
-        let possiblePaths = [
-            // Bundle resource path (for production app)
-            Bundle.main.resourcePath?.appending("/web/public"),
-            // Current working directory (for development)
-            FileManager.default.currentDirectoryPath + "/web/public",
-            // Project directory (if running from source)
-            "/Users/mitsuhiko/Development/vibetunnel/web/public",
-            // Relative to bundle path
-            Bundle.main.bundlePath + "/../../../web/public"
-        ].compactMap(\.self)
-
+        // Serve files only from the bundled Resources folder
+        guard let resourcePath = Bundle.main.resourcePath else {
+            logger.error("Bundle resource path not found")
+            return errorResponse(message: "Resource bundle not available", status: .internalServerError)
+        }
+        
+        let webPublicPath = resourcePath + "/web/public"
+        
+        // Sanitize path to prevent directory traversal attacks
         let sanitizedPath = path.replacingOccurrences(of: "..", with: "")
-
-        var webPublicPath: String?
-        var fullPath: String?
-
-        // Find the first path that exists
-        for testPath in possiblePaths {
-            let testFullPath = testPath + "/" + sanitizedPath
-            if FileManager.default.fileExists(atPath: testFullPath) {
-                webPublicPath = testPath
-                fullPath = testFullPath
-                break
-            }
-        }
-
-        // If no file found, try just checking directory existence
-        if fullPath == nil {
-            for testPath in possiblePaths {
-                if FileManager.default.fileExists(atPath: testPath, isDirectory: nil) {
-                    webPublicPath = testPath
-                    fullPath = testPath + "/" + sanitizedPath
-                    break
-                }
-            }
-        }
-
-        guard let finalPath = fullPath, webPublicPath != nil else {
-            logger.error("Could not find web/public directory in any of these paths:")
-            for testPath in possiblePaths {
-                logger.error("  - \(testPath)")
-            }
-            return errorResponse(message: "Web directory not found", status: .notFound)
+        let fullPath = webPublicPath + "/" + sanitizedPath
+        
+        // Check if the web directory exists in Resources
+        var isWebDirExists: ObjCBool = false
+        if !FileManager.default.fileExists(atPath: webPublicPath, isDirectory: &isWebDirExists) || !isWebDirExists.boolValue {
+            logger.error("Web resources not found at: \(webPublicPath)")
+            logger.error("Make sure the app was built with the 'Build Web Frontend' phase")
+            return errorResponse(message: "Web resources not bundled", status: .internalServerError)
         }
 
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: finalPath, isDirectory: &isDirectory) else {
+        guard FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDirectory) else {
             return errorResponse(message: "File not found", status: .notFound)
         }
 
@@ -531,7 +505,7 @@ public final class TunnelServer {
         }
 
         do {
-            let fileData = try Data(contentsOf: URL(fileURLWithPath: finalPath))
+            let fileData = try Data(contentsOf: URL(fileURLWithPath: fullPath))
             var buffer = ByteBuffer()
             buffer.writeBytes(fileData)
 
