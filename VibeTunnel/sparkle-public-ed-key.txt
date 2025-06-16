@@ -9,4 +9,4 @@
 #
 # IMPORTANT: Keep your private key secure and never commit it to version control!
 
-YOUR_PUBLIC_ED_KEY_HERE
+AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=
