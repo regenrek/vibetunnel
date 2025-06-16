@@ -35,7 +35,7 @@ enum NetworkUtility {
                     if getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
                                    &hostname, socklen_t(hostname.count),
                                    nil, 0, NI_NUMERICHOST) == 0 {
-                        let ipAddress = String(cString: hostname)
+                        let ipAddress = String(cString: &hostname)
                         
                         // Prefer addresses that look like local network addresses
                         if ipAddress.hasPrefix("192.168.") || 
@@ -81,7 +81,7 @@ enum NetworkUtility {
                 if getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
                                &hostname, socklen_t(hostname.count),
                                nil, 0, NI_NUMERICHOST) == 0 {
-                    let ipAddress = String(cString: hostname)
+                    let ipAddress = String(cString: &hostname)
                     addresses.append(ipAddress)
                 }
             }

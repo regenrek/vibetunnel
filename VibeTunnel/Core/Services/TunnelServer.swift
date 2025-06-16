@@ -960,7 +960,7 @@ public final class TunnelServer {
                     break
                 }
             }
-        } onCancel: { [fileMonitor] in
+        } onCancel: {
             // fileMonitor?.cancel()
         }
 

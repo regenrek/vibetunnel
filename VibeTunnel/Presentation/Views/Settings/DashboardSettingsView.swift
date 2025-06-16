@@ -494,7 +494,7 @@ private struct AccessModeView: View {
                                     .underline()
                             }
                             .buttonStyle(.plain)
-                            .cursor(.pointingHand)
+                            .pointingHandCursor()
                             
                             Button(action: {
                                 let urlString = "http://\(ipAddress):\(serverPort)"
