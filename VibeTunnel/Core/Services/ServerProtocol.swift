@@ -1,7 +1,11 @@
 import Combine
 import Foundation
 
-/// Common interface for server implementations
+/// Common interface for server implementations.
+///
+/// Defines the contract that all VibeTunnel server implementations must follow.
+/// This protocol ensures consistent behavior across different server backends
+/// (Hummingbird, Rust) while allowing for implementation-specific details.
 @MainActor
 protocol ServerProtocol: AnyObject {
     /// Current running state of the server
@@ -26,7 +30,11 @@ protocol ServerProtocol: AnyObject {
     var logPublisher: AnyPublisher<ServerLogEntry, Never> { get }
 }
 
-/// Server mode options
+/// Server mode options.
+///
+/// Represents the available server implementations that VibeTunnel can use.
+/// Each mode corresponds to a different backend technology with its own
+/// performance characteristics and feature set.
 enum ServerMode: String, CaseIterable {
     case hummingbird
     case rust
@@ -50,8 +58,12 @@ enum ServerMode: String, CaseIterable {
     }
 }
 
-/// Log entry from server
+/// Log entry from server.
+///
+/// Represents a single log message from a server implementation,
+/// including severity level, timestamp, and source identification.
 struct ServerLogEntry {
+    /// Severity level of the log entry.
     enum Level {
         case debug
         case info

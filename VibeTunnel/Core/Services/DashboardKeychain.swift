@@ -2,7 +2,11 @@ import Foundation
 import os
 import Security
 
-/// Service for managing dashboard password in keychain
+/// Service for managing dashboard password in keychain.
+///
+/// Provides secure storage and retrieval of the dashboard authentication
+/// password using the macOS Keychain. Handles password generation,
+/// updates, and deletion with proper error handling and logging.
 @MainActor
 final class DashboardKeychain {
     static let shared = DashboardKeychain()

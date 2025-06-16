@@ -1,11 +1,20 @@
 import Foundation
 import Logging
 
-/// Generates Asciinema cast v2 format files from terminal session output
+/// Generates Asciinema cast v2 format files from terminal session output.
+///
+/// Creates recordings of terminal sessions in the Asciinema cast format,
+/// which can be played back using Asciinema players. Handles timing information,
+/// terminal dimensions, and output/input event recording.
+///
 /// Format specification: https://docs.asciinema.org/manual/asciicast/v2/
 struct CastFileGenerator {
     private let logger = Logger(label: "VibeTunnel.CastFileGenerator")
 
+    /// Header structure for Asciinema cast v2 format.
+    ///
+    /// Contains metadata about the terminal recording including
+    /// dimensions, timing, and environment information.
     struct CastHeader: Codable {
         let version: Int = 2
         let width: Int
@@ -30,6 +39,9 @@ struct CastFileGenerator {
         }
     }
 
+    /// Represents a single event in the Asciinema recording.
+    ///
+    /// Each event captures either terminal output or input at a specific timestamp.
     struct CastEvent {
         let time: TimeInterval
         let eventType: String

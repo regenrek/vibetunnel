@@ -154,6 +154,9 @@ struct DashboardSettingsView: View {
             password = ""
             confirmPassword = ""
 
+            // Clear cached password in LazyBasicAuthMiddleware
+            LazyBasicAuthMiddleware<BasicRequestContext>.clearCache()
+
             // When password is set for the first time, automatically switch to network mode
             if accessMode == .localhost {
                 accessModeString = DashboardAccessMode.network.rawValue
@@ -302,6 +305,8 @@ private struct SecuritySection: View {
                             _ = dashboardKeychain.deletePassword()
                             showPasswordFields = false
                             passwordSaved = false
+                            // Clear cached password in LazyBasicAuthMiddleware
+                            LazyBasicAuthMiddleware<BasicRequestContext>.clearCache()
                         }
                     }
 

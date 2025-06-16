@@ -3,19 +3,22 @@ import HTTPTypes
 import Hummingbird
 import HummingbirdCore
 import NIOCore
+import os
 
-/// Middleware that implements HTTP Basic Authentication.
+/// Middleware that implements HTTP Basic Authentication with lazy password loading.
 ///
-/// Provides password-based access control for the VibeTunnel dashboard.
-/// Validates incoming requests against a configured password using
-/// standard HTTP Basic Authentication. Exempts health check endpoints
-/// from authentication requirements.
-struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
-    let password: String
-    let realm: String
+/// This middleware defers keychain access until an authenticated request is received,
+/// preventing unnecessary keychain prompts on app startup. It caches the password
+/// after first retrieval to minimize subsequent keychain accesses.
+@MainActor
+struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
+    private let realm: String
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "LazyBasicAuth")
 
-    init(password: String, realm: String = "VibeTunnel Dashboard") {
-        self.password = password
+    /// Cached password to avoid repeated keychain access
+    private static var cachedPassword: String?
+
+    init(realm: String = "VibeTunnel Dashboard") {
         self.realm = realm
     }
 
@@ -28,6 +31,12 @@ struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     {
         // Skip auth for health check endpoint
         if request.uri.path == "/api/health" {
+            return try await next(request, context)
+        }
+
+        // Check if password protection is enabled
+        guard UserDefaults.standard.bool(forKey: "dashboardPasswordEnabled") else {
+            // No password protection, allow request
             return try await next(request, context)
         }
 
@@ -55,8 +64,26 @@ struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
         // We ignore the username and only check password
         let providedPassword = String(parts[1])
 
+        // Get password (cached or from keychain)
+        let requiredPassword: String
+        if let cached = Self.cachedPassword {
+            requiredPassword = cached
+            logger.debug("Using cached password")
+        } else {
+            // First authentication attempt - access keychain
+            guard let password = await MainActor.run(body: {
+                DashboardKeychain.shared.getPassword()
+            }) else {
+                logger.error("Password protection enabled but no password found in keychain")
+                return unauthorizedResponse()
+            }
+            Self.cachedPassword = password
+            requiredPassword = password
+            logger.info("Password loaded from keychain and cached")
+        }
+
         // Verify password
-        guard providedPassword == password else {
+        guard providedPassword == requiredPassword else {
             return unauthorizedResponse()
         }
 
@@ -77,5 +104,10 @@ struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
             headers: headers,
             body: ResponseBody(byteBuffer: buffer)
         )
+    }
+
+    /// Clears the cached password (useful when password is changed)
+    static func clearCache() {
+        cachedPassword = nil
     }
 }

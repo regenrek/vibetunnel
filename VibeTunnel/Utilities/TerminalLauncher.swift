@@ -2,6 +2,10 @@ import AppKit
 import Foundation
 import SwiftUI
 
+/// Supported terminal applications.
+///
+/// Represents terminal emulators that VibeTunnel can launch
+/// with commands, including detection of installed terminals.
 enum Terminal: String, CaseIterable {
     case terminal = "Terminal"
     case iTerm2 = "iTerm2"
@@ -37,10 +41,14 @@ enum Terminal: String, CaseIterable {
     }
 
     static var installed: [Self] {
-        Self.allCases.filter(\.isInstalled)
+        allCases.filter(\.isInstalled)
     }
 }
 
+/// Errors that can occur when launching terminal commands.
+///
+/// Represents failures during terminal application launch,
+/// including permission issues and missing applications.
 enum TerminalLauncherError: LocalizedError {
     case terminalNotFound
     case appleScriptPermissionDenied
@@ -58,6 +66,11 @@ enum TerminalLauncherError: LocalizedError {
     }
 }
 
+/// Manages launching terminal commands in the user's preferred terminal.
+///
+/// Handles terminal application detection, preference management,
+/// and command execution through AppleScript or direct process launching.
+/// Supports Terminal, iTerm2, and Ghostty with automatic fallback.
 @MainActor
 final class TerminalLauncher {
     static let shared = TerminalLauncher()

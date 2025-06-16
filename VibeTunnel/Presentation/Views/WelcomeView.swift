@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Welcome onboarding view for first-time users.
+///
+/// Presents a multi-page onboarding experience that introduces VibeTunnel's features,
+/// guides through CLI installation, and explains dashboard security best practices.
+/// The view tracks completion state to ensure it's only shown once.
 struct WelcomeView: View {
     @State private var currentPage = 0
     @Environment(\.dismiss)
@@ -101,7 +106,8 @@ struct WelcomeView: View {
 
 // MARK: - Welcome Page
 
-struct WelcomePageView: View {
+/// First page of the welcome flow introducing VibeTunnel.
+private struct WelcomePageView: View {
     var body: some View {
         VStack(spacing: 40) {
             Spacer()
@@ -117,7 +123,7 @@ struct WelcomePageView: View {
                     .font(.largeTitle)
                     .fontWeight(.semibold)
 
-                Text("Remote control terminals from any device through a secure tunnel.")
+                Text("Turn any browser into your terminal. Command your agents on the go.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -141,7 +147,8 @@ struct WelcomePageView: View {
 
 // MARK: - VT Command Page
 
-struct VTCommandPageView: View {
+/// Second page explaining the VT command-line tool and installation.
+private struct VTCommandPageView: View {
     var cliInstaller: CLIInstaller
 
     var body: some View {
@@ -225,7 +232,8 @@ struct VTCommandPageView: View {
 
 // MARK: - Protect Dashboard Page
 
-struct ProtectDashboardPageView: View {
+/// Third page explaining dashboard security and access protection.
+private struct ProtectDashboardPageView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var showError = false
@@ -352,7 +360,8 @@ struct ProtectDashboardPageView: View {
 
 // MARK: - Access Dashboard Page
 
-struct AccessDashboardPageView: View {
+/// Fourth page showing how to access the dashboard and ngrok integration.
+private struct AccessDashboardPageView: View {
     @AppStorage("ngrokEnabled")
     private var ngrokEnabled = false
     @AppStorage("serverPort")
@@ -446,33 +455,6 @@ struct TailscaleLink: View {
                 Text("Learn more about Tailscale")
                     .underline(isHovering, color: .accentColor)
             }
-        })
-        .buttonStyle(.link)
-        .pointingHandCursor()
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovering = hovering
-            }
-        }
-    }
-}
-
-// MARK: - Credit Link Component
-
-struct CreditLink: View {
-    let name: String
-    let url: String
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: {
-            if let linkURL = URL(string: url) {
-                NSWorkspace.shared.open(linkURL)
-            }
-        }, label: {
-            Text(name)
-                .font(.caption)
-                .underline(isHovering, color: .accentColor)
         })
         .buttonStyle(.link)
         .pointingHandCursor()

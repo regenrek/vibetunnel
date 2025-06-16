@@ -1,7 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// Handles the presentation of the welcome screen window
+/// Handles the presentation of the welcome screen window.
+///
+/// Manages the lifecycle and presentation of the onboarding welcome window,
+/// including window configuration, positioning, and notification-based showing.
+/// Configured as a floating panel with transparent titlebar for modern appearance.
 @MainActor
 final class WelcomeWindowController: NSWindowController {
     static let shared = WelcomeWindowController()

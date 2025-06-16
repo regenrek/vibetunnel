@@ -1,6 +1,37 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Credit Link Component
+
+/// Credit link component for individual contributors.
+///
+/// This component displays a contributor's handle as a clickable link
+/// that opens their website when clicked.
+struct CreditLink: View {
+    let name: String
+    let url: String
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: {
+            if let linkURL = URL(string: url) {
+                NSWorkspace.shared.open(linkURL)
+            }
+        }, label: {
+            Text(name)
+                .font(.caption)
+                .underline(isHovering, color: .accentColor)
+        })
+        .buttonStyle(.link)
+        .pointingHandCursor()
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
 /// About view displaying application information, version details, and credits.
 ///
 /// This view provides information about VibeTunnel including version numbers,
@@ -70,10 +101,35 @@ struct AboutView: View {
     }
 
     private var copyrightSection: some View {
-        Text("© 2025 VibeTunnel Team • MIT Licensed")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(.bottom, 32)
+        VStack(spacing: 8) {
+            // Credits
+            VStack(spacing: 4) {
+                Text("Brought to you by")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 4) {
+                    CreditLink(name: "@badlogic", url: "https://mariozechner.at/")
+
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    CreditLink(name: "@mitsuhiko", url: "https://lucumr.pocoo.org/")
+
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    CreditLink(name: "@steipete", url: "https://steipete.me")
+                }
+            }
+
+            Text("© 2025 • MIT Licensed")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.bottom, 32)
     }
 }
 

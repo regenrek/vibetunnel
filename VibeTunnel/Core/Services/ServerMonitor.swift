@@ -1,8 +1,11 @@
 import Foundation
 import Observation
 
-/// Monitors the HTTP server status and provides observable state for the UI
+/// Monitors the HTTP server status and provides observable state for the UI.
+///
 /// This class now acts as a facade over ServerManager for backward compatibility
+/// while providing a simplified interface for UI components to observe server state.
+/// It bridges the gap between the older server architecture and the new ServerManager.
 @MainActor
 @Observable
 public final class ServerMonitor {
@@ -25,11 +28,7 @@ public final class ServerMonitor {
     private weak var server: TunnelServer?
 
     /// Internal state tracking
-    @ObservationIgnored public var isServerRunning = false {
-        didSet {
-            // Notify observers when state changes
-        }
-    }
+    public var isServerRunning = false
 
     private init() {
         // Sync initial state with ServerManager
@@ -53,7 +52,9 @@ public final class ServerMonitor {
 
     /// Syncs state with ServerManager
     private func syncWithServerManager() async {
-        isServerRunning = ServerManager.shared.isRunning
+        // Consider the server as running if it's actually running OR if it's restarting
+        // This prevents the UI from showing "stopped" during restart
+        isServerRunning = ServerManager.shared.isRunning || ServerManager.shared.isRestarting
     }
 
     /// Starts the server if not already running
@@ -72,7 +73,9 @@ public final class ServerMonitor {
 
     /// Restarts the server
     public func restartServer() async throws {
+        // During restart, we maintain the running state to prevent UI flicker
         await ServerManager.shared.restart()
+        // Sync after restart completes
         await syncWithServerManager()
     }
 

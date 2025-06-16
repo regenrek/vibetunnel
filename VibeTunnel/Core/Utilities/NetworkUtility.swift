@@ -1,7 +1,11 @@
 import Foundation
 import Network
 
-/// Utility for network-related operations
+/// Utility for network-related operations.
+///
+/// Provides helper functions for network interface discovery and IP address resolution.
+/// Primarily used to determine the local machine's network addresses for display
+/// in the dashboard settings.
 enum NetworkUtility {
     /// Get the primary IPv4 address of the local machine
     static func getLocalIPAddress() -> String? {

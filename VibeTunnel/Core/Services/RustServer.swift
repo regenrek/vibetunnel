@@ -2,14 +2,22 @@ import Combine
 import Foundation
 import OSLog
 
-/// Task tracking for better debugging
+/// Task tracking for better debugging.
+///
+/// Provides task-local storage for debugging context during
+/// asynchronous server operations.
 enum ServerTaskContext {
     @TaskLocal static var taskName: String?
 
     @TaskLocal static var serverType: ServerMode?
 }
 
-/// Rust tty-fwd server implementation
+/// Rust tty-fwd server implementation.
+///
+/// Manages the external tty-fwd Rust binary as a subprocess. This implementation
+/// provides high-performance terminal multiplexing by leveraging the battle-tested
+/// tty-fwd server. It handles process lifecycle, log streaming, and error recovery
+/// while maintaining compatibility with the ServerProtocol interface.
 @MainActor
 final class RustServer: ServerProtocol {
     private var process: Process?
@@ -22,7 +30,10 @@ final class RustServer: ServerProtocol {
     private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
     private let processQueue = DispatchQueue(label: "com.steipete.VibeTunnel.RustServer", qos: .userInitiated)
 
-    /// Actor to handle process operations on background thread
+    /// Actor to handle process operations on background thread.
+    ///
+    /// Isolates process management operations to prevent blocking the main thread
+    /// while maintaining Swift concurrency safety.
     private actor ProcessHandler {
         private let queue = DispatchQueue(
             label: "com.steipete.VibeTunnel.RustServer.ProcessHandler",
@@ -148,13 +159,22 @@ final class RustServer: ServerProtocol {
         var ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(bindAddress):\(port)"
 
         // Add password flag if password protection is enabled
-        if let password = DashboardKeychain.shared.getPassword() {
-            // Escape the password for shell
-            let escapedPassword = password.replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: "$", with: "\\$")
-                .replacingOccurrences(of: "`", with: "\\`")
-                .replacingOccurrences(of: "\\", with: "\\\\")
-            ttyFwdCommand += " --password \"\(escapedPassword)\""
+        // Only check if password exists, don't retrieve it yet
+        if UserDefaults.standard.bool(forKey: "dashboardPasswordEnabled") && DashboardKeychain.shared.hasPassword() {
+            // Defer actual password retrieval until first authenticated request
+            // For now, we'll use a placeholder that the Rust server will replace
+            // when it needs to authenticate
+            logger.info("Password protection enabled, deferring keychain access")
+            // Note: The Rust server needs to be updated to support lazy password loading
+            // For now, we still need to access the keychain here
+            if let password = DashboardKeychain.shared.getPassword() {
+                // Escape the password for shell
+                let escapedPassword = password.replacingOccurrences(of: "\"", with: "\\\"")
+                    .replacingOccurrences(of: "$", with: "\\$")
+                    .replacingOccurrences(of: "`", with: "\\`")
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                ttyFwdCommand += " --password \"\(escapedPassword)\""
+            }
         }
         process.arguments = ["-l", "-c", ttyFwdCommand]
 

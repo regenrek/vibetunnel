@@ -2,7 +2,10 @@ import Foundation
 import Observation
 import os
 
-/// Errors that can occur during ngrok operations
+/// Errors that can occur during ngrok operations.
+///
+/// Represents various failure modes when working with ngrok tunnels,
+/// from installation issues to runtime configuration problems.
 enum NgrokError: LocalizedError {
     case notInstalled
     case authTokenMissing
@@ -26,12 +29,18 @@ enum NgrokError: LocalizedError {
     }
 }
 
-/// Represents the status of an ngrok tunnel
+/// Represents the status of an ngrok tunnel.
+///
+/// Contains the current state of an active ngrok tunnel including
+/// its public URL, traffic metrics, and creation timestamp.
 struct NgrokTunnelStatus: Codable {
     let publicUrl: String
     let metrics: TunnelMetrics
     let startedAt: Date
 
+    /// Traffic metrics for the ngrok tunnel.
+    ///
+    /// Tracks connection count and bandwidth usage.
     struct TunnelMetrics: Codable {
         let connectionsCount: Int
         let bytesIn: Int64
@@ -39,7 +48,10 @@ struct NgrokTunnelStatus: Codable {
     }
 }
 
-/// Protocol for ngrok tunnel operations
+/// Protocol for ngrok tunnel operations.
+///
+/// Defines the interface for managing ngrok tunnel lifecycle,
+/// including creation, monitoring, and termination.
 protocol NgrokTunnelProtocol {
     func start(port: Int) async throws -> String
     func stop() async throws
@@ -47,10 +59,12 @@ protocol NgrokTunnelProtocol {
     func isRunning() async -> Bool
 }
 
-/// Manages ngrok tunnel lifecycle and configuration
+/// Manages ngrok tunnel lifecycle and configuration.
 ///
-/// This service handles starting, stopping, and monitoring ngrok tunnels
-/// to expose local services to the internet
+/// `NgrokService` provides a high-level interface for creating and managing ngrok tunnels
+/// to expose local VibeTunnel servers to the internet. It handles authentication,
+/// process management, and status monitoring while integrating with the system keychain
+/// for secure token storage. The service operates as a singleton on the main actor.
 @Observable
 @MainActor
 final class NgrokService: NgrokTunnelProtocol {
@@ -305,7 +319,10 @@ extension FileHandle {
     }
 }
 
-/// Async sequence for reading lines from a FileHandle
+/// Async sequence for reading lines from a FileHandle.
+///
+/// Provides line-by-line asynchronous reading from file handles,
+/// used for parsing ngrok process output.
 struct AsyncLineSequence: AsyncSequence {
     typealias Element = String
 
@@ -345,7 +362,10 @@ struct AsyncLineSequence: AsyncSequence {
 
 // MARK: - Keychain Helper
 
-/// Helper for secure storage of ngrok auth tokens in Keychain
+/// Helper for secure storage of ngrok auth tokens in Keychain.
+///
+/// Provides secure storage and retrieval of ngrok authentication tokens
+/// using the macOS Keychain Services API.
 private enum KeychainHelper {
     private static let service = "sh.vibetunnel.vibetunnel"
     private static let account = "ngrok-auth-token"

@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Extensions for SwiftUI View to handle cursor and press events.
 extension View {
     func pressEvents(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
         modifier(PressEventModifier(onPress: onPress, onRelease: onRelease))
@@ -11,6 +12,9 @@ extension View {
 }
 
 /// View modifier for handling press events on buttons.
+///
+/// Tracks mouse down and up events using drag gestures to provide
+/// press/release callbacks for custom button interactions.
 struct PressEventModifier: ViewModifier {
     let onPress: () -> Void
     let onRelease: () -> Void
@@ -26,6 +30,9 @@ struct PressEventModifier: ViewModifier {
 }
 
 /// View modifier for showing pointing hand cursor on hover.
+///
+/// Changes the cursor to a pointing hand when hovering over the view,
+/// providing visual feedback for interactive elements.
 struct PointingHandCursorModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -36,7 +43,9 @@ struct PointingHandCursorModifier: ViewModifier {
     }
 }
 
-/// NSViewRepresentable that handles cursor changes properly
+/// NSViewRepresentable that handles cursor changes properly.
+///
+/// Bridges AppKit's cursor tracking to SwiftUI views.
 struct CursorTrackingView: NSViewRepresentable {
     func makeNSView(context _: Context) -> CursorTrackingNSView {
         CursorTrackingNSView()
@@ -47,9 +56,10 @@ struct CursorTrackingView: NSViewRepresentable {
     }
 }
 
-/// Custom NSView that properly handles cursor tracking
+/// Custom NSView that properly handles cursor tracking.
 ///
 /// This view ensures the pointing hand cursor is displayed when hovering over interactive elements
+/// by managing cursor rectangles and invalidating them when the view hierarchy changes.
 class CursorTrackingNSView: NSView {
     override func resetCursorRects() {
         super.resetCursorRects()

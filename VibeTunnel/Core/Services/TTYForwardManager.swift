@@ -1,7 +1,11 @@
 import Foundation
 import os.log
 
-/// Manages interactions with the tty-fwd command-line tool
+/// Manages interactions with the tty-fwd command-line tool.
+///
+/// Provides a high-level interface for executing the bundled tty-fwd
+/// binary, handling process management, error conditions, and ensuring
+/// proper executable permissions. Used for terminal multiplexing operations.
 @MainActor
 final class TTYForwardManager {
     static let shared = TTYForwardManager()
@@ -101,7 +105,10 @@ final class TTYForwardManager {
     }
 }
 
-/// Errors that can occur when working with the tty-fwd binary
+/// Errors that can occur when working with the tty-fwd binary.
+///
+/// Represents failures specific to tty-fwd execution including
+/// missing executable, permission issues, and runtime failures.
 enum TTYForwardError: LocalizedError {
     case executableNotFound
     case notExecutable

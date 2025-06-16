@@ -1,6 +1,10 @@
 import SwiftUI
 
-/// Main menu bar view displaying session status and app controls
+/// Main menu bar view displaying session status and app controls.
+///
+/// Appears in the macOS menu bar and provides quick access to VibeTunnel's
+/// key features including server status, dashboard access, session monitoring,
+/// and application preferences. Updates in real-time to reflect server state.
 struct MenuBarView: View {
     @Environment(SessionMonitor.self)
     var sessionMonitor
@@ -91,8 +95,8 @@ struct MenuBarView: View {
 
                     // Version (non-interactive)
                     HStack {
-                        Color.clear
-                            .frame(width: 16, height: 16) // Matches system icon size
+                        Image(systemName: "circle")
+                            .opacity(0) // Invisible placeholder to match icon spacing
                         Text("Version \(appVersion)")
                             .foregroundColor(.secondary)
                     }

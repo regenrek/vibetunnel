@@ -4,7 +4,12 @@ import Observation
 import OSLog
 import SwiftUI
 
-/// Manages the active server and handles switching between modes
+/// Manages the active server and handles switching between modes.
+///
+/// `ServerManager` is the central coordinator for server lifecycle management in VibeTunnel.
+/// It handles starting, stopping, and switching between different server implementations (Rust/Hummingbird),
+/// manages server configuration, and provides logging capabilities. The manager ensures only one
+/// server instance runs at a time and coordinates smooth transitions between server modes.
 @MainActor
 @Observable
 class ServerManager {
@@ -43,6 +48,7 @@ class ServerManager {
     private(set) var currentServer: ServerProtocol?
     private(set) var isRunning = false
     private(set) var isSwitching = false
+    private(set) var isRestarting = false
     private(set) var lastError: Error?
 
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "ServerManager")
@@ -188,11 +194,25 @@ class ServerManager {
         ))
 
         // Update ServerMonitor for compatibility
-        ServerMonitor.shared.isServerRunning = false
+        // Only set to false if we're not in the middle of a restart
+        if !isRestarting {
+            ServerMonitor.shared.isServerRunning = false
+        }
     }
 
     /// Restart the current server
     func restart() async {
+        // Set restarting flag to prevent UI from showing "stopped" state
+        isRestarting = true
+        defer { isRestarting = false }
+
+        // Log that we're restarting
+        logSubject.send(ServerLogEntry(
+            level: .info,
+            message: "Restarting server...",
+            source: serverMode
+        ))
+
         await stop()
         await start()
     }

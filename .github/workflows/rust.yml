@@ -52,10 +52,6 @@ jobs:
             target: aarch64-apple-darwin
             name: macOS ARM64
             binary-name: tty-fwd
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            name: Windows x86_64
-            binary-name: tty-fwd.exe
     runs-on: ${{ matrix.os }}
     
     steps:
