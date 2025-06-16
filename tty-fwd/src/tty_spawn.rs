@@ -27,7 +27,9 @@ use nix::sys::stat::Mode;
 use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, LocalFlags, SetArg, Termios};
 use nix::sys::time::TimeVal;
 use nix::sys::wait::{waitpid, WaitStatus};
-use nix::unistd::{execvp, fork, mkfifo, read, tcgetpgrp, write, ForkResult, Pid};
+use nix::unistd::{
+    close, dup2, execvp, fork, mkfifo, read, setsid, tcgetpgrp, write, ForkResult, Pid,
+};
 use signal_hook::consts::SIGWINCH;
 
 /// Lets you spawn processes with a TTY connected.
@@ -60,6 +62,7 @@ impl TtySpawn {
                 notification_writer: None,
                 session_json_path: None,
                 session_name: None,
+                detached: false,
             }),
         }
     }
@@ -130,6 +133,12 @@ impl TtySpawn {
         self
     }
 
+    /// Sets the process to run in detached mode (don't connect to current terminal).
+    pub fn detached(&mut self, detached: bool) -> &mut Self {
+        self.options_mut().detached = detached;
+        self
+    }
+
     /// Sets a path as output file for notifications.
     pub fn notification_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, io::Error> {
         let file = File::options().create(true).append(true).open(path)?;
@@ -158,6 +167,7 @@ struct SpawnOptions {
     notification_writer: Option<NotificationWriter>,
     session_json_path: Option<PathBuf>,
     session_name: Option<String>,
+    detached: bool,
 }
 
 /// Creates a new session JSON file with the provided information
@@ -290,11 +300,24 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
     }
     // if we can't retrieve the terminal atts we're not directly connected
     // to a pty in which case we won't do any of the terminal related
-    // operations.
-    let term_attrs = tcgetattr(io::stdin()).ok();
-    let winsize = term_attrs
-        .as_ref()
-        .and_then(|_| get_winsize(io::stdin().as_fd()));
+    // operations. In detached mode, we don't connect to the current terminal.
+    let term_attrs = if opts.detached {
+        None
+    } else {
+        tcgetattr(io::stdin()).ok()
+    };
+    let winsize = if opts.detached {
+        Some(Winsize {
+            ws_row: 24,
+            ws_col: 80,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        })
+    } else {
+        term_attrs
+            .as_ref()
+            .and_then(|_| get_winsize(io::stdin().as_fd()))
+    };
 
     // Create the outer pty for stdout
     let pty = openpty(&winsize, &term_attrs)?;
@@ -322,7 +345,52 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
     // Fork and establish the communication loop in the parent.  This unfortunately
     // has to merge stdout/stderr since the pseudo terminal only has one stream for
     // both.
-    if let ForkResult::Parent { child } = unsafe { fork()? } {
+    let detached = opts.detached;
+
+    if detached {
+        // Use double fork to properly daemonize the process
+        match unsafe { fork()? } {
+            ForkResult::Parent { child: first_child } => {
+                // Wait for the first child to exit immediately
+                let _ = waitpid(first_child, None)?;
+                drop(pty.slave);
+
+                // Start a monitoring thread that doesn't block the parent
+                // We'll monitor the PTY master for activity and session files
+                let master_fd = pty.master;
+                let session_json_path = opts.session_json_path.clone();
+                let notification_writer = opts.notification_writer;
+                let stream_writer = opts.stream_writer;
+                let stdin_file = opts.stdin_file;
+
+                std::thread::spawn(move || {
+                    // Monitor the session by watching the PTY and session files
+                    let _ = monitor_detached_session(
+                        master_fd,
+                        session_json_path.as_deref(),
+                        notification_writer,
+                        stream_writer,
+                        stdin_file,
+                    );
+                });
+
+                return Ok(0);
+            }
+            ForkResult::Child => {
+                // First child - fork again and exit immediately
+                match unsafe { fork()? } {
+                    ForkResult::Parent { .. } => {
+                        // First child exits immediately to orphan the grandchild
+                        std::process::exit(0);
+                    }
+                    ForkResult::Child => {
+                        // Grandchild - this becomes the daemon
+                        // Continue to the child process setup below
+                    }
+                }
+            }
+        }
+    } else if let ForkResult::Parent { child } = unsafe { fork()? } {
         drop(pty.slave);
         let stderr_pty = None; // Always None since script_mode is always false
 
@@ -339,7 +407,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
         let exit_code = communication_loop(
             pty.master,
             child,
-            term_attrs.is_some(),
+            term_attrs.is_some() && !opts.detached,
             opts.stream_writer.as_mut(),
             opts.stdin_file.as_mut(),
             stderr_pty,
@@ -380,9 +448,34 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
         .collect::<Vec<_>>();
 
     drop(pty.master);
-    unsafe {
-        login_tty(pty.slave.into_raw_fd());
-        // No stderr redirection since script_mode is always false
+    if detached {
+        // In detached mode, manually set up file descriptors without login_tty
+        // This prevents the child from connecting to the current terminal
+
+        // Create a new session to detach from controlling terminal
+        let _ = setsid();
+
+        // Update session status with the actual daemon PID
+        if let Some(ref session_json_path) = opts.session_json_path {
+            let daemon_pid = std::process::id();
+            let _ = update_session_status(session_json_path, Some(daemon_pid), "running", None);
+        }
+
+        // Redirect stdin, stdout, stderr to the pty slave
+        let slave_fd = pty.slave.as_raw_fd();
+        dup2(slave_fd, 0).expect("Failed to dup2 stdin");
+        dup2(slave_fd, 1).expect("Failed to dup2 stdout");
+        dup2(slave_fd, 2).expect("Failed to dup2 stderr");
+
+        // Close the original slave fd if it's not one of the standard fds
+        if slave_fd > 2 {
+            close(slave_fd).ok();
+        }
+    } else {
+        unsafe {
+            login_tty(pty.slave.into_raw_fd());
+            // No stderr redirection since script_mode is always false
+        }
     }
 
     // Since this returns Infallible rather than ! due to limitations, we need
@@ -402,7 +495,7 @@ fn communication_loop(
     session_json_path: Option<&Path>,
 ) -> Result<i32, Errno> {
     let mut buf = [0; 4096];
-    let mut read_stdin = true;
+    let mut read_stdin = is_tty;
     let mut done = false;
     let stdin = io::stdin();
     let mut heuristics = InputDetectionHeuristics::new();
@@ -671,4 +764,139 @@ impl Drop for RestoreTerm {
     fn drop(&mut self) {
         tcsetattr(io::stdin(), SetArg::TCSAFLUSH, &self.0).ok();
     }
+}
+
+/// Monitors a detached session by running a communication loop
+fn monitor_detached_session(
+    master: OwnedFd,
+    session_json_path: Option<&Path>,
+    mut notification_writer: Option<NotificationWriter>,
+    mut stream_writer: Option<StreamWriter>,
+    stdin_file: Option<File>,
+) -> Result<(), Errno> {
+    let mut buf = [0; 4096];
+    let mut done = false;
+    let mut heuristics = InputDetectionHeuristics::new();
+    let mut input_notification_sent = false;
+    let mut current_waiting_state = false;
+
+    while !done {
+        let mut read_fds = FdSet::new();
+        let mut timeout = TimeVal::new(2, 0); // 2 second timeout
+        read_fds.insert(master.as_fd());
+
+        if let Some(ref f) = stdin_file {
+            read_fds.insert(f.as_fd());
+        }
+
+        match select(None, Some(&mut read_fds), None, None, Some(&mut timeout)) {
+            Ok(0) => {
+                // Timeout occurred - check if we're waiting for input
+                let is_waiting = heuristics.check_waiting_for_input();
+
+                // Update session waiting state if it changed
+                if is_waiting != current_waiting_state {
+                    current_waiting_state = is_waiting;
+                    if let Some(session_json_path) = session_json_path {
+                        let _ = update_session_waiting(session_json_path, is_waiting);
+                    }
+                }
+
+                // Send notification only once per waiting period
+                if let Some(notification_writer) = &mut notification_writer {
+                    if is_waiting && !input_notification_sent {
+                        let event = NotificationEvent {
+                            timestamp: jiff::Timestamp::now(),
+                            event: "input_requested".to_string(),
+                            data: serde_json::json!({
+                                "title": "Input Requested",
+                                "message": "The terminal appears to be waiting for input",
+                                "debug_info": heuristics.get_debug_info()
+                            }),
+                        };
+
+                        if let Err(_) = notification_writer.write_notification(event) {
+                            // Ignore notification write errors to not interrupt the main flow
+                        }
+                        input_notification_sent = true;
+                    }
+                }
+                continue;
+            }
+            Err(Errno::EINTR | Errno::EAGAIN) => continue,
+            Ok(_) => {}
+            Err(err) => return Err(err),
+        }
+
+        if let Some(ref f) = stdin_file {
+            if read_fds.contains(f.as_fd()) {
+                match read(f.as_raw_fd(), &mut buf) {
+                    Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
+                    Err(err) => return Err(err),
+                    Ok(n) => {
+                        heuristics.record_input();
+
+                        // Update waiting state to false when there's input from FIFO
+                        if current_waiting_state {
+                            current_waiting_state = false;
+                            if let Some(session_json_path) = session_json_path {
+                                let _ = update_session_waiting(session_json_path, false);
+                            }
+                        }
+
+                        write_all(master.as_fd(), &buf[..n])?;
+                    }
+                }
+            }
+        }
+
+        if read_fds.contains(master.as_fd()) {
+            match read(master.as_raw_fd(), &mut buf) {
+                // on linux a closed tty raises EIO
+                Ok(0) | Err(Errno::EIO) => {
+                    done = true;
+                }
+                Ok(n) => {
+                    heuristics.record_output(&buf[..n]);
+                    // Only log to stream writer, don't write to stdout since we're detached
+                    if let Some(writer) = &mut stream_writer {
+                        let time = writer.elapsed_time();
+                        let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                        let event = AsciinemaEvent {
+                            time,
+                            event_type: AsciinemaEventType::Output,
+                            data,
+                        };
+                        writer
+                            .write_event(event)
+                            .map_err(|x| match x.raw_os_error() {
+                                Some(errno) => Errno::from_raw(errno),
+                                None => Errno::EINVAL,
+                            })?;
+                    }
+                }
+                Err(Errno::EAGAIN | Errno::EINTR) => {}
+                Err(err) => return Err(err),
+            };
+        }
+    }
+
+    // Update session status to exited
+    if let Some(session_json_path) = session_json_path {
+        let _ = update_session_status(session_json_path, None, "exited", Some(0));
+    }
+
+    // Send session exited notification
+    if let Some(ref mut notification_writer) = notification_writer {
+        let notification = NotificationEvent {
+            timestamp: Timestamp::now(),
+            event: "session_exited".to_string(),
+            data: serde_json::json!({
+                "exit_code": 0
+            }),
+        };
+        let _ = notification_writer.write_notification(notification);
+    }
+
+    Ok(())
 }

@@ -455,74 +455,81 @@ fn handle_create_session(
     let cmdline_clone = cmdline.clone();
     let working_dir_clone = current_dir.clone();
 
-    std::thread::spawn(move || {
-        // Change to the specified working directory before spawning
-        let original_dir = std::env::current_dir().ok();
-        if let Err(e) = std::env::set_current_dir(&working_dir_clone) {
-            eprintln!(
-                "Failed to change to working directory {}: {}",
-                working_dir_clone, e
-            );
-            return;
-        }
-
-        // Set up TtySpawn
-        let mut tty_spawn =
-            crate::tty_spawn::TtySpawn::new_cmdline(cmdline_clone.iter().map(|s| s.as_os_str()));
-        let session_path = control_path_clone.join(&session_id_clone);
-        let session_info_path = session_path.join("session.json");
-        let stream_out_path = session_path.join("stream-out");
-        let stdin_path = session_path.join("stdin");
-        let notification_stream_path = session_path.join("notification-stream");
-
-        if let Err(e) = tty_spawn
-            .stdout_path(&stream_out_path, true)
-            .and_then(|spawn| spawn.stdin_path(&stdin_path))
-        {
-            eprintln!(
-                "Failed to set up TTY paths for session {}: {}",
-                session_id_clone, e
-            );
-            return;
-        }
-
-        tty_spawn.session_json_path(&session_info_path);
-
-        if let Err(e) = tty_spawn.notification_path(&notification_stream_path) {
-            eprintln!(
-                "Failed to set up notification path for session {}: {}",
-                session_id_clone, e
-            );
-            return;
-        }
-
-        // Set session name based on the first command
-        let session_name = cmdline_clone
-            .first()
-            .and_then(|cmd| cmd.to_str())
-            .map(|s| s.split('/').last().unwrap_or(s))
-            .unwrap_or("unknown")
-            .to_string();
-        tty_spawn.session_name(session_name);
-
-        // Spawn the process (this will block until the process exits)
-        match tty_spawn.spawn() {
-            Ok(exit_code) => {
-                println!(
-                    "Session {} exited with code {}",
-                    session_id_clone, exit_code
+    std::thread::Builder::new()
+        .name(format!("session-{}", session_id_clone))
+        .spawn(move || {
+            // Change to the specified working directory before spawning
+            let original_dir = std::env::current_dir().ok();
+            if let Err(e) = std::env::set_current_dir(&working_dir_clone) {
+                eprintln!(
+                    "Failed to change to working directory {}: {}",
+                    working_dir_clone, e
                 );
+                return;
             }
-            Err(e) => {
-                eprintln!("Failed to spawn session {}: {}", session_id_clone, e);
-            }
-        }
 
-        // Restore original directory
-        if let Some(original) = original_dir {
-            let _ = std::env::set_current_dir(original);
-        }
-    });
+            // Set up TtySpawn
+            let mut tty_spawn = crate::tty_spawn::TtySpawn::new_cmdline(
+                cmdline_clone.iter().map(|s| s.as_os_str()),
+            );
+            let session_path = control_path_clone.join(&session_id_clone);
+            let session_info_path = session_path.join("session.json");
+            let stream_out_path = session_path.join("stream-out");
+            let stdin_path = session_path.join("stdin");
+            let notification_stream_path = session_path.join("notification-stream");
+
+            if let Err(e) = tty_spawn
+                .stdout_path(&stream_out_path, true)
+                .and_then(|spawn| spawn.stdin_path(&stdin_path))
+            {
+                eprintln!(
+                    "Failed to set up TTY paths for session {}: {}",
+                    session_id_clone, e
+                );
+                return;
+            }
+
+            tty_spawn.session_json_path(&session_info_path);
+
+            if let Err(e) = tty_spawn.notification_path(&notification_stream_path) {
+                eprintln!(
+                    "Failed to set up notification path for session {}: {}",
+                    session_id_clone, e
+                );
+                return;
+            }
+
+            // Set session name based on the first command
+            let session_name = cmdline_clone
+                .first()
+                .and_then(|cmd| cmd.to_str())
+                .map(|s| s.split('/').last().unwrap_or(s))
+                .unwrap_or("unknown")
+                .to_string();
+            tty_spawn.session_name(session_name);
+
+            // Enable detached mode for API-created sessions
+            tty_spawn.detached(true);
+
+            // Spawn the process (this will block until the process exits)
+            match tty_spawn.spawn() {
+                Ok(exit_code) => {
+                    println!(
+                        "Session {} exited with code {}",
+                        session_id_clone, exit_code
+                    );
+                }
+                Err(e) => {
+                    eprintln!("Failed to spawn session {}: {}", session_id_clone, e);
+                }
+            }
+
+            // Restore original directory
+            if let Some(original) = original_dir {
+                let _ = std::env::set_current_dir(original);
+            }
+        })
+        .expect("Failed to spawn session thread");
 
     // Return success response immediately
     let response = ApiResponse {
