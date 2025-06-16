@@ -1,5 +1,3 @@
-#![doc = include_str!("../README.md")]
-
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -14,13 +12,15 @@ use std::net::TcpStream;
 use std::net::ToSocketAddrs;
 
 #[derive(Debug)]
-pub struct Server {
+pub struct HttpServer {
     listener: TcpListener,
     request_size_limit: Option<usize>,
 }
 
-impl Server {
-    pub fn bind<A: ToSocketAddrs>(addr: A) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+impl HttpServer {
+    pub fn bind<A: ToSocketAddrs>(
+        addr: A,
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let listener = TcpListener::bind(addr)?;
         Ok(Self {
             listener,
@@ -51,9 +51,11 @@ impl<'a> Iterator for Incoming<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.listener.accept() {
-            Ok((stream, remote_addr)) => {
-                Some(HttpRequest::from_stream(stream, remote_addr, self.request_size_limit))
-            }
+            Ok((stream, remote_addr)) => Some(HttpRequest::from_stream(
+                stream,
+                remote_addr,
+                self.request_size_limit,
+            )),
             Err(e) => Some(Err(Box::new(e))),
         }
     }
@@ -112,28 +114,27 @@ impl HttpRequest {
                             _ => return Err("Unsupported HTTP version".into()),
                         };
 
-                        let mut request_builder = Request::builder()
-                            .method(method)
-                            .uri(uri)
-                            .version(version);
+                        let mut request_builder =
+                            Request::builder().method(method).uri(uri).version(version);
 
                         let headers_start = request_line_end + 2;
                         let headers_bytes = &header_bytes[headers_start..];
-                        
+
                         for header_line in headers_bytes.split(|&b| b == b'\n') {
                             if header_line.is_empty() || header_line == b"\r" {
                                 continue;
                             }
-                            
+
                             let header_line = if header_line.ends_with(b"\r") {
                                 &header_line[..header_line.len() - 1]
                             } else {
                                 header_line
                             };
-                            
+
                             if let Some(colon_pos) = header_line.iter().position(|&b| b == b':') {
                                 let name = std::str::from_utf8(&header_line[..colon_pos])?.trim();
-                                let value = std::str::from_utf8(&header_line[colon_pos + 1..])?.trim();
+                                let value =
+                                    std::str::from_utf8(&header_line[colon_pos + 1..])?.trim();
                                 request_builder = request_builder.header(name, value);
                             }
                         }
@@ -149,8 +150,11 @@ impl HttpRequest {
                             if content_length > 0 {
                                 let mut bytes_read = 0;
                                 if body_start < buffer.len() {
-                                    let available = std::cmp::min(content_length, buffer.len() - body_start);
-                                    body.extend_from_slice(&buffer[body_start..body_start + available]);
+                                    let available =
+                                        std::cmp::min(content_length, buffer.len() - body_start);
+                                    body.extend_from_slice(
+                                        &buffer[body_start..body_start + available],
+                                    );
                                     bytes_read = available;
                                 }
 
@@ -187,7 +191,10 @@ impl HttpRequest {
         self.remote_addr
     }
 
-    pub fn respond<T: AsRef<[u8]>>(&mut self, response: T) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn respond<T: AsRef<[u8]>>(
+        &mut self,
+        response: T,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.stream.write_all(response.as_ref())?;
         self.stream.flush()?;
         Ok(())

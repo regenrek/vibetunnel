@@ -1,5 +1,4 @@
 use anyhow::Result;
-use crate::blocking_http_server::{Method, Response, Server, StatusCode};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -11,6 +10,7 @@ use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
 
+use crate::http_server::{HttpServer, Method, Response, StatusCode};
 use crate::sessions;
 
 // Types matching the TypeScript interface
@@ -74,7 +74,8 @@ struct ApiResponse {
 pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
     fs::create_dir_all(&control_path)?;
 
-    let server = Server::bind(bind_address).map_err(|e| anyhow::anyhow!("Failed to bind server: {}", e))?;
+    let server = HttpServer::bind(bind_address)
+        .map_err(|e| anyhow::anyhow!("Failed to bind server: {}", e))?;
     println!("HTTP API server listening on {}", bind_address);
 
     for req in server.incoming() {
@@ -148,7 +149,11 @@ fn extract_session_id(path: &str) -> Option<String> {
 
 fn response_to_bytes(response: Response<String>) -> Vec<u8> {
     let (parts, body) = response.into_parts();
-    let status_line = format!("HTTP/1.1 {} {}\r\n", parts.status.as_u16(), parts.status.canonical_reason().unwrap_or(""));
+    let status_line = format!(
+        "HTTP/1.1 {} {}\r\n",
+        parts.status.as_u16(),
+        parts.status.canonical_reason().unwrap_or("")
+    );
     let mut headers = String::new();
     for (name, value) in parts.headers {
         if let Some(name) = name {
@@ -213,7 +218,7 @@ fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
 
 fn handle_create_session(
     _control_path: &PathBuf,
-    _req: &mut crate::blocking_http_server::HttpRequest,
+    _req: &mut crate::http_server::HttpRequest,
 ) -> Response<String> {
     // For now, return a stub response since reading request body is complex
     let session_id = Uuid::new_v4().to_string();
@@ -283,7 +288,7 @@ fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<Strin
 fn handle_session_input(
     control_path: &PathBuf,
     path: &str,
-    req: &mut crate::blocking_http_server::HttpRequest,
+    req: &mut crate::http_server::HttpRequest,
 ) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
         // Try to read the request body using the body() method
@@ -455,7 +460,7 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
         // This is a workaround for blocking-http-server's limitations
         // We'll use tail -f and keep the connection open for a reasonable time
         // The client should reconnect periodically to get fresh streams
-        
+
         let start_time = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
@@ -466,15 +471,18 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
         // First, send existing content from the file
         if let Ok(content) = fs::read_to_string(stream_out_path) {
             let mut header_sent = false;
-            
+
             for line in content.lines() {
                 if line.trim().is_empty() {
                     continue;
                 }
-                
+
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
                     // Check if this is a header line
-                    if parsed.get("version").is_some() && parsed.get("width").is_some() && parsed.get("height").is_some() {
+                    if parsed.get("version").is_some()
+                        && parsed.get("width").is_some()
+                        && parsed.get("height").is_some()
+                    {
                         response_body.push_str(&format!("data: {}\n\n", line));
                         header_sent = true;
                     }
@@ -515,7 +523,7 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
         // Now use tail -f to get new content for a longer period
         // This provides a streaming-like experience within the constraints
         let stream_path_clone = stream_out_path.clone();
-        
+
         match Command::new("tail")
             .args(&["-f", &stream_path_clone])
             .stdout(Stdio::piped())
@@ -524,10 +532,10 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
             Ok(mut child) => {
                 if let Some(stdout) = child.stdout.take() {
                     let reader = BufReader::new(stdout);
-                    
+
                     // Create a channel to communicate with the reader thread
                     let (tx, rx) = std::sync::mpsc::channel();
-                    
+
                     // Spawn thread to read from tail
                     let handle = thread::spawn(move || {
                         for line in reader.lines() {
@@ -535,31 +543,34 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
                                 if line.trim().is_empty() {
                                     continue;
                                 }
-                                
+
                                 if tx.send(line).is_err() {
                                     break; // Channel closed
                                 }
                             }
                         }
                     });
-                    
+
                     // Collect new content for up to 10 seconds or until no new data
                     let timeout_duration = std::time::Duration::from_secs(10);
                     let poll_duration = std::time::Duration::from_millis(100);
                     let start_collect = std::time::Instant::now();
                     let mut last_data_time = start_collect;
-                    
+
                     while start_collect.elapsed() < timeout_duration {
                         match rx.recv_timeout(poll_duration) {
                             Ok(line) => {
                                 last_data_time = std::time::Instant::now();
-                                
-                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line) {
+
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line)
+                                {
                                     // Skip headers in tail output
-                                    if parsed.get("version").is_some() && parsed.get("width").is_some() {
+                                    if parsed.get("version").is_some()
+                                        && parsed.get("width").is_some()
+                                    {
                                         continue;
                                     }
-                                    
+
                                     // Process event lines
                                     if let Some(arr) = parsed.as_array() {
                                         if arr.len() >= 3 {
@@ -567,8 +578,15 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
                                                 .duration_since(SystemTime::UNIX_EPOCH)
                                                 .unwrap_or_default()
                                                 .as_secs_f64();
-                                            let real_time_event = serde_json::json!([current_time - start_time, arr[1], arr[2]]);
-                                            response_body.push_str(&format!("data: {}\n\n", real_time_event));
+                                            let real_time_event = serde_json::json!([
+                                                current_time - start_time,
+                                                arr[1],
+                                                arr[2]
+                                            ]);
+                                            response_body.push_str(&format!(
+                                                "data: {}\n\n",
+                                                real_time_event
+                                            ));
                                         }
                                     }
                                 } else {
@@ -577,7 +595,8 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
                                         .duration_since(SystemTime::UNIX_EPOCH)
                                         .unwrap_or_default()
                                         .as_secs_f64();
-                                    let cast_event = serde_json::json!([current_time - start_time, "o", line]);
+                                    let cast_event =
+                                        serde_json::json!([current_time - start_time, "o", line]);
                                     response_body.push_str(&format!("data: {}\n\n", cast_event));
                                 }
                             }
@@ -592,7 +611,7 @@ fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String>
                             }
                         }
                     }
-                    
+
                     // Clean up
                     let _ = child.kill();
                     let _ = handle.join();

@@ -1,7 +1,7 @@
-mod blocking_http_server;
+mod api_server;
 mod heuristics;
+mod http_server;
 mod protocol;
-mod server;
 mod sessions;
 mod tty_spawn;
 mod utils;
@@ -159,7 +159,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Handle serve command
     if let Some(addr) = serve_address {
-        return crate::server::start_server(&addr, control_path);
+        return crate::api_server::start_server(&addr, control_path);
     }
 
     let exit_code = sessions::spawn_command(control_path, session_name, cmdline)?;
