@@ -264,6 +264,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -276,6 +277,7 @@
 				"$(SRCROOT)/tty-fwd/src/utils.rs",
 				"$(SRCROOT)/tty-fwd/Cargo.toml",
 				"$(SRCROOT)/tty-fwd/build-universal.sh",
+				"$(SRCROOT)/tty-fwd/target/release/tty-fwd-universal",
 			);
 			name = "Build tty-fwd Universal Binary";
 			outputFileListPaths = (

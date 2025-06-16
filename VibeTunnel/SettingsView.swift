@@ -39,7 +39,7 @@ struct SettingsView: View {
 
     /// Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
-        .general: CGSize(width: 500, height: 300),
+        .general: CGSize(width: 500, height: 400),
         .advanced: CGSize(width: 500, height: 500),
         .debug: CGSize(width: 600, height: 650),
         .about: CGSize(width: 500, height: 550)
@@ -259,6 +259,10 @@ struct AdvancedSettingsView: View {
     @State private var ngrokStatus: NgrokTunnelStatus?
     @State private var isStartingNgrok = false
     @State private var ngrokError: String?
+    @State private var showingAuthTokenAlert = false
+    @State private var showingKeychainAlert = false
+    @State private var showingServerErrorAlert = false
+    @State private var serverErrorMessage = ""
 
     private let ngrokService = NgrokService.shared
 
@@ -296,7 +300,13 @@ struct AdvancedSettingsView: View {
                                 .onChange(of: ngrokEnabled) { oldValue, newValue in
                                     print("ngrok toggle changed from \(oldValue) to \(newValue)")
                                     if newValue {
-                                        checkAndStartNgrok()
+                                        // Add a small delay to ensure auth token is saved to keychain
+                                        Task {
+                                            try? await Task.sleep(for: .milliseconds(100))
+                                            await MainActor.run {
+                                                checkAndStartNgrok()
+                                            }
+                                        }
                                     } else {
                                         stopNgrok()
                                         // Clear error only when user manually turns off the toggle
@@ -419,6 +429,21 @@ struct AdvancedSettingsView: View {
             ngrokAuthToken = ngrokService.authToken ?? ""
             print("AdvancedSettingsView appeared - auth token present: \(!ngrokAuthToken.isEmpty)")
         }
+        .alert("ngrok Auth Token Required", isPresented: $showingAuthTokenAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com")
+        }
+        .alert("Keychain Access Error", isPresented: $showingKeychainAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Failed to save the auth token to the keychain. Please check your keychain permissions and try again.")
+        }
+        .alert("Failed to Restart Server", isPresented: $showingServerErrorAlert) {
+            Button("OK") { }
+        } message: {
+            Text(serverErrorMessage)
+        }
     }
 
     private func restartServerWithNewPort(_ port: Int) {
@@ -445,11 +470,8 @@ struct AdvancedSettingsView: View {
                 print("Failed to restart server on port \(port): \(error)")
                 // Show error alert
                 await MainActor.run {
-                    let alert = NSAlert()
-                    alert.messageText = "Failed to Restart Server"
-                    alert.informativeText = "Could not start server on port \(port): \(error.localizedDescription)"
-                    alert.alertStyle = .critical
-                    alert.runModal()
+                    serverErrorMessage = "Could not start server on port \(port): \(error.localizedDescription)"
+                    showingServerErrorAlert = true
                 }
             }
         }
@@ -457,20 +479,24 @@ struct AdvancedSettingsView: View {
 
     private func checkAndStartNgrok() {
         print("checkAndStartNgrok called")
-        guard !ngrokService.authToken.isNilOrEmpty else {
-            print("No auth token found")
+        print("Local auth token state: '\(ngrokAuthToken)' (length: \(ngrokAuthToken.count))")
+        print("Service auth token: '\(ngrokService.authToken ?? "nil")' (present: \(ngrokService.authToken != nil))")
+        
+        // First check the local state variable
+        guard !ngrokAuthToken.isEmpty else {
+            print("No auth token in local state")
             ngrokError = "Please enter your ngrok auth token first"
             ngrokEnabled = false
-            
-            // Show alert dialog
-            Task { @MainActor in
-                let alert = NSAlert()
-                alert.messageText = "ngrok Auth Token Required"
-                alert.informativeText = "Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
+            showingAuthTokenAlert = true
+            return
+        }
+        
+        // Then verify it's saved in the service
+        guard !ngrokService.authToken.isNilOrEmpty else {
+            print("Auth token not saved in keychain")
+            ngrokError = "Failed to save auth token. Please try again."
+            ngrokEnabled = false
+            showingKeychainAlert = true
             return
         }
 
