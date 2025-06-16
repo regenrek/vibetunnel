@@ -146,7 +146,11 @@ struct ServerLogEntryView: View {
     }
 }
 
-/// View model for the server console
+/// View model for the server console.
+///
+/// Manages the collection and filtering of server log entries,
+/// subscribing to the server's log stream and maintaining a
+/// bounded collection of recent logs.
 @MainActor
 @Observable
 class ServerConsoleViewModel {

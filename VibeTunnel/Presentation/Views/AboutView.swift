@@ -93,7 +93,7 @@ struct AboutView: View {
                     CreditLink(name: "@steipete", url: "https://steipete.me")
                 }
             }
-            
+
             Text("© 2025 • MIT Licensed")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
