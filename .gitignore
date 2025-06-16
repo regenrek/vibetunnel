@@ -79,4 +79,9 @@ DerivedData/
 
 # Local Development Settings
 Local.xcconfig
-web/public/components/session-list.js
+
+# Web build outputs - these are generated from TypeScript
+web/dist/**/*.js
+web/dist/**/*.js.map
+web/public/**/*.js
+web/public/**/*.js.map
