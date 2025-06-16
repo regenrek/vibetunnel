@@ -362,7 +362,7 @@ public enum TunnelClientError: LocalizedError, Equatable {
         }
     }
 
-    public static func == (lhs: TunnelClientError, rhs: TunnelClientError) -> Bool {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
         switch (lhs, rhs) {
         case (.invalidResponse, .invalidResponse):
             true

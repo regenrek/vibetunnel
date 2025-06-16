@@ -2,9 +2,12 @@ import SwiftUI
 
 /// Main menu bar view displaying session status and app controls
 struct MenuBarView: View {
-    @Environment(SessionMonitor.self) var sessionMonitor
-    @Environment(ServerMonitor.self) var serverMonitor
-    @AppStorage("showInDock") private var showInDock = false
+    @Environment(SessionMonitor.self)
+    var sessionMonitor
+    @Environment(ServerMonitor.self)
+    var serverMonitor
+    @AppStorage("showInDock")
+    private var showInDock = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -15,11 +18,12 @@ struct MenuBarView: View {
 
             // Open Dashboard button
             Button(action: {
-                let dashboardURL = URL(string: "http://127.0.0.1:\(serverMonitor.port)")!
-                NSWorkspace.shared.open(dashboardURL)
-            }) {
+                if let dashboardURL = URL(string: "http://127.0.0.1:\(serverMonitor.port)") {
+                    NSWorkspace.shared.open(dashboardURL)
+                }
+            }, label: {
                 Label("Open Dashboard", systemImage: "safari")
-            }
+            })
             .buttonStyle(MenuButtonStyle())
             .disabled(!serverMonitor.isRunning)
 
@@ -31,14 +35,6 @@ struct MenuBarView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
 
-            // Session list
-            if sessionMonitor.sessionCount > 0 {
-                SessionListView(sessions: sessionMonitor.sessions)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
-                    .frame(minWidth: 280)
-            }
-
             Divider()
                 .padding(.vertical, 4)
 
@@ -48,34 +44,38 @@ struct MenuBarView: View {
                     // Show Tutorial
                     Button(action: {
                         AppDelegate.showWelcomeScreen()
-                    }) {
+                    }, label: {
                         Label("Show Tutorial", systemImage: "book")
-                    }
-                    
+                    })
+
+                    Divider()
+
                     // Website
                     Button(action: {
                         if let url = URL(string: "http://vibetunnel.sh") {
                             NSWorkspace.shared.open(url)
                         }
-                    }) {
+                    }, label: {
                         Label("Website", systemImage: "globe")
-                    }
+                    })
 
                     // Report Issue
                     Button(action: {
                         if let url = URL(string: "https://github.com/amantus-ai/vibetunnel/issues") {
                             NSWorkspace.shared.open(url)
                         }
-                    }) {
+                    }, label: {
                         Label("Report Issue", systemImage: "exclamationmark.triangle")
-                    }
+                    })
+
+                    Divider()
 
                     // Check for Updates
                     Button(action: {
                         SparkleUpdaterManager.shared.checkForUpdates()
-                    }) {
+                    }, label: {
                         Label("Check for Updates…", systemImage: "arrow.down.circle")
-                    }
+                    })
 
                     // Version (non-interactive)
                     Text("Version \(appVersion)")
@@ -124,9 +124,9 @@ struct MenuBarView: View {
             // Quit button
             Button(action: {
                 NSApplication.shared.terminate(nil)
-            }) {
+            }, label: {
                 Label("Quit", systemImage: "power")
-            }
+            })
             .buttonStyle(MenuButtonStyle())
             .keyboardShortcut("q", modifiers: .command)
         }
@@ -265,4 +265,3 @@ struct MenuButtonStyle: ButtonStyle {
             }
     }
 }
-

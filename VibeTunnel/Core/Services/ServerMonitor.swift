@@ -8,25 +8,24 @@ import Observation
 public final class ServerMonitor {
     public static let shared = ServerMonitor()
 
-    // Observable properties
+    /// Observable properties
     public var isRunning: Bool {
         isServerRunning
     }
-    
+
     public var port: Int {
-        Int(ServerManager.shared.port) ?? 4020
+        Int(ServerManager.shared.port) ?? 4_020
     }
-    
+
     public var lastError: Error? {
         ServerManager.shared.lastError
     }
 
     /// Reference to the actual server (kept for backward compatibility)
     private weak var server: TunnelServer?
-    
+
     /// Internal state tracking
-    @ObservationIgnored
-    public var isServerRunning = false {
+    @ObservationIgnored public var isServerRunning = false {
         didSet {
             // Notify observers when state changes
         }
@@ -51,7 +50,7 @@ public final class ServerMonitor {
             await syncWithServerManager()
         }
     }
-    
+
     /// Syncs state with ServerManager
     private func syncWithServerManager() async {
         isServerRunning = ServerManager.shared.isRunning
@@ -70,7 +69,7 @@ public final class ServerMonitor {
         await ServerManager.shared.stop()
         await syncWithServerManager()
     }
-    
+
     /// Restarts the server
     public func restartServer() async throws {
         await ServerManager.shared.restart()
@@ -82,7 +81,9 @@ public final class ServerMonitor {
         guard isRunning else { return false }
 
         do {
-            let url = URL(string: "http://127.0.0.1:\(port)/api/health")!
+            guard let url = URL(string: "http://127.0.0.1:\(port)/api/health") else {
+                return false
+            }
             let request = URLRequest(url: url, timeoutInterval: 2.0)
             let (_, response) = try await URLSession.shared.data(for: request)
 

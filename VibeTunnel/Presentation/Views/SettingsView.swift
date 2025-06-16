@@ -1,5 +1,6 @@
-import SwiftUI
 import AppKit
+import os.log
+import SwiftUI
 
 /// Represents the available tabs in the Settings window
 enum SettingsTab: String, CaseIterable {
@@ -38,7 +39,8 @@ extension Notification.Name {
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var contentSize: CGSize = .zero
-    @AppStorage("debugMode") private var debugMode = false
+    @AppStorage("debugMode")
+    private var debugMode = false
 
     /// Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
@@ -271,13 +273,13 @@ struct DashboardSettingsView: View {
     private var ngrokTokenPresent = false
     @AppStorage("dashboardAccessMode")
     private var accessModeString = DashboardAccessMode.localhost.rawValue
-    
+
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var showPasswordFields = false
     @State private var passwordError: String?
     @State private var passwordSaved = false
-    
+
     @State private var ngrokAuthToken = ""
     @State private var ngrokStatus: NgrokTunnelStatus?
     @State private var isStartingNgrok = false
@@ -288,14 +290,15 @@ struct DashboardSettingsView: View {
     @State private var serverErrorMessage = ""
     @State private var isTokenRevealed = false
     @State private var maskedToken = ""
-    
+
     private let dashboardKeychain = DashboardKeychain.shared
     private let ngrokService = NgrokService.shared
-    
+    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "DashboardSettings")
+
     private var accessMode: DashboardAccessMode {
         DashboardAccessMode(rawValue: accessModeString) ?? .localhost
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -313,24 +316,24 @@ struct DashboardSettingsView: View {
                                     passwordSaved = false
                                 }
                             }
-                        
+
                         Text("Require a password to access the dashboard from remote connections.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        
+
                         if showPasswordFields || (passwordEnabled && !passwordSaved) {
                             VStack(spacing: 8) {
                                 SecureField("Password", text: $password)
                                     .textFieldStyle(.roundedBorder)
                                 SecureField("Confirm Password", text: $confirmPassword)
                                     .textFieldStyle(.roundedBorder)
-                                
+
                                 if let error = passwordError {
                                     Text(error)
                                         .font(.caption)
                                         .foregroundColor(.red)
                                 }
-                                
+
                                 HStack {
                                     Button("Cancel") {
                                         showPasswordFields = false
@@ -340,7 +343,7 @@ struct DashboardSettingsView: View {
                                         passwordError = nil
                                     }
                                     .buttonStyle(.bordered)
-                                    
+
                                     Button("Save Password") {
                                         savePassword()
                                     }
@@ -350,7 +353,7 @@ struct DashboardSettingsView: View {
                             }
                             .padding(.top, 4)
                         }
-                        
+
                         if passwordSaved {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
@@ -373,10 +376,12 @@ struct DashboardSettingsView: View {
                     Text("Security")
                         .font(.headline)
                 } footer: {
-                    Text("When password protection is enabled, localhost connections can still access without a password. For remote access, any username is accepted - only the password is verified.")
-                        .font(.caption)
+                    Text(
+                        "When password protection is enabled, localhost connections can still access without a password. For remote access, any username is accepted - only the password is verified."
+                    )
+                    .font(.caption)
                 }
-                
+
                 Section {
                     // Access Mode
                     VStack(alignment: .leading, spacing: 8) {
@@ -401,10 +406,10 @@ struct DashboardSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     Divider()
                         .padding(.vertical, 4)
-                    
+
                     // Port Configuration
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -414,7 +419,7 @@ struct DashboardSettingsView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
                                 .multilineTextAlignment(.center)
-                                .onChange(of: serverPort) { oldValue, newValue in
+                                .onChange(of: serverPort) { _, newValue in
                                     // Validate port number
                                     if let port = Int(newValue), port > 0, port < 65_536 {
                                         restartServerWithNewPort(port)
@@ -429,14 +434,14 @@ struct DashboardSettingsView: View {
                     Text("Server Configuration")
                         .font(.headline)
                 }
-                
+
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         // ngrok Enable Toggle
                         VStack(alignment: .leading, spacing: 4) {
                             Toggle("Enable ngrok tunnel", isOn: $ngrokEnabled)
                                 .onChange(of: ngrokEnabled) { oldValue, newValue in
-                                    print("ngrok toggle changed from \(oldValue) to \(newValue)")
+                                    logger.debug("ngrok toggle changed from \(oldValue) to \(newValue)")
                                     if newValue {
                                         // Add a small delay to ensure auth token is saved to keychain
                                         Task {
@@ -488,9 +493,9 @@ struct DashboardSettingsView: View {
                                     }
                                     Button(action: {
                                         toggleTokenVisibility()
-                                    }) {
+                                    }, label: {
                                         Image(systemName: isTokenRevealed ? "eye.slash" : "eye")
-                                    }
+                                    })
                                     .buttonStyle(.plain)
                                     .help(isTokenRevealed ? "Hide token" : "Reveal token")
                                 }
@@ -500,8 +505,9 @@ struct DashboardSettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Button("ngrok.com") {
-                                    NSWorkspace.shared
-                                        .open(URL(string: "https://dashboard.ngrok.com/auth/your-authtoken")!)
+                                    if let url = URL(string: "https://dashboard.ngrok.com/auth/your-authtoken") {
+                                        NSWorkspace.shared.open(url)
+                                    }
                                 }
                                 .buttonStyle(.link)
                                 .font(.caption)
@@ -526,7 +532,7 @@ struct DashboardSettingsView: View {
                                                 NSPasteboard.general.clearContents()
                                                 NSPasteboard.general.setString(publicUrl, forType: .string)
                                             }
-                                        
+
                                         Button("Open Browser") {
                                             if let url = URL(string: publicUrl) {
                                                 NSWorkspace.shared.open(url)
@@ -590,58 +596,60 @@ struct DashboardSettingsView: View {
                 passwordSaved = true
                 passwordEnabled = true
             }
-            
+
             // Check if token exists without triggering keychain
             if ngrokService.hasAuthToken && !ngrokTokenPresent {
                 ngrokTokenPresent = true
             }
-            
+
             // Update masked field based on token presence
             if ngrokTokenPresent && !isTokenRevealed {
                 maskedToken = String(repeating: "•", count: 12)
             }
         }
         .alert("ngrok Auth Token Required", isPresented: $showingAuthTokenAlert) {
-            Button("OK") { }
+            Button("OK") {}
         } message: {
-            Text("Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com")
+            Text(
+                "Please enter your ngrok auth token before enabling the tunnel. You can get a free auth token at ngrok.com"
+            )
         }
         .alert("Keychain Access Error", isPresented: $showingKeychainAlert) {
-            Button("OK") { }
+            Button("OK") {}
         } message: {
             Text("Failed to save the auth token to the keychain. Please check your keychain permissions and try again.")
         }
         .alert("Failed to Restart Server", isPresented: $showingServerErrorAlert) {
-            Button("OK") { }
+            Button("OK") {}
         } message: {
             Text(serverErrorMessage)
         }
     }
-    
+
     private func savePassword() {
         passwordError = nil
-        
+
         guard !password.isEmpty else {
             passwordError = "Password cannot be empty"
             return
         }
-        
+
         guard password == confirmPassword else {
             passwordError = "Passwords do not match"
             return
         }
-        
+
         guard password.count >= 6 else {
             passwordError = "Password must be at least 6 characters"
             return
         }
-        
+
         if dashboardKeychain.setPassword(password) {
             passwordSaved = true
             showPasswordFields = false
             password = ""
             confirmPassword = ""
-            
+
             // When password is set for the first time, automatically switch to network mode
             if accessMode == .localhost {
                 accessModeString = DashboardAccessMode.network.rawValue
@@ -651,53 +659,53 @@ struct DashboardSettingsView: View {
             passwordError = "Failed to save password to keychain"
         }
     }
-    
+
     private func restartServerWithNewPort(_ port: Int) {
         Task {
             // Update the port in ServerManager and restart
             ServerManager.shared.port = String(port)
             await ServerManager.shared.restart()
-            print("Server restarted on port \(port)")
+            logger.info("Server restarted on port \(port)")
 
             // Restart session monitoring with new port
             SessionMonitor.shared.stopMonitoring()
             SessionMonitor.shared.startMonitoring()
         }
     }
-    
+
     private func restartServerWithNewBindAddress() {
         Task {
             // Update the bind address in ServerManager and restart
             ServerManager.shared.bindAddress = accessMode.bindAddress
             await ServerManager.shared.restart()
-            print("Server restarted with bind address \(accessMode.bindAddress)")
+            logger.info("Server restarted with bind address \(accessMode.bindAddress)")
 
             // Restart session monitoring
             SessionMonitor.shared.stopMonitoring()
             SessionMonitor.shared.startMonitoring()
         }
     }
-    
+
     private func checkAndStartNgrok() {
-        print("checkAndStartNgrok called")
-        
+        logger.debug("checkAndStartNgrok called")
+
         // Check if we have a token in the keychain without accessing it
         guard ngrokTokenPresent || ngrokService.hasAuthToken else {
-            print("No auth token stored")
+            logger.debug("No auth token stored")
             ngrokError = "Please enter your ngrok auth token first"
             ngrokEnabled = false
             showingAuthTokenAlert = true
             return
         }
-        
+
         // If token hasn't been revealed yet, we need to access it from keychain
         if !isTokenRevealed && ngrokAuthToken.isEmpty {
             // This will trigger keychain access
             if let token = ngrokService.authToken {
                 ngrokAuthToken = token
-                print("Retrieved token from keychain for ngrok start")
+                logger.debug("Retrieved token from keychain for ngrok start")
             } else {
-                print("Failed to retrieve token from keychain")
+                logger.error("Failed to retrieve token from keychain")
                 ngrokError = "Failed to access auth token. Please try again."
                 ngrokEnabled = false
                 showingKeychainAlert = true
@@ -705,20 +713,20 @@ struct DashboardSettingsView: View {
             }
         }
 
-        print("Starting ngrok with auth token present")
+        logger.debug("Starting ngrok with auth token present")
         isStartingNgrok = true
         ngrokError = nil
 
         Task {
             do {
                 let port = Int(serverPort) ?? 4_020
-                print("Starting ngrok on port \(port)")
+                logger.info("Starting ngrok on port \(port)")
                 _ = try await ngrokService.start(port: port)
                 isStartingNgrok = false
                 ngrokStatus = await ngrokService.getStatus()
-                print("ngrok started successfully")
+                logger.info("ngrok started successfully")
             } catch {
-                print("ngrok start error: \(error)")
+                logger.error("ngrok start error: \(error)")
                 isStartingNgrok = false
                 ngrokError = error.localizedDescription
                 ngrokEnabled = false
@@ -733,7 +741,7 @@ struct DashboardSettingsView: View {
             // Don't clear the error here - let it remain visible
         }
     }
-    
+
     private func toggleTokenVisibility() {
         if isTokenRevealed {
             // Hide the token
@@ -780,14 +788,14 @@ struct AdvancedSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Clean up old sessions on startup", isOn: $cleanupOnStartup)
                         Text("Automatically remove terminated sessions when the app starts.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Debug mode", isOn: $debugMode)
                         Text("Enable additional logging and debugging features.")
@@ -804,7 +812,7 @@ struct AdvancedSettingsView: View {
             .navigationTitle("Advanced Settings")
         }
     }
-    
+
     private func installCLITool() {
         let installer = CLIInstaller()
         installer.installCLITool()
@@ -823,13 +831,18 @@ struct DebugSettingsView: View {
     @State private var lastError: String?
     @State private var testResult: String?
     @State private var isTesting = false
-    @AppStorage("debugMode") private var debugMode = false
-    @AppStorage("logLevel") private var logLevel = "info"
-    @AppStorage("serverMode") private var serverModeString = ServerMode.rust.rawValue
+    @AppStorage("debugMode")
+    private var debugMode = false
+    @AppStorage("logLevel")
+    private var logLevel = "info"
+    @AppStorage("serverMode")
+    private var serverModeString = ServerMode.rust.rawValue
     @State private var serverManager = ServerManager.shared
     @State private var isServerHealthy = false
     @State private var heartbeatTask: Task<Void, Never>?
     @State private var showPurgeConfirmation = false
+
+    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "DebugSettings")
 
     private var isServerRunning: Bool {
         serverMonitor.isRunning
@@ -857,10 +870,11 @@ struct DebugSettingsView: View {
                                             .scaleEffect(0.6)
                                     }
                                 }
-                                Text(isServerHealthy ? "Server is running on port \(serverPort)" : 
-                                     isServerRunning ? "Server starting... (checking health)" : "Server is stopped")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text(isServerHealthy ? "Server is running on port \(serverPort)" :
+                                    isServerRunning ? "Server starting... (checking health)" : "Server is stopped"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             }
 
                             Spacer()
@@ -922,7 +936,7 @@ struct DebugSettingsView: View {
                             .labelsHidden()
                             .disabled(serverManager.isSwitching)
                         }
-                        
+
                         if serverManager.isSwitching {
                             HStack {
                                 ProgressView()
@@ -942,18 +956,21 @@ struct DebugSettingsView: View {
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                 }
-                
+
                 Section {
                     // Server Information
                     VStack(alignment: .leading, spacing: 8) {
                         LabeledContent("Status") {
                             HStack {
-                                Image(systemName: isServerHealthy ? "checkmark.circle.fill" : 
-                                                 isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundStyle(isServerHealthy ? .green : 
-                                                   isServerRunning ? .orange : .secondary)
-                                Text(isServerHealthy ? "Healthy" : 
-                                     isServerRunning ? "Unhealthy" : "Stopped")
+                                Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
+                                    isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill"
+                                )
+                                .foregroundStyle(isServerHealthy ? .green :
+                                    isServerRunning ? .orange : .secondary
+                                )
+                                Text(isServerHealthy ? "Healthy" :
+                                    isServerRunning ? "Unhealthy" : "Stopped"
+                                )
                             }
                         }
 
@@ -965,7 +982,7 @@ struct DebugSettingsView: View {
                             Text("http://127.0.0.1:\(serverPort)")
                                 .font(.system(.body, design: .monospaced))
                         }
-                        
+
                         LabeledContent("Mode") {
                             Text(serverManager.currentServer?.serverType.displayName ?? "None")
                                 .foregroundStyle(.secondary)
@@ -1070,7 +1087,7 @@ struct DebugSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("System Logs")
@@ -1098,7 +1115,7 @@ struct DebugSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Welcome Screen")
@@ -1112,7 +1129,7 @@ struct DebugSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("User Defaults")
@@ -1155,12 +1172,14 @@ struct DebugSettingsView: View {
                 isServerHealthy = false
             }
             .alert("Purge All User Defaults?", isPresented: $showPurgeConfirmation) {
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {}
                 Button("Purge", role: .destructive) {
                     purgeAllUserDefaults()
                 }
             } message: {
-                Text("This will remove all stored preferences and reset the app to its default state. The app will quit after purging.")
+                Text(
+                    "This will remove all stored preferences and reset the app to its default state. The app will quit after purging."
+                )
             }
         }
     }
@@ -1193,7 +1212,10 @@ struct DebugSettingsView: View {
 
         Task {
             do {
-                let url = URL(string: "http://127.0.0.1:\(serverPort)\(endpoint.path)")!
+                guard let url = URL(string: "http://127.0.0.1:\(serverPort)\(endpoint.path)") else {
+                    testResult = "Invalid URL"
+                    return
+                }
                 var request = URLRequest(url: url)
                 request.httpMethod = endpoint.method
 
@@ -1228,7 +1250,7 @@ struct DebugSettingsView: View {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: appDirectory.path)
         }
     }
-    
+
     private func showServerConsole() {
         // Create a new window for the server console
         let consoleWindow = NSWindow(
@@ -1239,66 +1261,68 @@ struct DebugSettingsView: View {
         )
         consoleWindow.title = "Server Console"
         consoleWindow.center()
-        
+
         let consoleView = ServerConsoleView()
             .onDisappear {
                 // This will be called when the window closes
             }
         consoleWindow.contentView = NSHostingView(rootView: consoleView)
-        
+
         let windowController = NSWindowController(window: consoleWindow)
         windowController.showWindow(nil)
     }
-    
+
     private func startHeartbeatMonitoring() {
         // Cancel any existing heartbeat task
         heartbeatTask?.cancel()
-        
+
         // Start a new heartbeat monitoring task
         heartbeatTask = Task {
             while !Task.isCancelled {
                 // Check server health
                 let healthy = await checkServerHealth()
-                
+
                 // Update UI on main actor
                 await MainActor.run {
                     isServerHealthy = healthy
                 }
-                
+
                 // Wait before next heartbeat
                 try? await Task.sleep(for: .seconds(2))
             }
         }
     }
-    
+
     private func checkServerHealth() async -> Bool {
         guard isServerRunning else { return false }
-        
+
         do {
-            let url = URL(string: "http://127.0.0.1:\(serverPort)/api/health")!
+            guard let url = URL(string: "http://127.0.0.1:\(serverPort)/api/health") else {
+                return false
+            }
             var request = URLRequest(url: url)
             request.timeoutInterval = 1.0 // Quick timeout for heartbeat
-            
+
             let (_, response) = try await URLSession.shared.data(for: request)
-            
+
             if let httpResponse = response as? HTTPURLResponse {
                 return httpResponse.statusCode == 200
             }
         } catch {
             // Server not responding or error
-            print("Server health check failed: \(error.localizedDescription)")
+            logger.error("Server health check failed: \(error.localizedDescription)")
         }
-        
+
         return false
     }
-    
+
     private func purgeAllUserDefaults() {
         // Get the app's bundle identifier
         if let bundleIdentifier = Bundle.main.bundleIdentifier {
             // Remove all UserDefaults for this app
             UserDefaults.standard.removePersistentDomain(forName: bundleIdentifier)
             UserDefaults.standard.synchronize()
-            
+
             // Quit the app after a short delay to ensure the purge completes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 NSApplication.shared.terminate(nil)

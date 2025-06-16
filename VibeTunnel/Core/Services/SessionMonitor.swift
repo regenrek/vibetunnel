@@ -80,7 +80,12 @@ class SessionMonitor {
     private func fetchSessions() async {
         do {
             // First check if server is running
-            let healthURL = URL(string: "http://127.0.0.1:\(serverPort)/api/health")!
+            guard let healthURL = URL(string: "http://127.0.0.1:\(serverPort)/api/health") else {
+                self.sessions = [:]
+                self.sessionCount = 0
+                self.lastError = nil
+                return
+            }
             let healthRequest = URLRequest(url: healthURL, timeoutInterval: 2.0)
 
             do {
@@ -103,7 +108,10 @@ class SessionMonitor {
             }
 
             // Server is running, fetch sessions
-            let url = URL(string: "http://127.0.0.1:\(serverPort)/sessions")!
+            guard let url = URL(string: "http://127.0.0.1:\(serverPort)/sessions") else {
+                self.lastError = "Invalid URL"
+                return
+            }
             let request = URLRequest(url: url, timeoutInterval: 5.0)
             let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -119,9 +127,8 @@ class SessionMonitor {
             self.sessions = sessionsData
 
             // Count only running sessions
-            self.sessionCount = sessionsData.values.count(where: { $0.isRunning })
+            self.sessionCount = sessionsData.values.count { $0.isRunning }
             self.lastError = nil
-
         } catch {
             // Don't set error for connection issues when server is likely not running
             if !(error is URLError) {

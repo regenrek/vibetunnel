@@ -59,13 +59,13 @@ final class TTYForwardManager {
 
         do {
             try process.run()
-            
+
             // Set up a handler to log when the process terminates
             process.terminationHandler = { [weak self] process in
                 self?.logger.info("tty-fwd process terminated with status: \(process.terminationStatus)")
                 if process.terminationStatus != 0 {
                     self?.logger.error("tty-fwd process failed with exit code: \(process.terminationStatus)")
-                    
+
                     // Try to read stderr for error details
                     if let errorPipe = process.standardError as? Pipe {
                         let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -75,7 +75,7 @@ final class TTYForwardManager {
                     }
                 }
             }
-            
+
             completion(.success(process))
         } catch {
             logger.error("Failed to execute tty-fwd: \(error.localizedDescription)")

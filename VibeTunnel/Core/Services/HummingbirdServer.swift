@@ -1,12 +1,5 @@
-//
-//  HummingbirdServer.swift
-//  VibeTunnel
-//
-//  Hummingbird-based HTTP server implementation
-//
-
-import Foundation
 import Combine
+import Foundation
 import Hummingbird
 import OSLog
 
@@ -16,13 +9,13 @@ final class HummingbirdServer: ServerProtocol {
     private var tunnelServer: TunnelServer?
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "HummingbirdServer")
     private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
-    
+
     var serverType: ServerMode { .hummingbird }
-    
+
     var isRunning: Bool {
         tunnelServer?.isRunning ?? false
     }
-    
+
     var port: String = "4020" {
         didSet {
             // If server is running and port changed, we need to restart
@@ -33,64 +26,82 @@ final class HummingbirdServer: ServerProtocol {
             }
         }
     }
-    
+
     var logPublisher: AnyPublisher<ServerLogEntry, Never> {
         logSubject.eraseToAnyPublisher()
     }
-    
+
     func start() async throws {
         guard !isRunning else {
             logger.warning("Hummingbird server already running")
             return
         }
-        
+
         logger.info("Starting Hummingbird server on port \(self.port)")
-        logSubject.send(ServerLogEntry(level: .info, message: "Initializing Hummingbird server...", source: .hummingbird))
-        
+        logSubject.send(ServerLogEntry(
+            level: .info,
+            message: "Initializing Hummingbird server...",
+            source: .hummingbird
+        ))
+
         do {
-            let portInt = Int(port) ?? 4020
+            let portInt = Int(port) ?? 4_020
             let bindAddress = ServerManager.shared.bindAddress
             let server = TunnelServer(port: portInt, bindAddress: bindAddress)
             tunnelServer = server
-            
+
             try await server.start()
-            
+
             logger.info("Hummingbird server started successfully")
             logSubject.send(ServerLogEntry(level: .info, message: "Hummingbird server is ready", source: .hummingbird))
-            
         } catch {
             logger.error("Failed to start Hummingbird server: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(level: .error, message: "Failed to start: \(error.localizedDescription)", source: .hummingbird))
+            logSubject.send(ServerLogEntry(
+                level: .error,
+                message: "Failed to start: \(error.localizedDescription)",
+                source: .hummingbird
+            ))
             throw error
         }
     }
-    
+
     func stop() async {
         guard let server = tunnelServer, isRunning else {
             logger.warning("Hummingbird server not running")
             return
         }
-        
+
         logger.info("Stopping Hummingbird server")
-        logSubject.send(ServerLogEntry(level: .info, message: "Shutting down Hummingbird server...", source: .hummingbird))
-        
+        logSubject.send(ServerLogEntry(
+            level: .info,
+            message: "Shutting down Hummingbird server...",
+            source: .hummingbird
+        ))
+
         do {
             try await server.stop()
             tunnelServer = nil
-            
+
             logger.info("Hummingbird server stopped")
-            logSubject.send(ServerLogEntry(level: .info, message: "Hummingbird server shutdown complete", source: .hummingbird))
-            
+            logSubject.send(ServerLogEntry(
+                level: .info,
+                message: "Hummingbird server shutdown complete",
+                source: .hummingbird
+            ))
         } catch {
             logger.error("Error stopping Hummingbird server: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(level: .error, message: "Error stopping: \(error.localizedDescription)", source: .hummingbird))
+            logSubject.send(ServerLogEntry(
+                level: .error,
+                message: "Error stopping: \(error.localizedDescription)",
+                source: .hummingbird
+            ))
         }
     }
-    
+
     func restart() async throws {
         logger.info("Restarting Hummingbird server")
         logSubject.send(ServerLogEntry(level: .info, message: "Restarting server", source: .hummingbird))
-        
+
         await stop()
         try await start()
     }

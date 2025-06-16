@@ -1,12 +1,5 @@
-//
-//  ServerConsoleView.swift
-//  VibeTunnel
-//
-//  Console view for displaying server logs
-//
-
-import SwiftUI
 import Observation
+import SwiftUI
 
 /// View for displaying server console logs
 struct ServerConsoleView: View {
@@ -14,7 +7,7 @@ struct ServerConsoleView: View {
     @State private var autoScroll = true
     @State private var filterText = ""
     @State private var selectedLevel: ServerLogEntry.Level?
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header with controls
@@ -23,11 +16,11 @@ struct ServerConsoleView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    
+
                     TextField("Filter logs...", text: $filterText)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
-                    
+
                     Picker("Level", selection: $selectedLevel) {
                         Text("All").tag(nil as ServerLogEntry.Level?)
                         Text("Debug").tag(ServerLogEntry.Level.debug)
@@ -38,20 +31,20 @@ struct ServerConsoleView: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                 }
-                
+
                 Spacer()
-                
+
                 // Controls
                 HStack(spacing: 12) {
                     Toggle("Auto-scroll", isOn: $autoScroll)
                         .toggleStyle(.checkbox)
-                    
-                    Button(action: { viewModel.clearLogs() }) {
+
+                    Button(action: viewModel.clearLogs) {
                         Label("Clear", systemImage: "trash")
                     }
                     .buttonStyle(.borderless)
-                    
-                    Button(action: { viewModel.exportLogs() }) {
+
+                    Button(action: viewModel.exportLogs) {
                         Label("Export", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderless)
@@ -59,9 +52,9 @@ struct ServerConsoleView: View {
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
-            
+
             Divider()
-            
+
             // Console output
             ScrollViewReader { proxy in
                 ScrollView {
@@ -70,7 +63,7 @@ struct ServerConsoleView: View {
                             ServerLogEntryView(entry: entry)
                                 .id(entry.id)
                         }
-                        
+
                         // Invisible anchor for auto-scrolling
                         Color.clear
                             .frame(height: 1)
@@ -94,19 +87,19 @@ struct ServerConsoleView: View {
             viewModel.cleanup()
         }
     }
-    
+
     private var filteredLogs: [ServerLogEntry] {
         viewModel.logs.filter { entry in
             // Level filter
-            if let selectedLevel = selectedLevel, entry.level != selectedLevel {
+            if let selectedLevel, entry.level != selectedLevel {
                 return false
             }
-            
+
             // Text filter
             if !filterText.isEmpty {
                 return entry.message.localizedCaseInsensitiveContains(filterText)
             }
-            
+
             return true
         }
     }
@@ -115,7 +108,7 @@ struct ServerConsoleView: View {
 /// View for a single log entry
 struct ServerLogEntryView: View {
     let entry: ServerLogEntry
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             // Timestamp
@@ -123,13 +116,13 @@ struct ServerLogEntryView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 80, alignment: .leading)
-            
+
             // Level indicator
             Circle()
                 .fill(entry.level.color)
                 .frame(width: 6, height: 6)
                 .padding(.top, 6)
-            
+
             // Source badge
             Text(entry.source.displayName)
                 .font(.caption2)
@@ -138,7 +131,7 @@ struct ServerLogEntryView: View {
                 .background(entry.source.color.opacity(0.2))
                 .foregroundStyle(entry.source.color)
                 .clipShape(Capsule())
-            
+
             // Message
             Text(entry.message)
                 .textSelection(.enabled)
@@ -154,10 +147,10 @@ struct ServerLogEntryView: View {
 @Observable
 class ServerConsoleViewModel {
     private(set) var logs: [ServerLogEntry] = []
-    
+
     private var logTask: Task<Void, Never>?
-    private let maxLogs = 1000
-    
+    private let maxLogs = 1_000
+
     init() {
         // Subscribe to server logs using async stream
         logTask = Task { [weak self] in
@@ -166,39 +159,40 @@ class ServerConsoleViewModel {
             }
         }
     }
-    
+
     func cleanup() {
         logTask?.cancel()
     }
-    
+
     private func addLog(_ entry: ServerLogEntry) {
         logs.append(entry)
-        
+
         // Trim old logs if needed
         if logs.count > maxLogs {
             logs.removeFirst(logs.count - maxLogs)
         }
     }
-    
+
     func clearLogs() {
         logs.removeAll()
     }
-    
+
     func exportLogs() {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
-        
+
         let logText = logs.map { entry in
             let timestamp = dateFormatter.string(from: entry.timestamp)
             let level = String(describing: entry.level).uppercased().padding(toLength: 7, withPad: " ", startingAt: 0)
             let source = entry.source.displayName.padding(toLength: 12, withPad: " ", startingAt: 0)
             return "[\(timestamp)] [\(level)] [\(source)] \(entry.message)"
-        }.joined(separator: "\n")
-        
+        }
+        .joined(separator: "\n")
+
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.plainText]
         savePanel.nameFieldStringValue = "vibetunnel-server-logs.txt"
-        
+
         if savePanel.runModal() == .OK, let url = savePanel.url {
             try? logText.write(to: url, atomically: true, encoding: .utf8)
         }
@@ -216,19 +210,19 @@ extension ServerLogEntry: Identifiable {
 extension ServerLogEntry.Level {
     var color: Color {
         switch self {
-        case .debug: return .gray
-        case .info: return .blue
-        case .warning: return .orange
-        case .error: return .red
+        case .debug: .gray
+        case .info: .blue
+        case .warning: .orange
+        case .error: .red
         }
     }
-    
+
     var textColor: Color {
         switch self {
-        case .debug: return .secondary
-        case .info: return .primary
-        case .warning: return .orange
-        case .error: return .red
+        case .debug: .secondary
+        case .info: .primary
+        case .warning: .orange
+        case .error: .red
         }
     }
 }
@@ -236,8 +230,8 @@ extension ServerLogEntry.Level {
 extension ServerMode {
     var color: Color {
         switch self {
-        case .hummingbird: return .blue
-        case .rust: return .orange
+        case .hummingbird: .blue
+        case .rust: .orange
         }
     }
 }

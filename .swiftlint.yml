@@ -84,6 +84,8 @@ disabled_rules:
   - todo
   # Disable opening_brace as it conflicts with SwiftFormat's multiline wrapping
   - opening_brace
+  # Note: Swift 6 requires more explicit self references
+  # SwiftFormat is configured to preserve these with --disable redundantSelf
 
 # Rule parameters
 type_name:

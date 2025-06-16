@@ -36,7 +36,8 @@
 --disable redundantSelf
 
 # Modern Swift patterns
---self init-only
+# For Swift 6 compatibility, preserve self references
+--self insert
 --selfrequired 
 --importgrouping testable-last
 --patternlet inline

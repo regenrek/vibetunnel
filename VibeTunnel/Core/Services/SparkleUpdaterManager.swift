@@ -27,45 +27,45 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
 
         // Initialize Sparkle with standard configuration
         #if DEBUG
-        // In debug mode, don't start the updater automatically
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: self,
-            userDriverDelegate: nil
-        )
+            // In debug mode, don't start the updater automatically
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: false,
+                updaterDelegate: self,
+                userDriverDelegate: nil
+            )
         #else
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: self,
-            userDriverDelegate: nil
-        )
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: self,
+                userDriverDelegate: nil
+            )
         #endif
 
         // Configure automatic updates
         if let updater = updaterController?.updater {
             #if DEBUG
-            // Disable automatic checks in debug builds
-            updater.automaticallyChecksForUpdates = false
-            updater.automaticallyDownloadsUpdates = false
-            logger.info("Sparkle updater initialized in DEBUG mode - automatic updates disabled")
+                // Disable automatic checks in debug builds
+                updater.automaticallyChecksForUpdates = false
+                updater.automaticallyDownloadsUpdates = false
+                logger.info("Sparkle updater initialized in DEBUG mode - automatic updates disabled")
             #else
-            // Enable automatic checking for updates
-            updater.automaticallyChecksForUpdates = true
+                // Enable automatic checking for updates
+                updater.automaticallyChecksForUpdates = true
 
-            // Enable automatic downloading of updates
-            updater.automaticallyDownloadsUpdates = true
+                // Enable automatic downloading of updates
+                updater.automaticallyDownloadsUpdates = true
 
-            // Set update check interval to 24 hours
-            updater.updateCheckInterval = 86_400
+                // Set update check interval to 24 hours
+                updater.updateCheckInterval = 86_400
 
-            logger.info("Sparkle updater initialized successfully with automatic downloads enabled")
-            
-            // Start the updater if it wasn't started during initialization
-            if !updaterController!.startedUpdater {
-                updaterController!.updater.startUpdater()
-            }
+                logger.info("Sparkle updater initialized successfully with automatic downloads enabled")
+
+                // Start the updater if it wasn't started during initialization
+                if let controller = updaterController, !controller.startedUpdater {
+                    controller.updater.startUpdater()
+                }
             #endif
-            
+
             // Note: feedURL configuration happens through delegate methods
         }
     }
@@ -74,7 +74,7 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
         // Save the channel preference
         UserDefaults.standard.set(channel.rawValue, forKey: "updateChannel")
         logger.info("Update channel set to: \(channel.rawValue)")
-        
+
         // The actual feed URL will be provided by the delegate method
     }
 
@@ -115,24 +115,26 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
 // MARK: - SPUUpdaterDelegate
 
 extension SparkleUpdaterManager {
-    nonisolated public func updater(_ updater: SPUUpdater, mayPerformUpdateCheck updateCheck: SPUUpdateCheck) throws {
+    public nonisolated func updater(_ updater: SPUUpdater, mayPerformUpdateCheck updateCheck: SPUUpdateCheck) throws {
         // Allow update checks by default - not throwing an error means the check is allowed
         // We could add logic here to prevent checks during certain conditions
     }
-    
-    nonisolated public func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+
+    public nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         // Get the current update channel from UserDefaults
         if let savedChannel = UserDefaults.standard.string(forKey: "updateChannel"),
-           let channel = UpdateChannel(rawValue: savedChannel) {
+           let channel = UpdateChannel(rawValue: savedChannel)
+        {
             return channel.includesPreReleases ? Set(["", "prerelease"]) : Set([""])
         }
         return Set([""]) // Default to stable channel only
     }
-    
-    nonisolated public func feedURLString(for updater: SPUUpdater) -> String? {
+
+    public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
         // Provide the appropriate feed URL based on the current update channel
         if let savedChannel = UserDefaults.standard.string(forKey: "updateChannel"),
-           let channel = UpdateChannel(rawValue: savedChannel) {
+           let channel = UpdateChannel(rawValue: savedChannel)
+        {
             return channel.appcastURL.absoluteString
         }
         return UpdateChannel.defaultChannel.appcastURL.absoluteString
@@ -167,7 +169,8 @@ public final class SparkleViewModel {
 
         // Load saved update channel
         if let savedChannel = UserDefaults.standard.string(forKey: "updateChannel"),
-           let channel = UpdateChannel(rawValue: savedChannel) {
+           let channel = UpdateChannel(rawValue: savedChannel)
+        {
             updateChannel = channel
         } else {
             updateChannel = UpdateChannel.stable
@@ -190,7 +193,9 @@ extension ProcessInfo {
     fileprivate var installedFromAppStore: Bool {
         // Check for App Store receipt
         let receiptURL = Bundle.main.appStoreReceiptURL
-        return receiptURL?.lastPathComponent == "receipt" && FileManager.default
-            .fileExists(atPath: receiptURL?.path ?? "")
+        if let receiptURL {
+            return receiptURL.lastPathComponent == "receipt" && FileManager.default.fileExists(atPath: receiptURL.path)
+        }
+        return false
     }
 }

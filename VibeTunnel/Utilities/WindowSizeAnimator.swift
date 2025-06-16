@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import Observation
+import SwiftUI
 
 /// A custom window size animator that works with SwiftUI Settings windows
 @MainActor

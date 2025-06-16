@@ -5,7 +5,7 @@ import Logging
 /// Format specification: https://docs.asciinema.org/manual/asciicast/v2/
 struct CastFileGenerator {
     private let logger = Logger(label: "VibeTunnel.CastFileGenerator")
-    
+
     struct CastHeader: Codable {
         let version: Int = 2
         let width: Int
@@ -16,7 +16,7 @@ struct CastFileGenerator {
         let command: String?
         let title: String?
         let env: [String: String]?
-        
+
         enum CodingKeys: String, CodingKey {
             case version
             case width
@@ -29,13 +29,13 @@ struct CastFileGenerator {
             case env
         }
     }
-    
+
     struct CastEvent {
         let time: TimeInterval
         let eventType: String
         let data: String
     }
-    
+
     /// Generate a cast file from a session's stream-out file
     func generateCastFile(
         sessionId: String,
@@ -44,49 +44,53 @@ struct CastFileGenerator {
         height: Int = 24,
         title: String? = nil,
         command: String? = nil
-    ) throws -> Data {
+    )
+        throws -> Data
+    {
         guard FileManager.default.fileExists(atPath: streamOutPath) else {
             throw CastFileError.fileNotFound(streamOutPath)
         }
-        
+
         let content = try String(contentsOfFile: streamOutPath, encoding: .utf8)
         let lines = content.components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        
+
         var outputData = Data()
         var events: [CastEvent] = []
         var startTime: Date?
         var sessionWidth = width
         var sessionHeight = height
-        
+
         // Parse the stream-out file
         for line in lines {
             guard let data = line.data(using: .utf8),
-                  let parsed = try? JSONSerialization.jsonObject(with: data) else {
+                  let parsed = try? JSONSerialization.jsonObject(with: data)
+            else {
                 continue
             }
-            
+
             // Check if it's a header
             if let dict = parsed as? [String: Any],
-               dict["version"] as? Int != nil,
-               let w = dict["width"] as? Int,
-               let h = dict["height"] as? Int {
-                sessionWidth = w
-                sessionHeight = h
+               dict["version"] is Int,
+               let width = dict["width"] as? Int,
+               let height = dict["height"] as? Int
+            {
+                sessionWidth = width
+                sessionHeight = height
                 continue
             }
-            
+
             // Parse as event [timestamp, type, data]
             if let array = parsed as? [Any],
                array.count >= 3,
                let timestamp = array[0] as? TimeInterval,
                let eventType = array[1] as? String,
-               let eventData = array[2] as? String {
-                
+               let eventData = array[2] as? String
+            {
                 if startTime == nil {
                     startTime = Date()
                 }
-                
+
                 events.append(CastEvent(
                     time: timestamp,
                     eventType: eventType,
@@ -94,7 +98,7 @@ struct CastFileGenerator {
                 ))
             }
         }
-        
+
         // Generate header
         let header = CastHeader(
             width: sessionWidth,
@@ -106,26 +110,26 @@ struct CastFileGenerator {
             title: title,
             env: nil
         )
-        
+
         // Write header as first line
         let headerData = try JSONEncoder().encode(header)
         outputData.append(headerData)
         outputData.append(Data("\n".utf8))
-        
+
         // Write events
         let encoder = JSONEncoder()
         encoder.outputFormatting = .withoutEscapingSlashes
-        
+
         for event in events {
             let eventArray: [Any] = [event.time, event.eventType, event.data]
             let eventData = try JSONSerialization.data(withJSONObject: eventArray)
             outputData.append(eventData)
             outputData.append(Data("\n".utf8))
         }
-        
+
         return outputData
     }
-    
+
     /// Generate a cast file and save it to disk
     func saveCastFile(
         sessionId: String,
@@ -135,7 +139,9 @@ struct CastFileGenerator {
         height: Int = 24,
         title: String? = nil,
         command: String? = nil
-    ) throws {
+    )
+        throws
+    {
         let castData = try generateCastFile(
             sessionId: sessionId,
             streamOutPath: streamOutPath,
@@ -144,16 +150,18 @@ struct CastFileGenerator {
             title: title,
             command: command
         )
-        
+
         try castData.write(to: URL(fileURLWithPath: outputPath))
         logger.info("Cast file saved to: \(outputPath)")
     }
-    
+
     /// Generate a live cast stream that can be consumed in real-time
     func streamCastEvents(
         from streamOutPath: String,
         startTime: Date
-    ) -> AsyncStream<Data> {
+    )
+        -> AsyncStream<Data>
+    {
         AsyncStream { continuation in
             Task {
                 let fileDescriptor = open(streamOutPath, O_RDONLY)
@@ -162,24 +170,24 @@ struct CastFileGenerator {
                     continuation.finish()
                     return
                 }
-                
+
                 defer {
                     close(fileDescriptor)
                     continuation.finish()
                 }
-                
+
                 var lastReadPosition: off_t = 0
-                
+
                 while !Task.isCancelled {
                     let currentPosition = lseek(fileDescriptor, 0, SEEK_END)
                     let bytesToRead = currentPosition - lastReadPosition
-                    
+
                     if bytesToRead > 0 {
                         lseek(fileDescriptor, lastReadPosition, SEEK_SET)
-                        
+
                         let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(bytesToRead) + 1)
                         defer { buffer.deallocate() }
-                        
+
                         let bytesRead = read(fileDescriptor, buffer, Int(bytesToRead))
                         if bytesRead > 0 {
                             let data = Data(bytes: buffer, count: bytesRead)
@@ -197,26 +205,27 @@ struct CastFileGenerator {
                             lastReadPosition = currentPosition
                         }
                     }
-                    
+
                     // Sleep briefly before checking again
                     try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 }
             }
         }
     }
-    
+
     private func processLineToAsciinemaEvent(line: String, startTime: Date) -> Data? {
         guard let data = line.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: data) as? [Any],
               parsed.count >= 3,
               let eventType = parsed[1] as? String,
-              let eventData = parsed[2] as? String else {
+              let eventData = parsed[2] as? String
+        else {
             return nil
         }
-        
+
         let currentTime = Date()
         let timestamp = currentTime.timeIntervalSince(startTime)
-        
+
         let event: [Any] = [timestamp, eventType, eventData]
         return try? JSONSerialization.data(withJSONObject: event)
     }
@@ -226,15 +235,15 @@ enum CastFileError: LocalizedError {
     case fileNotFound(String)
     case invalidFormat
     case encodingError
-    
+
     var errorDescription: String? {
         switch self {
         case .fileNotFound(let path):
-            return "Stream file not found: \(path)"
+            "Stream file not found: \(path)"
         case .invalidFormat:
-            return "Invalid stream file format"
+            "Invalid stream file format"
         case .encodingError:
-            return "Failed to encode cast file"
+            "Failed to encode cast file"
         }
     }
 }

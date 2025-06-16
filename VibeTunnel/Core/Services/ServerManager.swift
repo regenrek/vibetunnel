@@ -1,69 +1,64 @@
-//
-//  ServerManager.swift
-//  VibeTunnel
-//
-//  Manages server lifecycle and switching between server modes
-//
-
-import Foundation
-import SwiftUI
 import Combine
-import OSLog
+import Foundation
 import Observation
+import OSLog
+import SwiftUI
 
 /// Manages the active server and handles switching between modes
 @MainActor
 @Observable
 class ServerManager {
     static let shared = ServerManager()
-    
+
     private var serverModeString: String {
         get { UserDefaults.standard.string(forKey: "serverMode") ?? ServerMode.rust.rawValue }
         set { UserDefaults.standard.set(newValue, forKey: "serverMode") }
     }
-    
+
     var port: String {
         get { UserDefaults.standard.string(forKey: "serverPort") ?? "4020" }
         set { UserDefaults.standard.set(newValue, forKey: "serverPort") }
     }
-    
+
     var bindAddress: String {
-        get { 
-            let mode = DashboardAccessMode(rawValue: UserDefaults.standard.string(forKey: "dashboardAccessMode") ?? "") ?? .localhost
+        get {
+            let mode = DashboardAccessMode(rawValue: UserDefaults.standard.string(forKey: "dashboardAccessMode") ?? ""
+            ) ??
+                .localhost
             return mode.bindAddress
         }
-        set { 
+        set {
             // Find the mode that matches this bind address
             if let mode = DashboardAccessMode.allCases.first(where: { $0.bindAddress == newValue }) {
                 UserDefaults.standard.set(mode.rawValue, forKey: "dashboardAccessMode")
             }
         }
     }
-    
+
     private var cleanupOnStartup: Bool {
         get { UserDefaults.standard.bool(forKey: "cleanupOnStartup") }
         set { UserDefaults.standard.set(newValue, forKey: "cleanupOnStartup") }
     }
-    
+
     private(set) var currentServer: ServerProtocol?
     private(set) var isRunning = false
     private(set) var isSwitching = false
     private(set) var lastError: Error?
-    
+
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "ServerManager")
     private var cancellables = Set<AnyCancellable>()
     private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
-    
+
     var serverMode: ServerMode {
         get { ServerMode(rawValue: serverModeString) ?? .rust }
         set { serverModeString = newValue.rawValue }
     }
-    
+
     var logPublisher: AnyPublisher<ServerLogEntry, Never> {
         logSubject.eraseToAnyPublisher()
     }
-    
-    // Modern async stream for logs
+
+    /// Modern async stream for logs
     var logStream: AsyncStream<ServerLogEntry> {
         AsyncStream { continuation in
             // Use logPublisher directly without storing the cancellable
@@ -75,11 +70,11 @@ class ServerManager {
             }
         }
     }
-    
+
     private init() {
         setupObservers()
     }
-    
+
     private func setupObservers() {
         // Watch for server mode changes when the value actually changes
         // Since we're using @AppStorage, we need to observe changes differently
@@ -91,18 +86,18 @@ class ServerManager {
             }
             .store(in: &cancellables)
     }
-    
+
     /// Start the server with current configuration
     func start() async {
         // Check if we already have a running server
         if let existingServer = currentServer {
             logger.info("Server already running on port \(existingServer.port)")
-            
+
             // Ensure our state is synced
             isRunning = true
             lastError = nil
             ServerMonitor.shared.isServerRunning = true
-            
+
             // Log for clarity
             logSubject.send(ServerLogEntry(
                 level: .info,
@@ -111,39 +106,38 @@ class ServerManager {
             ))
             return
         }
-        
+
         // Log that we're starting a server
         logSubject.send(ServerLogEntry(
             level: .info,
             message: "Starting \(serverMode.displayName) server on port \(port)...",
             source: serverMode
         ))
-        
+
         do {
             let server = createServer(for: serverMode)
             server.port = port
-            
+
             // Subscribe to server logs
             server.logPublisher
                 .sink { [weak self] entry in
                     self?.logSubject.send(entry)
                 }
                 .store(in: &cancellables)
-            
+
             try await server.start()
-            
+
             currentServer = server
             isRunning = true
             lastError = nil
-            
+
             logger.info("Started \(self.serverMode.displayName) server on port \(self.port)")
-            
+
             // Update ServerMonitor for compatibility
             ServerMonitor.shared.isServerRunning = true
-            
+
             // Trigger cleanup of old sessions after server starts
             await triggerInitialCleanup()
-            
         } catch {
             logger.error("Failed to start server: \(error.localizedDescription)")
             logSubject.send(ServerLogEntry(
@@ -152,7 +146,7 @@ class ServerManager {
                 source: serverMode
             ))
             lastError = error
-            
+
             // Check if server is actually running despite the error
             if let server = currentServer, server.isRunning {
                 logger.warning("Server reported as running despite startup error, syncing state")
@@ -164,55 +158,55 @@ class ServerManager {
             }
         }
     }
-    
+
     /// Stop the current server
     func stop() async {
         guard let server = currentServer else {
             logger.warning("No server running")
             return
         }
-        
+
         let serverType = server.serverType
         logger.info("Stopping \(serverType.displayName) server")
-        
+
         // Log that we're stopping the server
         logSubject.send(ServerLogEntry(
             level: .info,
             message: "Stopping \(serverType.displayName) server...",
             source: serverType
         ))
-        
+
         await server.stop()
         currentServer = nil
         isRunning = false
-        
+
         // Log that the server has stopped
         logSubject.send(ServerLogEntry(
             level: .info,
             message: "\(serverType.displayName) server stopped",
             source: serverType
         ))
-        
+
         // Update ServerMonitor for compatibility
         ServerMonitor.shared.isServerRunning = false
     }
-    
+
     /// Restart the current server
     func restart() async {
         await stop()
         await start()
     }
-    
+
     /// Switch to a different server mode
     func switchMode(to mode: ServerMode) async {
         guard mode != serverMode else { return }
-        
+
         isSwitching = true
         defer { isSwitching = false }
-        
+
         let oldMode = serverMode
         logger.info("Switching from \(oldMode.displayName) to \(mode.displayName)")
-        
+
         // Log the mode switch with a clear separator
         logSubject.send(ServerLogEntry(
             level: .info,
@@ -229,21 +223,21 @@ class ServerManager {
             message: "════════════════════════════════════════════════════════",
             source: oldMode
         ))
-        
+
         // Stop current server if running
         if currentServer != nil {
             await stop()
         }
-        
+
         // Add a small delay for visual clarity in logs
         try? await Task.sleep(for: .milliseconds(500))
-        
+
         // Update mode
         serverMode = mode
-        
+
         // Start new server
         await start()
-        
+
         // Log completion
         logSubject.send(ServerLogEntry(
             level: .info,
@@ -261,7 +255,7 @@ class ServerManager {
             source: mode
         ))
     }
-    
+
     private func handleServerModeChange() async {
         // This is called when serverMode changes via AppStorage
         // If we have a running server, switch to the new mode
@@ -269,16 +263,16 @@ class ServerManager {
             await switchMode(to: serverMode)
         }
     }
-    
+
     private func createServer(for mode: ServerMode) -> ServerProtocol {
         switch mode {
         case .hummingbird:
-            return HummingbirdServer()
+            HummingbirdServer()
         case .rust:
-            return RustServer()
+            RustServer()
         }
     }
-    
+
     /// Trigger cleanup of exited sessions after server startup
     private func triggerInitialCleanup() async {
         // Check if cleanup on startup is enabled
@@ -286,27 +280,31 @@ class ServerManager {
             logger.info("Cleanup on startup is disabled in settings")
             return
         }
-        
+
         logger.info("Triggering initial cleanup of exited sessions")
-        
+
         // Small delay to ensure server is fully ready
         try? await Task.sleep(for: .milliseconds(500))
-        
+
         do {
             // Create URL for cleanup endpoint
-            let url = URL(string: "http://localhost:\(port)/api/cleanup-exited")!
+            guard let url = URL(string: "http://localhost:\(port)/api/cleanup-exited") else {
+                logger.warning("Failed to create cleanup URL")
+                return
+            }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.timeoutInterval = 10
-            
+
             // Make the cleanup request
             let (data, response) = try await URLSession.shared.data(for: request)
-            
+
             if let httpResponse = response as? HTTPURLResponse {
                 if httpResponse.statusCode == 200 {
                     // Try to parse the response
                     if let jsonData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let cleanedCount = jsonData["cleaned_count"] as? Int {
+                       let cleanedCount = jsonData["cleaned_count"] as? Int
+                    {
                         logger.info("Initial cleanup completed: cleaned \(cleanedCount) exited sessions")
                         logSubject.send(ServerLogEntry(
                             level: .info,

@@ -173,7 +173,8 @@ final class ApplicationMover {
 
             guard let plist = try PropertyListSerialization
                 .propertyList(from: data, options: [], format: nil) as? [String: Any],
-                let images = plist["images"] as? [[String: Any]] else {
+                let images = plist["images"] as? [[String: Any]]
+            else {
                 logger.debug("ApplicationMover: No disk images found in hdiutil output")
                 return nil
             }
@@ -183,7 +184,8 @@ final class ApplicationMover {
                 if let entities = image["system-entities"] as? [[String: Any]] {
                     for entity in entities {
                         if let entityDevName = entity["dev-entry"] as? String,
-                           entityDevName == deviceName {
+                           entityDevName == deviceName
+                        {
                             logger.debug("Found matching disk image for device: \(deviceName)")
                             return deviceName
                         }
@@ -193,7 +195,6 @@ final class ApplicationMover {
 
             logger.debug("Device \(deviceName) is not a disk image")
             return nil
-
         } catch {
             logger.debug("ApplicationMover: Unable to run hdiutil (expected in some environments): \(error)")
             return nil
@@ -285,7 +286,6 @@ final class ApplicationMover {
 
             // Show success message and offer to relaunch
             showMoveSuccessAndRelaunch(newPath: applicationsPath)
-
         } catch {
             logger.error("Failed to move app to Applications: \(error)")
             showMoveError(error)

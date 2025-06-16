@@ -81,7 +81,7 @@ final class NgrokService: NgrokTunnelProtocol {
             }
         }
     }
-    
+
     /// Check if auth token exists without triggering keychain prompt
     var hasAuthToken: Bool {
         KeychainHelper.hasNgrokAuthToken()
@@ -148,7 +148,7 @@ final class NgrokService: NgrokTunnelProtocol {
         let checkProcess = Process()
         checkProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         checkProcess.arguments = ["ngrok"]
-        
+
         // Add common Homebrew paths to PATH for the check
         var environment = ProcessInfo.processInfo.environment
         let currentPath = environment["PATH"] ?? "/usr/bin:/bin"
@@ -174,7 +174,10 @@ final class NgrokService: NgrokTunnelProtocol {
             // Set up ngrok with auth token
             let authProcess = Process()
             authProcess.executableURL = URL(fileURLWithPath: ngrokPath)
-            authProcess.arguments = ["config", "add-authtoken", authToken!]
+            guard let authToken else {
+                throw NgrokError.authTokenMissing
+            }
+            authProcess.arguments = ["config", "add-authtoken", authToken]
 
             try authProcess.run()
             authProcess.waitUntilExit()
@@ -232,7 +235,6 @@ final class NgrokService: NgrokTunnelProtocol {
 
             logger.info("ngrok tunnel started: \(url)")
             return url
-
         } catch {
             logger.error("Failed to start ngrok: \(error)")
             throw error
@@ -286,7 +288,9 @@ final class NgrokService: NgrokTunnelProtocol {
                 throw NgrokError.networkError("Operation timed out")
             }
 
-            let result = try await group.next()!
+            guard let result = try await group.next() else {
+                throw NgrokError.networkError("No result received")
+            }
             group.cancelAll()
             return result
         }
@@ -313,7 +317,8 @@ struct AsyncLineSequence: AsyncSequence {
 
         mutating func next() async -> String? {
             while true {
-                if let range = buffer.range(of: "\n".data(using: .utf8)!) {
+                let lineBreakData = Data("\n".utf8)
+                if let range = buffer.range(of: lineBreakData) {
                     let line = String(data: buffer[..<range.lowerBound], encoding: .utf8)
                     buffer.removeSubrange(..<range.upperBound)
                     return line
@@ -365,7 +370,7 @@ private enum KeychainHelper {
 
         return token
     }
-    
+
     /// Check if a token exists without retrieving it (won't trigger keychain prompt)
     static func hasNgrokAuthToken() -> Bool {
         let query: [String: Any] = [
@@ -376,15 +381,17 @@ private enum KeychainHelper {
             kSecReturnAttributes as String: false,
             kSecReturnData as String: false
         ]
-        
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
+
         return status == errSecSuccess
     }
 
     static func setNgrokAuthToken(_ token: String) {
-        let data = token.data(using: .utf8)!
+        guard let data = token.data(using: .utf8) else {
+            return
+        }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

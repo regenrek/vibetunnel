@@ -110,10 +110,9 @@ public final class TunnelServer {
     private var serverTask: Task<Void, Error>?
     private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel")
         .appendingPathComponent("control").path
-    
 
     private var bindAddress: String
-    
+
     public init(port: Int = 4_020, bindAddress: String = "127.0.0.1") {
         self.port = port
         self.bindAddress = bindAddress
@@ -124,13 +123,12 @@ public final class TunnelServer {
 
         logger.info("Starting TunnelServer on port \(port)")
 
-
         do {
             let router = Router(context: BasicRequestContext.self)
 
             // Add middleware
             router.add(middleware: LogRequestsMiddleware(.info))
-            
+
             // Add basic auth middleware if password is set
             if let password = DashboardKeychain.shared.getPassword() {
                 router.add(middleware: BasicAuthMiddleware(password: password))
@@ -149,7 +147,7 @@ public final class TunnelServer {
                     "uptime": ProcessInfo.processInfo.systemUptime
                 ]
 
-                let jsonData = try! JSONSerialization.data(withJSONObject: info)
+                let jsonData = (try? JSONSerialization.data(withJSONObject: info)) ?? Data()
                 var buffer = ByteBuffer()
                 buffer.writeBytes(jsonData)
 
@@ -234,9 +232,12 @@ public final class TunnelServer {
 
             // Legacy endpoint for backwards compatibility
             router.get("/sessions") { _, _ async -> Response in
-                
                 let process = await MainActor.run {
-                    TTYForwardManager.shared.createTTYForwardProcess(with: ["--control-path", self.ttyFwdControlDir, "--list-sessions"])
+                    TTYForwardManager.shared.createTTYForwardProcess(with: [
+                        "--control-path",
+                        self.ttyFwdControlDir,
+                        "--list-sessions"
+                    ])
                 }
 
                 guard let process else {
@@ -274,26 +275,28 @@ public final class TunnelServer {
                     } else {
                         // Read error output
                         let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                        let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                        
+                        let errorString = String(data: errorData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
                         // Provide more descriptive error messages based on exit code
                         let statusCode = Int(process.terminationStatus)
-                        let errorDescription: String
-                        
-                        switch statusCode {
+                        let errorDescription: String = switch statusCode {
                         case 9:
-                            errorDescription = "Process was killed (SIGKILL). The control directory may not exist or be accessible."
+                            "Process was killed (SIGKILL). The control directory may not exist or be accessible."
                         case -9:
-                            errorDescription = "Process was terminated by SIGKILL. This might be due to macOS security restrictions."
+                            "Process was terminated by SIGKILL. This might be due to macOS security restrictions."
                         default:
-                            errorDescription = errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
+                            errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
                         }
-                        
+
                         // Log additional debugging information
                         self.logger.error("tty-fwd executable path: \(process.executableURL?.path ?? "unknown")")
                         self.logger.error("Control directory path: \(self.ttyFwdControlDir)")
-                        self.logger.error("Control directory exists: \(FileManager.default.fileExists(atPath: self.ttyFwdControlDir))")
-                        
+                        self.logger
+                            .error(
+                                "Control directory exists: \(FileManager.default.fileExists(atPath: self.ttyFwdControlDir))"
+                            )
+
                         self.logger.error("tty-fwd failed with status \(statusCode): \(errorDescription)")
 
                         let errorJson =
@@ -322,11 +325,11 @@ public final class TunnelServer {
 
             // Serve index.html from root path
             router.get("/") { _, _ async -> Response in
-                return await self.serveStaticFile(path: "index.html")
+                await self.serveStaticFile(path: "index.html")
             }
 
             // Serve static files from web/public folder (catch-all route - must be last)
-            router.get("**") { request, context async -> Response in
+            router.get("**") { request, _ async -> Response in
                 // Get the full path from the request URI
                 let requestPath = request.uri.path
                 // Remove leading slash
@@ -391,7 +394,6 @@ public final class TunnelServer {
             } else {
                 throw ServerError.failedToStart("Server did not start listening on port \(port)")
             }
-
         } catch {
             lastError = error
             isRunning = false
@@ -417,7 +419,9 @@ public final class TunnelServer {
     /// Verifies the server is listening by attempting an HTTP health check
     private func isServerListening(on port: Int) async -> Bool {
         do {
-            let url = URL(string: "http://127.0.0.1:\(port)/api/health")!
+            guard let url = URL(string: "http://127.0.0.1:\(port)/api/health") else {
+                return false
+            }
             let request = URLRequest(url: url, timeoutInterval: 1.0)
             let (_, response) = try await URLSession.shared.data(for: request)
 
@@ -438,7 +442,9 @@ public final class TunnelServer {
             throw NSError(
                 domain: "TtyFwdError",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "tty-fwd binary not found. Please ensure the app was built correctly."]
+                userInfo: [
+                    NSLocalizedDescriptionKey: "tty-fwd binary not found. Please ensure the app was built correctly."
+                ]
             )
         }
 
@@ -455,40 +461,40 @@ public final class TunnelServer {
             return String(data: outputData, encoding: .utf8) ?? ""
         } else {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            
+            let errorString = String(data: errorData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
             // Provide more descriptive error messages based on exit code
             let statusCode = Int(process.terminationStatus)
-            let errorDescription: String
-            
-            switch statusCode {
+            let errorDescription: String = switch statusCode {
             case 1:
-                errorDescription = "General error: \(errorString.isEmpty ? "Command failed" : errorString)"
+                "General error: \(errorString.isEmpty ? "Command failed" : errorString)"
             case 2:
-                errorDescription = "Misuse of shell command: \(errorString.isEmpty ? "Invalid arguments" : errorString)"
+                "Misuse of shell command: \(errorString.isEmpty ? "Invalid arguments" : errorString)"
             case 9:
-                errorDescription = "Process was killed (SIGKILL). The control directory may not exist or be accessible."
+                "Process was killed (SIGKILL). The control directory may not exist or be accessible."
             case -9:
-                errorDescription = "Process was terminated by SIGKILL. This might be due to macOS security restrictions."
+                "Process was terminated by SIGKILL. This might be due to macOS security restrictions."
             case 126:
-                errorDescription = "Command found but not executable"
+                "Command found but not executable"
             case 127:
-                errorDescription = "Command not found"
+                "Command not found"
             case 130:
-                errorDescription = "Process terminated by Ctrl+C"
+                "Process terminated by Ctrl+C"
             case 139:
-                errorDescription = "Segmentation fault"
+                "Segmentation fault"
             default:
-                errorDescription = errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
+                errorString.isEmpty ? "Process exited with code \(statusCode)" : errorString
             }
-            
+
             // Log additional debugging information for SIGKILL
             if statusCode == 9 || statusCode == -9 {
                 logger.error("tty-fwd executable path: \(process.executableURL?.path ?? "unknown")")
                 logger.error("Arguments: \(args.joined(separator: " "))")
-                logger.error("Control directory exists: \(FileManager.default.fileExists(atPath: self.ttyFwdControlDir))")
+                logger
+                    .error("Control directory exists: \(FileManager.default.fileExists(atPath: self.ttyFwdControlDir))")
             }
-            
+
             throw NSError(
                 domain: "TtyFwdError",
                 code: statusCode,
@@ -550,16 +556,18 @@ public final class TunnelServer {
             logger.error("Bundle resource path not found")
             return errorResponse(message: "Resource bundle not available", status: .internalServerError)
         }
-        
+
         let webPublicPath = resourcePath + "/web/public"
-        
+
         // Sanitize path to prevent directory traversal attacks
         let sanitizedPath = path.replacingOccurrences(of: "..", with: "")
         let fullPath = webPublicPath + "/" + sanitizedPath
-        
+
         // Check if the web directory exists in Resources
         var isWebDirExists: ObjCBool = false
-        if !FileManager.default.fileExists(atPath: webPublicPath, isDirectory: &isWebDirExists) || !isWebDirExists.boolValue {
+        if !FileManager.default.fileExists(atPath: webPublicPath, isDirectory: &isWebDirExists) || !isWebDirExists
+            .boolValue
+        {
             logger.error("Web resources not found at: \(webPublicPath)")
             logger.error("Make sure the app was built with the 'Build Web Frontend' phase")
             return errorResponse(message: "Web resources not bundled", status: .internalServerError)
@@ -633,7 +641,6 @@ public final class TunnelServer {
 
     private func listSessions() async -> Response {
         do {
-            
             let output = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--list-sessions"])
             let sessionsData = output.data(using: .utf8) ?? Data()
 
@@ -665,9 +672,10 @@ public final class TunnelServer {
                     lastModified: lastModified,
                     pid: sessionInfo.pid
                 )
-            }.sorted { a, b in
-                let dateA = ISO8601DateFormatter().date(from: a.lastModified) ?? Date.distantPast
-                let dateB = ISO8601DateFormatter().date(from: b.lastModified) ?? Date.distantPast
+            }
+            .sorted { first, second in
+                let dateA = ISO8601DateFormatter().date(from: first.lastModified) ?? Date.distantPast
+                let dateB = ISO8601DateFormatter().date(from: second.lastModified) ?? Date.distantPast
                 return dateA > dateB
             }
 
@@ -694,7 +702,6 @@ public final class TunnelServer {
                 return errorResponse(message: "Command array is required and cannot be empty", status: .badRequest)
             }
 
-            
             let sessionName = "session_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(9))"
             let cwd = resolvePath(sessionRequest.workingDir ?? "", fallback: FileManager.default.currentDirectoryPath)
 
@@ -713,33 +720,34 @@ public final class TunnelServer {
             let errorPipe = Pipe()
             process.standardOutput = outputPipe
             process.standardError = errorPipe
-            
+
             process.currentDirectoryPath = cwd
             try process.run()
-            
+
             // Wait for session ID from stdout (similar to Node.js implementation)
             var sessionId: String?
             let outputData = outputPipe.fileHandleForReading.availableData
             if !outputData.isEmpty {
                 let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let output = output, !output.isEmpty {
+                if let output, !output.isEmpty {
                     // First line of output should be the session ID (UUID)
                     sessionId = output
                     logger.info("Session created with ID: \(sessionId ?? "unknown")")
                 }
             }
-            
+
             // If we didn't get a session ID, wait a bit and try again
             if sessionId == nil {
                 // Wait up to 3 seconds for session ID
                 let maxAttempts = 30
                 for _ in 0..<maxAttempts {
                     try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                    
+
                     let moreData = outputPipe.fileHandleForReading.availableData
                     if !moreData.isEmpty {
-                        let output = String(data: moreData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if let output = output, !output.isEmpty {
+                        let output = String(data: moreData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let output, !output.isEmpty {
                             sessionId = output
                             logger.info("Session created with ID: \(sessionId ?? "unknown")")
                             break
@@ -747,7 +755,7 @@ public final class TunnelServer {
                     }
                 }
             }
-            
+
             guard let finalSessionId = sessionId else {
                 logger.error("Failed to get session ID from tty-fwd")
                 return errorResponse(message: "Failed to create session - no session ID returned")
@@ -755,7 +763,6 @@ public final class TunnelServer {
 
             let response = SessionIdResponse(sessionId: finalSessionId)
             return jsonResponse(response)
-
         } catch {
             logger.error("Error creating session: \(error)")
             return errorResponse(message: "Failed to create session")
@@ -784,7 +791,6 @@ public final class TunnelServer {
 
             let response = SimpleResponse(success: true, message: "Session killed")
             return jsonResponse(response)
-
         } catch {
             logger.error("Error killing session: \(error)")
             return errorResponse(message: "Failed to kill session")
@@ -797,7 +803,6 @@ public final class TunnelServer {
 
             let response = SimpleResponse(success: true, message: "Session cleaned up")
             return jsonResponse(response)
-
         } catch {
             logger.info("tty-fwd cleanup failed, force removing directory")
             let sessionDir = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId).path
@@ -822,16 +827,19 @@ public final class TunnelServer {
         guard FileManager.default.fileExists(atPath: streamOutPath) else {
             return errorResponse(message: "Session not found", status: .notFound)
         }
-        
+
         // Create SSE response with proper headers
-        let headers: HTTPFields = [
-            .contentType: "text/event-stream",
-            .cacheControl: "no-cache, no-store, must-revalidate",
-            .connection: "keep-alive",
-            .init("X-Accel-Buffering")!: "no", // Disable proxy buffering
-            .init("Access-Control-Allow-Origin")!: "*"
-        ]
-        
+        var headers = HTTPFields()
+        headers[.contentType] = "text/event-stream"
+        headers[.cacheControl] = "no-cache, no-store, must-revalidate"
+        headers[.connection] = "keep-alive"
+        if let xAccelBuffering = HTTPField.Name("X-Accel-Buffering") {
+            headers[xAccelBuffering] = "no" // Disable proxy buffering
+        }
+        if let accessControlAllowOrigin = HTTPField.Name("Access-Control-Allow-Origin") {
+            headers[accessControlAllowOrigin] = "*"
+        }
+
         // Create async sequence for streaming
         let stream = AsyncStream<ByteBuffer> { continuation in
             let task = Task {
@@ -840,50 +848,53 @@ public final class TunnelServer {
                     continuation: continuation
                 )
             }
-            
+
             continuation.onTermination = { _ in
                 task.cancel()
             }
         }
-        
+
         return Response(
             status: .ok,
             headers: headers,
             body: ResponseBody(asyncSequence: stream)
         )
     }
-    
+
     private func streamFileContents(
         streamOutPath: String,
         continuation: AsyncStream<ByteBuffer>.Continuation
-    ) async {
+    )
+        async
+    {
         let startTime = Date()
         var headerSent = false
         var fileMonitor: DispatchSourceFileSystemObject?
-        
+
         defer {
             // Ensure file monitor is cancelled when function exits
             fileMonitor?.cancel()
         }
-        
+
         // Send initial connection established message
         var initialMessage = ByteBuffer()
         initialMessage.writeString(": connected\n\n")
         continuation.yield(initialMessage)
-        
+
         // Send existing content first
         do {
             let content = try String(contentsOfFile: streamOutPath, encoding: .utf8)
             let lines = content.components(separatedBy: .newlines)
-            
+
             for line in lines {
                 let trimmedLine = line.trimmingCharacters(in: .whitespaces)
                 if !trimmedLine.isEmpty {
                     if let data = trimmedLine.data(using: .utf8),
-                       let parsed = try? JSONSerialization.jsonObject(with: data) {
-                        
+                       let parsed = try? JSONSerialization.jsonObject(with: data)
+                    {
                         if let dict = parsed as? [String: Any],
-                           dict["version"] != nil && dict["width"] != nil && dict["height"] != nil {
+                           dict["version"] != nil && dict["width"] != nil && dict["height"] != nil
+                        {
                             // Send header
                             var buffer = ByteBuffer()
                             buffer.writeString("data: \(trimmedLine)\n\n")
@@ -893,7 +904,8 @@ public final class TunnelServer {
                             // Send event with instant timestamp (0)
                             let instantEvent = [0.0, array[1], array[2]]
                             if let eventData = try? JSONSerialization.data(withJSONObject: instantEvent),
-                               let eventString = String(data: eventData, encoding: .utf8) {
+                               let eventString = String(data: eventData, encoding: .utf8)
+                            {
                                 var buffer = ByteBuffer()
                                 buffer.writeString("data: \(eventString)\n\n")
                                 continuation.yield(buffer)
@@ -905,7 +917,7 @@ public final class TunnelServer {
         } catch {
             logger.error("Error reading existing content: \(error)")
         }
-        
+
         // Send default header if none found
         if !headerSent {
             let defaultHeader: [String: Any] = [
@@ -915,29 +927,30 @@ public final class TunnelServer {
                 "timestamp": Int(startTime.timeIntervalSince1970),
                 "env": ["TERM": "xterm-256color"]
             ]
-            
+
             if let headerData = try? JSONSerialization.data(withJSONObject: defaultHeader),
-               let headerString = String(data: headerData, encoding: .utf8) {
+               let headerString = String(data: headerData, encoding: .utf8)
+            {
                 var buffer = ByteBuffer()
                 buffer.writeString("data: \(headerString)\n\n")
                 continuation.yield(buffer)
             }
         }
-        
+
         // Stream new content by monitoring file changes
         fileMonitor = await monitorFileChanges(
             streamOutPath: streamOutPath,
             startTime: startTime,
             continuation: continuation
         )
-        
+
         // Keep the stream open until cancelled with periodic heartbeats
         await withTaskCancellationHandler {
             // Send heartbeat every 15 seconds to keep connection alive
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(nanoseconds: 15_000_000_000) // 15 seconds
-                    
+
                     // Send SSE comment as heartbeat (comments start with ':')
                     var heartbeat = ByteBuffer()
                     heartbeat.writeString(": heartbeat\n\n")
@@ -950,48 +963,50 @@ public final class TunnelServer {
         } onCancel: { [fileMonitor] in
             fileMonitor?.cancel()
         }
-        
+
         continuation.finish()
     }
-    
+
     private func monitorFileChanges(
         streamOutPath: String,
         startTime: Date,
         continuation: AsyncStream<ByteBuffer>.Continuation
-    ) async -> DispatchSourceFileSystemObject? {
+    )
+        async -> DispatchSourceFileSystemObject?
+    {
         // Open file for reading
         let fileDescriptor = open(streamOutPath, O_RDONLY)
         guard fileDescriptor >= 0 else {
             logger.error("Failed to open file for monitoring: \(streamOutPath)")
             return nil
         }
-        
+
         // Store buffer for incomplete lines
         var lineBuffer = ""
-        
+
         // Read entire file content from the beginning
         let fileSize = lseek(fileDescriptor, 0, SEEK_END)
         if fileSize > 0 {
             // Seek to beginning
             lseek(fileDescriptor, 0, SEEK_SET)
-            
+
             // Read entire file content
             let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(fileSize) + 1)
             defer { buffer.deallocate() }
-            
+
             var totalBytesRead = 0
             while totalBytesRead < fileSize {
                 let bytesRead = read(fileDescriptor, buffer + totalBytesRead, Int(fileSize) - totalBytesRead)
                 if bytesRead <= 0 { break }
                 totalBytesRead += bytesRead
             }
-            
+
             if totalBytesRead > 0 {
                 let data = Data(bytes: buffer, count: totalBytesRead)
                 if let initialContent = String(data: data, encoding: .utf8) {
                     lineBuffer = initialContent
                     let lines = lineBuffer.components(separatedBy: .newlines)
-                    
+
                     // Process all complete lines synchronously to maintain order
                     for i in 0..<lines.count - 1 {
                         let line = lines[i]
@@ -1001,43 +1016,43 @@ public final class TunnelServer {
                             continuation: continuation
                         )
                     }
-                    
+
                     // Keep the last incomplete line in buffer
                     lineBuffer = lines.last ?? ""
                 }
             }
         }
-        
+
         // Set position to current end for monitoring new content
         var lastReadPosition = lseek(fileDescriptor, 0, SEEK_END)
-        
+
         // Create dispatch source for monitoring file writes
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
             eventMask: [.write, .extend],
             queue: DispatchQueue.main
         )
-        
+
         source.setEventHandler { [weak self] in
-            guard let self = self else { return }
-            
+            guard let self else { return }
+
             // Get current file size
             let currentPosition = lseek(fileDescriptor, 0, SEEK_END)
-            
+
             // Calculate how much new data to read
             let bytesToRead = currentPosition - lastReadPosition
             guard bytesToRead > 0 else { return }
-            
+
             // Seek to last read position
             lseek(fileDescriptor, lastReadPosition, SEEK_SET)
-            
+
             // Read new data
             let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(bytesToRead) + 1)
             defer { buffer.deallocate() }
-            
+
             let bytesRead = read(fileDescriptor, buffer, Int(bytesToRead))
             guard bytesRead > 0 else { return }
-            
+
             // Convert to string (handle potential UTF-8 boundary issues)
             let data = Data(bytes: buffer, count: bytesRead)
             guard let contentString = String(data: data, encoding: .utf8) else {
@@ -1045,14 +1060,14 @@ public final class TunnelServer {
                 // Store the bytes and try again with next chunk
                 return
             }
-            
+
             // Update last read position
             lastReadPosition = currentPosition
-            
+
             // Process new content
             lineBuffer += contentString
             let lines = lineBuffer.components(separatedBy: .newlines)
-            
+
             // Process all complete lines synchronously to maintain order
             if lines.count > 1 {
                 Task { @MainActor in
@@ -1069,33 +1084,36 @@ public final class TunnelServer {
                 lineBuffer = lines.last ?? ""
             }
         }
-        
+
         source.setCancelHandler {
             close(fileDescriptor)
         }
-        
+
         // Start monitoring
         source.resume()
-        
+
         return source
     }
-    
+
     private func processNewLine(
         line: String,
         startTime: Date,
         continuation: AsyncStream<ByteBuffer>.Continuation
-    ) async {
+    )
+        async
+    {
         let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-        
+
         if let data = trimmedLine.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) {
-            
+           let parsed = try? JSONSerialization.jsonObject(with: data)
+        {
             // Skip duplicate headers
             if let dict = parsed as? [String: Any],
-               dict["version"] != nil && dict["width"] != nil && dict["height"] != nil {
+               dict["version"] != nil && dict["width"] != nil && dict["height"] != nil
+            {
                 return
             }
-            
+
             if let array = parsed as? [Any], array.count >= 3 {
                 let currentTime = Date()
                 let realTimeEvent = [
@@ -1103,9 +1121,10 @@ public final class TunnelServer {
                     array[1],
                     array[2]
                 ]
-                
+
                 if let eventData = try? JSONSerialization.data(withJSONObject: realTimeEvent),
-                   let eventString = String(data: eventData, encoding: .utf8) {
+                   let eventString = String(data: eventData, encoding: .utf8)
+                {
                     var buffer = ByteBuffer()
                     buffer.writeString("data: \(eventString)\n\n")
                     continuation.yield(buffer)
@@ -1119,9 +1138,10 @@ public final class TunnelServer {
                 "o",
                 trimmedLine
             ]
-            
+
             if let eventData = try? JSONSerialization.data(withJSONObject: castEvent),
-               let eventString = String(data: eventData, encoding: .utf8) {
+               let eventString = String(data: eventData, encoding: .utf8)
+            {
                 var buffer = ByteBuffer()
                 buffer.writeString("data: \(eventString)\n\n")
                 continuation.yield(buffer)
@@ -1142,7 +1162,7 @@ public final class TunnelServer {
             let lines = content.components(separatedBy: .newlines)
                 .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
 
-            var header: [String: Any]? = nil
+            var header: [String: Any]?
             var events: [[Any]] = []
 
             for line in lines {
@@ -1199,7 +1219,6 @@ public final class TunnelServer {
                 headers: [.contentType: "text/plain"],
                 body: ResponseBody(byteBuffer: buffer)
             )
-
         } catch {
             logger.error("Error reading session snapshot: \(error)")
             return errorResponse(message: "Failed to read session snapshot")
@@ -1209,11 +1228,11 @@ public final class TunnelServer {
     private func getSessionCast(sessionId: String) async -> Response {
         let streamOutPath = URL(fileURLWithPath: ttyFwdControlDir).appendingPathComponent(sessionId)
             .appendingPathComponent("stream-out").path
-        
+
         guard FileManager.default.fileExists(atPath: streamOutPath) else {
             return errorResponse(message: "Session not found", status: .notFound)
         }
-        
+
         do {
             // Get session info to extract command and title
             let sessionInfoOutput = try await executeTtyFwd(args: [
@@ -1221,17 +1240,18 @@ public final class TunnelServer {
                 ttyFwdControlDir,
                 "--list-sessions"
             ])
-            
+
             var sessionCommand: String?
             var sessionTitle: String?
-            
+
             if let sessionData = sessionInfoOutput.data(using: .utf8),
                let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData),
-               let session = sessions[sessionId] {
+               let session = sessions[sessionId]
+            {
                 sessionCommand = session.cmdline.joined(separator: " ")
                 sessionTitle = "VibeTunnel Session: \(session.name)"
             }
-            
+
             // Generate cast file
             let castGenerator = CastFileGenerator()
             let castData = try castGenerator.generateCastFile(
@@ -1242,10 +1262,10 @@ public final class TunnelServer {
                 title: sessionTitle,
                 command: sessionCommand
             )
-            
+
             var buffer = ByteBuffer()
             buffer.writeBytes(castData)
-            
+
             return Response(
                 status: .ok,
                 headers: [
@@ -1254,7 +1274,6 @@ public final class TunnelServer {
                 ],
                 body: ResponseBody(byteBuffer: buffer)
             )
-            
         } catch {
             logger.error("Error generating cast file: \(error)")
             return errorResponse(message: "Failed to generate cast file")
@@ -1288,7 +1307,8 @@ public final class TunnelServer {
 
             guard let sessionData = sessionInfoOutput.data(using: .utf8),
                   let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData),
-                  let session = sessions[sessionId] else {
+                  let session = sessions[sessionId]
+            else {
                 logger.error("Session \(sessionId) not found in active sessions")
                 return errorResponse(message: "Session not found", status: .notFound)
             }
@@ -1304,7 +1324,7 @@ public final class TunnelServer {
                 let processExists = kill(pid_t(session.pid), 0) == 0
                 if !processExists {
                     logger.error("Session \(sessionId) process \(session.pid) is dead, cleaning up")
-                    
+
                     // Try to cleanup the stale session
                     do {
                         _ = try await executeTtyFwd(args: [
@@ -1317,16 +1337,25 @@ public final class TunnelServer {
                     } catch {
                         logger.error("Failed to cleanup stale session: \(error)")
                     }
-                    
+
                     return errorResponse(message: "Session process has died", status: HTTPResponse.Status(code: 410))
                 }
             }
 
-            let specialKeys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter", "ctrl_enter", "shift_enter"]
+            let specialKeys = [
+                "arrow_up",
+                "arrow_down",
+                "arrow_left",
+                "arrow_right",
+                "escape",
+                "enter",
+                "ctrl_enter",
+                "shift_enter"
+            ]
             let isSpecialKey = specialKeys.contains(text)
 
             let startTime = Date()
-            
+
             if isSpecialKey {
                 _ = try await executeTtyFwd(args: [
                     "--control-path",
@@ -1336,7 +1365,7 @@ public final class TunnelServer {
                     "--send-key",
                     text
                 ])
-                let elapsed = Date().timeIntervalSince(startTime) * 1000
+                let elapsed = Date().timeIntervalSince(startTime) * 1_000
                 logger.info("Successfully sent key: \(text) (\(Int(elapsed))ms)")
             } else {
                 _ = try await executeTtyFwd(args: [
@@ -1347,17 +1376,16 @@ public final class TunnelServer {
                     "--send-text",
                     text
                 ])
-                let elapsed = Date().timeIntervalSince(startTime) * 1000
+                let elapsed = Date().timeIntervalSince(startTime) * 1_000
                 logger.info("Successfully sent text: \(text) (\(Int(elapsed))ms)")
             }
 
             struct SuccessResponse: Codable {
                 let success: Bool
             }
-            
+
             let response = SuccessResponse(success: true)
             return jsonResponse(response)
-
         } catch let decodingError as DecodingError {
             logger.error("Error decoding input request: \(decodingError)")
             return errorResponse(message: "Invalid request format", status: .badRequest)
@@ -1374,7 +1402,6 @@ public final class TunnelServer {
 
             let response = SimpleResponse(success: true, message: "All exited sessions cleaned up")
             return jsonResponse(response)
-
         } catch {
             logger.error("Error cleaning up exited sessions: \(error)")
             return errorResponse(message: "Failed to cleanup exited sessions")
@@ -1417,15 +1444,15 @@ public final class TunnelServer {
                     size: size,
                     isDir: isDir
                 )
-            }.sorted { a, b in
-                if a.isDir && !b.isDir { return true }
-                if !a.isDir && b.isDir { return false }
-                return a.name.localizedCompare(b.name) == .orderedAscending
+            }
+            .sorted { first, second in
+                if first.isDir && !second.isDir { return true }
+                if !first.isDir && second.isDir { return false }
+                return first.name.localizedCompare(second.name) == .orderedAscending
             }
 
             let listing = DirectoryListing(absolutePath: expandedPath, files: files)
             return jsonResponse(listing)
-
         } catch {
             logger.error("Error listing directory: \(error)")
             return errorResponse(message: "Failed to list directory")

@@ -1,4 +1,5 @@
 import AppKit
+import os.log
 import SwiftUI
 
 /// Main entry point for the VibeTunnel macOS application
@@ -19,7 +20,7 @@ struct VibeTunnelApp: App {
             .windowResizability(.contentSize)
             .defaultSize(width: 1, height: 1)
             .windowStyle(.hiddenTitleBar)
-            
+
             // Welcome Window
             WindowGroup("Welcome", id: "welcome") {
                 WelcomeView()
@@ -27,15 +28,15 @@ struct VibeTunnelApp: App {
             .windowResizability(.contentSize)
             .defaultSize(width: 580, height: 480)
             .windowStyle(.hiddenTitleBar)
-            
+
             Settings {
                 SettingsView()
             }
             .commands {
                 CommandGroup(after: .appInfo) {
-                    SettingsLink(label: {
+                    SettingsLink {
                         Text("About VibeTunnel")
-                    })
+                    }
                     .simultaneousGesture(TapGesture().onEnded {
                         // Navigate to About tab after settings opens
                         Task {
@@ -71,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sessionMonitor = SessionMonitor.shared
     private let serverMonitor = ServerMonitor.shared
     private let ngrokService = NgrokService.shared
+    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "AppDelegate")
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
     private static let showSettingsNotification = Notification.Name("sh.vibetunnel.vibetunnel.showSettings")
@@ -86,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !isRunningInPreview, !isRunningInTests, !isRunningInDebug {
             handleSingleInstanceCheck()
             registerForDistributedNotifications()
-            
+
             // Check if app needs to be moved to Applications folder
             let applicationMover = ApplicationMover()
             applicationMover.checkAndOfferToMoveToApplications()
@@ -105,7 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showWelcomeScreen()
         }
 
-
         // Listen for update check requests
         NotificationCenter.default.addObserver(
             self,
@@ -113,17 +114,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: Notification.Name("checkForUpdates"),
             object: nil
         )
-        
 
         // Initialize and start HTTP server using ServerManager
         Task {
             do {
-                print("Attempting to start HTTP server using ServerManager...")
+                logger.info("Attempting to start HTTP server using ServerManager...")
                 await serverManager.start()
-                
-                print("HTTP server started successfully on port \(serverManager.port)")
-                print("Server is running: \(serverManager.isRunning)")
-                print("Server mode: \(serverManager.serverMode.displayName)")
+
+                logger.info("HTTP server started successfully on port \(self.serverManager.port)")
+                logger.info("Server is running: \(self.serverManager.isRunning)")
+                logger.info("Server mode: \(self.serverManager.serverMode.displayName)")
 
                 // Start monitoring sessions after server starts
                 sessionMonitor.startMonitoring()
@@ -133,22 +133,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let url = URL(string: "http://127.0.0.1:\(serverManager.port)/api/health") {
                     let (_, response) = try await URLSession.shared.data(from: url)
                     if let httpResponse = response as? HTTPURLResponse {
-                        print("Server health check response: \(httpResponse.statusCode)")
+                        logger.info("Server health check response: \(httpResponse.statusCode)")
                     }
                 }
             } catch {
-                print("Failed to start HTTP server: \(error)")
-                print("Error type: \(type(of: error))")
-                print("Error description: \(error.localizedDescription)")
+                logger.error("Failed to start HTTP server: \(error)")
+                logger.error("Error type: \(type(of: error))")
+                logger.error("Error description: \(error.localizedDescription)")
                 if let nsError = error as NSError? {
-                    print("NSError domain: \(nsError.domain)")
-                    print("NSError code: \(nsError.code)")
-                    print("NSError userInfo: \(nsError.userInfo)")
+                    logger.error("NSError domain: \(nsError.domain)")
+                    logger.error("NSError code: \(nsError.code)")
+                    logger.error("NSError userInfo: \(nsError.userInfo)")
                 }
             }
         }
     }
-
 
     private func handleSingleInstanceCheck() {
         let runningApps = NSRunningApplication
@@ -194,14 +193,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleCheckForUpdatesNotification() {
         sparkleUpdaterManager?.checkForUpdates()
     }
-    
+
     /// Shows the welcome screen
     private func showWelcomeScreen() {
         // Initialize the welcome window controller (singleton will handle the rest)
         _ = WelcomeWindowController.shared
         WelcomeWindowController.shared.show()
     }
-    
+
     /// Public method to show welcome screen (can be called from settings)
     static func showWelcomeScreen() {
         WelcomeWindowController.shared.show()
@@ -239,5 +238,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 }
-
-
