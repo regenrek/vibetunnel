@@ -25,6 +25,7 @@ export class SessionList extends LitElement {
   @state() private killingSessionIds = new Set<string>();
   @state() private loadedSnapshots = new Map<string, string>();
   @state() private loadingSnapshots = new Set<string>();
+  @state() private hideExited = false;
 
   private handleRefresh() {
     this.dispatchEvent(new CustomEvent('refresh'));
@@ -62,8 +63,24 @@ export class SessionList extends LitElement {
   updated(changedProperties: any) {
     super.updated(changedProperties);
     if (changedProperties.has('sessions')) {
-      // Auto-load all snapshots when sessions change
-      setTimeout(() => this.loadAllSnapshots(), 100);
+      // Auto-load snapshots for existing sessions immediately, but delay for new ones
+      const prevSessions = changedProperties.get('sessions') || [];
+      const newSessionIds = this.sessions
+        .filter(session => !prevSessions.find((prev: Session) => prev.id === session.id))
+        .map(session => session.id);
+      
+      // Load existing sessions immediately
+      const existingSessions = this.sessions.filter(session => 
+        !newSessionIds.includes(session.id)
+      );
+      existingSessions.forEach(session => this.loadSnapshot(session.id));
+      
+      // Load new sessions after a delay to let them generate some output
+      if (newSessionIds.length > 0) {
+        setTimeout(() => {
+          newSessionIds.forEach(sessionId => this.loadSnapshot(sessionId));
+        }, 3000); // Wait 3 seconds for new sessions
+      }
     }
   }
 
@@ -148,16 +165,48 @@ export class SessionList extends LitElement {
     return id.length > 8 ? `${id.substring(0, 8)}...` : id;
   }
 
+  private get filteredSessions() {
+    return this.hideExited 
+      ? this.sessions.filter(session => session.status === 'running')
+      : this.sessions;
+  }
+
   render() {
+    const sessionsToShow = this.filteredSessions;
+    
     return html`
       <div class="font-mono text-sm p-4">
-        ${this.sessions.length === 0 ? html`
+        <!-- Filter Controls -->
+        <div class="mb-4 flex items-center justify-end">
+          <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
+            <div class="relative">
+              <input 
+                type="checkbox" 
+                class="sr-only" 
+                .checked=${this.hideExited}
+                @change=${(e: Event) => this.hideExited = (e.target as HTMLInputElement).checked}
+              >
+              <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${
+                this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'
+              }">
+                ${this.hideExited ? html`
+                  <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                  </svg>
+                ` : ''}
+              </div>
+            </div>
+            Hide exited sessions
+          </label>
+        </div>
+
+        ${sessionsToShow.length === 0 ? html`
           <div class="text-vs-muted text-center py-8">
-            ${this.loading ? 'Loading sessions...' : 'No sessions found'}
+            ${this.loading ? 'Loading sessions...' : (this.hideExited && this.sessions.length > 0 ? 'No running sessions' : 'No sessions found')}
           </div>
         ` : html`
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            ${this.sessions.map(session => html`
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${sessionsToShow.map(session => html`
               <div 
                 class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden"
                 @click=${() => this.handleSessionClick(session)}
