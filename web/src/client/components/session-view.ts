@@ -659,20 +659,20 @@ export class SessionView extends LitElement {
       </style>
       <div class="flex flex-col bg-vs-bg font-mono" style="height: 100vh; height: 100dvh; outline: none !important; box-shadow: none !important;">
         <!-- Compact Header -->
-        <div class="flex items-center justify-between px-3 py-2 border-b border-vs-border bg-vs-bg-secondary text-sm">
-          <div class="flex items-center gap-3">
+        <div class="flex items-center justify-between px-3 py-2 border-b border-vs-border bg-vs-bg-secondary text-sm min-w-0">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
             <button
-              class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-2 py-1 border-none rounded transition-colors text-xs"
+              class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-2 py-1 border-none rounded transition-colors text-xs flex-shrink-0"
               @click=${this.handleBack}
             >
               BACK
             </button>
-            <div class="text-vs-text">
-              <div class="text-vs-accent">${this.session.command}</div>
-              <div class="text-vs-muted text-xs">${this.session.workingDir}</div>
+            <div class="text-vs-text min-w-0 flex-1 overflow-hidden">
+              <div class="text-vs-accent text-xs sm:text-sm overflow-x-auto scrollbar-thin scrollbar-thumb-vs-border scrollbar-track-transparent whitespace-nowrap" title="${this.session.command}">${this.session.command}</div>
+              <div class="text-vs-muted text-xs overflow-x-auto scrollbar-thin scrollbar-thumb-vs-border scrollbar-track-transparent whitespace-nowrap" title="${this.session.workingDir}">${this.session.workingDir}</div>
             </div>
           </div>
-          <div class="flex items-center gap-3 text-xs">
+          <div class="flex items-center gap-3 text-xs flex-shrink-0 ml-2">
             <span class="${this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'}">
               ${this.session.status.toUpperCase()}
             </span>

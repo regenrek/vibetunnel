@@ -41,9 +41,9 @@ export class AppHeader extends LitElement {
 
     return html`
       <div class="p-4 border-b border-vs-border">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="text-vs-user font-mono text-sm">VibeTunnel</div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
             <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
               <div class="relative">
                 <input
@@ -64,20 +64,22 @@ export class AppHeader extends LitElement {
               </div>
               hide exited
             </label>
-            ${runningSessions.length > 0 && !this.killingAll ? html`
+            <div class="flex gap-2">
+              ${runningSessions.length > 0 && !this.killingAll ? html`
+                <button
+                  class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 sm:px-4 py-2 border-none rounded transition-colors text-sm whitespace-nowrap"
+                  @click=${this.handleKillAll}
+                >
+                  KILL ALL (${runningSessions.length})
+                </button>
+              ` : ''}
               <button
-                class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors text-sm"
-                @click=${this.handleKillAll}
+                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 sm:px-4 py-2 border-none rounded transition-colors text-sm whitespace-nowrap"
+                @click=${this.handleCreateSession}
               >
-                KILL ALL (${runningSessions.length})
+                CREATE SESSION
               </button>
-            ` : ''}
-            <button
-              class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors text-sm"
-              @click=${this.handleCreateSession}
-            >
-              CREATE SESSION
-            </button>
+            </div>
           </div>
         </div>
       </div>

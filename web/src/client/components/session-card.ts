@@ -187,7 +187,9 @@ export class SessionCard extends LitElement {
            @click=${this.handleCardClick}>
         <!-- Compact Header -->
         <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
-          <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${this.session.command}</div>
+          <div class="text-vs-text text-xs font-mono pr-2 flex-1 min-w-0">
+            <div class="truncate" title="${this.session.command}">${this.session.command}</div>
+          </div>
           ${this.session.status === 'running' ? html`
             <button
               class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
@@ -215,14 +217,14 @@ export class SessionCard extends LitElement {
 
         <!-- Compact Footer -->
         <div class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border">
-          <div class="flex justify-between items-center">
-            <span class="${this.getStatusColor()} text-xs flex items-center gap-1">
+          <div class="flex justify-between items-center min-w-0">
+            <span class="${this.getStatusColor()} text-xs flex items-center gap-1 flex-shrink-0">
               <div class="w-2 h-2 rounded-full ${this.getStatusDotColor()}"></div>
               ${this.getStatusText()}
             </span>
             ${this.session.pid ? html`
               <span
-                class="cursor-pointer hover:text-vs-accent transition-colors"
+                class="cursor-pointer hover:text-vs-accent transition-colors text-xs flex-shrink-0 ml-2"
                 @click=${this.handlePidClick}
                 title="Click to copy PID"
               >
@@ -230,7 +232,9 @@ export class SessionCard extends LitElement {
               </span>
             ` : ''}
           </div>
-          <div class="truncate text-xs opacity-75" title="${this.session.workingDir}">${this.session.workingDir}</div>
+          <div class="text-xs opacity-75 min-w-0 mt-1">
+            <div class="truncate" title="${this.session.workingDir}">${this.session.workingDir}</div>
+          </div>
         </div>
       </div>
     `;
