@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './file-browser.js';
 
@@ -21,6 +21,64 @@ export class SessionCreateForm extends LitElement {
 
   @state() private isCreating = false;
   @state() private showFileBrowser = false;
+
+  private readonly STORAGE_KEY_WORKING_DIR = 'vibetunnel_last_working_dir';
+  private readonly STORAGE_KEY_COMMAND = 'vibetunnel_last_command';
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Load from localStorage when component is first created
+    this.loadFromLocalStorage();
+  }
+
+  private loadFromLocalStorage() {
+    try {
+      const savedWorkingDir = localStorage.getItem(this.STORAGE_KEY_WORKING_DIR);
+      const savedCommand = localStorage.getItem(this.STORAGE_KEY_COMMAND);
+      
+      console.log('Loading from localStorage:', { savedWorkingDir, savedCommand });
+      
+      if (savedWorkingDir) {
+        this.workingDir = savedWorkingDir;
+      }
+      if (savedCommand) {
+        this.command = savedCommand;
+      }
+      
+      // Force re-render to update the input values
+      this.requestUpdate();
+    } catch (error) {
+      console.warn('Failed to load from localStorage:', error);
+    }
+  }
+
+  private saveToLocalStorage() {
+    try {
+      const workingDir = this.workingDir.trim();
+      const command = this.command.trim();
+      
+      console.log('Saving to localStorage:', { workingDir, command });
+      
+      // Only save non-empty values
+      if (workingDir) {
+        localStorage.setItem(this.STORAGE_KEY_WORKING_DIR, workingDir);
+      }
+      if (command) {
+        localStorage.setItem(this.STORAGE_KEY_COMMAND, command);
+      }
+    } catch (error) {
+      console.warn('Failed to save to localStorage:', error);
+    }
+  }
+
+  updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    
+    // Load from localStorage when form becomes visible
+    if (changedProperties.has('visible') && this.visible) {
+      this.loadFromLocalStorage();
+    }
+  }
 
   private handleWorkingDirChange(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -72,6 +130,10 @@ export class SessionCreateForm extends LitElement {
 
       if (response.ok) {
         const result = await response.json();
+        
+        // Save to localStorage before clearing the command
+        this.saveToLocalStorage();
+        
         this.command = ''; // Clear command on success
         this.dispatchEvent(new CustomEvent('session-created', {
           detail: result

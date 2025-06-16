@@ -556,25 +556,25 @@ export class SessionView extends LitElement {
                   class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
                   @click=${() => this.handleSpecialKey('arrow_up')}
                 >
-                  ↑
+                  <span class="text-xl">↑</span>
                 </button>
                 <button
                   class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
                   @click=${() => this.handleSpecialKey('arrow_down')}
                 >
-                  ↓
+                  <span class="text-xl">↓</span>
                 </button>
                 <button
                   class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
                   @click=${() => this.handleSpecialKey('arrow_left')}
                 >
-                  ←
+                  <span class="text-xl">←</span>
                 </button>
                 <button
                   class="flex-1 bg-vs-muted text-vs-bg hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
                   @click=${() => this.handleSpecialKey('arrow_right')}
                 >
-                  →
+                  <span class="text-xl">→</span>
                 </button>
               </div>
 
@@ -584,13 +584,13 @@ export class SessionView extends LitElement {
                   class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm"
                   @click=${() => this.handleSpecialKey('\t')}
                 >
-                  TAB
+                  <span class="text-xl">⇥</span>
                 </button>
                 <button
                   class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
                   @click=${() => this.handleSpecialKey('enter')}
                 >
-                  ENTER
+                  <span class="text-xl">⏎</span>
                 </button>
                 <button
                   class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors text-sm"
