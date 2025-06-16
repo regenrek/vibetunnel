@@ -16,7 +16,6 @@ final class WelcomeWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        window.center()
         window.setFrameAutosaveName("WelcomeWindow")
         window.isReleasedWhenClosed = false
         window.level = .floating
@@ -37,7 +36,12 @@ final class WelcomeWindowController: NSWindowController {
     }
     
     func show() {
-        window?.makeKeyAndOrderFront(nil)
+        guard let window = window else { return }
+        
+        // Center window on the active screen (screen with mouse cursor)
+        WindowCenteringHelper.centerOnActiveScreen(window)
+        
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
     

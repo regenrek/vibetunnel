@@ -81,6 +81,9 @@ enum SettingsOpener {
             window.deminiaturize(nil)
         }
         
+        // Center window on the active screen
+        WindowCenteringHelper.centerOnActiveScreen(window)
+        
         // Multiple methods to ensure window comes to front
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
@@ -148,10 +151,7 @@ struct HiddenWindowView: View {
                     
                     if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "HiddenWindow" }) {
                         // Position window offscreen
-                        if let screen = NSScreen.main {
-                            let screenFrame = screen.frame
-                            window.setFrame(NSRect(x: screenFrame.midX, y: screenFrame.minY - 1000, width: 1, height: 1), display: false)
-                        }
+                        WindowCenteringHelper.positionOffScreen(window)
                         
                         window.backgroundColor = .clear
                         window.isOpaque = false
