@@ -6,8 +6,6 @@ mod tty_spawn;
 mod utils;
 
 use std::ffi::OsString;
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::{env, fs};
@@ -18,183 +16,6 @@ use uuid::Uuid;
 
 use crate::protocol::SessionInfo;
 use crate::tty_spawn::TtySpawn;
-
-fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
-    let sessions = crate::sessions::list_sessions(control_path)?;
-    println!("{}", serde_json::to_string(&sessions)?);
-    Ok(())
-}
-
-fn send_key_to_session(
-    control_path: &Path,
-    session_id: &str,
-    key: &str,
-) -> Result<(), anyhow::Error> {
-    let session_path = control_path.join(session_id);
-    let stdin_path = session_path.join("stdin");
-
-    if !stdin_path.exists() {
-        return Err(anyhow!("Session {} not found or not running", session_id));
-    }
-
-    let key_bytes: &[u8] = match key {
-        "arrow_up" => b"\x1b[A",
-        "arrow_down" => b"\x1b[B",
-        "arrow_right" => b"\x1b[C",
-        "arrow_left" => b"\x1b[D",
-        "escape" => b"\x1b",
-        "enter" => b"\r",
-        "ctrl_enter" => b"\x0d", // Just CR like normal enter for now - let's test this first
-        "shift_enter" => b"\x1b\x0d", // ESC + Enter - simpler approach
-        _ => return Err(anyhow!("Unknown key: {}", key)),
-    };
-
-    let mut file = OpenOptions::new().append(true).open(&stdin_path)?;
-    file.write_all(key_bytes)?;
-    file.flush()?;
-
-    Ok(())
-}
-
-fn send_text_to_session(
-    control_path: &Path,
-    session_id: &str,
-    text: &str,
-) -> Result<(), anyhow::Error> {
-    let session_path = control_path.join(session_id);
-    let stdin_path = session_path.join("stdin");
-
-    if !stdin_path.exists() {
-        return Err(anyhow!("Session {} not found or not running", session_id));
-    }
-
-    let mut file = OpenOptions::new().append(true).open(&stdin_path)?;
-    file.write_all(text.as_bytes())?;
-    file.flush()?;
-
-    Ok(())
-}
-
-fn is_pid_alive(pid: u32) -> bool {
-    let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
-
-    match output {
-        Ok(output) => output.status.success(),
-        Err(_) => false,
-    }
-}
-
-fn cleanup_session(control_path: &Path, session_id: &str) -> Result<bool, anyhow::Error> {
-    let session_path = control_path.join(session_id);
-    let session_json_path = session_path.join("session.json");
-
-    if !session_path.exists() {
-        return Err(anyhow!("Session {} not found", session_id));
-    }
-
-    if session_json_path.exists() {
-        let content = fs::read_to_string(&session_json_path)?;
-        if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
-            if let Some(pid) = session_info.pid {
-                if is_pid_alive(pid) {
-                    return Err(anyhow!(
-                        "Session {} is still running (PID: {})",
-                        session_id,
-                        pid
-                    ));
-                }
-            }
-        }
-    }
-
-    fs::remove_dir_all(&session_path)?;
-    Ok(true)
-}
-
-fn send_signal_to_session(
-    control_path: &Path,
-    session_id: &str,
-    signal: i32,
-) -> Result<(), anyhow::Error> {
-    let session_path = control_path.join(session_id);
-    let session_json_path = session_path.join("session.json");
-
-    if !session_json_path.exists() {
-        return Err(anyhow!("Session {} not found", session_id));
-    }
-
-    let content = fs::read_to_string(&session_json_path)?;
-    let session_info: SessionInfo = serde_json::from_str(&content)?;
-
-    if let Some(pid) = session_info.pid {
-        if is_pid_alive(pid) {
-            let result = unsafe { libc::kill(pid as i32, signal) };
-            if result == 0 {
-                Ok(())
-            } else {
-                Err(anyhow!("Failed to send signal {} to PID {}", signal, pid))
-            }
-        } else {
-            Err(anyhow!(
-                "Session {} process (PID: {}) is not running",
-                session_id,
-                pid
-            ))
-        }
-    } else {
-        Err(anyhow!("Session {} has no PID recorded", session_id))
-    }
-}
-
-fn cleanup_sessions(
-    control_path: &Path,
-    specific_session: Option<&str>,
-) -> Result<(), anyhow::Error> {
-    if !control_path.exists() {
-        return Ok(());
-    }
-
-    if let Some(session_id) = specific_session {
-        cleanup_session(control_path, session_id)?;
-        return Ok(());
-    }
-
-    for entry in fs::read_dir(control_path)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if !path.is_dir() {
-            continue;
-        }
-
-        if let Some(_session_id) = path.file_name().and_then(|n| n.to_str()) {
-            let session_json_path = path.join("session.json");
-            if !session_json_path.exists() {
-                continue;
-            }
-
-            let should_remove = if let Ok(content) = fs::read_to_string(&session_json_path) {
-                if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
-                    if let Some(pid) = session_info.pid {
-                        !is_pid_alive(pid)
-                    } else {
-                        true
-                    }
-                } else {
-                    true
-                }
-            } else {
-                true
-            };
-
-            if should_remove {
-                let _ = fs::remove_dir_all(&path);
-            }
-        }
-    }
-
-    Ok(())
-}
 
 fn main() -> Result<(), anyhow::Error> {
     let mut parser = Parser::from_env();
@@ -293,7 +114,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle send-key command
     if let Some(key) = send_key {
         if let Some(sid) = &session_id {
-            return send_key_to_session(&control_path, sid, &key);
+            return crate::sessions::send_key_to_session(&control_path, sid, &key);
         } else {
             return Err(anyhow!("--send-key requires --session <session_id>"));
         }
@@ -302,7 +123,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle send-text command
     if let Some(text) = send_text {
         if let Some(sid) = &session_id {
-            return send_text_to_session(&control_path, sid, &text);
+            return crate::sessions::send_text_to_session(&control_path, sid, &text);
         } else {
             return Err(anyhow!("--send-text requires --session <session_id>"));
         }
@@ -311,7 +132,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle signal command
     if let Some(sig) = signal {
         if let Some(sid) = &session_id {
-            return send_signal_to_session(&control_path, sid, sig);
+            return crate::sessions::send_signal_to_session(&control_path, sid, sig);
         } else {
             return Err(anyhow!("--signal requires --session <session_id>"));
         }
@@ -320,7 +141,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle stop command (SIGTERM)
     if stop {
         if let Some(sid) = &session_id {
-            return send_signal_to_session(&control_path, sid, 15);
+            return crate::sessions::send_signal_to_session(&control_path, sid, 15);
         } else {
             return Err(anyhow!("--stop requires --session <session_id>"));
         }
@@ -329,7 +150,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle kill command (SIGKILL)
     if kill {
         if let Some(sid) = &session_id {
-            return send_signal_to_session(&control_path, sid, 9);
+            return crate::sessions::send_signal_to_session(&control_path, sid, 9);
         } else {
             return Err(anyhow!("--kill requires --session <session_id>"));
         }
@@ -337,7 +158,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Handle cleanup command
     if cleanup {
-        return cleanup_sessions(&control_path, session_id.as_deref());
+        return crate::sessions::cleanup_sessions(&control_path, session_id.as_deref());
     }
 
     // Handle serve command

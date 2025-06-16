@@ -167,12 +167,14 @@ fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
             let mut session_responses = Vec::new();
 
             for (session_id, entry) in sessions {
-                let started_at_str = entry.session_info.started_at
+                let started_at_str = entry
+                    .session_info
+                    .started_at
                     .map(|ts| ts.to_string())
                     .unwrap_or_else(|| "unknown".to_string());
-                
-                let last_modified = get_last_modified(&entry.stream_out)
-                    .unwrap_or_else(|| started_at_str.clone());
+
+                let last_modified =
+                    get_last_modified(&entry.stream_out).unwrap_or_else(|| started_at_str.clone());
 
                 session_responses.push(SessionResponse {
                     id: session_id,
@@ -217,11 +219,7 @@ fn handle_create_session(
 }
 
 fn handle_cleanup_exited(control_path: &PathBuf) -> Response<String> {
-    let control_path_str = control_path.to_string_lossy().to_string();
-    match execute_tty_fwd(
-        control_path,
-        &["--control-path", &control_path_str, "--cleanup"],
-    ) {
+    match sessions::cleanup_sessions(control_path, None) {
         Ok(_) => {
             let response = ApiResponse {
                 success: Some(true),
@@ -275,33 +273,58 @@ fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<Strin
 }
 
 fn handle_session_input(
-    _control_path: &PathBuf,
-    _path: &str,
-    _req: &mut blocking_http_server::HttpRequest,
+    control_path: &PathBuf,
+    path: &str,
+    req: &mut blocking_http_server::HttpRequest,
 ) -> Response<String> {
-    // Stub for now - reading request body is complex
-    let response = ApiResponse {
-        success: Some(true),
-        message: Some("Input handling stubbed".to_string()),
-        error: None,
-        session_id: None,
-    };
-    json_response(StatusCode::OK, &response)
+    if let Some(session_id) = extract_session_id(path) {
+        // Try to read the request body using the body() method
+        let body_bytes = req.body();
+        let body = String::from_utf8_lossy(body_bytes);
+        if let Ok(input_req) = serde_json::from_str::<InputRequest>(&body) {
+            match sessions::send_text_to_session(control_path, &session_id, &input_req.text) {
+                Ok(_) => {
+                    let response = ApiResponse {
+                        success: Some(true),
+                        message: Some("Input sent successfully".to_string()),
+                        error: None,
+                        session_id: None,
+                    };
+                    json_response(StatusCode::OK, &response)
+                }
+                Err(e) => {
+                    let error = ApiResponse {
+                        success: None,
+                        message: None,
+                        error: Some(format!("Failed to send input: {}", e)),
+                        session_id: None,
+                    };
+                    json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+                }
+            }
+        } else {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Invalid request body".to_string()),
+                session_id: None,
+            };
+            json_response(StatusCode::BAD_REQUEST, &error)
+        }
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid session ID".to_string()),
+            session_id: None,
+        };
+        json_response(StatusCode::BAD_REQUEST, &error)
+    }
 }
 
 fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
-        let control_path_str = control_path.to_string_lossy().to_string();
-        match execute_tty_fwd(
-            control_path,
-            &[
-                "--control-path",
-                &control_path_str,
-                "--session",
-                &session_id,
-                "--kill",
-            ],
-        ) {
+        match sessions::send_signal_to_session(control_path, &session_id, 9) {
             Ok(_) => {
                 let response = ApiResponse {
                     success: Some(true),
