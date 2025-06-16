@@ -673,7 +673,7 @@ struct DebugSettingsView: View {
                     Text("Server Configuration")
                         .font(.headline)
                 } footer: {
-                    Text("Choose between the built-in Hummingbird server or the external Rust tty-fwd binary.")
+                    Text("Choose between the built-in Swift Hummingbird server or the Rust tty-fwd binary.")
                         .font(.caption)
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
