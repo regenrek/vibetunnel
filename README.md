@@ -184,9 +184,9 @@ Key files:
 
 2. Build the Rust server:
    ```bash
-   cd rust/tty-fwd
+   cd tty-fwd
    cargo build --release
-   cd ../..
+   cd ..
    ```
 
 3. Build the web frontend:
