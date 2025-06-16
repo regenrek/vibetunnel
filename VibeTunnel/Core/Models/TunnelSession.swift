@@ -1,6 +1,10 @@
 import Foundation
 
-/// Represents a terminal session that can be controlled remotely
+/// Represents a terminal session that can be controlled remotely.
+///
+/// A `TunnelSession` encapsulates the state and metadata of a terminal session
+/// that can be accessed through the web interface. Each session has a unique identifier,
+/// creation timestamp, and tracks its activity status.
 public struct TunnelSession: Identifiable, Codable, Sendable {
     public let id: UUID
     public let createdAt: Date
@@ -21,7 +25,10 @@ public struct TunnelSession: Identifiable, Codable, Sendable {
     }
 }
 
-/// Request to create a new terminal session
+/// Request to create a new terminal session.
+///
+/// Contains optional configuration for initializing a new terminal session,
+/// including working directory, environment variables, and shell preference.
 public struct CreateSessionRequest: Codable, Sendable {
     public let workingDirectory: String?
     public let environment: [String: String]?
@@ -34,7 +41,9 @@ public struct CreateSessionRequest: Codable, Sendable {
     }
 }
 
-/// Response after creating a session
+/// Response after creating a session.
+///
+/// Contains the newly created session's identifier and timestamp.
 public struct CreateSessionResponse: Codable, Sendable {
     public let sessionId: String
     public let createdAt: Date
@@ -45,7 +54,10 @@ public struct CreateSessionResponse: Codable, Sendable {
     }
 }
 
-/// Command execution request
+/// Command execution request.
+///
+/// Encapsulates a command to be executed within a specific terminal session,
+/// with optional arguments and environment variables.
 public struct CommandRequest: Codable, Sendable {
     public let sessionId: String
     public let command: String
@@ -60,7 +72,10 @@ public struct CommandRequest: Codable, Sendable {
     }
 }
 
-/// Command execution response
+/// Command execution response.
+///
+/// Contains the results of a command execution including output streams,
+/// exit code, and execution timestamp.
 public struct CommandResponse: Codable, Sendable {
     public let sessionId: String
     public let output: String?
@@ -83,7 +98,9 @@ public struct CommandResponse: Codable, Sendable {
     }
 }
 
-/// Session information
+/// Session information.
+///
+/// Provides a summary of a terminal session's current state and activity.
 public struct SessionInfo: Codable, Sendable {
     public let id: String
     public let createdAt: Date
@@ -98,7 +115,9 @@ public struct SessionInfo: Codable, Sendable {
     }
 }
 
-/// List sessions response
+/// List sessions response.
+///
+/// Contains an array of all available terminal sessions.
 public struct ListSessionsResponse: Codable, Sendable {
     public let sessions: [SessionInfo]
 
@@ -110,7 +129,10 @@ public struct ListSessionsResponse: Codable, Sendable {
 // MARK: - Extensions for TunnelClient
 
 extension TunnelSession {
-    /// Client information for session creation
+    /// Client information for session creation.
+    ///
+    /// Contains metadata about the client system creating a session,
+    /// including hostname, user details, and system architecture.
     public struct ClientInfo: Codable, Sendable {
         public let hostname: String
         public let username: String
@@ -133,7 +155,9 @@ extension TunnelSession {
         }
     }
 
-    /// Request to create a new session
+    /// Request to create a new session.
+    ///
+    /// Wraps optional client information for session initialization.
     public struct CreateRequest: Codable, Sendable {
         public let clientInfo: ClientInfo?
 
@@ -142,7 +166,9 @@ extension TunnelSession {
         }
     }
 
-    /// Response after creating a session
+    /// Response after creating a session.
+    ///
+    /// Contains both the session identifier and full session object.
     public struct CreateResponse: Codable, Sendable {
         public let id: String
         public let session: TunnelSession
@@ -153,7 +179,10 @@ extension TunnelSession {
         }
     }
 
-    /// Request to execute a command
+    /// Request to execute a command.
+    ///
+    /// Specifies a command to run in a terminal session with optional
+    /// environment variables and working directory.
     public struct ExecuteCommandRequest: Codable, Sendable {
         public let sessionId: String
         public let command: String
@@ -173,7 +202,9 @@ extension TunnelSession {
         }
     }
 
-    /// Response from command execution
+    /// Response from command execution.
+    ///
+    /// Contains the command's exit code and captured output streams.
     public struct ExecuteCommandResponse: Codable, Sendable {
         public let exitCode: Int32
         public let stdout: String
@@ -186,7 +217,10 @@ extension TunnelSession {
         }
     }
 
-    /// Health check response
+    /// Health check response.
+    ///
+    /// Provides server status information including version,
+    /// timestamp, and active session count.
     public struct HealthResponse: Codable, Sendable {
         public let status: String
         public let timestamp: Date
@@ -201,7 +235,9 @@ extension TunnelSession {
         }
     }
 
-    /// List sessions response
+    /// List sessions response.
+    ///
+    /// Contains an array of all active tunnel sessions.
     public struct ListResponse: Codable, Sendable {
         public let sessions: [TunnelSession]
 
@@ -210,7 +246,9 @@ extension TunnelSession {
         }
     }
 
-    /// Error response from server
+    /// Error response from server.
+    ///
+    /// Standardized error format with message and optional error code.
     public struct ErrorResponse: Codable, Sendable {
         public let error: String
         public let code: String?

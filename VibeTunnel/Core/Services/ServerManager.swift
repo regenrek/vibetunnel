@@ -4,7 +4,12 @@ import Observation
 import OSLog
 import SwiftUI
 
-/// Manages the active server and handles switching between modes
+/// Manages the active server and handles switching between modes.
+///
+/// `ServerManager` is the central coordinator for server lifecycle management in VibeTunnel.
+/// It handles starting, stopping, and switching between different server implementations (Rust/Hummingbird),
+/// manages server configuration, and provides logging capabilities. The manager ensures only one
+/// server instance runs at a time and coordinates smooth transitions between server modes.
 @MainActor
 @Observable
 class ServerManager {

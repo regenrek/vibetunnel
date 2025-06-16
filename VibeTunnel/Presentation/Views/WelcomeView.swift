@@ -117,7 +117,7 @@ struct WelcomePageView: View {
                     .font(.largeTitle)
                     .fontWeight(.semibold)
 
-                Text("Remote control terminals from any device through a secure tunnel.")
+                Text("Turn any browser into your terminal. Command your agents on the go.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
