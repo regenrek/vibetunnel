@@ -29,7 +29,7 @@ struct TunnelClientTests {
             sessions: 3,
             version: "1.0.0"
         )
-        try mockClient.configureJSON(healthResponse, for: "/health")
+        try mockClient.configureJSON(healthResponse, for: "/api/health")
         
         // Act
         let result = try await tunnelClient.checkHealth()
@@ -40,7 +40,7 @@ struct TunnelClientTests {
         #expect(result.version == "1.0.0")
         
         // Verify request
-        #expect(mockClient.wasRequested(path: "/health"))
+        #expect(mockClient.wasRequested(path: "/api/health"))
         let lastRequest = mockClient.lastRequest()!
         #expect(lastRequest.request.method == .get)
         #expect(lastRequest.request.headerFields[.authorization] == "Bearer \(testAPIKey)")
@@ -49,7 +49,7 @@ struct TunnelClientTests {
     @Test("Health check handles server error")
     func testHealthCheckServerError() async throws {
         // Arrange
-        mockClient.configure(for: "/health", response: .serverError)
+        mockClient.configure(for: "/api/health", response: .serverError)
         
         // Act & Assert
         await #expect(throws: TunnelClientError.httpError(statusCode: 500)) {
@@ -291,7 +291,7 @@ struct TunnelClientTests {
     @Test("All requests include authentication header")
     func testAuthenticationHeader() async throws {
         // Arrange
-        mockClient.configure(for: "/health", response: .success)
+        mockClient.configure(for: "/api/health", response: .success)
         mockClient.configure(for: "/api/sessions", response: .success)
         
         // Act

@@ -291,7 +291,7 @@ final class RustServer: ServerProtocol {
     // MARK: - Private Methods
     
     private func performHealthCheck(maxAttempts: Int, delaySeconds: Double) async -> Bool {
-        let healthURL = URL(string: "http://127.0.0.1:\(port)/health")!
+        let healthURL = URL(string: "http://127.0.0.1:\(port)/api/health")!
         
         for attempt in 1...maxAttempts {
             do {

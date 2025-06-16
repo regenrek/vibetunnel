@@ -969,7 +969,7 @@ struct DebugSettingsView: View {
         guard isServerRunning else { return false }
         
         do {
-            let url = URL(string: "http://127.0.0.1:\(serverPort)/health")!
+            let url = URL(string: "http://127.0.0.1:\(serverPort)/api/health")!
             var request = URLRequest(url: url)
             request.timeoutInterval = 1.0 // Quick timeout for heartbeat
             

@@ -80,7 +80,7 @@ class SessionMonitor {
     private func fetchSessions() async {
         do {
             // First check if server is running
-            let healthURL = URL(string: "http://127.0.0.1:\(serverPort)/health")!
+            let healthURL = URL(string: "http://127.0.0.1:\(serverPort)/api/health")!
             let healthRequest = URLRequest(url: healthURL, timeoutInterval: 2.0)
 
             do {

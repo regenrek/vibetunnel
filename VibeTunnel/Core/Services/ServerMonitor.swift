@@ -82,7 +82,7 @@ public final class ServerMonitor {
         guard isRunning else { return false }
 
         do {
-            let url = URL(string: "http://127.0.0.1:\(port)/health")!
+            let url = URL(string: "http://127.0.0.1:\(port)/api/health")!
             let request = URLRequest(url: url, timeoutInterval: 2.0)
             let (_, response) = try await URLSession.shared.data(for: request)
 

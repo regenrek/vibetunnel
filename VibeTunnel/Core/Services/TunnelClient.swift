@@ -66,7 +66,7 @@ public class TunnelClient {
     // MARK: - Health Check
 
     public func checkHealth() async throws -> TunnelSession.HealthResponse {
-        let request = buildRequest(path: "/health", method: .get)
+        let request = buildRequest(path: "/api/health", method: .get)
         let (data, response) = try await httpClient.data(for: request, body: nil)
 
         guard response.status == .ok else {

@@ -129,7 +129,7 @@ public final class TunnelServer {
             router.add(middleware: LogRequestsMiddleware(.info))
 
             // Health check endpoint
-            router.get("/health") { _, _ -> HTTPResponse.Status in
+            router.get("/api/health") { _, _ -> HTTPResponse.Status in
                 .ok
             }
 

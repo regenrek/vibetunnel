@@ -117,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
                 // Test the server after a short delay
                 try await Task.sleep(for: .milliseconds(500))
-                if let url = URL(string: "http://127.0.0.1:\(serverManager.port)/health") {
+                if let url = URL(string: "http://127.0.0.1:\(serverManager.port)/api/health") {
                     let (_, response) = try await URLSession.shared.data(from: url)
                     if let httpResponse = response as? HTTPURLResponse {
                         print("Server health check response: \(httpResponse.statusCode)")

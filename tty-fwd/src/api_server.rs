@@ -245,6 +245,7 @@ pub fn start_server(
             }
 
             let response = match (method, path.as_str()) {
+                (&Method::GET, "/api/health") => handle_health(),
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
                 (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &mut req),
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
@@ -310,6 +311,16 @@ fn json_response<T: Serialize>(status: StatusCode, data: &T) -> Response<String>
         .header("Access-Control-Allow-Origin", "*")
         .body(json)
         .unwrap()
+}
+
+fn handle_health() -> Response<String> {
+    let response = ApiResponse {
+        success: Some(true),
+        message: Some("OK".to_string()),
+        error: None,
+        session_id: None,
+    };
+    json_response(StatusCode::OK, &response)
 }
 
 fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
