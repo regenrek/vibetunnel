@@ -184,7 +184,7 @@ Key files:
 
 2. Build the Rust server:
    ```bash
-   cd tty-fwd
+├── tty-fwd/                # Rust TTY forwarding server  
    cargo build --release
    cd ..
    ```
