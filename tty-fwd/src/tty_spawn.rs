@@ -497,6 +497,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
     match execvp(&args[0], &args)? {}
 }
 
+#[allow(clippy::too_many_arguments)]
 fn communication_loop(
     master: OwnedFd,
     child: Pid,
@@ -572,7 +573,7 @@ fn communication_loop(
                             }),
                         };
 
-                        if let Err(_) = notification_writer.write_notification(event) {
+                        if notification_writer.write_notification(event).is_err() {
                             // Ignore notification write errors to not interrupt the main flow
                         }
                         input_notification_sent = true;
@@ -829,7 +830,7 @@ fn monitor_detached_session(
                             }),
                         };
 
-                        if let Err(_) = notification_writer.write_notification(event) {
+                        if notification_writer.write_notification(event).is_err() {
                             // Ignore notification write errors to not interrupt the main flow
                         }
                         input_notification_sent = true;

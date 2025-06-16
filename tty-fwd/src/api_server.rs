@@ -4,8 +4,6 @@ use jiff::Timestamp;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json;
-use serde_urlencoded;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -307,7 +305,7 @@ pub fn start_server(
             }
 
             // Check for static file serving first
-            if method == &Method::GET && !path.starts_with("/api/") {
+            if method == Method::GET && !path.starts_with("/api/") {
                 if let Some(ref static_dir) = static_path {
                     let static_dir_path = Path::new(static_dir);
                     println!(
@@ -342,25 +340,25 @@ pub fn start_server(
                     if path.starts_with("/api/sessions/") && path.ends_with("/stream") =>
                 {
                     // Handle streaming differently - bypass normal response handling
-                    return handle_session_stream_direct(&control_path, &path, &mut req);
+                    return handle_session_stream_direct(&control_path, path, &mut req);
                 }
                 (&Method::GET, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/snapshot") =>
                 {
-                    handle_session_snapshot(&control_path, &path)
+                    handle_session_snapshot(&control_path, path)
                 }
                 (&Method::POST, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/input") =>
                 {
-                    handle_session_input(&control_path, &path, &mut req)
+                    handle_session_input(&control_path, path, &mut req)
                 }
                 (&Method::DELETE, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/cleanup") =>
                 {
-                    handle_session_cleanup(&control_path, &path)
+                    handle_session_cleanup(&control_path, path)
                 }
                 (&Method::DELETE, path) if path.starts_with("/api/sessions/") => {
-                    handle_session_kill(&control_path, &path)
+                    handle_session_kill(&control_path, path)
                 }
                 _ => {
                     let error = ApiResponse {
@@ -407,7 +405,7 @@ fn handle_health() -> Response<String> {
     json_response(StatusCode::OK, &response)
 }
 
-fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
+fn handle_list_sessions(control_path: &Path) -> Response<String> {
     match sessions::list_sessions(control_path) {
         Ok(sessions) => {
             let mut session_responses = Vec::new();
@@ -450,7 +448,7 @@ fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
 }
 
 fn handle_create_session(
-    control_path: &PathBuf,
+    control_path: &Path,
     req: &mut crate::http_server::HttpRequest,
 ) -> Response<String> {
     // Read the request body
@@ -501,16 +499,16 @@ fn handle_create_session(
     let cmdline: Vec<std::ffi::OsString> = create_request
         .command
         .iter()
-        .map(|s| std::ffi::OsString::from(s))
+        .map(std::ffi::OsString::from)
         .collect();
 
     // Set working directory if specified, with tilde expansion
     let current_dir = if let Some(ref working_dir) = create_request.working_dir {
         // Expand ~ to home directory if needed
-        let expanded_dir = if working_dir.starts_with('~') {
+        let expanded_dir = if let Some(remaining_path) = working_dir.strip_prefix('~') {
             if let Some(home_dir) = std::env::var_os("HOME") {
                 let home_path = std::path::Path::new(&home_dir);
-                let remaining_path = &working_dir[1..]; // Remove the ~ character
+                // Remove the ~ character
                 if remaining_path.is_empty() {
                     home_path.to_path_buf()
                 } else {
@@ -545,7 +543,7 @@ fn handle_create_session(
     };
 
     // Spawn the process in a detached manner using a separate thread
-    let control_path_clone = control_path.clone();
+    let control_path_clone = control_path.to_path_buf();
     let session_id_clone = session_id.clone();
     let cmdline_clone = cmdline.clone();
     let working_dir_clone = current_dir.clone();
@@ -599,7 +597,7 @@ fn handle_create_session(
             let session_name = cmdline_clone
                 .first()
                 .and_then(|cmd| cmd.to_str())
-                .map(|s| s.split('/').last().unwrap_or(s))
+                .map(|s| s.split('/').next_back().unwrap_or(s))
                 .unwrap_or("unknown")
                 .to_string();
             tty_spawn.session_name(session_name);
@@ -640,7 +638,7 @@ fn handle_create_session(
     json_response(StatusCode::OK, &response)
 }
 
-fn handle_cleanup_exited(control_path: &PathBuf) -> Response<String> {
+fn handle_cleanup_exited(control_path: &Path) -> Response<String> {
     match sessions::cleanup_sessions(control_path, None) {
         Ok(_) => {
             let response = ApiResponse {
@@ -663,7 +661,7 @@ fn handle_cleanup_exited(control_path: &PathBuf) -> Response<String> {
     }
 }
 
-fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<String> {
+fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
         let stream_path = control_path.join(&session_id).join("stream-out");
 
@@ -695,7 +693,7 @@ fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<Strin
 }
 
 fn handle_session_input(
-    control_path: &PathBuf,
+    control_path: &Path,
     path: &str,
     req: &mut crate::http_server::HttpRequest,
 ) -> Response<String> {
@@ -833,94 +831,87 @@ fn handle_session_input(
     }
 }
 
-fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
-    if let Some(session_id) = extract_session_id(path) {
-        // First check if session exists by listing sessions
-        match sessions::list_sessions(control_path) {
-            Ok(sessions) => {
-                if let Some(session_entry) = sessions.get(&session_id) {
-                    // Session exists, try to kill it
-                    if let Some(_) = session_entry.session_info.pid {
-                        // First try SIGTERM, then SIGKILL if needed (like Node.js version)
-                        match sessions::send_signal_to_session(control_path, &session_id, 15) {
-                            Ok(_) => {
-                                // Successfully sent SIGTERM
-                                let response = ApiResponse {
-                                    success: Some(true),
-                                    message: Some("Session killed (SIGTERM)".to_string()),
-                                    error: None,
-                                    session_id: None,
-                                };
-                                json_response(StatusCode::OK, &response)
-                            }
-                            Err(_) => {
-                                // SIGTERM failed, try SIGKILL
-                                match sessions::send_signal_to_session(control_path, &session_id, 9)
-                                {
-                                    Ok(_) => {
-                                        let response = ApiResponse {
-                                            success: Some(true),
-                                            message: Some("Session killed (SIGKILL)".to_string()),
-                                            error: None,
-                                            session_id: None,
-                                        };
-                                        json_response(StatusCode::OK, &response)
-                                    }
-                                    Err(e) => {
-                                        let error = ApiResponse {
-                                            success: None,
-                                            message: None,
-                                            error: Some(format!("Failed to kill session: {}", e)),
-                                            session_id: None,
-                                        };
-                                        json_response(StatusCode::GONE, &error)
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Session has no PID, consider it already dead
-                        let response = ApiResponse {
-                            success: Some(true),
-                            message: Some("Session killed".to_string()),
-                            error: None,
-                            session_id: None,
-                        };
-                        json_response(StatusCode::OK, &response)
-                    }
-                } else {
-                    // Session not found
-                    let error = ApiResponse {
-                        success: None,
-                        message: None,
-                        error: Some("Session not found".to_string()),
-                        session_id: None,
-                    };
-                    json_response(StatusCode::NOT_FOUND, &error)
-                }
-            }
-            Err(e) => {
-                let error = ApiResponse {
-                    success: None,
-                    message: None,
-                    error: Some(format!("Failed to list sessions: {}", e)),
-                    session_id: None,
-                };
-                json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
-            }
+fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
+    let session_id = match extract_session_id(path) {
+        Some(id) => id,
+        None => {
+            let response = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Invalid session ID".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::BAD_REQUEST, &response);
         }
-    } else {
-        let error = ApiResponse {
-            success: None,
-            message: None,
-            error: Some("Invalid session ID".to_string()),
+    };
+
+    let sessions = match sessions::list_sessions(control_path) {
+        Ok(sessions) => sessions,
+        Err(e) => {
+            let response = ApiResponse {
+                success: None,
+                message: None,
+                error: Some(format!("Failed to list sessions: {}", e)),
+                session_id: None,
+            };
+            return json_response(StatusCode::INTERNAL_SERVER_ERROR, &response);
+        }
+    };
+
+    let session_entry = match sessions.get(&session_id) {
+        Some(entry) => entry,
+        None => {
+            let response = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Session not found".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::NOT_FOUND, &response);
+        }
+    };
+
+    // If session has no PID, consider it already dead
+    if session_entry.session_info.pid.is_none() {
+        let response = ApiResponse {
+            success: Some(true),
+            message: Some("Session killed".to_string()),
+            error: None,
             session_id: None,
         };
-        json_response(StatusCode::BAD_REQUEST, &error)
-    }
+        return json_response(StatusCode::OK, &response);
+    };
+
+    // Try SIGTERM first, then SIGKILL if needed
+    let (status, message) = match sessions::send_signal_to_session(control_path, &session_id, 15) {
+        Ok(_) => (StatusCode::OK, "Session killed (SIGTERM)"),
+        Err(_) => {
+            // SIGTERM failed, try SIGKILL
+            match sessions::send_signal_to_session(control_path, &session_id, 9) {
+                Ok(_) => (StatusCode::OK, "Session killed (SIGKILL)"),
+                Err(e) => {
+                    let response = ApiResponse {
+                        success: None,
+                        message: None,
+                        error: Some(format!("Failed to kill session: {}", e)),
+                        session_id: None,
+                    };
+                    return json_response(StatusCode::GONE, &response);
+                }
+            }
+        }
+    };
+
+    let response = ApiResponse {
+        success: Some(true),
+        message: Some(message.to_string()),
+        error: None,
+        session_id: None,
+    };
+    json_response(status, &response)
 }
 
-fn handle_session_cleanup(control_path: &PathBuf, path: &str) -> Response<String> {
+fn handle_session_cleanup(control_path: &Path, path: &str) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
         match sessions::cleanup_sessions(control_path, Some(&session_id)) {
             Ok(_) => {
@@ -965,7 +956,7 @@ fn get_last_modified(file_path: &str) -> Option<String> {
         .ok()
 }
 
-fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut HttpRequest) {
+fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpRequest) {
     let session_id = match extract_session_id(path) {
         Some(id) => id,
         None => {
@@ -1141,7 +1132,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
     let stream_path_clone = stream_out_path.clone();
 
     match Command::new("tail")
-        .args(&["-f", &stream_path_clone])
+        .args(["-f", &stream_path_clone])
         .stdout(Stdio::piped())
         .spawn()
     {
@@ -1240,7 +1231,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
     println!("Ended streaming SSE for session {}", session_id);
 }
 
-fn handle_stream_all_sessions(control_path: &PathBuf, req: &mut HttpRequest) {
+fn handle_stream_all_sessions(control_path: &Path, req: &mut HttpRequest) {
     println!("Starting streaming SSE for all sessions");
 
     // Send SSE headers
@@ -1327,7 +1318,7 @@ fn handle_stream_all_sessions(control_path: &PathBuf, req: &mut HttpRequest) {
     }
 
     // Set up filesystem watcher for new sessions
-    let control_path_clone = control_path.clone();
+    let control_path_clone = control_path.to_path_buf();
     let tx_watcher = tx.clone();
     let sessions_watcher = tracked_sessions.clone();
 
@@ -1457,7 +1448,7 @@ fn stream_session_continuously(stream_path: &str, session_id: &str, tx: mpsc::Se
 
     // Use tail -f to stream new content
     match Command::new("tail")
-        .args(&["-f", stream_path])
+        .args(["-f", stream_path])
         .stdout(Stdio::piped())
         .spawn()
     {
@@ -1629,39 +1620,37 @@ fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> 
     };
 
     let mut files = Vec::new();
-    for entry in entries {
-        if let Ok(entry) = entry {
-            if let Ok(file_metadata) = entry.metadata() {
-                let name = entry.file_name().to_string_lossy().to_string();
+    for entry in entries.flatten() {
+        if let Ok(file_metadata) = entry.metadata() {
+            let name = entry.file_name().to_string_lossy().to_string();
 
-                fn system_time_to_iso_string(time: SystemTime) -> String {
-                    let duration = time
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default();
-                    let timestamp = Timestamp::from_second(duration.as_secs() as i64)
-                        .unwrap_or_else(|_| Timestamp::UNIX_EPOCH);
-                    timestamp.to_string()
-                }
-
-                let created = file_metadata
-                    .created()
-                    .or_else(|_| file_metadata.modified())
-                    .map(system_time_to_iso_string)
-                    .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
-
-                let last_modified = file_metadata
-                    .modified()
-                    .map(system_time_to_iso_string)
-                    .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
-
-                files.push(FileInfo {
-                    name,
-                    created,
-                    last_modified,
-                    size: file_metadata.len(),
-                    is_dir: file_metadata.is_dir(),
-                });
+            fn system_time_to_iso_string(time: SystemTime) -> String {
+                let duration = time
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default();
+                let timestamp = Timestamp::from_second(duration.as_secs() as i64)
+                    .unwrap_or(Timestamp::UNIX_EPOCH);
+                timestamp.to_string()
             }
+
+            let created = file_metadata
+                .created()
+                .or_else(|_| file_metadata.modified())
+                .map(system_time_to_iso_string)
+                .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+
+            let last_modified = file_metadata
+                .modified()
+                .map(system_time_to_iso_string)
+                .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+
+            files.push(FileInfo {
+                name,
+                created,
+                last_modified,
+                size: file_metadata.len(),
+                is_dir: file_metadata.is_dir(),
+            });
         }
     }
 
