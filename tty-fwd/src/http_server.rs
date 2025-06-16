@@ -173,11 +173,46 @@ impl HttpRequest {
         }
     }
 
-    pub fn respond<T: AsRef<[u8]>>(
+    fn response_to_bytes<T>(&self, response: Response<T>) -> Vec<u8> 
+    where
+        T: AsRef<[u8]>,
+    {
+        let (parts, body) = response.into_parts();
+        let status_line = format!(
+            "HTTP/1.1 {} {}\r\n",
+            parts.status.as_u16(),
+            parts.status.canonical_reason().unwrap_or("")
+        );
+        let mut headers = String::new();
+        for (name, value) in parts.headers {
+            if let Some(name) = name {
+                headers.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
+            }
+        }
+        let header_bytes = format!("{}{}\r\n", status_line, headers).into_bytes();
+        let mut result = header_bytes;
+        result.extend_from_slice(body.as_ref());
+        result
+    }
+
+    pub fn respond<T>(
         &mut self,
-        response: T,
+        response: Response<T>,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> 
+    where
+        T: AsRef<[u8]>,
+    {
+        let response_bytes = self.response_to_bytes(response);
+        self.stream.write_all(&response_bytes)?;
+        self.stream.flush()?;
+        Ok(())
+    }
+
+    pub fn respond_raw<T: AsRef<[u8]>>(
+        &mut self,
+        data: T,
     ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.stream.write_all(response.as_ref())?;
+        self.stream.write_all(data.as_ref())?;
         self.stream.flush()?;
         Ok(())
     }

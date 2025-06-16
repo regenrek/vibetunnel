@@ -195,7 +195,7 @@ pub fn start_server(bind_address: &str, control_path: PathBuf, static_path: Opti
                     let static_dir_path = Path::new(static_dir);
                     if static_dir_path.exists() && static_dir_path.is_dir() {
                         if let Some(static_response) = serve_static_file(static_dir_path, &path) {
-                            let _ = req.respond(binary_response_to_bytes(static_response));
+                            let _ = req.respond(static_response);
                             return;
                         }
                     }
@@ -242,7 +242,7 @@ pub fn start_server(bind_address: &str, control_path: PathBuf, static_path: Opti
                 }
             };
 
-            let _ = req.respond(response_to_bytes(response));
+            let _ = req.respond(response);
         });
     }
 
@@ -256,41 +256,6 @@ fn extract_session_id(path: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
-fn response_to_bytes(response: Response<String>) -> Vec<u8> {
-    let (parts, body) = response.into_parts();
-    let status_line = format!(
-        "HTTP/1.1 {} {}\r\n",
-        parts.status.as_u16(),
-        parts.status.canonical_reason().unwrap_or("")
-    );
-    let mut headers = String::new();
-    for (name, value) in parts.headers {
-        if let Some(name) = name {
-            headers.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
-        }
-    }
-    let response_str = format!("{}{}\r\n{}", status_line, headers, body);
-    response_str.into_bytes()
-}
-
-fn binary_response_to_bytes(response: Response<Vec<u8>>) -> Vec<u8> {
-    let (parts, body) = response.into_parts();
-    let status_line = format!(
-        "HTTP/1.1 {} {}\r\n",
-        parts.status.as_u16(),
-        parts.status.canonical_reason().unwrap_or("")
-    );
-    let mut headers = String::new();
-    for (name, value) in parts.headers {
-        if let Some(name) = name {
-            headers.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
-        }
-    }
-    let header_bytes = format!("{}{}\r\n", status_line, headers).into_bytes();
-    let mut result = header_bytes;
-    result.extend_from_slice(&body);
-    result
-}
 
 fn json_response<T: Serialize>(status: StatusCode, data: &T) -> Response<String> {
     let json = serde_json::to_string(data).unwrap_or_else(|_| "{}".to_string());
@@ -553,7 +518,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                 session_id: None,
             };
             let response = json_response(StatusCode::BAD_REQUEST, &error);
-            let _ = req.respond(response_to_bytes(response));
+            let _ = req.respond(response);
             return;
         }
     };
@@ -569,7 +534,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                 session_id: None,
             };
             let response = json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
-            let _ = req.respond(response_to_bytes(response));
+            let _ = req.respond(response);
             return;
         }
     };
@@ -584,7 +549,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                 session_id: None,
             };
             let response = json_response(StatusCode::NOT_FOUND, &error);
-            let _ = req.respond(response_to_bytes(response));
+            let _ = req.respond(response);
             return;
         }
     };
@@ -600,7 +565,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
             session_id: None,
         };
         let response = json_response(StatusCode::NOT_FOUND, &error);
-        let _ = req.respond(response_to_bytes(response));
+        let _ = req.respond(response);
         return;
     }
 
@@ -614,7 +579,7 @@ Connection: keep-alive
 Access-Control-Allow-Origin: *
 
 ";
-    if let Err(e) = req.respond(headers.as_bytes()) {
+    if let Err(e) = req.respond_raw(headers.as_bytes()) {
         println!("Failed to send SSE headers: {}", e);
         return;
     }
@@ -642,7 +607,7 @@ Access-Control-Allow-Origin: *
                     let data = format!("data: {}
 
 ", line);
-                    if let Err(e) = req.respond(data.as_bytes()) {
+                    if let Err(e) = req.respond_raw(data.as_bytes()) {
                         println!("Failed to send header data: {}", e);
                         return;
                     }
@@ -656,7 +621,7 @@ Access-Control-Allow-Origin: *
                         let data = format!("data: {}
 
 ", instant_event);
-                        if let Err(e) = req.respond(data.as_bytes()) {
+                        if let Err(e) = req.respond_raw(data.as_bytes()) {
                             println!("Failed to send event data: {}", e);
                             return;
                         }
@@ -677,7 +642,7 @@ Access-Control-Allow-Origin: *
             let data = format!("data: {}
 
 ", default_header);
-            if let Err(e) = req.respond(data.as_bytes()) {
+            if let Err(e) = req.respond_raw(data.as_bytes()) {
                 println!("Failed to send default header: {}", e);
                 return;
             }
@@ -694,7 +659,7 @@ Access-Control-Allow-Origin: *
         let data = format!("data: {}
 
 ", default_header);
-        if let Err(e) = req.respond(data.as_bytes()) {
+        if let Err(e) = req.respond_raw(data.as_bytes()) {
             println!("Failed to send fallback header: {}", e);
             return;
         }
@@ -741,7 +706,7 @@ Access-Control-Allow-Origin: *
                                         let data = format!("data: {}
 
 ", real_time_event);
-                                        if let Err(e) = req.respond(data.as_bytes()) {
+                                        if let Err(e) = req.respond_raw(data.as_bytes()) {
                                             println!("Failed to send streaming data: {}", e);
                                             break;
                                         }
@@ -757,7 +722,7 @@ Access-Control-Allow-Origin: *
                                 let data = format!("data: {}
 
 ", cast_event);
-                                if let Err(e) = req.respond(data.as_bytes()) {
+                                if let Err(e) = req.respond_raw(data.as_bytes()) {
                                     println!("Failed to send raw streaming data: {}", e);
                                     break;
                                 }
@@ -779,7 +744,7 @@ Access-Control-Allow-Origin: *
             let error_data = format!("data: {{\"type\":\"error\",\"message\":\"Failed to start streaming: {}\"}}
 
 ", e);
-            let _ = req.respond(error_data.as_bytes());
+            let _ = req.respond_raw(error_data.as_bytes());
         }
     }
 
@@ -787,7 +752,7 @@ Access-Control-Allow-Origin: *
     let end_data = "data: {\"type\":\"end\"}
 
 ";
-    let _ = req.respond(end_data.as_bytes());
+    let _ = req.respond_raw(end_data.as_bytes());
     
     println!("Ended streaming SSE for session {}", session_id);
 }
