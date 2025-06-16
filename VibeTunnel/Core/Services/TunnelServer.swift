@@ -1175,8 +1175,8 @@ public final class TunnelServer {
             var sessionTitle: String?
             
             if let sessionData = sessionInfoOutput.data(using: .utf8),
-               let sessions = try? JSONDecoder().decode([TtyFwdSession].self, from: sessionData),
-               let session = sessions.first(where: { $0.name == sessionId }) {
+               let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData),
+               let session = sessions[sessionId] {
                 sessionCommand = session.cmdline.joined(separator: " ")
                 sessionTitle = "VibeTunnel Session: \(session.name)"
             }
@@ -1216,17 +1216,17 @@ public final class TunnelServer {
             let requestData = Data(buffer: buffer)
 
             struct InputRequest: Codable {
-                let text: String
+                let text: String?
             }
 
             let inputRequest = try JSONDecoder().decode(InputRequest.self, from: requestData)
 
             // Validate text is provided
-            if inputRequest.text.isEmpty {
+            guard let text = inputRequest.text else {
                 return errorResponse(message: "Text is required", status: .badRequest)
             }
 
-            logger.info("Sending input to session \(sessionId): \(inputRequest.text)")
+            logger.info("Sending input to session \(sessionId): \(text)")
 
             // Validate session exists and is running
             let sessionInfoOutput = try await executeTtyFwd(args: [
@@ -1236,8 +1236,8 @@ public final class TunnelServer {
             ])
 
             guard let sessionData = sessionInfoOutput.data(using: .utf8),
-                  let sessions = try? JSONDecoder().decode([TtyFwdSession].self, from: sessionData),
-                  let session = sessions.first(where: { $0.name == sessionId }) else {
+                  let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData),
+                  let session = sessions[sessionId] else {
                 logger.error("Session \(sessionId) not found in active sessions")
                 return errorResponse(message: "Session not found", status: .notFound)
             }
@@ -1271,8 +1271,8 @@ public final class TunnelServer {
                 }
             }
 
-            let specialKeys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter"]
-            let isSpecialKey = specialKeys.contains(inputRequest.text)
+            let specialKeys = ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "escape", "enter", "ctrl_enter", "shift_enter"]
+            let isSpecialKey = specialKeys.contains(text)
 
             let startTime = Date()
             
@@ -1283,10 +1283,10 @@ public final class TunnelServer {
                     "--session",
                     sessionId,
                     "--send-key",
-                    inputRequest.text
+                    text
                 ])
                 let elapsed = Date().timeIntervalSince(startTime) * 1000
-                logger.info("Successfully sent key: \(inputRequest.text) (\(Int(elapsed))ms)")
+                logger.info("Successfully sent key: \(text) (\(Int(elapsed))ms)")
             } else {
                 _ = try await executeTtyFwd(args: [
                     "--control-path",
@@ -1294,13 +1294,17 @@ public final class TunnelServer {
                     "--session",
                     sessionId,
                     "--send-text",
-                    inputRequest.text
+                    text
                 ])
                 let elapsed = Date().timeIntervalSince(startTime) * 1000
-                logger.info("Successfully sent text: \(inputRequest.text) (\(Int(elapsed))ms)")
+                logger.info("Successfully sent text: \(text) (\(Int(elapsed))ms)")
             }
 
-            let response = SimpleResponse(success: true, message: "Input sent successfully")
+            struct SuccessResponse: Codable {
+                let success: Bool
+            }
+            
+            let response = SuccessResponse(success: true)
             return jsonResponse(response)
 
         } catch let decodingError as DecodingError {

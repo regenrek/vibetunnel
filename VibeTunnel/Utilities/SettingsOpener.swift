@@ -12,6 +12,32 @@ enum SettingsOpener {
         
         // Post notification to trigger openSettings environment action
         NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
+        
+        // Ensure settings window comes to front after opening
+        Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            bringSettingsToFront()
+        }
+    }
+    
+    /// Brings the settings window to the front if it exists
+    static func bringSettingsToFront() {
+        // Find the settings window by looking for the preferences window
+        if let settingsWindow = NSApp.windows.first(where: { window in
+            window.isVisible && 
+            (window.styleMask.contains(.titled) && 
+             window.title.localizedCaseInsensitiveContains("settings") ||
+             window.title.localizedCaseInsensitiveContains("preferences"))
+        }) {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            settingsWindow.level = .floating
+            
+            // Reset to normal level after a brief moment
+            Task {
+                try? await Task.sleep(for: .milliseconds(50))
+                settingsWindow.level = .normal
+            }
+        }
     }
     
     /// Opens the Settings window and navigates to a specific tab
@@ -71,6 +97,10 @@ struct HiddenWindowView: View {
                 ) { _ in
                     Task { @MainActor in
                         openSettings()
+                        
+                        // Additional check to bring settings to front after environment action
+                        try? await Task.sleep(for: .milliseconds(150))
+                        SettingsOpener.bringSettingsToFront()
                     }
                 }
             }

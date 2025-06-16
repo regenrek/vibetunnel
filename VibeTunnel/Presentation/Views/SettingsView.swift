@@ -566,6 +566,7 @@ struct DebugSettingsView: View {
     @StateObject private var serverManager = ServerManager.shared
     @State private var isServerHealthy = false
     @State private var heartbeatTask: Task<Void, Never>?
+    @State private var showPurgeConfirmation = false
 
     private var isServerRunning: Bool {
         serverMonitor.isRunning
@@ -834,6 +835,21 @@ struct DebugSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("User Defaults")
+                            Spacer()
+                            Button("Purge All") {
+                                showPurgeConfirmation = true
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
+                        Text("Remove all stored preferences and reset to defaults")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } header: {
                     Text("Developer Tools")
                         .font(.headline)
@@ -858,6 +874,14 @@ struct DebugSettingsView: View {
             .onChange(of: serverModeString) { _, _ in
                 // Clear health status when switching modes
                 isServerHealthy = false
+            }
+            .alert("Purge All User Defaults?", isPresented: $showPurgeConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Purge", role: .destructive) {
+                    purgeAllUserDefaults()
+                }
+            } message: {
+                Text("This will remove all stored preferences and reset the app to its default state. The app will quit after purging.")
             }
         }
     }
@@ -984,6 +1008,20 @@ struct DebugSettingsView: View {
         }
         
         return false
+    }
+    
+    private func purgeAllUserDefaults() {
+        // Get the app's bundle identifier
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            // Remove all UserDefaults for this app
+            UserDefaults.standard.removePersistentDomain(forName: bundleIdentifier)
+            UserDefaults.standard.synchronize()
+            
+            // Quit the app after a short delay to ensure the purge completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NSApplication.shared.terminate(nil)
+            }
+        }
     }
 }
 
