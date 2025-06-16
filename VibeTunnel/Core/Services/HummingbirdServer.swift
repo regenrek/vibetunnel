@@ -3,7 +3,12 @@ import Foundation
 import Hummingbird
 import OSLog
 
-/// Hummingbird server implementation
+/// Hummingbird server implementation.
+///
+/// Provides a Swift-native HTTP server using the Hummingbird framework.
+/// This implementation offers direct integration with the VibeTunnel UI,
+/// built-in WebSocket support, and native Swift performance characteristics.
+/// It serves as an alternative to the external Rust tty-fwd binary.
 @MainActor
 final class HummingbirdServer: ServerProtocol {
     private var tunnelServer: TunnelServer?

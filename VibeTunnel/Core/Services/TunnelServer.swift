@@ -96,7 +96,13 @@ struct StreamResponse: Codable {
     let streamPath: String
 }
 
-/// HTTP server that provides API endpoints for terminal session management
+/// HTTP server that provides API endpoints for terminal session management.
+///
+/// `TunnelServer` implements a Hummingbird-based HTTP server that bridges web clients
+/// with the tty-fwd terminal multiplexer. It provides RESTful APIs for session management,
+/// command execution, and filesystem browsing, along with WebSocket support for real-time
+/// terminal streaming. The server serves the web UI as static files and handles all
+/// terminal-related operations through a local HTTP interface.
 ///
 /// This server runs locally and provides:
 /// - Session creation, listing, and management

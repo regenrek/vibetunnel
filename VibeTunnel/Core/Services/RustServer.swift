@@ -2,14 +2,22 @@ import Combine
 import Foundation
 import OSLog
 
-/// Task tracking for better debugging
+/// Task tracking for better debugging.
+///
+/// Provides task-local storage for debugging context during
+/// asynchronous server operations.
 enum ServerTaskContext {
     @TaskLocal static var taskName: String?
 
     @TaskLocal static var serverType: ServerMode?
 }
 
-/// Rust tty-fwd server implementation
+/// Rust tty-fwd server implementation.
+///
+/// Manages the external tty-fwd Rust binary as a subprocess. This implementation
+/// provides high-performance terminal multiplexing by leveraging the battle-tested
+/// tty-fwd server. It handles process lifecycle, log streaming, and error recovery
+/// while maintaining compatibility with the ServerProtocol interface.
 @MainActor
 final class RustServer: ServerProtocol {
     private var process: Process?
@@ -22,7 +30,10 @@ final class RustServer: ServerProtocol {
     private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
     private let processQueue = DispatchQueue(label: "com.steipete.VibeTunnel.RustServer", qos: .userInitiated)
 
-    /// Actor to handle process operations on background thread
+    /// Actor to handle process operations on background thread.
+    ///
+    /// Isolates process management operations to prevent blocking the main thread
+    /// while maintaining Swift concurrency safety.
     private actor ProcessHandler {
         private let queue = DispatchQueue(
             label: "com.steipete.VibeTunnel.RustServer.ProcessHandler",

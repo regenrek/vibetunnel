@@ -155,11 +155,8 @@ fn write_to_pipe_with_timeout(
 
     match poll_result {
         -1 => {
-            let errno = unsafe { *libc::__error() };
-            return Err(anyhow!(
-                "Poll failed: {}",
-                std::io::Error::from_raw_os_error(errno)
-            ));
+            let errno = std::io::Error::last_os_error();
+            return Err(anyhow!("Poll failed: {}", errno));
         }
         0 => {
             return Err(anyhow!("Write operation timed out after {:?}", timeout));

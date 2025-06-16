@@ -37,7 +37,7 @@ enum Terminal: String, CaseIterable {
     }
 
     static var installed: [Self] {
-        Self.allCases.filter(\.isInstalled)
+        allCases.filter(\.isInstalled)
     }
 }
 
