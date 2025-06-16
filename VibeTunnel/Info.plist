@@ -37,11 +37,13 @@
 	<key>SUFeedURL</key>
 	<string>https://vibetunnel.sh/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>YOUR_PUBLIC_ED_KEY_HERE</string>
+	<string>AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>VibeTunnel needs to send AppleScript commands to your preferred terminal application to open new terminal sessions.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
