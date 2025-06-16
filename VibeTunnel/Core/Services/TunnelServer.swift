@@ -34,11 +34,13 @@ public final class TunnelServer {
     
     public init(port: Int = 4020) {
         self.port = port
+        logger.info("TunnelServer initialized with port: \(port)")
     }
     
     public func start() async throws {
         guard !isRunning else { return }
         
+        logger.info("DEBUG: start() called with self.port = \(self.port)")
         logger.info("Starting TunnelServer on port \(port)")
         
         do {

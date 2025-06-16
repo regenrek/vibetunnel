@@ -83,8 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize and start HTTP server
         let serverPortString = UserDefaults.standard.string(forKey: "serverPort") ?? "4020"
+        print("DEBUG: serverPortString from UserDefaults: '\(serverPortString)'")
         let serverPort = Int(serverPortString) ?? 4020
+        print("DEBUG: Parsed serverPort: \(serverPort)")
         httpServer = TunnelServer(port: serverPort)
+        print("DEBUG: TunnelServer initialized with port: \(httpServer?.port ?? -1)")
         
         Task {
             do {
