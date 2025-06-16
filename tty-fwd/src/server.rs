@@ -1,11 +1,10 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use blocking_http_server::{Method, Response, Server, StatusCode};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -131,17 +130,6 @@ pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn execute_tty_fwd(_control_path: &PathBuf, args: &[&str]) -> Result<String> {
-    let output = Command::new("tty-fwd").args(args).output()?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(anyhow!("tty-fwd failed: {}", stderr))
-    }
 }
 
 fn extract_session_id(path: &str) -> Option<String> {
@@ -357,17 +345,7 @@ fn handle_session_kill(control_path: &PathBuf, path: &str) -> Response<String> {
 
 fn handle_session_cleanup(control_path: &PathBuf, path: &str) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
-        let control_path_str = control_path.to_string_lossy().to_string();
-        match execute_tty_fwd(
-            control_path,
-            &[
-                "--control-path",
-                &control_path_str,
-                "--session",
-                &session_id,
-                "--cleanup",
-            ],
-        ) {
+        match sessions::cleanup_sessions(control_path, Some(&session_id)) {
             Ok(_) => {
                 let response = ApiResponse {
                     success: Some(true),
