@@ -27,6 +27,7 @@ bytes = "1.0"
 http = "1.0"
 regex = "1.10"
 dirs = "5.0"
+notify = "6.1.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Console"] }
