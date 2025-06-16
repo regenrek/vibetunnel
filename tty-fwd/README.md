@@ -127,6 +127,7 @@ When running with `--serve`, the following REST API endpoints are available:
 - `--serve`: Start HTTP API server on specified address/port
 - `--static-path`: Directory to serve static files from (requires --serve)
 - `--cleanup`: Remove exited sessions
+- `--password`: Enables an HTTP basic auth password (username is ignored)
 
 ## License
 

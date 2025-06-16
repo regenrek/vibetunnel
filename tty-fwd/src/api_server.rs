@@ -1,4 +1,5 @@
 use anyhow::Result;
+use data_encoding::BASE64;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -83,6 +84,33 @@ struct ApiResponse {
     error: Option<String>,
     #[serde(rename = "sessionId")]
     session_id: Option<String>,
+}
+
+fn check_basic_auth(req: &HttpRequest, expected_password: &str) -> bool {
+    if let Some(auth_header) = req.headers().get("authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(credentials) = auth_str.strip_prefix("Basic ") {
+                if let Ok(decoded_bytes) = BASE64.decode(credentials.as_bytes()) {
+                    if let Ok(decoded_str) = String::from_utf8(decoded_bytes) {
+                        if let Some(colon_pos) = decoded_str.find(':') {
+                            let password = &decoded_str[colon_pos + 1..];
+                            return password == expected_password;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn unauthorized_response() -> Response<String> {
+    Response::builder()
+        .status(StatusCode::UNAUTHORIZED)
+        .header("WWW-Authenticate", "Basic realm=\"tty-fwd\"")
+        .header("Content-Type", "text/plain")
+        .body("Unauthorized".to_string())
+        .unwrap()
 }
 
 fn get_mime_type(file_path: &Path) -> &'static str {
@@ -203,16 +231,32 @@ pub fn start_server(
     bind_address: &str,
     control_path: PathBuf,
     static_path: Option<String>,
+    password: Option<String>,
 ) -> Result<()> {
     fs::create_dir_all(&control_path)?;
 
     let server = HttpServer::bind(bind_address)
         .map_err(|e| anyhow::anyhow!("Failed to bind server: {}", e))?;
-    println!("HTTP API server listening on {}", bind_address);
+
+    // Set up auth if password is provided
+    let auth_password = if let Some(ref password) = password {
+        println!(
+            "HTTP API server listening on {} with Basic Auth enabled (any username)",
+            bind_address
+        );
+        Some(password.clone())
+    } else {
+        println!(
+            "HTTP API server listening on {} with no authentication",
+            bind_address
+        );
+        None
+    };
 
     for req in server.incoming() {
         let control_path = control_path.clone();
         let static_path = static_path.clone();
+        let auth_password = auth_password.clone();
 
         thread::spawn(move || {
             let mut req = match req {
@@ -228,6 +272,14 @@ pub fn start_server(
             let full_uri = req.uri().to_string();
 
             println!("{:?} {} (full URI: {})", method, path, full_uri);
+
+            // Check authentication if enabled (but skip /api/health)
+            if let Some(ref expected_password) = auth_password {
+                if path != "/api/health" && !check_basic_auth(&req, expected_password) {
+                    let _ = req.respond(unauthorized_response());
+                    return;
+                }
+            }
 
             // Check for static file serving first
             if method == &Method::GET && !path.starts_with("/api/") {

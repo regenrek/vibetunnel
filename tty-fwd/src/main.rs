@@ -29,6 +29,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut cleanup = false;
     let mut serve_address = None::<String>;
     let mut static_path = None::<String>;
+    let mut password = None::<String>;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -82,6 +83,9 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("static-path") => {
                 static_path = Some(parser.value()?);
             }
+            p if p.is_long("password") => {
+                password = Some(parser.value()?);
+            }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
             }
@@ -107,6 +111,7 @@ fn main() -> Result<(), anyhow::Error> {
                 println!(
                     "  --static-path <path>    Path to static files directory for HTTP server"
                 );
+                println!("  --password <password>   Enable basic auth with random username and specified password");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
@@ -171,7 +176,7 @@ fn main() -> Result<(), anyhow::Error> {
             std::process::exit(0);
         })
         .unwrap();
-        return crate::api_server::start_server(&addr, control_path, static_path);
+        return crate::api_server::start_server(&addr, control_path, static_path, password);
     }
 
     let exit_code = sessions::spawn_command(control_path, session_name, cmdline)?;
