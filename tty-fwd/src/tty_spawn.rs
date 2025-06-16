@@ -11,8 +11,8 @@ use tempfile::NamedTempFile;
 
 use crate::heuristics::InputDetectionHeuristics;
 use crate::protocol::{
-    AsciinemaEvent, AsciinemaEventType, AsciinemaHeader, NotificationEvent, NotificationWriter,
-    SessionInfo, StreamWriter,
+    AsciinemaEvent, AsciinemaEventType, NotificationEvent, NotificationWriter, SessionInfo,
+    StreamWriter,
 };
 use jiff::Timestamp;
 
@@ -30,6 +30,21 @@ use nix::unistd::{
     close, dup2, execvp, fork, mkfifo, read, setsid, tcgetpgrp, write, ForkResult, Pid,
 };
 use signal_hook::consts::SIGWINCH;
+
+/// Creates environment variables for AsciinemaHeader
+fn create_env_vars(term: &str) -> std::collections::HashMap<String, String> {
+    let mut env_vars = std::collections::HashMap::new();
+    env_vars.insert("TERM".to_string(), term.to_string());
+
+    // Include other important terminal-related environment variables if they exist
+    for var in ["SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"] {
+        if let Ok(value) = std::env::var(var) {
+            env_vars.insert(var.to_string(), value);
+        }
+    }
+
+    env_vars
+}
 
 /// Lets you spawn processes with a TTY connected.
 pub struct TtySpawn {
@@ -358,42 +373,22 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
                 let stdin_file = opts.stdin_file;
 
                 // Create StreamWriter for detached session if we have an output file
-                let stream_writer = if let Some(stdout_file) = opts.stdout_file {
-                    // Collect relevant environment variables
-                    let mut env_vars = std::collections::HashMap::new();
-                    env_vars.insert("TERM".to_string(), opts.term.clone());
-
-                    // Include other important terminal-related environment variables if they exist
-                    for var in ["SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"] {
-                        if let Ok(value) = std::env::var(var) {
-                            env_vars.insert(var.to_string(), value);
-                        }
-                    }
-
-                    let header = AsciinemaHeader {
-                        version: 2,
-                        width: winsize.as_ref().map_or(80, |x| x.ws_col as u32),
-                        height: winsize.as_ref().map_or(24, |x| x.ws_row as u32),
-                        timestamp: Some(
-                            std::time::SystemTime::now()
-                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs(),
-                        ),
-                        duration: None,
-                        command: Some(
+                let stream_writer = if let Some(stdout_file) = opts.stdout_file.take() {
+                    StreamWriter::with_params(
+                        stdout_file,
+                        winsize.as_ref().map_or(80, |x| x.ws_col as u32),
+                        winsize.as_ref().map_or(24, |x| x.ws_row as u32),
+                        Some(
                             opts.command
                                 .iter()
                                 .map(|s| s.to_string_lossy().to_string())
                                 .collect::<Vec<_>>()
                                 .join(" "),
                         ),
-                        title: opts.session_name.clone(),
-                        env: Some(env_vars),
-                        theme: None,
-                    };
-
-                    StreamWriter::new(stdout_file, header).ok()
+                        opts.session_name,
+                        Some(create_env_vars(&opts.term)),
+                    )
+                    .ok()
                 } else {
                     None
                 };
@@ -441,44 +436,21 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
 
         // Create StreamWriter if we have an output file
         let mut stream_writer = if let Some(stdout_file) = opts.stdout_file.take() {
-            // Collect relevant environment variables
-            let mut env_vars = std::collections::HashMap::new();
-            env_vars.insert("TERM".to_string(), opts.term.clone());
-
-            // Include other important terminal-related environment variables if they exist
-            for var in ["SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"] {
-                if let Ok(value) = std::env::var(var) {
-                    env_vars.insert(var.to_string(), value);
-                }
-            }
-
-            let header = AsciinemaHeader {
-                version: 2,
-                width: winsize.as_ref().map_or(80, |x| x.ws_col as u32),
-                height: winsize.as_ref().map_or(24, |x| x.ws_row as u32),
-                timestamp: Some(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                ),
-                duration: None,
-                command: Some(
+            StreamWriter::with_params(
+                stdout_file,
+                winsize.as_ref().map_or(80, |x| x.ws_col as u32),
+                winsize.as_ref().map_or(24, |x| x.ws_row as u32),
+                Some(
                     opts.command
                         .iter()
                         .map(|s| s.to_string_lossy().to_string())
                         .collect::<Vec<_>>()
                         .join(" "),
                 ),
-                title: opts.session_name.clone(),
-                env: Some(env_vars),
-                theme: None,
-            };
-
-            Some(
-                StreamWriter::new(stdout_file, header)
-                    .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?,
+                opts.session_name,
+                Some(create_env_vars(&opts.term)),
             )
+            .ok()
         } else {
             None
         };

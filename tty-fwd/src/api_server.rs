@@ -1,15 +1,12 @@
 use anyhow::Result;
 use data_encoding::BASE64;
 use jiff::Timestamp;
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -332,10 +329,6 @@ pub fn start_server(
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
                 (&Method::POST, "/api/mkdir") => handle_mkdir(&mut req),
                 (&Method::GET, "/api/fs/browse") => handle_browse(&mut req),
-                (&Method::GET, "/api/stream-all") => {
-                    // Handle streaming all sessions - bypass normal response handling
-                    return handle_stream_all_sessions(&control_path, &mut req);
-                }
                 (&Method::GET, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/stream") =>
                 {
@@ -1059,6 +1052,14 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
                             return;
                         }
                     }
+                // send headers unchanged
+                } else {
+                    req.respond_raw("data: ").ok();
+                    if let Err(e) = req.respond_raw(line.as_bytes()) {
+                        println!("Failed to send header: {}", e);
+                        return;
+                    }
+                    req.respond_raw("\n\n").ok();
                 }
             }
         }
@@ -1180,309 +1181,6 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
     let _ = req.respond_raw(end_data.as_bytes());
 
     println!("Ended streaming SSE for session {}", session_id);
-}
-
-fn handle_stream_all_sessions(control_path: &Path, req: &mut HttpRequest) {
-    println!("Starting streaming SSE for all sessions");
-
-    // Send SSE headers
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/event-stream")
-        .header("Cache-Control", "no-cache")
-        .header("Connection", "keep-alive")
-        .header("Access-Control-Allow-Origin", "*")
-        .body(Vec::new())
-        .unwrap();
-
-    if let Err(e) = req.respond(response) {
-        println!("Failed to send SSE headers: {}", e);
-        return;
-    }
-
-    let start_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs_f64();
-
-    // Channel for coordinating writes from multiple threads
-    let (tx, rx) = mpsc::channel::<String>();
-
-    // Keep track of session threads for cleanup
-    let mut session_threads = HashMap::new();
-    let mut watcher_opt: Option<RecommendedWatcher> = None;
-    let tracked_sessions = Arc::new(Mutex::new(HashMap::new()));
-
-    // Get initial sessions and send their historical data
-    let initial_sessions = match sessions::list_sessions(control_path) {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            let error_data = format!(
-                "data: {{\"type\":\"error\",\"message\":\"Failed to list sessions: {}\"}}
-
-",
-                e
-            );
-            let _ = req.respond_raw(error_data.as_bytes());
-            return;
-        }
-    };
-
-    // Send default header first
-    let mut default_header = crate::protocol::AsciinemaHeader::default();
-    default_header.timestamp = Some(start_time as u64);
-    let header_data = format!(
-        "data: {}
-
-",
-        serde_json::to_string(&default_header).unwrap()
-    );
-    if let Err(e) = req.respond_raw(header_data.as_bytes()) {
-        println!("Failed to send header: {}", e);
-        return;
-    }
-
-    // Send historical data for all sessions
-    for (session_id, session_entry) in &initial_sessions {
-        send_session_history(&session_entry.stream_out, session_id, &tx);
-    }
-
-    // Start threads for each existing session
-    for (session_id, session_entry) in &initial_sessions {
-        let tx_clone = tx.clone();
-        let session_id_clone = session_id.clone();
-        let stream_path = session_entry.stream_out.clone();
-
-        let handle = thread::spawn(move || {
-            stream_session_continuously(&stream_path, &session_id_clone, tx_clone);
-        });
-
-        session_threads.insert(session_id.clone(), handle);
-        if let Ok(mut sessions) = tracked_sessions.lock() {
-            sessions.insert(session_id.clone(), true);
-        }
-    }
-
-    // Set up filesystem watcher for new sessions
-    let control_path_clone = control_path.to_path_buf();
-    let tx_watcher = tx.clone();
-    let sessions_watcher = tracked_sessions.clone();
-
-    match notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-        match res {
-            Ok(event) => {
-                if let EventKind::Create(_) = event.kind {
-                    for path in event.paths {
-                        if path.is_dir() && path.parent() == Some(&control_path_clone) {
-                            if let Some(session_id) = path.file_name().and_then(|n| n.to_str()) {
-                                // Check if we've already seen this session
-                                let already_tracked = if let Ok(sessions) = sessions_watcher.lock()
-                                {
-                                    sessions.contains_key(session_id)
-                                } else {
-                                    false
-                                };
-
-                                if already_tracked {
-                                    continue;
-                                }
-
-                                // Wait a bit for session.json to be created
-                                thread::sleep(std::time::Duration::from_millis(100));
-
-                                let session_path = path.join("session.json");
-                                if session_path.exists() {
-                                    let stream_out_path = path.join("stream-out");
-                                    if stream_out_path.exists() {
-                                        // Mark session as tracked to prevent duplicate processing
-                                        if let Ok(mut sessions) = sessions_watcher.lock() {
-                                            sessions.insert(session_id.to_string(), true);
-                                        }
-
-                                        // Send historical data for new session
-                                        send_session_history(
-                                            &stream_out_path.to_string_lossy(),
-                                            session_id,
-                                            &tx_watcher,
-                                        );
-
-                                        // Start streaming thread for new session
-                                        let tx_new = tx_watcher.clone();
-                                        let session_id_new = session_id.to_string();
-                                        let stream_path_new =
-                                            stream_out_path.to_string_lossy().to_string();
-
-                                        thread::spawn(move || {
-                                            stream_session_continuously(
-                                                &stream_path_new,
-                                                &session_id_new,
-                                                tx_new,
-                                            );
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Err(e) => println!("Watcher error: {:?}", e),
-        }
-    }) {
-        Ok(mut watcher) => {
-            if let Err(e) = watcher.watch(control_path, RecursiveMode::NonRecursive) {
-                println!("Failed to watch control path: {}", e);
-            } else {
-                watcher_opt = Some(watcher);
-            }
-        }
-        Err(e) => {
-            println!("Failed to create watcher: {}", e);
-        }
-    }
-
-    // Process messages from all session threads
-    for msg in rx {
-        if let Err(e) = req.respond_raw(msg.as_bytes()) {
-            println!("Failed to send streaming data: {}", e);
-            break;
-        }
-    }
-
-    // Cleanup
-    drop(watcher_opt);
-    println!("Ended streaming SSE for all sessions");
-}
-
-fn send_session_history(stream_path: &str, session_id: &str, tx: &mpsc::Sender<String>) {
-    if let Ok(content) = fs::read_to_string(stream_path) {
-        for line in content.lines() {
-            if line.trim().is_empty() {
-                continue;
-            }
-
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
-                // Skip headers in historical data
-                if parsed.get("version").is_some() && parsed.get("width").is_some() {
-                    continue;
-                }
-
-                // Process event lines [timestamp, type, data]
-                if let Some(arr) = parsed.as_array() {
-                    if arr.len() >= 3 {
-                        // Convert to instant event with session_id prefix
-                        let instant_event = serde_json::json!([0, arr[1], arr[2]]);
-                        let prefixed_data = format!(
-                            "data: {}:{}
-
-",
-                            session_id, instant_event
-                        );
-                        let _ = tx.send(prefixed_data);
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn stream_session_continuously(stream_path: &str, session_id: &str, tx: mpsc::Sender<String>) {
-    let start_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs_f64();
-
-    // Use tail -f to stream new content
-    match Command::new("tail")
-        .args(["-f", stream_path])
-        .stdout(Stdio::piped())
-        .spawn()
-    {
-        Ok(mut child) => {
-            if let Some(stdout) = child.stdout.take() {
-                let reader = BufReader::new(stdout);
-
-                for line in reader.lines() {
-                    match line {
-                        Ok(line) => {
-                            if line.trim().is_empty() {
-                                continue;
-                            }
-
-                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line) {
-                                // Skip headers in tail output
-                                if parsed.get("version").is_some() && parsed.get("width").is_some()
-                                {
-                                    continue;
-                                }
-
-                                // Process event lines
-                                if let Some(arr) = parsed.as_array() {
-                                    if arr.len() >= 3 {
-                                        let current_time = SystemTime::now()
-                                            .duration_since(SystemTime::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_secs_f64();
-                                        let real_time_event = serde_json::json!([
-                                            current_time - start_time,
-                                            arr[1],
-                                            arr[2]
-                                        ]);
-                                        let prefixed_data = format!(
-                                            "data: {}:{}
-
-",
-                                            session_id, real_time_event
-                                        );
-                                        if tx.send(prefixed_data).is_err() {
-                                            break;
-                                        }
-                                    }
-                                }
-                            } else {
-                                // Handle non-JSON as raw output
-                                let current_time = SystemTime::now()
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs_f64();
-                                let cast_event =
-                                    serde_json::json!([current_time - start_time, "o", line]);
-                                let prefixed_data = format!(
-                                    "data: {}:{}
-
-",
-                                    session_id, cast_event
-                                );
-                                if tx.send(prefixed_data).is_err() {
-                                    break;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!("Error reading from tail for session {}: {}", session_id, e);
-                            break;
-                        }
-                    }
-                }
-
-                // Clean up
-                let _ = child.kill();
-            }
-        }
-        Err(e) => {
-            println!(
-                "Failed to start tail command for session {}: {}",
-                session_id, e
-            );
-            let error_data = format!(
-                "data: {}:{{\"type\":\"error\",\"message\":\"Failed to start streaming: {}\"}}
-
-",
-                session_id, e
-            );
-            let _ = tx.send(error_data);
-        }
-    }
 }
 
 fn resolve_path(path: &str, home_dir: &str) -> PathBuf {
