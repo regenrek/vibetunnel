@@ -25,11 +25,7 @@ public final class ServerMonitor {
     private weak var server: TunnelServer?
 
     /// Internal state tracking
-    @ObservationIgnored public var isServerRunning = false {
-        didSet {
-            // Notify observers when state changes
-        }
-    }
+    public var isServerRunning = false
 
     private init() {
         // Sync initial state with ServerManager
