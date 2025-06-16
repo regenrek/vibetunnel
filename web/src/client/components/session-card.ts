@@ -22,14 +22,20 @@ export class SessionCard extends LitElement {
 
   @property({ type: Object }) session!: Session;
   @state() private renderer: Renderer | null = null;
+  
+  private refreshInterval: number | null = null;
 
   firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
     this.createRenderer();
+    this.startRefresh();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
     if (this.renderer) {
       this.renderer.dispose();
       this.renderer = null;
@@ -43,11 +49,8 @@ export class SessionCard extends LitElement {
     // Create single renderer for this card
     this.renderer = new Renderer(playerElement, 40, 12, 10000, 6, true);
 
-    // Connect to appropriate endpoint based on session status
-    const isStream = this.session.status !== 'exited';
-    const url = isStream
-      ? `/api/sessions/${this.session.id}/stream`
-      : `/api/sessions/${this.session.id}/snapshot`;
+    // Always use snapshot endpoint for cards
+    const url = `/api/sessions/${this.session.id}/snapshot`;
 
     // Wait a moment for freshly created sessions before connecting
     const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
@@ -55,9 +58,22 @@ export class SessionCard extends LitElement {
 
     setTimeout(() => {
       if (this.renderer) {
-        this.renderer.loadFromUrl(url, isStream);
+        this.renderer.loadFromUrl(url, false); // false = not a stream, use snapshot
+        // Disable pointer events so clicks pass through to the card
+        this.renderer.setPointerEventsEnabled(false);
       }
     }, delay);
+  }
+
+  private startRefresh() {
+    this.refreshInterval = window.setInterval(() => {
+      if (this.renderer) {
+        const url = `/api/sessions/${this.session.id}/snapshot`;
+        this.renderer.loadFromUrl(url, false);
+        // Ensure pointer events stay disabled after refresh
+        this.renderer.setPointerEventsEnabled(false);
+      }
+    }, 10000); // Refresh every 10 seconds
   }
 
   private handleCardClick() {
@@ -70,6 +86,7 @@ export class SessionCard extends LitElement {
 
   private handleKillClick(e: Event) {
     e.stopPropagation();
+    e.preventDefault();
     this.dispatchEvent(new CustomEvent('session-kill', {
       detail: this.session.id,
       bubbles: true,
@@ -77,51 +94,81 @@ export class SessionCard extends LitElement {
     }));
   }
 
+  private async handlePidClick(e: Event) {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (this.session.pid) {
+      try {
+        await navigator.clipboard.writeText(this.session.pid.toString());
+        console.log('PID copied to clipboard:', this.session.pid);
+      } catch (error) {
+        console.error('Failed to copy PID to clipboard:', error);
+        // Fallback: select text manually
+        this.fallbackCopyToClipboard(this.session.pid.toString());
+      }
+    }
+  }
+
+  private fallbackCopyToClipboard(text: string) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      console.log('PID copied to clipboard (fallback):', text);
+    } catch (error) {
+      console.error('Fallback copy failed:', error);
+    }
+    document.body.removeChild(textArea);
+  }
+
   render() {
     const isRunning = this.session.status === 'running';
-    const statusColor = isRunning ? 'text-green-400' : 'text-red-400';
-
+    
     return html`
       <div class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden"
            @click=${this.handleCardClick}>
-        <!-- Session Info Header -->
-        <div class="p-3 border-b border-vs-border">
-          <div class="flex justify-between items-start mb-2">
-            <div class="flex-1 min-w-0">
-              <h3 class="text-vs-foreground font-mono text-sm truncate">
-                ${this.session.command}
-              </h3>
-              <p class="text-vs-muted text-xs truncate mt-1">
-                ${this.session.workingDir}
-              </p>
-            </div>
-            <div class="flex items-center gap-2 ml-2">
-              <span class="${statusColor} text-xs font-medium uppercase tracking-wide">
-                ${this.session.status}
+        <!-- Compact Header -->
+        <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
+          <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${this.session.command}</div>
+          ${this.session.status === 'running' ? html`
+            <button
+              class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
+              @click=${this.handleKillClick}
+            >
+              ${this.session.status === 'running' ? 'kill' : 'clean'}
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- XTerm renderer (main content) -->
+        <div class="session-preview bg-black flex items-center justify-center overflow-hidden" style="aspect-ratio: 640/480;">
+          <div id="player" class="w-full h-full overflow-hidden"></div>
+        </div>
+
+        <!-- Compact Footer -->
+        <div class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border">
+          <div class="flex justify-between items-center">
+            <span class="${this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'} text-xs">
+              ${this.session.status}
+            </span>
+            ${this.session.pid ? html`
+              <span 
+                class="cursor-pointer hover:text-vs-accent transition-colors"
+                @click=${this.handlePidClick}
+                title="Click to copy PID"
+              >
+                PID: ${this.session.pid}
               </span>
-              ${isRunning ? html`
-                <button @click=${this.handleKillClick}
-                        class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded">
-                  kill
-                </button>
-              ` : ''}
-            </div>
+            ` : ''}
           </div>
-        </div>
-
-        <!-- Terminal Preview -->
-        <div class="h-32 bg-vs-bg">
-          <div id="player" class="w-full h-full"></div>
-        </div>
-
-        <!-- Session Metadata -->
-        <div class="p-2 text-xs text-vs-muted border-t border-vs-border">
-          <div class="flex justify-between">
-            <span>Started: ${new Date(this.session.startedAt).toLocaleString()}</span>
-            ${this.session.pid ? html`<span>PID: ${this.session.pid}</span>` : ''}
-          </div>
+          <div class="truncate text-xs opacity-75" title="${this.session.workingDir}">${this.session.workingDir}</div>
         </div>
       </div>
     `;
   }
+
 }
