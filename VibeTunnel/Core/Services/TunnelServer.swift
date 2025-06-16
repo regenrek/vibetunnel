@@ -217,6 +217,10 @@ public final class TunnelServer {
                 await self.browseFileSystem(request: request)
             }
 
+            router.post("/api/mkdir") { request, _ async -> Response in
+                await self.createDirectory(request: request)
+            }
+
             // ngrok tunnel management endpoints
             router.post("/api/ngrok/start") { _, _ async -> Response in
                 await self.startNgrokTunnel()
@@ -1456,6 +1460,43 @@ public final class TunnelServer {
         } catch {
             logger.error("Error listing directory: \(error)")
             return errorResponse(message: "Failed to list directory")
+        }
+    }
+
+    private func createDirectory(request: Request) async -> Response {
+        do {
+            guard let buffer = request.body.contents else {
+                return errorResponse(message: "Request body is required", status: .badRequest)
+            }
+
+            let requestData = Data(buffer: buffer)
+
+            struct MkdirRequest: Codable {
+                let path: String
+            }
+
+            let mkdirRequest = try JSONDecoder().decode(MkdirRequest.self, from: requestData)
+
+            if mkdirRequest.path.isEmpty {
+                return errorResponse(message: "Path cannot be empty", status: .badRequest)
+            }
+
+            let expandedPath = resolvePath(mkdirRequest.path, fallback: mkdirRequest.path)
+
+            try FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true, attributes: nil)
+
+            let response = SimpleResponse(
+                success: true,
+                message: "Directory created successfully"
+            )
+
+            return jsonResponse(response)
+        } catch let decodingError as DecodingError {
+            logger.error("Error decoding mkdir request: \(decodingError)")
+            return errorResponse(message: "Invalid request body. Expected JSON with 'path' field", status: .badRequest)
+        } catch {
+            logger.error("Error creating directory: \(error)")
+            return errorResponse(message: "Failed to create directory: \(error.localizedDescription)", status: .internalServerError)
         }
     }
 
