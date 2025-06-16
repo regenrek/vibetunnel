@@ -18,6 +18,7 @@ let SessionList = class SessionList extends LitElement {
         this.hideExited = true;
         this.showCreateModal = false;
         this.cleaningExited = false;
+        this.newSessionIds = new Set();
     }
     // Disable shadow DOM to use Tailwind
     createRenderRoot() {
@@ -57,17 +58,23 @@ let SessionList = class SessionList extends LitElement {
         if (changedProperties.has('sessions')) {
             // Auto-load snapshots for existing sessions immediately, but delay for new ones
             const prevSessions = changedProperties.get('sessions') || [];
-            const newSessionIds = this.sessions
+            const newSessionIdsList = this.sessions
                 .filter(session => !prevSessions.find((prev) => prev.id === session.id))
                 .map(session => session.id);
+            // Track new sessions
+            newSessionIdsList.forEach(id => this.newSessionIds.add(id));
             // Load existing sessions immediately
-            const existingSessions = this.sessions.filter(session => !newSessionIds.includes(session.id));
+            const existingSessions = this.sessions.filter(session => !newSessionIdsList.includes(session.id));
             existingSessions.forEach(session => this.loadSnapshot(session.id));
             // Load new sessions after a delay to let them generate some output
-            if (newSessionIds.length > 0) {
+            if (newSessionIdsList.length > 0) {
                 setTimeout(() => {
-                    newSessionIds.forEach(sessionId => this.loadSnapshot(sessionId));
-                }, 3000); // Wait 3 seconds for new sessions
+                    newSessionIdsList.forEach(sessionId => {
+                        this.newSessionIds.delete(sessionId); // Remove from new sessions set
+                        this.loadSnapshot(sessionId);
+                    });
+                    this.requestUpdate(); // Update UI to show the players
+                }, 500); // Wait 500ms for new sessions
             }
         }
     }
@@ -275,7 +282,9 @@ let SessionList = class SessionList extends LitElement {
                     <div id="player-${session.id}" class="w-full h-full" style="overflow: hidden;"></div>
                   ` : html `
                     <div class="text-vs-muted text-xs">
-                      ${this.loadingSnapshots.has(session.id) ? 'Loading...' : 'Loading...'}
+                      ${this.newSessionIds.has(session.id)
+            ? 'Starting session...'
+            : (this.loadingSnapshots.has(session.id) ? 'Loading...' : 'Loading...')}
                     </div>
                   `}
                 </div>
@@ -329,6 +338,9 @@ __decorate([
 __decorate([
     state()
 ], SessionList.prototype, "cleaningExited", void 0);
+__decorate([
+    state()
+], SessionList.prototype, "newSessionIds", void 0);
 SessionList = __decorate([
     customElement('session-list')
 ], SessionList);

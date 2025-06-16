@@ -8,8 +8,8 @@ import './components/session-list.js';
 
 import type { Session } from './components/session-list.js';
 
-@customElement('vibetunnel-app-new')
-export class VibeTunnelAppNew extends LitElement {
+@customElement('vibetunnel-app')
+export class VibeTunnelApp extends LitElement {
   // Disable shadow DOM to use Tailwind
   createRenderRoot() {
     return this;
