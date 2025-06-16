@@ -187,10 +187,16 @@ export class SessionView extends LitElement {
     }, delay);
 
     // Listen for session exit events
-    terminalElement.addEventListener('session-exit', this.handleSessionExit.bind(this) as EventListener);
-    
+    terminalElement.addEventListener(
+      'session-exit',
+      this.handleSessionExit.bind(this) as EventListener
+    );
+
     // Listen for terminal resize events to capture dimensions
-    terminalElement.addEventListener('terminal-resize', this.handleTerminalResize.bind(this) as EventListener);
+    terminalElement.addEventListener(
+      'terminal-resize',
+      this.handleTerminalResize.bind(this) as EventListener
+    );
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
@@ -383,14 +389,16 @@ export class SessionView extends LitElement {
         controls.style.transition = 'transform 0.3s ease';
 
         // Calculate available space to match closed keyboard layout
-        const header = this.querySelector('.flex.items-center.justify-between.p-4.border-b') as HTMLElement;
+        const header = this.querySelector(
+          '.flex.items-center.justify-between.p-4.border-b'
+        ) as HTMLElement;
         const headerHeight = header?.offsetHeight || 60;
         const controlsHeight = controls?.offsetHeight || 120;
 
         // Calculate exact space to maintain same gap as when keyboard is closed
         const availableHeight = viewportHeight - headerHeight - controlsHeight;
         const inputArea = textarea.parentElement as HTMLElement;
-        
+
         if (inputArea && availableHeight > 0) {
           // Set the input area to exactly fill the space, maintaining natural flex behavior
           inputArea.style.height = `${availableHeight}px`;
@@ -717,11 +725,16 @@ export class SessionView extends LitElement {
             <span class="${this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'}">
               ${this.session.status.toUpperCase()}
             </span>
-            ${this.terminalCols > 0 && this.terminalRows > 0 ? html`
-              <span class="text-vs-muted text-xs opacity-60" style="font-size: 10px; line-height: 1;">
-                ${this.terminalCols}×${this.terminalRows}
-              </span>
-            ` : ''}
+            ${this.terminalCols > 0 && this.terminalRows > 0
+              ? html`
+                  <span
+                    class="text-vs-muted text-xs opacity-60"
+                    style="font-size: 10px; line-height: 1;"
+                  >
+                    ${this.terminalCols}×${this.terminalRows}
+                  </span>
+                `
+              : ''}
           </div>
         </div>
 

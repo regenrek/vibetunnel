@@ -160,7 +160,7 @@ export class Renderer {
 
   parseCastFile(content: string): void {
     const lines = content.trim().split('\n');
-    let outputEvents: string[] = [];
+    const outputEvents: string[] = [];
 
     // Clear terminal
     this.terminal.clear();
@@ -194,7 +194,7 @@ export class Renderer {
         console.warn('Failed to parse cast line:', line);
       }
     }
-    
+
     // Write all output at once, then scroll when rendering is complete
     if (outputEvents.length > 0) {
       const allOutput = outputEvents.join('');
@@ -236,11 +236,11 @@ export class Renderer {
     this.terminal.resize(width, height);
     // Always use ScaleFitAddon for consistent scaling behavior
     this.scaleFitAddon.fit();
-    
+
     // Emit custom event with terminal dimensions
     const event = new CustomEvent('terminal-resize', {
       detail: { cols: width, rows: height },
-      bubbles: true
+      bubbles: true,
     });
     this.container.dispatchEvent(event);
   }

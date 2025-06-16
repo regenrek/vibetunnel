@@ -54,7 +54,7 @@ export class SessionCard extends LitElement {
     if (!playerElement) return;
 
     // Create single renderer for this card
-    this.renderer = new Renderer(playerElement, 80, 24, 10000, 4, false);
+    this.renderer = new Renderer(playerElement, 80, 24, 10000, 4);
 
     // Always use snapshot endpoint for cards
     const url = `/api/sessions/${this.session.id}/snapshot`;

@@ -8,18 +8,22 @@
   font-style: normal;
   font-weight: 300 700;
   font-display: swap;
-  src: url('/fonts/FiraCode-VF.woff2') format('woff2-variations'),
-       url('/fonts/FiraCode-VF.ttf') format('truetype-variations');
+  src:
+    url('/fonts/FiraCode-VF.woff2') format('woff2-variations'),
+    url('/fonts/FiraCode-VF.ttf') format('truetype-variations');
   font-variation-settings: 'wght' 400;
 }
 
 /* Override Tailwind's font-mono to use Fira Code */
 .font-mono {
-  font-family: 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace !important;
+  font-family:
+    'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo,
+    monospace !important;
 }
 
 /* Mobile scroll and touch behavior fixes */
-html, body {
+html,
+body {
   overscroll-behavior: none;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
@@ -76,7 +80,9 @@ body {
 /* XTerm terminal styling */
 .xterm {
   padding: 0 !important;
-  font-family: 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace !important;
+  font-family:
+    'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo,
+    monospace !important;
 }
 
 .xterm .xterm-viewport {
