@@ -1,0 +1,381 @@
+import Foundation
+import Observation
+import os
+
+/// Errors that can occur during ngrok operations
+enum NgrokError: LocalizedError {
+    case notInstalled
+    case authTokenMissing
+    case tunnelCreationFailed(String)
+    case invalidConfiguration
+    case networkError(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .notInstalled:
+            return "ngrok is not installed. Please install it using 'brew install ngrok' or download from ngrok.com"
+        case .authTokenMissing:
+            return "ngrok auth token is missing. Please add it in Settings"
+        case .tunnelCreationFailed(let message):
+            return "Failed to create tunnel: \(message)"
+        case .invalidConfiguration:
+            return "Invalid ngrok configuration"
+        case .networkError(let message):
+            return "Network error: \(message)"
+        }
+    }
+}
+
+/// Represents the status of an ngrok tunnel
+struct NgrokTunnelStatus: Codable {
+    let publicUrl: String
+    let metrics: TunnelMetrics
+    let startedAt: Date
+    
+    struct TunnelMetrics: Codable {
+        let connectionsCount: Int
+        let bytesIn: Int64
+        let bytesOut: Int64
+    }
+}
+
+/// Protocol for ngrok tunnel operations
+protocol NgrokTunnelProtocol {
+    func start(port: Int) async throws -> String
+    func stop() async throws
+    func getStatus() async -> NgrokTunnelStatus?
+    func isRunning() async -> Bool
+}
+
+/// Manages ngrok tunnel lifecycle and configuration
+/// 
+/// This service handles starting, stopping, and monitoring ngrok tunnels
+/// to expose local services to the internet
+@Observable
+@MainActor
+final class NgrokService: NgrokTunnelProtocol {
+    static let shared = NgrokService()
+    
+    /// Current tunnel status
+    private(set) var tunnelStatus: NgrokTunnelStatus?
+    
+    /// Indicates if a tunnel is currently active
+    private(set) var isActive = false
+    
+    /// The public URL of the active tunnel
+    private(set) var publicUrl: String?
+    
+    /// Auth token for ngrok (stored securely in Keychain)
+    var authToken: String? {
+        get { 
+            let token = KeychainHelper.getNgrokAuthToken()
+            logger.info("Getting auth token from keychain: \(token != nil ? "present" : "nil")")
+            return token
+        }
+        set { 
+            logger.info("Setting auth token in keychain: \(newValue != nil ? "present" : "nil")")
+            if let token = newValue {
+                KeychainHelper.setNgrokAuthToken(token)
+            } else {
+                KeychainHelper.deleteNgrokAuthToken()
+            }
+        }
+    }
+    
+    /// The ngrok process if using CLI mode
+    private var ngrokProcess: Process?
+    
+    /// Timer for periodic status updates
+    private var statusTimer: Timer?
+    
+    private let logger = Logger(subsystem: "com.amantus.vibetunnel", category: "NgrokService")
+    
+    private init() {}
+    
+    /// Starts an ngrok tunnel for the specified port
+    func start(port: Int) async throws -> String {
+        logger.info("Starting ngrok tunnel on port \(port)")
+        
+        guard let authToken = authToken, !authToken.isEmpty else {
+            logger.error("Auth token is missing")
+            throw NgrokError.authTokenMissing
+        }
+        
+        logger.info("Auth token is present, proceeding with CLI start")
+        
+        // For now, we'll use the ngrok CLI approach
+        // Later we can switch to the SDK when available
+        return try await startWithCLI(port: port)
+    }
+    
+    /// Stops the active ngrok tunnel
+    func stop() async throws {
+        logger.info("Stopping ngrok tunnel")
+        
+        if let process = ngrokProcess {
+            process.terminate()
+            ngrokProcess = nil
+        }
+        
+        statusTimer?.invalidate()
+        statusTimer = nil
+        
+        isActive = false
+        publicUrl = nil
+        tunnelStatus = nil
+    }
+    
+    /// Gets the current tunnel status
+    func getStatus() async -> NgrokTunnelStatus? {
+        return tunnelStatus
+    }
+    
+    /// Checks if a tunnel is currently running
+    func isRunning() async -> Bool {
+        return isActive && ngrokProcess?.isRunning == true
+    }
+    
+    // MARK: - Private Methods
+    
+    /// Starts ngrok using the CLI
+    private func startWithCLI(port: Int) async throws -> String {
+        // Check if ngrok is installed
+        let checkProcess = Process()
+        checkProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        checkProcess.arguments = ["ngrok"]
+        
+        let checkPipe = Pipe()
+        checkProcess.standardOutput = checkPipe
+        checkProcess.standardError = Pipe()
+        
+        do {
+            try checkProcess.run()
+            checkProcess.waitUntilExit()
+            
+            let data = checkPipe.fileHandleForReading.readDataToEndOfFile()
+            let ngrokPath = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            guard let ngrokPath = ngrokPath, !ngrokPath.isEmpty else {
+                throw NgrokError.notInstalled
+            }
+            
+            // Set up ngrok with auth token
+            let authProcess = Process()
+            authProcess.executableURL = URL(fileURLWithPath: ngrokPath)
+            authProcess.arguments = ["config", "add-authtoken", authToken!]
+            
+            try authProcess.run()
+            authProcess.waitUntilExit()
+            
+            // Start ngrok tunnel
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: ngrokPath)
+            process.arguments = ["http", "\(port)", "--log=stdout", "--log-format=json"]
+            
+            let outputPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = Pipe()
+            
+            // Monitor output for the public URL
+            let outputHandle = outputPipe.fileHandleForReading
+            
+            _ = false // publicUrlFound - removed as unused
+            let urlExpectation = Task<String, Error> {
+                for try await line in outputHandle.lines {
+                    if let data = line.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        
+                        // Look for tunnel established message
+                        if let msg = json["msg"] as? String,
+                           msg.contains("started tunnel"),
+                           let url = json["url"] as? String {
+                            return url
+                        }
+                        
+                        // Alternative: look for public URL in addr field
+                        if let addr = json["addr"] as? String,
+                           addr.starts(with: "https://") {
+                            return addr
+                        }
+                    }
+                }
+                throw NgrokError.tunnelCreationFailed("Could not find public URL in ngrok output")
+            }
+            
+            try process.run()
+            self.ngrokProcess = process
+            
+            // Wait for URL with timeout
+            let url = try await withTimeout(seconds: 10) {
+                try await urlExpectation.value
+            }
+            
+            self.publicUrl = url
+            self.isActive = true
+            
+            // Start monitoring tunnel status
+            startStatusMonitoring()
+            
+            logger.info("ngrok tunnel started: \(url)")
+            return url
+            
+        } catch {
+            logger.error("Failed to start ngrok: \(error)")
+            throw error
+        }
+    }
+    
+    /// Monitors tunnel status periodically
+    private func startStatusMonitoring() {
+        statusTimer?.invalidate()
+        
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            Task { @MainActor in
+                await self.updateTunnelStatus()
+            }
+        }
+    }
+    
+    /// Updates the current tunnel status
+    private func updateTunnelStatus() async {
+        // In a real implementation, we would query ngrok's API
+        // For now, just check if the process is still running
+        if let process = ngrokProcess, process.isRunning {
+            if tunnelStatus == nil {
+                tunnelStatus = NgrokTunnelStatus(
+                    publicUrl: publicUrl ?? "",
+                    metrics: .init(connectionsCount: 0, bytesIn: 0, bytesOut: 0),
+                    startedAt: Date()
+                )
+            }
+        } else {
+            isActive = false
+            publicUrl = nil
+            tunnelStatus = nil
+        }
+    }
+    
+    /// Executes an async task with a timeout
+    private func withTimeout<T: Sendable>(seconds: TimeInterval, operation: @Sendable @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw NgrokError.networkError("Operation timed out")
+            }
+            
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+}
+
+// MARK: - AsyncSequence Extension for FileHandle
+
+extension FileHandle {
+    var lines: AsyncLineSequence {
+        AsyncLineSequence(fileHandle: self)
+    }
+}
+
+/// Async sequence for reading lines from a FileHandle
+struct AsyncLineSequence: AsyncSequence {
+    typealias Element = String
+    
+    let fileHandle: FileHandle
+    
+    struct AsyncIterator: AsyncIteratorProtocol {
+        let fileHandle: FileHandle
+        var buffer = Data()
+        
+        mutating func next() async -> String? {
+            while true {
+                if let range = buffer.range(of: "\n".data(using: .utf8)!) {
+                    let line = String(data: buffer[..<range.lowerBound], encoding: .utf8)
+                    buffer.removeSubrange(..<range.upperBound)
+                    return line
+                }
+                
+                let newData = fileHandle.availableData
+                if newData.isEmpty {
+                    if !buffer.isEmpty {
+                        defer { buffer.removeAll() }
+                        return String(data: buffer, encoding: .utf8)
+                    }
+                    return nil
+                }
+                
+                buffer.append(newData)
+            }
+        }
+    }
+    
+    func makeAsyncIterator() -> AsyncIterator {
+        AsyncIterator(fileHandle: fileHandle)
+    }
+}
+
+// MARK: - Keychain Helper
+
+/// Helper for secure storage of ngrok auth tokens in Keychain
+private struct KeychainHelper {
+    private static let service = "com.amantus.vibetunnel"
+    private static let account = "ngrok-auth-token"
+    
+    static func getNgrokAuthToken() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let token = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        
+        return token
+    }
+    
+    static func setNgrokAuthToken(_ token: String) {
+        let data = token.data(using: .utf8)!
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        
+        // Try to update first
+        var updateQuery = query
+        updateQuery[kSecValueData as String] = data
+        
+        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        
+        if status == errSecItemNotFound {
+            // Item doesn't exist, create it
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            status = SecItemAdd(addQuery as CFDictionary, nil)
+        }
+    }
+    
+    static func deleteNgrokAuthToken() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        
+        SecItemDelete(query as CFDictionary)
+    }
+}

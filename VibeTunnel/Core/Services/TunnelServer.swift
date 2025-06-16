@@ -8,6 +8,7 @@ import NIOCore
 import NIOPosix
 import os
 
+/// Errors that can occur during server operations
 enum ServerError: LocalizedError {
     case failedToStart(String)
     
@@ -19,6 +20,7 @@ enum ServerError: LocalizedError {
     }
 }
 
+/// Represents a tty-fwd session from the command-line tool
 struct TtyFwdSession: Codable {
     let cmdline: [String]
     let cwd: String
@@ -38,6 +40,7 @@ struct TtyFwdSession: Codable {
     }
 }
 
+/// Simplified session information for API responses
 struct TtyFwdSessionInfo: Codable {
     let id: String
     let command: String
@@ -49,6 +52,7 @@ struct TtyFwdSessionInfo: Codable {
     let pid: Int
 }
 
+/// File/directory information for filesystem browsing
 struct FileInfo: Codable {
     let name: String
     let created: String
@@ -57,26 +61,36 @@ struct FileInfo: Codable {
     let isDir: Bool
 }
 
+/// Directory listing response containing files and path
 struct DirectoryListing: Codable {
     let absolutePath: String
     let files: [FileInfo]
 }
 
+/// Generic response for simple success/failure operations
 struct SimpleResponse: Codable {
     let success: Bool
     let message: String
 }
 
+/// Response containing a newly created session ID
 struct SessionIdResponse: Codable {
     let sessionId: String
 }
 
+/// Response for streaming endpoints
 struct StreamResponse: Codable {
     let message: String
     let streamPath: String
 }
 
-/// HTTP server implementation for the macOS app
+/// HTTP server that provides API endpoints for terminal session management
+/// 
+/// This server runs locally and provides:
+/// - Session creation, listing, and management
+/// - Terminal I/O streaming
+/// - Filesystem browsing
+/// - Static file serving for the web UI
 @MainActor
 @Observable
 public final class TunnelServer {
@@ -87,6 +101,7 @@ public final class TunnelServer {
     private var app: Application<Router<BasicRequestContext>.Responder>?
     private let logger = Logger(label: "VibeTunnel.TunnelServer")
     private let terminalManager = TerminalManager()
+    private let ngrokService = NgrokService.shared
     private var serverTask: Task<Void, Error>?
     private let ttyFwdControlDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel").appendingPathComponent("control").path
     
@@ -179,6 +194,85 @@ public final class TunnelServer {
             
             router.get("/api/fs/browse") { request, _ async -> Response in
                 await self.browseFileSystem(request: request)
+            }
+            
+            // ngrok tunnel management endpoints
+            router.post("/api/ngrok/start") { _, _ async -> Response in
+                await self.startNgrokTunnel()
+            }
+            
+            router.post("/api/ngrok/stop") { _, _ async -> Response in
+                await self.stopNgrokTunnel()
+            }
+            
+            router.get("/api/ngrok/status") { _, _ async -> Response in
+                await self.getNgrokStatus()
+            }
+            
+            // Legacy endpoint for backwards compatibility
+            router.get("/sessions") { _, _ async -> Response in
+                let process = await MainActor.run {
+                    TTYForwardManager.shared.createTTYForwardProcess(with: ["--list-sessions"])
+                }
+                
+                guard let process = process else {
+                    self.logger.error("Failed to create tty-fwd process")
+                    let errorJson = "{\"error\": \"tty-fwd binary not found\"}"
+                    var buffer = ByteBuffer()
+                    buffer.writeString(errorJson)
+                    return Response(
+                        status: .internalServerError,
+                        headers: [.contentType: "application/json"],
+                        body: ResponseBody(byteBuffer: buffer)
+                    )
+                }
+                
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
+                
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    
+                    if process.terminationStatus == 0 {
+                        // Read the JSON output
+                        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                        var buffer = ByteBuffer()
+                        buffer.writeBytes(outputData)
+                        
+                        return Response(
+                            status: .ok,
+                            headers: [.contentType: "application/json"],
+                            body: ResponseBody(byteBuffer: buffer)
+                        )
+                    } else {
+                        // Read error output
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                        self.logger.error("tty-fwd failed with status \(process.terminationStatus): \(errorString)")
+                        
+                        let errorJson = "{\"error\": \"Failed to list sessions: \(errorString.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+                        var buffer = ByteBuffer()
+                        buffer.writeString(errorJson)
+                        return Response(
+                            status: .internalServerError,
+                            headers: [.contentType: "application/json"],
+                            body: ResponseBody(byteBuffer: buffer)
+                        )
+                    }
+                } catch {
+                    self.logger.error("Failed to run tty-fwd: \(error)")
+                    let errorJson = "{\"error\": \"Failed to execute tty-fwd: \(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+                    var buffer = ByteBuffer()
+                    buffer.writeString(errorJson)
+                    return Response(
+                        status: .internalServerError,
+                        headers: [.contentType: "application/json"],
+                        body: ResponseBody(byteBuffer: buffer)
+                    )
+                }
             }
             
             // Serve index.html from root path
@@ -274,7 +368,7 @@ public final class TunnelServer {
         isRunning = false
     }
     
-    /// Check if the server is actually listening on the specified port
+    /// Verifies the server is listening by attempting an HTTP health check
     private func isServerListening(on port: Int) async -> Bool {
         do {
             let url = URL(string: "http://127.0.0.1:\(port)/health")!
@@ -397,7 +491,7 @@ public final class TunnelServer {
             }
         }
         
-        guard let finalPath = fullPath, let finalWebPath = webPublicPath else {
+        guard let finalPath = fullPath, webPublicPath != nil else {
             logger.error("Could not find web/public directory in any of these paths:")
             for testPath in possiblePaths {
                 logger.error("  - \(testPath)")
@@ -637,7 +731,6 @@ public final class TunnelServer {
             
             var header: [String: Any]? = nil
             var events: [[Any]] = []
-            var startTime: Double? = nil
             
             for line in lines {
                 if let data = line.data(using: .utf8),
@@ -791,5 +884,65 @@ public final class TunnelServer {
             logger.error("Error listing directory: \(error)")
             return errorResponse(message: "Failed to list directory")
         }
+    }
+    
+    // MARK: - ngrok Integration
+    
+    private func startNgrokTunnel() async -> Response {
+        do {
+            let publicUrl = try await ngrokService.start(port: self.port)
+            
+            struct NgrokStartResponse: Codable {
+                let success: Bool
+                let publicUrl: String
+                let message: String
+            }
+            
+            let response = NgrokStartResponse(
+                success: true,
+                publicUrl: publicUrl,
+                message: "ngrok tunnel started successfully"
+            )
+            
+            return jsonResponse(response)
+        } catch {
+            logger.error("Failed to start ngrok tunnel: \(error)")
+            return errorResponse(message: error.localizedDescription)
+        }
+    }
+    
+    private func stopNgrokTunnel() async -> Response {
+        do {
+            try await ngrokService.stop()
+            
+            let response = SimpleResponse(
+                success: true,
+                message: "ngrok tunnel stopped successfully"
+            )
+            
+            return jsonResponse(response)
+        } catch {
+            logger.error("Failed to stop ngrok tunnel: \(error)")
+            return errorResponse(message: error.localizedDescription)
+        }
+    }
+    
+    private func getNgrokStatus() async -> Response {
+        struct NgrokStatusResponse: Codable {
+            let isActive: Bool
+            let publicUrl: String?
+            let status: NgrokTunnelStatus?
+        }
+        
+        let isActive = await ngrokService.isRunning()
+        let status = await ngrokService.getStatus()
+        
+        let response = NgrokStatusResponse(
+            isActive: isActive,
+            publicUrl: ngrokService.publicUrl,
+            status: status
+        )
+        
+        return jsonResponse(response)
     }
 }

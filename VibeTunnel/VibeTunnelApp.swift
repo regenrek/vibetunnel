@@ -1,11 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// Main entry point for the VibeTunnel macOS application
 @main
 struct VibeTunnelApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
     @State private var sessionMonitor = SessionMonitor.shared
+    @State private var serverMonitor = ServerMonitor.shared
 
     var body: some Scene {
         #if os(macOS)
@@ -23,6 +25,7 @@ struct VibeTunnelApp: App {
             MenuBarExtra {
                 MenuBarView()
                     .environment(sessionMonitor)
+                    .environment(serverMonitor)
             } label: {
                 Image("menubar")
                     .renderingMode(.template)
@@ -33,11 +36,14 @@ struct VibeTunnelApp: App {
 
 // MARK: - App Delegate
 
+/// Manages app lifecycle, single instance enforcement, and core services
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
     private(set) var httpServer: TunnelServer?
     private let sessionMonitor = SessionMonitor.shared
+    private let serverMonitor = ServerMonitor.shared
+    private let ngrokService = NgrokService.shared
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
     private static let showSettingsNotification = Notification.Name("com.amantus.vibetunnel.showSettings")
@@ -85,11 +91,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let serverPortString = UserDefaults.standard.string(forKey: "serverPort") ?? "4020"
         let serverPort = Int(serverPortString) ?? 4020
         httpServer = TunnelServer(port: serverPort)
+        serverMonitor.setServer(httpServer)
         
         Task {
             do {
                 print("Attempting to start HTTP server on port \(httpServer?.port ?? 4020)...")
                 try await httpServer?.start()
+                serverMonitor.updateStatus()
                 print("HTTP server started successfully on port \(httpServer?.port ?? 4020)")
                 print("Server is running: \(httpServer?.isRunning ?? false)")
                 
@@ -113,12 +121,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     print("NSError code: \(nsError.code)")
                     print("NSError userInfo: \(nsError.userInfo)")
                 }
+                serverMonitor.updateStatus()
             }
         }
     }
     
     func setHTTPServer(_ server: TunnelServer?) {
         httpServer = server
+        serverMonitor.setServer(server)
     }
 
     private func handleSingleInstanceCheck() {
@@ -174,6 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stop HTTP server
         Task {
             try? await httpServer?.stop()
+            serverMonitor.updateStatus()
         }
         
         // Remove distributed notification observer

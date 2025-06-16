@@ -10,11 +10,19 @@ import SwiftUI
 /// Main menu bar view displaying session status and app controls
 struct MenuBarView: View {
     @Environment(SessionMonitor.self) var sessionMonitor
+    @Environment(ServerMonitor.self) var serverMonitor
     @AppStorage("showInDock") private var showInDock = false
-    @State private var showHelpMenu = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Server status header
+            ServerStatusView(isRunning: serverMonitor.isRunning, port: serverMonitor.port)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            
+            Divider()
+                .padding(.horizontal, 12)
+            
             // Session count header
             SessionCountView(count: sessionMonitor.sessionCount)
                 .padding(.horizontal, 12)
@@ -30,22 +38,59 @@ struct MenuBarView: View {
             Divider()
                 .padding(.vertical, 4)
             
-            // Help menu
-            Button(action: {
-                showHelpMenu.toggle()
-            }) {
-                HStack {
-                    Label("Help", systemImage: "questionmark.circle")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10))
+            // Help menu with submenu indicator
+            HStack {
+                Menu {
+                    // Website
+                    Button(action: {
+                        if let url = URL(string: "http://vibetunnel.sh") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        Label("Website", systemImage: "globe")
+                    }
+                    
+                    // Report Issue
+                    Button(action: {
+                        if let url = URL(string: "https://github.com/amantus-ai/vibetunnel/issues") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        Label("Report Issue", systemImage: "exclamationmark.triangle")
+                    }
+                    
+                    Divider()
+                    
+                    // Check for Updates
+                    Button(action: {
+                        SparkleUpdaterManager.shared.checkForUpdates()
+                    }) {
+                        Label("Check for Updates…", systemImage: "arrow.down.circle")
+                    }
+                    
+                    // Version (non-interactive)
+                    Text("Version \(appVersion)")
                         .foregroundColor(.secondary)
+                    
+                    // About
+                    Button(action: {
+                        showAboutInSettings()
+                    }) {
+                        Label("About VibeTunnel", systemImage: "info.circle")
+                    }
+                } label: {
+                    Label("Help", systemImage: "questionmark.circle")
                 }
+                .menuStyle(BorderlessButtonMenuStyle())
+                .fixedSize()
             }
-            .buttonStyle(MenuButtonStyle())
-            .popover(isPresented: $showHelpMenu, arrowEdge: .trailing) {
-                HelpMenuView(showAboutInSettings: showAboutInSettings)
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.accentColor.opacity(0.001))
+            )
             
             // Settings button
             Button(action: {
@@ -71,6 +116,36 @@ struct MenuBarView: View {
         }
         .frame(minWidth: 200)
     }
+    
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+}
+
+// MARK: - Server Status View
+
+/// Displays the HTTP server status
+struct ServerStatusView: View {
+    let isRunning: Bool
+    let port: Int
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(isRunning ? Color.green : Color.red)
+                .frame(width: 8, height: 8)
+            
+            Text(statusText)
+                .font(.system(size: 13))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    
+    private var statusText: String {
+        isRunning ? "Server running on port \(port)" : "Server stopped"
+    }
 }
 
 // MARK: - Session Count View
@@ -81,14 +156,10 @@ struct SessionCountView: View {
     
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "terminal")
-                .foregroundColor(.secondary)
-                .font(.system(size: 13))
             Text(sessionText)
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
                 .lineLimit(1)
-            Spacer()
         }
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -170,76 +241,7 @@ struct MenuButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Help Menu View
 
-/// Help menu with links and app information
-struct HelpMenuView: View {
-    @Environment(\.dismiss) private var dismiss
-    let showAboutInSettings: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Website
-            Button(action: {
-                dismiss()
-                if let url = URL(string: "http://vibetunnel.sh") {
-                    NSWorkspace.shared.open(url)
-                }
-            }) {
-                Label("Website", systemImage: "globe")
-            }
-            .buttonStyle(MenuButtonStyle())
-            
-            // Report Issue
-            Button(action: {
-                dismiss()
-                if let url = URL(string: "https://github.com/amantus-ai/vibetunnel/issues") {
-                    NSWorkspace.shared.open(url)
-                }
-            }) {
-                Label("Report Issue", systemImage: "exclamationmark.triangle")
-            }
-            .buttonStyle(MenuButtonStyle())
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            // Check for Updates
-            Button(action: {
-                dismiss()
-                SparkleUpdaterManager.shared.checkForUpdates()
-            }) {
-                Label("Check for Updates…", systemImage: "arrow.down.circle")
-            }
-            .buttonStyle(MenuButtonStyle())
-            
-            // Version
-            HStack {
-                Text("Version \(appVersion)")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            
-            // About
-            Button(action: {
-                dismiss()
-                showAboutInSettings()
-            }) {
-                Label("About VibeTunnel", systemImage: "info.circle")
-            }
-            .buttonStyle(MenuButtonStyle())
-        }
-        .frame(minWidth: 200)
-        .padding(.vertical, 4)
-    }
-    
-    private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
-    }
-}
 
 // MARK: - Helper Functions
 

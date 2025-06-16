@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Represents the available tabs in the Settings window
 enum SettingsTab: String, CaseIterable {
     case general
     case advanced
@@ -29,6 +30,7 @@ extension Notification.Name {
     static let openSettingsTab = Notification.Name("openSettingsTab")
 }
 
+/// Main settings window with tabbed interface
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var contentSize: CGSize = .zero
@@ -37,7 +39,7 @@ struct SettingsView: View {
     // Define ideal sizes for each tab
     private let tabSizes: [SettingsTab: CGSize] = [
         .general: CGSize(width: 500, height: 300),
-        .advanced: CGSize(width: 500, height: 400),
+        .advanced: CGSize(width: 500, height: 500),
         .debug: CGSize(width: 600, height: 650),
         .about: CGSize(width: 500, height: 550)
     ]
@@ -92,6 +94,7 @@ struct SettingsView: View {
     }
 }
 
+/// General settings tab for basic app preferences
 struct GeneralSettingsView: View {
     @AppStorage("autostart")
     private var autostart = false
@@ -170,6 +173,7 @@ struct GeneralSettingsView: View {
     }
 }
 
+/// Advanced settings tab for power user options
 struct AdvancedSettingsView: View {
     @AppStorage("debugMode")
     private var debugMode = false
@@ -177,6 +181,15 @@ struct AdvancedSettingsView: View {
     private var serverPort = "4020"
     @AppStorage("updateChannel")
     private var updateChannelRaw = UpdateChannel.stable.rawValue
+    @AppStorage("ngrokEnabled")
+    private var ngrokEnabled = false
+    
+    @State private var ngrokAuthToken = ""
+    @State private var ngrokStatus: NgrokTunnelStatus?
+    @State private var isStartingNgrok = false
+    @State private var ngrokError: String?
+    
+    private let ngrokService = NgrokService.shared
 
     @State private var isCheckingForUpdates = false
 
@@ -252,6 +265,109 @@ struct AdvancedSettingsView: View {
                 }
 
                 Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // ngrok Enable Toggle
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle("Enable ngrok tunnel", isOn: $ngrokEnabled)
+                                .onChange(of: ngrokEnabled) { oldValue, newValue in
+                                    print("ngrok toggle changed from \(oldValue) to \(newValue)")
+                                    if newValue {
+                                        checkAndStartNgrok()
+                                    } else {
+                                        stopNgrok()
+                                    }
+                                }
+                            Text("Expose VibeTunnel to the internet using ngrok.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        // Auth Token - Always visible so users can set it before enabling
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Auth token:")
+                                Spacer()
+                                SecureField("", text: $ngrokAuthToken)
+                                    .frame(width: 250)
+                                    .textFieldStyle(.roundedBorder)
+                                    .onAppear {
+                                        ngrokAuthToken = ngrokService.authToken ?? ""
+                                    }
+                                    .onChange(of: ngrokAuthToken) { _, newValue in
+                                        ngrokService.authToken = newValue.isEmpty ? nil : newValue
+                                    }
+                            }
+                            HStack {
+                                Text("Get your free auth token at")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Button("ngrok.com") {
+                                    NSWorkspace.shared.open(URL(string: "https://dashboard.ngrok.com/auth/your-authtoken")!)
+                                }
+                                .buttonStyle(.link)
+                                .font(.caption)
+                            }
+                        }
+                        
+                        // Status - Only show when ngrok is enabled
+                        if ngrokEnabled {
+                            if let publicUrl = ngrokService.publicUrl {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                        Text("Tunnel active")
+                                            .font(.caption)
+                                        Spacer()
+                                        Button("Copy URL") {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(publicUrl, forType: .string)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    }
+                                    Text(publicUrl)
+                                        .font(.caption)
+                                        .textSelection(.enabled)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if isStartingNgrok {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Starting ngrok tunnel...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        
+                        // Error display - Always visible if there's an error
+                        if let error = ngrokError {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                    Text("Error")
+                                        .font(.caption)
+                                }
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("ngrok Integration")
+                        .font(.headline)
+                } footer: {
+                    Text("Alternatively, we recommend [Tailscale](https://tailscale.com/) to create a virtual network to access your Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .tint(.blue)
+                }
+                
+                Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Debug mode", isOn: $debugMode)
                         Text("Enable additional logging and debugging features.")
@@ -266,6 +382,11 @@ struct AdvancedSettingsView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .navigationTitle("Advanced Settings")
+        }
+        .onAppear {
+            // Load existing auth token
+            ngrokAuthToken = ngrokService.authToken ?? ""
+            print("AdvancedSettingsView appeared - auth token present: \(!ngrokAuthToken.isEmpty)")
         }
     }
 
@@ -328,11 +449,57 @@ struct AdvancedSettingsView: View {
             }
         }
     }
+    
+    private func checkAndStartNgrok() {
+        print("checkAndStartNgrok called")
+        guard !ngrokService.authToken.isNilOrEmpty else {
+            print("No auth token found")
+            ngrokError = "Please enter your ngrok auth token first"
+            ngrokEnabled = false
+            return
+        }
+        
+        print("Starting ngrok with auth token present")
+        isStartingNgrok = true
+        ngrokError = nil
+        
+        Task {
+            do {
+                let port = Int(serverPort) ?? 4020
+                print("Starting ngrok on port \(port)")
+                _ = try await ngrokService.start(port: port)
+                isStartingNgrok = false
+                ngrokStatus = await ngrokService.getStatus()
+                print("ngrok started successfully")
+            } catch {
+                print("ngrok start error: \(error)")
+                isStartingNgrok = false
+                ngrokError = error.localizedDescription
+                ngrokEnabled = false
+            }
+        }
+    }
+    
+    private func stopNgrok() {
+        Task {
+            try? await ngrokService.stop()
+            ngrokStatus = nil
+            ngrokError = nil
+        }
+    }
+}
+
+extension Optional where Wrapped == String {
+    var isNilOrEmpty: Bool {
+        return self?.isEmpty ?? true
+    }
 }
 
 
+/// Debug settings tab for development and troubleshooting
 struct DebugSettingsView: View {
     @State private var httpServer: TunnelServer?
+    @State private var serverMonitor = ServerMonitor.shared
     @State private var lastError: String?
     @State private var testResult: String?
     @State private var isTesting = false
@@ -340,11 +507,11 @@ struct DebugSettingsView: View {
     @AppStorage("logLevel") private var logLevel = "info"
     
     private var isServerRunning: Bool {
-        httpServer?.isRunning ?? false
+        serverMonitor.isRunning
     }
     
     private var serverPort: Int {
-        httpServer?.port ?? 4020
+        serverMonitor.port
     }
     
     var body: some View {
@@ -357,11 +524,9 @@ struct DebugSettingsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text("HTTP Server")
-                                    if isServerRunning {
-                                        Circle()
-                                            .fill(.green)
-                                            .frame(width: 8, height: 8)
-                                    }
+                                    Circle()
+                                        .fill(isServerRunning ? .green : .red)
+                                        .frame(width: 8, height: 8)
                                 }
                                 Text(isServerRunning ? "Server is running on port \(serverPort)" : "Server is stopped")
                                     .font(.caption)
@@ -554,24 +719,14 @@ struct DebugSettingsView: View {
         lastError = nil
         
         if shouldStart {
-            // Create a new server if needed
-            if httpServer == nil {
-                let newServer = TunnelServer(port: serverPort)
-                httpServer = newServer
-                // Store reference in AppDelegate
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    appDelegate.setHTTPServer(newServer)
-                }
-            }
-            
             do {
-                try await httpServer?.start()
+                try await serverMonitor.startServer()
             } catch {
                 lastError = error.localizedDescription
             }
         } else {
             do {
-                try await httpServer?.stop()
+                try await serverMonitor.stopServer()
             } catch {
                 lastError = error.localizedDescription
             }
@@ -622,6 +777,7 @@ struct DebugSettingsView: View {
 }
 
 // API Endpoint data
+/// Represents an API endpoint for testing in debug mode
 struct APIEndpoint: Identifiable {
     let id: String
     let method: String
@@ -646,7 +802,10 @@ let apiEndpoints = [
     APIEndpoint(method: "POST", path: "/sessions", description: "Create new terminal session", isTestable: false),
     APIEndpoint(method: "GET", path: "/sessions/:id", description: "Get specific session information", isTestable: false),
     APIEndpoint(method: "DELETE", path: "/sessions/:id", description: "Close a terminal session", isTestable: false),
-    APIEndpoint(method: "POST", path: "/execute", description: "Execute command in a session", isTestable: false)
+    APIEndpoint(method: "POST", path: "/execute", description: "Execute command in a session", isTestable: false),
+    APIEndpoint(method: "POST", path: "/api/ngrok/start", description: "Start ngrok tunnel", isTestable: true),
+    APIEndpoint(method: "POST", path: "/api/ngrok/stop", description: "Stop ngrok tunnel", isTestable: true),
+    APIEndpoint(method: "GET", path: "/api/ngrok/status", description: "Get ngrok tunnel status", isTestable: true)
 ]
 
 #Preview {

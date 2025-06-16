@@ -1,6 +1,7 @@
 import Foundation
 import os.log
 
+/// Manages interactions with the tty-fwd command-line tool
 @MainActor
 final class TTYForwardManager {
     static let shared = TTYForwardManager()
@@ -79,6 +80,7 @@ final class TTYForwardManager {
     }
 }
 
+/// Errors that can occur when working with the tty-fwd binary
 enum TTYForwardError: LocalizedError {
     case executableNotFound
     case notExecutable

@@ -22,6 +22,7 @@ class SessionMonitor {
     private let refreshInterval: TimeInterval = 5.0 // Check every 5 seconds
     private var serverPort: Int
     
+    /// Information about a terminal session
     struct SessionInfo: Codable {
         let cmdline: [String]
         let cwd: String
