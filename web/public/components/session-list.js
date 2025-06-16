@@ -215,42 +215,84 @@ let SessionList = class SessionList extends LitElement {
         return html `
       <div class="font-mono text-sm p-4">
         <!-- Controls -->
-        <div class="mb-4 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <button 
-              class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors"
-              @click=${() => this.showCreateModal = true}
-            >
-              Create Session
-            </button>
+        <div class="mb-4 space-y-3 md:space-y-0">
+          <!-- Mobile: Stack everything -->
+          <div class="flex flex-col space-y-3 md:hidden">
+            <div class="flex items-center gap-2">
+              <button 
+                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm flex-1"
+                @click=${() => this.showCreateModal = true}
+              >
+CREATE
+              </button>
+              
+              <button 
+                class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors disabled:opacity-50 text-sm flex-1"
+                @click=${this.handleCleanExited}
+                ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
+              >
+                ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN'}
+              </button>
+            </div>
             
-            <button 
-              class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
-              @click=${this.handleCleanExited}
-              ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
-            >
-              ${this.cleaningExited ? 'Cleaning...' : 'Clean Exited'}
-            </button>
+            <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
+              <div class="relative">
+                <input 
+                  type="checkbox" 
+                  class="sr-only" 
+                  .checked=${this.hideExited}
+                  @change=${(e) => this.hideExited = e.target.checked}
+                >
+                <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
+                  ${this.hideExited ? html `
+                    <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                  ` : ''}
+                </div>
+              </div>
+              --filter-exited
+            </label>
           </div>
           
-          <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
-            <div class="relative">
-              <input 
-                type="checkbox" 
-                class="sr-only" 
-                .checked=${this.hideExited}
-                @change=${(e) => this.hideExited = e.target.checked}
+          <!-- Desktop: Side by side -->
+          <div class="hidden md:flex md:items-center md:justify-between">
+            <div class="flex items-center gap-3">
+              <button 
+                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors"
+                @click=${() => this.showCreateModal = true}
               >
-              <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
-                ${this.hideExited ? html `
-                  <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                  </svg>
-                ` : ''}
-              </div>
+CREATE SESSION
+              </button>
+              
+              <button 
+                class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
+                @click=${this.handleCleanExited}
+                ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
+              >
+                ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
+              </button>
             </div>
-            Hide exited sessions
-          </label>
+            
+            <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
+              <div class="relative">
+                <input 
+                  type="checkbox" 
+                  class="sr-only" 
+                  .checked=${this.hideExited}
+                  @change=${(e) => this.hideExited = e.target.checked}
+                >
+                <div class="w-4 h-4 border border-vs-border rounded bg-vs-bg-secondary flex items-center justify-center transition-all ${this.hideExited ? 'bg-vs-user border-vs-user' : 'hover:border-vs-accent'}">
+                  ${this.hideExited ? html `
+                    <svg class="w-3 h-3 text-vs-bg" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                  ` : ''}
+                </div>
+              </div>
+              --filter-exited
+            </label>
+          </div>
         </div>
 
         ${sessionsToShow.length === 0 ? html `
@@ -272,7 +314,7 @@ let SessionList = class SessionList extends LitElement {
                     @click=${(e) => this.handleKillSession(e, session.id)}
                     ?disabled=${this.killingSessionIds.has(session.id)}
                   >
-                    ${this.killingSessionIds.has(session.id) ? 'killing...' : 'kill'}
+                    ${this.killingSessionIds.has(session.id) ? '[~] killing...' : 'kill'}
                   </button>
                 </div>
 
@@ -283,8 +325,8 @@ let SessionList = class SessionList extends LitElement {
                   ` : html `
                     <div class="text-vs-muted text-xs">
                       ${this.newSessionIds.has(session.id)
-            ? 'Starting session...'
-            : (this.loadingSnapshots.has(session.id) ? 'Loading...' : 'Loading...')}
+            ? '[~] init_session...'
+            : (this.loadingSnapshots.has(session.id) ? '[~] loading...' : '[~] loading...')}
                     </div>
                   `}
                 </div>

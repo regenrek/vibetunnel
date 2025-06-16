@@ -12,8 +12,8 @@ let AppHeader = class AppHeader extends LitElement {
     }
     render() {
         return html `
-      <div class="p-4">
-        <h1 class="text-vs-user font-mono text-sm m-0">VibeTunnel</h1>
+      <div class="p-4 border-b border-vs-border">
+        <div class="text-vs-user font-mono text-sm">VibeTunnel</div>
       </div>
     `;
     }
