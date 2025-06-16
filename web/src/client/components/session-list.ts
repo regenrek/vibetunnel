@@ -66,6 +66,7 @@ export class SessionList extends LitElement {
 
   updated(changedProperties: any) {
     super.updated(changedProperties);
+    
     if (changedProperties.has('sessions')) {
       // Auto-load snapshots for existing sessions immediately, but delay for new ones
       const prevSessions = changedProperties.get('sessions') || [];
@@ -93,15 +94,47 @@ export class SessionList extends LitElement {
         }, 500); // Wait 500ms for new sessions
       }
     }
+
+    // If hideExited changed, recreate players for newly visible sessions
+    if (changedProperties.has('hideExited')) {
+      requestAnimationFrame(() => {
+        this.filteredSessions.forEach(session => {
+          const playerElement = this.querySelector(`#player-${session.id}`);
+          if (playerElement && this.loadedSnapshots.has(session.id)) {
+            // Player element exists but might not have a player instance
+            // Check if it's empty and recreate if needed
+            if (!playerElement.hasChildNodes() || playerElement.children.length === 0) {
+              this.createPlayer(session.id);
+            }
+          }
+        });
+      });
+    }
   }
 
   private createPlayer(sessionId: string) {
     const playerElement = this.querySelector(`#player-${sessionId}`) as HTMLElement;
-    if (playerElement && (window as any).AsciinemaPlayer) {
+    if (!playerElement) {
+      // Element not ready yet, retry on next frame
+      requestAnimationFrame(() => this.createPlayer(sessionId));
+      return;
+    }
+    
+    if ((window as any).AsciinemaPlayer) {
       try {
-        const streamUrl = `/api/sessions/${sessionId}/stream`;
+        // Find the session to check its status
+        const session = this.sessions.find(s => s.id === sessionId);
+        
+        // For ended sessions, use snapshot instead of stream to avoid reloading
+        const url = session?.status === 'exited' 
+          ? `/api/sessions/${sessionId}/snapshot`
+          : `/api/sessions/${sessionId}/stream`;
+        
+        const config = session?.status === 'exited'
+          ? { url } // Static snapshot
+          : { driver: "eventsource", url }; // Live stream
 
-        (window as any).AsciinemaPlayer.create({driver: "eventsource", url: streamUrl}, playerElement, {
+        (window as any).AsciinemaPlayer.create(config, playerElement, {
           autoPlay: true,
           loop: false,
           controls: false,
@@ -156,6 +189,46 @@ export class SessionList extends LitElement {
       console.error('Error killing session:', error);
       this.dispatchEvent(new CustomEvent('error', {
         detail: 'Failed to kill session'
+      }));
+    } finally {
+      this.killingSessionIds.delete(sessionId);
+      this.requestUpdate();
+    }
+  }
+
+  private async handleCleanSession(e: Event, sessionId: string) {
+    e.stopPropagation(); // Prevent session selection
+
+    if (!confirm('Are you sure you want to clean up this session?')) {
+      return;
+    }
+
+    this.killingSessionIds.add(sessionId);
+    this.requestUpdate();
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/cleanup`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        this.dispatchEvent(new CustomEvent('session-killed', {
+          detail: { sessionId }
+        }));
+        // Refresh the list after a short delay
+        setTimeout(() => {
+          this.handleRefresh();
+        }, 500);
+      } else {
+        const error = await response.json();
+        this.dispatchEvent(new CustomEvent('error', {
+          detail: `Failed to clean session: ${error.error}`
+        }));
+      }
+    } catch (error) {
+      console.error('Error cleaning session:', error);
+      this.dispatchEvent(new CustomEvent('error', {
+        detail: 'Failed to clean session'
       }));
     } finally {
       this.killingSessionIds.delete(sessionId);
@@ -286,7 +359,7 @@ CREATE
                   ` : ''}
                 </div>
               </div>
-              --filter-exited
+              hide exited
             </label>
           </div>
 
@@ -327,7 +400,7 @@ CREATE SESSION
                   ` : ''}
                 </div>
               </div>
-              --filter-exited
+              hide exited
             </label>
           </div>
         </div>
@@ -348,10 +421,13 @@ CREATE SESSION
                   <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${session.command}</div>
                   <button
                     class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
-                    @click=${(e: Event) => this.handleKillSession(e, session.id)}
+                    @click=${(e: Event) => session.status === 'running' ? this.handleKillSession(e, session.id) : this.handleCleanSession(e, session.id)}
                     ?disabled=${this.killingSessionIds.has(session.id)}
                   >
-                    ${this.killingSessionIds.has(session.id) ? '[~] killing...' : 'kill'}
+                    ${this.killingSessionIds.has(session.id) 
+                      ? (session.status === 'running' ? '[~] killing...' : '[~] cleaning...') 
+                      : (session.status === 'running' ? 'kill' : 'clean')
+                    }
                   </button>
                 </div>
 

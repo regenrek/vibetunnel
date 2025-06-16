@@ -65,21 +65,39 @@ async function executeTtyFwd(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn(TTY_FWD_PATH, args);
         let output = '';
+        let isResolved = false;
+
+        // Set a timeout to prevent hanging
+        const timeout = setTimeout(() => {
+            if (!isResolved) {
+                isResolved = true;
+                child.kill('SIGTERM');
+                reject(new Error('tty-fwd command timed out after 5 seconds'));
+            }
+        }, 5000);
 
         child.stdout.on('data', (data) => {
             output += data.toString();
         });
 
         child.on('close', (code) => {
-            if (code === 0) {
-                resolve(output);
-            } else {
-                reject(new Error(`tty-fwd failed with code ${code}`));
+            if (!isResolved) {
+                isResolved = true;
+                clearTimeout(timeout);
+                if (code === 0) {
+                    resolve(output);
+                } else {
+                    reject(new Error(`tty-fwd failed with code ${code}`));
+                }
             }
         });
 
         child.on('error', (error) => {
-            reject(error);
+            if (!isResolved) {
+                isResolved = true;
+                clearTimeout(timeout);
+                reject(error);
+            }
         });
     });
 }
@@ -278,7 +296,7 @@ app.post('/api/cleanup-exited', async (req, res) => {
 // === TERMINAL I/O ===
 
 // Live streaming cast file for asciinema player
-app.get('/api/sessions/:sessionId/stream', (req, res) => {
+app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     const sessionId = req.params.sessionId;
     const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
 
@@ -338,8 +356,52 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
     // Stream new content
     const tailProcess = spawn('tail', ['-f', streamOutPath]);
     let buffer = '';
+    let streamCleanedUp = false;
+
+    const cleanup = () => {
+        if (!streamCleanedUp) {
+            streamCleanedUp = true;
+            console.log(`Cleaning up tail process for session ${sessionId}`);
+            tailProcess.kill('SIGTERM');
+        }
+    };
+
+    // Get the session info once to get the PID
+    let sessionPid: number | null = null;
+    try {
+        const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
+        const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
+        if (sessions[sessionId]) {
+            sessionPid = sessions[sessionId].pid;
+        }
+    } catch (error) {
+        console.error('Error getting session PID:', error);
+    }
+
+    // Set a timeout to check if process is still alive
+    const sessionCheckInterval = setInterval(() => {
+        if (sessionPid) {
+            try {
+                // Signal 0 just checks if process exists without actually sending a signal
+                process.kill(sessionPid, 0);
+            } catch (error) {
+                console.log(`Session ${sessionId} process ${sessionPid} has died, terminating stream`);
+                clearInterval(sessionCheckInterval);
+                cleanup();
+                res.end();
+            }
+        } else {
+            // If we don't have a PID, fall back to checking session status
+            console.log(`No PID found for session ${sessionId}, terminating stream`);
+            clearInterval(sessionCheckInterval);
+            cleanup();
+            res.end();
+        }
+    }, 2000); // Check every 2 seconds
 
     tailProcess.stdout.on('data', (chunk) => {
+        if (streamCleanedUp) return;
+        
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
@@ -366,9 +428,28 @@ app.get('/api/sessions/:sessionId/stream', (req, res) => {
         }
     });
 
+    tailProcess.on('error', (error) => {
+        console.error(`Tail process error for session ${sessionId}:`, error);
+        clearInterval(sessionCheckInterval);
+        cleanup();
+    });
+
+    tailProcess.on('exit', (code) => {
+        console.log(`Tail process exited for session ${sessionId} with code ${code}`);
+        clearInterval(sessionCheckInterval);
+        cleanup();
+    });
+
     // Cleanup on disconnect
-    req.on('close', () => tailProcess.kill('SIGTERM'));
-    req.on('aborted', () => tailProcess.kill('SIGTERM'));
+    req.on('close', () => {
+        clearInterval(sessionCheckInterval);
+        cleanup();
+    });
+    
+    req.on('aborted', () => {
+        clearInterval(sessionCheckInterval);
+        cleanup();
+    });
 });
 
 // Get session snapshot (asciinema cast with adjusted timestamps for immediate playback)
@@ -452,31 +533,68 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
     console.log(`Sending input to session ${sessionId}:`, JSON.stringify(text));
 
     try {
+        // Validate session exists and is running
+        const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
+        const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
+        
+        if (!sessions[sessionId]) {
+            console.error(`Session ${sessionId} not found in active sessions`);
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const session = sessions[sessionId];
+        if (session.status !== 'running') {
+            console.error(`Session ${sessionId} is not running (status: ${session.status})`);
+            return res.status(400).json({ error: 'Session is not running' });
+        }
+
+        // Check if the process is actually still alive
+        if (session.pid) {
+            try {
+                process.kill(session.pid, 0); // Signal 0 just checks if process exists
+            } catch (error) {
+                console.error(`Session ${sessionId} process ${session.pid} is dead, cleaning up`);
+                // Try to cleanup the stale session
+                try {
+                    await executeTtyFwd([
+                        '--control-path', TTY_FWD_CONTROL_DIR,
+                        '--session', sessionId,
+                        '--cleanup'
+                    ]);
+                } catch (cleanupError) {
+                    console.error('Failed to cleanup stale session:', cleanupError);
+                }
+                return res.status(410).json({ error: 'Session process has died' });
+            }
+        }
+
         // Check if this is a special key that should use --send-key
         const specialKeys = ['arrow_up', 'arrow_down', 'arrow_left', 'arrow_right', 'escape', 'enter'];
         const isSpecialKey = specialKeys.includes(text);
 
+        const startTime = Date.now();
+        
         if (isSpecialKey) {
             await executeTtyFwd([
                 '--control-path', TTY_FWD_CONTROL_DIR,
                 '--session', sessionId,
                 '--send-key', text
             ]);
-            console.log(`Successfully sent key: ${text}`);
+            console.log(`Successfully sent key: ${text} (${Date.now() - startTime}ms)`);
         } else {
             await executeTtyFwd([
                 '--control-path', TTY_FWD_CONTROL_DIR,
                 '--session', sessionId,
                 '--send-text', text
             ]);
-            console.log(`Successfully sent text: ${text}`);
+            console.log(`Successfully sent text: ${text} (${Date.now() - startTime}ms)`);
         }
 
         res.json({ success: true });
 
     } catch (error) {
         console.error('Error sending input via tty-fwd:', error);
-        res.status(500).json({ error: 'Failed to send input' });
+        res.status(500).json({ error: 'Failed to send input', details: error.message });
     }
 });
 
