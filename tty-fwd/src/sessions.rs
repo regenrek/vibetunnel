@@ -53,9 +53,18 @@ pub fn list_sessions(
                     .unwrap_or(notification_stream_path.clone())
                     .to_string_lossy()
                     .to_string();
-                let session_info = fs::read_to_string(&session_json_path)
+                let mut session_info: SessionInfo = fs::read_to_string(&session_json_path)
                     .and_then(|content| serde_json::from_str(&content).map_err(Into::into))
                     .unwrap_or_default();
+
+                // Check if the process is still alive and update status if needed
+                if session_info.status == "running" {
+                    if let Some(pid) = session_info.pid {
+                        if !is_pid_alive(pid) {
+                            session_info.status = "exited".to_string();
+                        }
+                    }
+                }
 
                 sessions.insert(
                     session_id.to_string(),
