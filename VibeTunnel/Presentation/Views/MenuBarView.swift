@@ -95,8 +95,8 @@ struct MenuBarView: View {
 
                     // Version (non-interactive)
                     HStack {
-                        Color.clear
-                            .frame(width: 16, height: 16) // Matches system icon size
+                        Image(systemName: "circle")
+                            .opacity(0) // Invisible placeholder to match icon spacing
                         Text("Version \(appVersion)")
                             .foregroundColor(.secondary)
                     }
