@@ -78,3 +78,6 @@ DerivedData/
 *.bak
 *~
 .*.swp
+
+# Local Development Settings
+Local.xcconfig

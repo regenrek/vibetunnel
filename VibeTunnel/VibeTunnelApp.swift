@@ -28,6 +28,7 @@ struct VibeTunnelApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
     private var statusItem: NSStatusItem?
+    private(set) var httpServer: TunnelServerDemo?
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
     private static let showSettingsNotification = Notification.Name("com.amantus.vibetunnel.showSettings")
@@ -72,6 +73,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: Notification.Name("checkForUpdates"),
             object: nil
         )
+
+        // Initialize and start HTTP server
+        let serverPort = UserDefaults.standard.integer(forKey: "httpServerPort")
+        httpServer = TunnelServerDemo(port: serverPort > 0 ? serverPort : 8080)
+        
+        Task {
+            do {
+                try await httpServer?.start()
+                print("HTTP server started automatically on port \(httpServer?.port ?? 8080)")
+            } catch {
+                print("Failed to start HTTP server: \(error)")
+            }
+        }
+    }
+    
+    func setHTTPServer(_ server: TunnelServerDemo?) {
+        httpServer = server
     }
 
     private func handleSingleInstanceCheck() {
@@ -121,6 +139,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Stop HTTP server
+        Task {
+            try? await httpServer?.stop()
+        }
+        
         // Remove distributed notification observer
         let processInfo = ProcessInfo.processInfo
         let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil

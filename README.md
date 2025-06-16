@@ -69,6 +69,17 @@ VibeTunnel/
 └── docs/                    # Documentation
 ```
 
+### Code Signing Setup
+
+This project uses xcconfig files to manage developer-specific settings, preventing code signing conflicts when multiple developers work on the project.
+
+**For new developers:**
+1. Copy the template: `cp VibeTunnel/Local.xcconfig.template VibeTunnel/Local.xcconfig`
+2. Edit `VibeTunnel/Local.xcconfig` and add your development team ID
+3. Open the project in Xcode - it will use your settings automatically
+
+See [docs/CODE_SIGNING_SETUP.md](docs/CODE_SIGNING_SETUP.md) for detailed instructions.
+
 ### Building
 
 The project uses standard Xcode build system:

@@ -93,6 +93,12 @@ if [ -d "$APP_BUNDLE/Contents/Frameworks" ]; then
     done
 fi
 
+# Sign embedded binaries (like tty-fwd)
+if [ -f "$APP_BUNDLE/Contents/Resources/tty-fwd" ]; then
+    log "Signing tty-fwd binary..."
+    codesign --force --options runtime --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/Resources/tty-fwd" || log "Warning: Failed to sign tty-fwd"
+fi
+
 # Sign the main executable
 log "Signing main executable..."
 codesign --force --options runtime --entitlements "$TMP_ENTITLEMENTS" --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/MacOS/VibeTunnel" || true
