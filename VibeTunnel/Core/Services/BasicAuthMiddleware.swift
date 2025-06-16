@@ -1,0 +1,67 @@
+import Foundation
+import Hummingbird
+import HummingbirdCore
+import HTTPTypes
+import NIOCore
+
+/// Middleware that implements HTTP Basic Authentication
+struct BasicAuthMiddleware<Context: RequestContext>: RouterMiddleware {
+    let password: String
+    let realm: String
+    
+    init(password: String, realm: String = "VibeTunnel Dashboard") {
+        self.password = password
+        self.realm = realm
+    }
+    
+    func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
+        // For BasicRequestContext, we can't easily check if it's localhost
+        // So we'll authenticate all requests when password is set
+        // The server bind address (127.0.0.1 vs 0.0.0.0) already controls network access
+        
+        // Extract authorization header
+        guard let authHeader = request.headers[.authorization],
+              authHeader.hasPrefix("Basic ") else {
+            return unauthorizedResponse()
+        }
+        
+        // Decode base64 credentials
+        let base64Credentials = String(authHeader.dropFirst(6))
+        guard let credentialsData = Data(base64Encoded: base64Credentials),
+              let credentials = String(data: credentialsData, encoding: .utf8) else {
+            return unauthorizedResponse()
+        }
+        
+        // Split username:password
+        let parts = credentials.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else {
+            return unauthorizedResponse()
+        }
+        
+        // We ignore the username and only check password
+        let providedPassword = String(parts[1])
+        
+        // Verify password
+        guard providedPassword == password else {
+            return unauthorizedResponse()
+        }
+        
+        // Password correct, continue with request
+        return try await next(request, context)
+    }
+    
+    private func unauthorizedResponse() -> Response {
+        var headers = HTTPFields()
+        headers[.wwwAuthenticate] = "Basic realm=\"\(realm)\""
+        
+        let message = "Authentication required"
+        var buffer = ByteBuffer()
+        buffer.writeString(message)
+        
+        return Response(
+            status: .unauthorized,
+            headers: headers,
+            body: ResponseBody(byteBuffer: buffer)
+        )
+    }
+}
