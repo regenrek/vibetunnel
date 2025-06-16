@@ -63,6 +63,7 @@ impl TtySpawn {
                 session_json_path: None,
                 session_name: None,
                 detached: false,
+                term: "xterm".to_string(),
             }),
         }
     }
@@ -148,6 +149,12 @@ impl TtySpawn {
         Ok(self)
     }
 
+    /// Sets the TERM environment variable for the spawned process.
+    pub fn term<S: AsRef<str>>(&mut self, term: S) -> &mut Self {
+        self.options_mut().term = term.as_ref().to_string();
+        self
+    }
+
     /// Spawns the application in the TTY.
     pub fn spawn(&mut self) -> Result<i32, io::Error> {
         Ok(spawn(
@@ -168,6 +175,7 @@ struct SpawnOptions {
     session_json_path: Option<PathBuf>,
     session_name: Option<String>,
     detached: bool,
+    term: String,
 }
 
 /// Creates a new session JSON file with the provided information
@@ -176,6 +184,7 @@ pub fn create_session_info(
     cmdline: Vec<String>,
     name: String,
     cwd: String,
+    term: String,
 ) -> Result<(), io::Error> {
     let session_info = SessionInfo {
         cmdline,
@@ -186,6 +195,7 @@ pub fn create_session_info(
         exit_code: None,
         started_at: Some(Timestamp::now()),
         waiting: false,
+        term,
     };
 
     let session_info_str = serde_json::to_string(&session_info)?;
@@ -281,6 +291,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             cmdline.clone(),
             session_name.clone(),
             current_dir.clone(),
+            opts.term.clone(),
         )
         .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?;
 
@@ -449,6 +460,9 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
 
     drop(pty.master);
     if detached {
+        // Set TERM environment variable for the child process
+        env::set_var("TERM", &opts.term);
+
         // In detached mode, manually set up file descriptors without login_tty
         // This prevents the child from connecting to the current terminal
 

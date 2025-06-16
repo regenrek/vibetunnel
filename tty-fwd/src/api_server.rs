@@ -58,6 +58,12 @@ struct CreateSessionRequest {
     command: Vec<String>,
     #[serde(rename = "workingDir")]
     working_dir: Option<String>,
+    #[serde(default = "default_term_value")]
+    term: String,
+}
+
+fn default_term_value() -> String {
+    "xterm".to_string()
 }
 
 #[derive(Debug, Deserialize)]
@@ -465,6 +471,7 @@ fn handle_create_session(
     let session_id_clone = session_id.clone();
     let cmdline_clone = cmdline.clone();
     let working_dir_clone = current_dir.clone();
+    let term_clone = create_request.term.clone();
 
     std::thread::Builder::new()
         .name(format!("session-{}", session_id_clone))
@@ -518,6 +525,9 @@ fn handle_create_session(
                 .unwrap_or("unknown")
                 .to_string();
             tty_spawn.session_name(session_name);
+
+            // Set the TERM environment variable
+            tty_spawn.term(term_clone);
 
             // Enable detached mode for API-created sessions
             tty_spawn.detached(true);
@@ -1015,7 +1025,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
                 "width": 80,
                 "height": 24,
                 "timestamp": start_time as u64,
-                "env": { "TERM": "xterm-256color" }
+                "env": { "TERM": session_entry.session_info.term.clone() }
             });
             let data = format!(
                 "data: {}
@@ -1035,7 +1045,7 @@ fn handle_session_stream_direct(control_path: &PathBuf, path: &str, req: &mut Ht
             "width": 80,
             "height": 24,
             "timestamp": start_time as u64,
-            "env": { "TERM": "xterm-256color" }
+            "env": { "TERM": session_entry.session_info.term.clone() }
         });
         let data = format!(
             "data: {}
@@ -1204,7 +1214,7 @@ fn handle_stream_all_sessions(control_path: &PathBuf, req: &mut HttpRequest) {
         "width": 80,
         "height": 24,
         "timestamp": start_time as u64,
-        "env": { "TERM": "xterm-256color" }
+        "env": { "TERM": "xterm" }
     });
     let header_data = format!(
         "data: {}

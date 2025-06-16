@@ -16,6 +16,12 @@ pub struct SessionInfo {
     pub started_at: Option<Timestamp>,
     #[serde(default)]
     pub waiting: bool,
+    #[serde(default = "default_term")]
+    pub term: String,
+}
+
+fn default_term() -> String {
+    "xterm".to_string()
 }
 
 #[derive(Serialize)]
