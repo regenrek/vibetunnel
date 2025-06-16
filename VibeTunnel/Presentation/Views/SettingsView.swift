@@ -55,7 +55,6 @@ struct SettingsView: View {
                 .tag(SettingsTab.about)
         }
         .frame(width: contentSize.width, height: contentSize.height)
-        .animatedWindowSizing(size: contentSize)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
