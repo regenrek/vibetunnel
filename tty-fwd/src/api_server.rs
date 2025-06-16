@@ -1,9 +1,11 @@
 use anyhow::Result;
 use data_encoding::BASE64;
+use jiff::Timestamp;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use serde_urlencoded;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -75,6 +77,29 @@ struct InputRequest {
 #[derive(Debug, Deserialize)]
 struct MkdirRequest {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrowseQuery {
+    path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct FileInfo {
+    name: String,
+    created: String,
+    #[serde(rename = "lastModified")]
+    last_modified: String,
+    size: u64,
+    #[serde(rename = "isDir")]
+    is_dir: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct BrowseResponse {
+    #[serde(rename = "absolutePath")]
+    absolute_path: String,
+    files: Vec<FileInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -308,6 +333,7 @@ pub fn start_server(
                 (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &mut req),
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
                 (&Method::POST, "/api/mkdir") => handle_mkdir(&mut req),
+                (&Method::GET, "/api/fs/browse") => handle_browse(&mut req),
                 (&Method::GET, "/api/stream-all") => {
                     // Handle streaming all sessions - bypass normal response handling
                     return handle_stream_all_sessions(&control_path, &mut req);
@@ -1520,6 +1546,141 @@ fn stream_session_continuously(stream_path: &str, session_id: &str, tx: mpsc::Se
             let _ = tx.send(error_data);
         }
     }
+}
+
+fn resolve_path(path: &str, home_dir: &str) -> PathBuf {
+    if path.starts_with('~') {
+        if path == "~" {
+            PathBuf::from(home_dir)
+        } else {
+            PathBuf::from(home_dir).join(&path[2..]) // Skip ~/ 
+        }
+    } else {
+        PathBuf::from(path)
+    }
+}
+
+fn handle_browse(req: &mut crate::http_server::HttpRequest) -> Response<String> {
+    let query_string = req.uri().query().unwrap_or("");
+    
+    let query: BrowseQuery = match serde_urlencoded::from_str(query_string) {
+        Ok(query) => query,
+        Err(_) => {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Invalid query parameters".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::BAD_REQUEST, &error);
+        }
+    };
+
+    let dir_path = query.path.as_deref().unwrap_or("~");
+    
+    // Get home directory
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+    let expanded_path = resolve_path(dir_path, &home_dir);
+
+    if !expanded_path.exists() {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Directory not found".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::NOT_FOUND, &error);
+    }
+
+    let metadata = match fs::metadata(&expanded_path) {
+        Ok(metadata) => metadata,
+        Err(_) => {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Failed to read directory metadata".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+        }
+    };
+
+    if !metadata.is_dir() {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Path is not a directory".to_string()),
+            session_id: None,
+        };
+        return json_response(StatusCode::BAD_REQUEST, &error);
+    }
+
+    let entries = match fs::read_dir(&expanded_path) {
+        Ok(entries) => entries,
+        Err(_) => {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Failed to list directory".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+        }
+    };
+
+    let mut files = Vec::new();
+    for entry in entries {
+        if let Ok(entry) = entry {
+            if let Ok(file_metadata) = entry.metadata() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                
+                fn system_time_to_iso_string(time: SystemTime) -> String {
+                    let duration = time.duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default();
+                    let timestamp = Timestamp::from_second(duration.as_secs() as i64)
+                        .unwrap_or_else(|_| Timestamp::UNIX_EPOCH);
+                    timestamp.to_string()
+                }
+
+                let created = file_metadata
+                    .created()
+                    .or_else(|_| file_metadata.modified())
+                    .map(system_time_to_iso_string)
+                    .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+
+                let last_modified = file_metadata
+                    .modified()
+                    .map(system_time_to_iso_string)
+                    .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+
+                files.push(FileInfo {
+                    name,
+                    created,
+                    last_modified,
+                    size: file_metadata.len(),
+                    is_dir: file_metadata.is_dir(),
+                });
+            }
+        }
+    }
+
+    // Sort: directories first, then files, alphabetically
+    files.sort_by(|a, b| {
+        if a.is_dir && !b.is_dir {
+            std::cmp::Ordering::Less
+        } else if !a.is_dir && b.is_dir {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
+
+    let response = BrowseResponse {
+        absolute_path: expanded_path.to_string_lossy().to_string(),
+        files,
+    };
+
+    json_response(StatusCode::OK, &response)
 }
 
 fn handle_mkdir(req: &mut crate::http_server::HttpRequest) -> Response<String> {
