@@ -20,6 +20,8 @@ export class SessionView extends LitElement {
   @state() private touchStartY = 0;
   @state() private loading = false;
   @state() private loadingFrame = 0;
+  @state() private terminalCols = 0;
+  @state() private terminalRows = 0;
 
   private loadingInterval: number | null = null;
   private keyboardListenerAdded = false;
@@ -185,10 +187,10 @@ export class SessionView extends LitElement {
     }, delay);
 
     // Listen for session exit events
-    terminalElement.addEventListener(
-      'session-exit',
-      this.handleSessionExit.bind(this) as EventListener
-    );
+    terminalElement.addEventListener('session-exit', this.handleSessionExit.bind(this) as EventListener);
+    
+    // Listen for terminal resize events to capture dimensions
+    terminalElement.addEventListener('terminal-resize', this.handleTerminalResize.bind(this) as EventListener);
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
@@ -329,18 +331,31 @@ export class SessionView extends LitElement {
     }
   }
 
+  private handleTerminalResize(event: CustomEvent) {
+    // Update terminal dimensions for display
+    const { cols, rows } = event.detail;
+    this.terminalCols = cols;
+    this.terminalRows = rows;
+    this.requestUpdate();
+  }
+
   // Mobile input methods
   private handleMobileInputToggle() {
     this.showMobileInput = !this.showMobileInput;
     if (this.showMobileInput) {
-      // Focus the textarea after a short delay to ensure it's rendered
-      requestAnimationFrame(() => {
+      // Focus the textarea after ensuring it's rendered and visible
+      setTimeout(() => {
         const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
         if (textarea) {
+          // Ensure textarea is visible and focusable
+          textarea.style.visibility = 'visible';
+          textarea.removeAttribute('readonly');
           textarea.focus();
+          // Trigger click to ensure keyboard shows
+          textarea.click();
           this.adjustTextareaForKeyboard();
         }
-      });
+      }, 100);
     } else {
       // Clean up viewport listener when closing overlay
       const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
@@ -367,42 +382,47 @@ export class SessionView extends LitElement {
         controls.style.transform = `translateY(-${keyboardHeight}px)`;
         controls.style.transition = 'transform 0.3s ease';
 
-        // Calculate available space for textarea
-        const header = this.querySelector(
-          '.flex.items-center.justify-between.p-4.border-b'
-        ) as HTMLElement;
+        // Calculate available space to match closed keyboard layout
+        const header = this.querySelector('.flex.items-center.justify-between.p-4.border-b') as HTMLElement;
         const headerHeight = header?.offsetHeight || 60;
         const controlsHeight = controls?.offsetHeight || 120;
-        const padding = 48; // Additional padding for spacing
 
-        // Available height is viewport height minus header and controls (controls are now above keyboard)
-        const maxTextareaHeight = viewportHeight - headerHeight - controlsHeight - padding;
+        // Calculate exact space to maintain same gap as when keyboard is closed
+        const availableHeight = viewportHeight - headerHeight - controlsHeight;
         const inputArea = textarea.parentElement as HTMLElement;
-        if (inputArea && maxTextareaHeight > 0) {
-          // Set the input area to not exceed the available space
-          inputArea.style.height = `${maxTextareaHeight}px`;
-          inputArea.style.maxHeight = `${maxTextareaHeight}px`;
+        
+        if (inputArea && availableHeight > 0) {
+          // Set the input area to exactly fill the space, maintaining natural flex behavior
+          inputArea.style.height = `${availableHeight}px`;
+          inputArea.style.maxHeight = `${availableHeight}px`;
           inputArea.style.overflow = 'hidden';
+          inputArea.style.display = 'flex';
+          inputArea.style.flexDirection = 'column';
+          inputArea.style.paddingBottom = '0px'; // Remove any extra padding
 
-          // Set textarea height within the container
-          const labelHeight = 40; // Height of the label above textarea
-          const textareaMaxHeight = Math.max(maxTextareaHeight - labelHeight, 80);
-          textarea.style.height = `${textareaMaxHeight}px`;
-          textarea.style.maxHeight = `${textareaMaxHeight}px`;
+          // Let textarea use flex-1 behavior but constrain the container
+          textarea.style.height = 'auto'; // Let it grow naturally
+          textarea.style.maxHeight = 'none'; // Remove height constraints
+          textarea.style.marginBottom = '8px'; // Keep consistent margin
+          textarea.style.flex = '1'; // Fill available space
         }
       } else {
         // Reset position when keyboard is hidden
         controls.style.transform = 'translateY(0px)';
         controls.style.transition = 'transform 0.3s ease';
 
-        // Reset textarea height and constraints
+        // Reset textarea height and constraints to original flex behavior
         const inputArea = textarea.parentElement as HTMLElement;
         if (inputArea) {
           inputArea.style.height = '';
           inputArea.style.maxHeight = '';
           inputArea.style.overflow = '';
+          inputArea.style.display = '';
+          inputArea.style.flexDirection = '';
+          inputArea.style.paddingBottom = '';
           textarea.style.height = '';
           textarea.style.maxHeight = '';
+          textarea.style.flex = '';
         }
       }
     };
@@ -693,10 +713,15 @@ export class SessionView extends LitElement {
               </div>
             </div>
           </div>
-          <div class="flex items-center gap-3 text-xs flex-shrink-0 ml-2">
+          <div class="flex flex-col items-end gap-0 text-xs flex-shrink-0 ml-2">
             <span class="${this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning'}">
               ${this.session.status.toUpperCase()}
             </span>
+            ${this.terminalCols > 0 && this.terminalRows > 0 ? html`
+              <span class="text-vs-muted text-xs opacity-60" style="font-size: 10px; line-height: 1;">
+                ${this.terminalCols}×${this.terminalRows}
+              </span>
+            ` : ''}
           </div>
         </div>
 
@@ -821,13 +846,24 @@ export class SessionView extends LitElement {
                     placeholder="Enter your command here..."
                     .value=${this.mobileInputText}
                     @input=${this.handleMobileInputChange}
+                    @click=${(e: Event) => {
+                      const textarea = e.target as HTMLTextAreaElement;
+                      // Ensure keyboard shows when clicking the textarea
+                      setTimeout(() => {
+                        textarea.focus();
+                      }, 10);
+                    }}
+                    @focus=${() => {
+                      // Ensure keyboard adjustment when textarea gains focus
+                      this.adjustTextareaForKeyboard();
+                    }}
                     @keydown=${(e: KeyboardEvent) => {
                       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
                         this.handleMobileInputSend();
                       }
                     }}
-                    style="min-height: 120px; margin-bottom: 16px;"
+                    style="min-height: 120px; margin-bottom: 8px;"
                   ></textarea>
                 </div>
 

@@ -401,6 +401,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
         try {
           const parsed = JSON.parse(line);
           if (parsed.version && parsed.width && parsed.height) {
+            console.log(`Terminal size for session ${sessionId}: ${parsed.width}x${parsed.height}`);
             res.write(`data: ${line}\n\n`);
             headerSent = true;
           } else if (Array.isArray(parsed) && parsed.length >= 3) {

@@ -160,11 +160,12 @@ export class Renderer {
 
   parseCastFile(content: string): void {
     const lines = content.trim().split('\n');
-    // const header: CastHeader | null = null;
+    let outputEvents: string[] = [];
 
     // Clear terminal
     this.terminal.clear();
 
+    // First pass: collect all output events and process headers/resizes immediately
     for (const line of lines) {
       if (!line.trim()) continue;
 
@@ -184,7 +185,7 @@ export class Renderer {
           };
 
           if (event.type === 'o') {
-            this.processOutput(event.data);
+            outputEvents.push(event.data);
           } else if (event.type === 'r') {
             this.processResize(event.data);
           }
@@ -192,6 +193,18 @@ export class Renderer {
       } catch (_e) {
         console.warn('Failed to parse cast line:', line);
       }
+    }
+    
+    // Write all output at once, then scroll when rendering is complete
+    if (outputEvents.length > 0) {
+      const allOutput = outputEvents.join('');
+      this.terminal.write(allOutput, () => {
+        // This callback fires when XTerm has finished rendering the content
+        this.scrollToBottom();
+      });
+    } else {
+      // No output to render, scroll immediately
+      this.scrollToBottom();
     }
   }
 
@@ -223,6 +236,13 @@ export class Renderer {
     this.terminal.resize(width, height);
     // Always use ScaleFitAddon for consistent scaling behavior
     this.scaleFitAddon.fit();
+    
+    // Emit custom event with terminal dimensions
+    const event = new CustomEvent('terminal-resize', {
+      detail: { cols: width, rows: height },
+      bubbles: true
+    });
+    this.container.dispatchEvent(event);
   }
 
   clear(): void {
@@ -349,6 +369,11 @@ export class Renderer {
   // Method to fit terminal to container (useful for responsive layouts)
   fit(): void {
     this.scaleFitAddon.fit();
+  }
+
+  // Scroll terminal to bottom
+  scrollToBottom(): void {
+    this.terminal.scrollToBottom();
   }
 
   // Get terminal dimensions

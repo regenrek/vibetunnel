@@ -2,9 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fira Code Variable Font */
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/FiraCode-VF.woff2') format('woff2-variations'),
+       url('/fonts/FiraCode-VF.ttf') format('truetype-variations');
+  font-variation-settings: 'wght' 400;
+}
+
+/* Override Tailwind's font-mono to use Fira Code */
+.font-mono {
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace !important;
+}
+
+/* Mobile scroll and touch behavior fixes */
+html, body {
+  overscroll-behavior: none;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Terminal-specific touch handling */
+.xterm {
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
+
+.xterm .xterm-viewport {
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+/* Fix XTerm text span touch scrolling issues */
+.xterm .xterm-rows span {
+  touch-action: pan-y;
+}
+
+.xterm .xterm-screen {
+  touch-action: pan-y;
+}
+
+/* More aggressive fix for session cards (read-only snapshots) */
+.session-preview .xterm .xterm-rows span {
+  pointer-events: none;
+  touch-action: pan-y;
+}
+
+/* Terminal container scroll prevention */
+#terminal-container {
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
+
+/* Session cards - prevent pull-to-refresh */
+.session-card {
+  overscroll-behavior: none;
+}
+
+/* App header - prevent pull-to-refresh when scrolling starts from header */
+.app-header {
+  overscroll-behavior: none;
+  touch-action: pan-x pan-y;
+}
+
 /* XTerm terminal styling */
 .xterm {
   padding: 0 !important;
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace !important;
 }
 
 .xterm .xterm-viewport {
