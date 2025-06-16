@@ -15,7 +15,7 @@ use anyhow::anyhow;
 use argument_parser::Parser;
 use uuid::Uuid;
 
-use crate::protocol::SessionInfo;
+use crate::protocol::{SessionInfo, SessionListEntry};
 use crate::tty_spawn::TtySpawn;
 
 fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
@@ -42,51 +42,33 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
             let notification_stream_path = path.join("notification-stream");
 
             if session_json_path.exists() {
-                let session_data = if let Ok(content) = fs::read_to_string(&session_json_path) {
-                    if let Ok(session_info) = serde_json::from_str::<SessionInfo>(&content) {
-                        serde_json::json!({
-                            "cmdline": session_info.cmdline,
-                            "name": session_info.name,
-                            "cwd": session_info.cwd,
-                            "pid": session_info.pid,
-                            "status": session_info.status,
-                            "exit_code": session_info.exit_code,
-                            "started_at": session_info.started_at,
-                            "waiting": session_info.waiting,
-                            "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
-                            "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
-                            "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()
-                        })
-                    } else {
-                        // Fallback to old behavior if JSON parsing fails
-                        let status = if stream_out_path.exists() && stdin_path.exists() {
-                            "running"
-                        } else {
-                            "stopped"
-                        };
-                        serde_json::json!({
-                            "status": status,
-                            "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
-                            "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
-                            "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()
-                        })
-                    }
-                } else {
-                    // Fallback to old behavior if file reading fails
-                    let status = if stream_out_path.exists() && stdin_path.exists() {
-                        "running"
-                    } else {
-                        "stopped"
-                    };
-                    serde_json::json!({
-                        "status": status,
-                        "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
-                        "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
-                        "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()
-                    })
+                let stream_out = stream_out_path
+                    .canonicalize()
+                    .unwrap_or(stream_out_path.clone())
+                    .to_string_lossy()
+                    .to_string();
+                let stdin = stdin_path
+                    .canonicalize()
+                    .unwrap_or(stdin_path.clone())
+                    .to_string_lossy()
+                    .to_string();
+                let notification_stream = notification_stream_path
+                    .canonicalize()
+                    .unwrap_or(notification_stream_path.clone())
+                    .to_string_lossy()
+                    .to_string();
+                let session_info = fs::read_to_string(&session_json_path)
+                    .and_then(|content| serde_json::from_str(&content).map_err(Into::into))
+                    .unwrap_or_default();
+
+                let session_entry = SessionListEntry {
+                    session_info,
+                    stream_out,
+                    stdin,
+                    notification_stream,
                 };
 
-                sessions.insert(session_id.to_string(), session_data);
+                sessions.insert(session_id.to_string(), serde_json::to_value(session_entry)?);
             }
         }
     }

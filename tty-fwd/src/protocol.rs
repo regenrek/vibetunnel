@@ -2,7 +2,7 @@ use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct SessionInfo {
     pub cmdline: Vec<String>,
     pub name: String,
@@ -16,6 +16,17 @@ pub struct SessionInfo {
     pub started_at: Option<Timestamp>,
     #[serde(default)]
     pub waiting: bool,
+}
+
+#[derive(Serialize)]
+pub struct SessionListEntry {
+    #[serde(flatten)]
+    pub session_info: SessionInfo,
+    #[serde(rename = "stream-out")]
+    pub stream_out: String,
+    pub stdin: String,
+    #[serde(rename = "notification-stream")]
+    pub notification_stream: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

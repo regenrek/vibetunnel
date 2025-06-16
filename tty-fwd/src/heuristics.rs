@@ -50,7 +50,6 @@ impl Utf8Buffer {
         // Return the valid UTF-8 portion, replacing invalid sequences
         std::str::from_utf8(&self.data).unwrap_or("")
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +98,6 @@ impl InputDetectionHeuristics {
         Self::default()
     }
 
-
     pub fn record_output(&mut self, data: &[u8]) {
         self.last_output_time = Some(Instant::now());
         self.consecutive_idle_periods = 0;
@@ -114,7 +112,7 @@ impl InputDetectionHeuristics {
 
     pub fn check_waiting_for_input(&mut self) -> bool {
         let now = Instant::now();
-        
+
         let is_idle = match self.last_output_time {
             Some(last_output) => now.duration_since(last_output) >= self.idle_threshold,
             None => false,
@@ -125,30 +123,29 @@ impl InputDetectionHeuristics {
         }
 
         let has_prompt_pattern = self.detect_prompt_pattern();
-        
+
         let recent_activity = match (self.last_input_time, self.last_output_time) {
             (Some(input_time), Some(output_time)) => {
                 let since_input = now.duration_since(input_time);
                 let since_output = now.duration_since(output_time);
-                
-                since_input > Duration::from_millis(100) && 
-                since_output > Duration::from_millis(100) &&
-                since_output >= self.idle_threshold
+
+                since_input > Duration::from_millis(100)
+                    && since_output > Duration::from_millis(100)
+                    && since_output >= self.idle_threshold
             }
-            (None, Some(output_time)) => {
-                now.duration_since(output_time) >= self.idle_threshold
-            }
+            (None, Some(output_time)) => now.duration_since(output_time) >= self.idle_threshold,
             _ => false,
         };
 
-        let confidence_score = self.calculate_confidence_score(is_idle, has_prompt_pattern, recent_activity);
-        
+        let confidence_score =
+            self.calculate_confidence_score(is_idle, has_prompt_pattern, recent_activity);
+
         confidence_score >= 0.6
     }
 
     fn detect_prompt_pattern(&self) -> bool {
         let recent_lines = self.get_recent_lines(3);
-        
+
         for line in &recent_lines {
             // Check both trimmed and untrimmed versions
             let trimmed = line.trim();
@@ -157,8 +154,11 @@ impl InputDetectionHeuristics {
             }
 
             for pattern in &self.prompt_patterns {
-                if line.ends_with(pattern) || line.contains(pattern) || 
-                   trimmed.ends_with(pattern.trim()) || trimmed.contains(pattern) {
+                if line.ends_with(pattern)
+                    || line.contains(pattern)
+                    || trimmed.ends_with(pattern.trim())
+                    || trimmed.contains(pattern)
+                {
                     return true;
                 }
             }
@@ -173,7 +173,7 @@ impl InputDetectionHeuristics {
 
     fn looks_like_prompt(&self, line: &str) -> bool {
         let line = line.trim();
-        
+
         if line.is_empty() {
             return false;
         }
@@ -187,13 +187,13 @@ impl InputDetectionHeuristics {
         }
 
         let words = line.split_whitespace().collect::<Vec<_>>();
-        if words.len() <= 5 && (
-            line.contains("enter") || 
-            line.contains("input") || 
-            line.contains("type") ||
-            line.contains("choose") ||
-            line.contains("select")
-        ) {
+        if words.len() <= 5
+            && (line.contains("enter")
+                || line.contains("input")
+                || line.contains("type")
+                || line.contains("choose")
+                || line.contains("select"))
+        {
             return true;
         }
 
@@ -213,7 +213,12 @@ impl InputDetectionHeuristics {
             .collect()
     }
 
-    fn calculate_confidence_score(&self, is_idle: bool, has_prompt: bool, recent_activity: bool) -> f32 {
+    fn calculate_confidence_score(
+        &self,
+        is_idle: bool,
+        has_prompt: bool,
+        recent_activity: bool,
+    ) -> f32 {
         let mut score: f32 = 0.0;
 
         if is_idle {
@@ -239,7 +244,6 @@ impl InputDetectionHeuristics {
         score.min(1.0)
     }
 
-
     pub fn get_debug_info(&self) -> String {
         format!(
             "Heuristics Debug: last_output={:?}, consecutive_idle={}, recent_output_len={}, patterns_detected={}",
@@ -258,17 +262,17 @@ mod tests {
     #[test]
     fn test_prompt_detection() {
         let mut heuristics = InputDetectionHeuristics::new();
-        
+
         heuristics.record_output(b"user@host:~$ ");
         // Wait enough to trigger idle detection
         std::thread::sleep(Duration::from_millis(600));
         assert!(heuristics.check_waiting_for_input());
-        
+
         let mut heuristics = InputDetectionHeuristics::new();
         heuristics.record_output(b"Password: ");
         std::thread::sleep(Duration::from_millis(600));
         assert!(heuristics.check_waiting_for_input());
-        
+
         let mut heuristics = InputDetectionHeuristics::new();
         heuristics.record_output(b"Do you want to continue? (y/n) ");
         std::thread::sleep(Duration::from_millis(600));
@@ -279,10 +283,10 @@ mod tests {
     fn test_idle_detection() {
         let mut heuristics = InputDetectionHeuristics::new();
         heuristics.idle_threshold = Duration::from_millis(100);
-        
+
         heuristics.record_output(b"$ ");
         assert!(!heuristics.check_waiting_for_input());
-        
+
         std::thread::sleep(Duration::from_millis(150));
         assert!(heuristics.check_waiting_for_input());
     }

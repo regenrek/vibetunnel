@@ -132,10 +132,7 @@ impl TtySpawn {
 
     /// Sets a path as output file for notifications.
     pub fn notification_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, io::Error> {
-        let file = File::options()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let file = File::options().create(true).append(true).open(path)?;
 
         let notification_writer = NotificationWriter::new(file);
         self.options_mut().notification_writer = Some(notification_writer);
@@ -222,10 +219,7 @@ fn update_session_status(
 }
 
 /// Updates the waiting status in the session JSON file
-fn update_session_waiting(
-    session_json_path: &Path,
-    waiting: bool,
-) -> Result<(), io::Error> {
+fn update_session_waiting(session_json_path: &Path, waiting: bool) -> Result<(), io::Error> {
     if let Ok(content) = std::fs::read_to_string(session_json_path) {
         if let Ok(mut session_info) = serde_json::from_str::<SessionInfo>(&content) {
             session_info.waiting = waiting;
@@ -272,8 +266,13 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
 
         let session_name = opts.session_name.unwrap_or(executable_name);
 
-        create_session_info(session_json_path, cmdline.clone(), session_name.clone(), current_dir.clone())
-            .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?;
+        create_session_info(
+            session_json_path,
+            cmdline.clone(),
+            session_name.clone(),
+            current_dir.clone(),
+        )
+        .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?;
 
         // Send session started notification
         if let Some(ref mut notification_writer) = opts.notification_writer {
@@ -444,7 +443,7 @@ fn communication_loop(
             Ok(0) => {
                 // Timeout occurred - check if we're waiting for input
                 let is_waiting = heuristics.check_waiting_for_input();
-                
+
                 // Update session waiting state if it changed
                 if is_waiting != current_waiting_state {
                     current_waiting_state = is_waiting;
@@ -452,7 +451,7 @@ fn communication_loop(
                         let _ = update_session_waiting(session_json_path, is_waiting);
                     }
                 }
-                
+
                 // Send notification only once per waiting period
                 if let Some(notification_writer) = &mut notification_writer {
                     if is_waiting && !input_notification_sent {
@@ -465,7 +464,7 @@ fn communication_loop(
                                 "debug_info": heuristics.get_debug_info()
                             }),
                         };
-                        
+
                         if let Err(_) = notification_writer.write_notification(event) {
                             // Ignore notification write errors to not interrupt the main flow
                         }
@@ -488,7 +487,7 @@ fn communication_loop(
                 Ok(n) => {
                     heuristics.record_input();
                     input_notification_sent = false; // Reset notification state on user input
-                    
+
                     // Update waiting state to false when there's input
                     if current_waiting_state {
                         current_waiting_state = false;
@@ -496,7 +495,7 @@ fn communication_loop(
                             let _ = update_session_waiting(session_json_path, false);
                         }
                     }
-                    
+
                     write_all(master.as_fd(), &buf[..n])?;
                 }
                 Err(Errno::EINTR | Errno::EAGAIN) => {}
@@ -517,7 +516,7 @@ fn communication_loop(
                     Err(err) => return Err(err),
                     Ok(n) => {
                         heuristics.record_input();
-                        
+
                         // Update waiting state to false when there's input from FIFO
                         if current_waiting_state {
                             current_waiting_state = false;
@@ -525,7 +524,7 @@ fn communication_loop(
                                 let _ = update_session_waiting(session_json_path, false);
                             }
                         }
-                        
+
                         write_all(master.as_fd(), &buf[..n])?;
                     }
                 }
