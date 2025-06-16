@@ -4,9 +4,9 @@
   "description": "Web frontend for terminal multiplexer",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "npm run build:css && concurrently --kill-others-on-fail \"npm run watch:css\" \"npm run watch:client\" \"npm run watch:server\"",
+    "dev": "npm run build:css && concurrently --kill-others-on-fail \"npm run watch:css\" \"npm run watch:client\" \"npm run watch:server-new\"",
     "dev:new": "npm run build:css && concurrently --kill-others-on-fail \"npm run watch:css\" \"npm run watch:client\" \"npm run watch:server-new\"",
-    "watch:server": "tsx watch src/server.ts",
+    "watch:server": "tsx watch src/server-new.ts",
     "watch:server-new": "tsx watch src/server-new.ts",
     "watch:client": "tsc -p tsconfig.client.json --watch --preserveWatchOutput",
     "watch:css": "tailwindcss -i ./src/input.css -o ./public/output.css --watch",
