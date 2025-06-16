@@ -1,3 +1,4 @@
+mod heuristics;
 mod protocol;
 mod tty_spawn;
 mod utils;
@@ -51,6 +52,7 @@ fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
                             "status": session_info.status,
                             "exit_code": session_info.exit_code,
                             "started_at": session_info.started_at,
+                            "waiting": session_info.waiting,
                             "stream-out": stream_out_path.canonicalize().unwrap_or(stream_out_path.clone()).to_string_lossy(),
                             "stdin": stdin_path.canonicalize().unwrap_or(stdin_path.clone()).to_string_lossy(),
                             "notification-stream": notification_stream_path.canonicalize().unwrap_or(notification_stream_path.clone()).to_string_lossy().to_string()

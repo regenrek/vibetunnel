@@ -14,6 +14,8 @@ pub struct SessionInfo {
     pub exit_code: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub started_at: Option<Timestamp>,
+    #[serde(default)]
+    pub waiting: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
