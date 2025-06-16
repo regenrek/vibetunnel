@@ -90,8 +90,12 @@ struct MenuBarView: View {
                     })
 
                     // Version (non-interactive)
-                    Text("Version \(appVersion)")
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Color.clear
+                            .frame(width: 16, height: 16) // Matches system icon size
+                        Text("Version \(appVersion)")
+                            .foregroundColor(.secondary)
+                    }
 
                     Divider()
 
