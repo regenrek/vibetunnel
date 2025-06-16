@@ -360,9 +360,19 @@ struct AdvancedSettingsView: View {
                                         Text("Tunnel active")
                                             .font(.caption)
                                         Spacer()
-                                        Button("Copy URL") {
-                                            NSPasteboard.general.clearContents()
-                                            NSPasteboard.general.setString(publicUrl, forType: .string)
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .help("Copy URL")
+                                            .onTapGesture {
+                                                NSPasteboard.general.clearContents()
+                                                NSPasteboard.general.setString(publicUrl, forType: .string)
+                                            }
+                                        
+                                        Button("Open Browser") {
+                                            if let url = URL(string: publicUrl) {
+                                                NSWorkspace.shared.open(url)
+                                            }
                                         }
                                         .buttonStyle(.bordered)
                                         .controlSize(.small)
