@@ -82,12 +82,12 @@ let SessionList = class SessionList extends LitElement {
         const playerElement = this.querySelector(`#player-${sessionId}`);
         if (playerElement && window.AsciinemaPlayer) {
             try {
-                const snapshotUrl = `/api/sessions/${sessionId}/snapshot`;
-                window.AsciinemaPlayer.create(snapshotUrl, playerElement, {
+                const streamUrl = `/api/sessions/${sessionId}/stream`;
+                window.AsciinemaPlayer.create({ driver: "eventsource", url: streamUrl }, playerElement, {
                     autoPlay: true,
                     loop: false,
                     controls: false,
-                    fit: 'both',
+                    fit: 'width',
                     terminalFontSize: '8px',
                     idleTimeLimit: 0.5,
                     preload: true,
@@ -219,14 +219,14 @@ let SessionList = class SessionList extends LitElement {
           <!-- Mobile: Stack everything -->
           <div class="flex flex-col space-y-3 md:hidden">
             <div class="flex items-center gap-2">
-              <button 
+              <button
                 class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 py-2 border-none rounded transition-colors text-sm flex-1"
                 @click=${() => this.showCreateModal = true}
               >
 CREATE
               </button>
-              
-              <button 
+
+              <button
                 class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 py-2 border-none rounded transition-colors disabled:opacity-50 text-sm flex-1"
                 @click=${this.handleCleanExited}
                 ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
@@ -234,12 +234,12 @@ CREATE
                 ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN'}
               </button>
             </div>
-            
+
             <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
               <div class="relative">
-                <input 
-                  type="checkbox" 
-                  class="sr-only" 
+                <input
+                  type="checkbox"
+                  class="sr-only"
                   .checked=${this.hideExited}
                   @change=${(e) => this.hideExited = e.target.checked}
                 >
@@ -254,18 +254,18 @@ CREATE
               --filter-exited
             </label>
           </div>
-          
+
           <!-- Desktop: Side by side -->
           <div class="hidden md:flex md:items-center md:justify-between">
             <div class="flex items-center gap-3">
-              <button 
+              <button
                 class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none rounded transition-colors"
                 @click=${() => this.showCreateModal = true}
               >
 CREATE SESSION
               </button>
-              
-              <button 
+
+              <button
                 class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
                 @click=${this.handleCleanExited}
                 ?disabled=${this.cleaningExited || this.sessions.filter(s => s.status === 'exited').length === 0}
@@ -273,12 +273,12 @@ CREATE SESSION
                 ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
               </button>
             </div>
-            
+
             <label class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors">
               <div class="relative">
-                <input 
-                  type="checkbox" 
-                  class="sr-only" 
+                <input
+                  type="checkbox"
+                  class="sr-only"
                   .checked=${this.hideExited}
                   @change=${(e) => this.hideExited = e.target.checked}
                 >
@@ -302,14 +302,14 @@ CREATE SESSION
         ` : html `
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             ${sessionsToShow.map(session => html `
-              <div 
+              <div
                 class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden"
                 @click=${() => this.handleSessionClick(session)}
               >
                 <!-- Compact Header -->
                 <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
                   <div class="text-vs-text text-xs font-mono truncate pr-2 flex-1">${session.command}</div>
-                  <button 
+                  <button
                     class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
                     @click=${(e) => this.handleKillSession(e, session.id)}
                     ?disabled=${this.killingSessionIds.has(session.id)}
@@ -319,9 +319,9 @@ CREATE SESSION
                 </div>
 
                 <!-- Asciinema player (main content) -->
-                <div class="session-preview bg-black flex items-center justify-center" style="aspect-ratio: 640/480;">
+                <div class="session-preview bg-black flex items-center justify-center overflow-hidden" style="aspect-ratio: 640/480;">
                   ${this.loadedSnapshots.has(session.id) ? html `
-                    <div id="player-${session.id}" class="w-full h-full" style="overflow: hidden;"></div>
+                    <div id="player-${session.id}" class="w-full h-full overflow-hidden"></div>
                   ` : html `
                     <div class="text-vs-muted text-xs">
                       ${this.newSessionIds.has(session.id)
@@ -345,7 +345,7 @@ CREATE SESSION
             `)}
           </div>
         `}
-        
+
         <session-create-form
           .visible=${this.showCreateModal}
           @session-created=${this.handleSessionCreated}
