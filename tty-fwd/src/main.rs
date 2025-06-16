@@ -166,6 +166,11 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Handle serve command
     if let Some(addr) = serve_address {
+        ctrlc::set_handler(move || {
+            println!("Ctrl-C received, exiting...");
+            std::process::exit(0);
+        })
+        .unwrap();
         return crate::api_server::start_server(&addr, control_path, static_path);
     }
 
