@@ -155,7 +155,12 @@ final class RustServer: ServerProtocol {
         
         // Add password flag if password protection is enabled
         if let password = DashboardKeychain.shared.getPassword() {
-            ttyFwdCommand += " --password \"\(password)\""
+            // Escape the password for shell
+            let escapedPassword = password.replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "$", with: "\\$")
+                .replacingOccurrences(of: "`", with: "\\`")
+                .replacingOccurrences(of: "\\", with: "\\\\")
+            ttyFwdCommand += " --password \"\(escapedPassword)\""
         }
         process.arguments = ["-l", "-c", ttyFwdCommand]
         
