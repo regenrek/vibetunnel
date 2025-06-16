@@ -1,10 +1,12 @@
 use anyhow::Result;
-use blocking_http_server::{Method, Response, Server, StatusCode};
+use crate::blocking_http_server::{Method, Response, Server, StatusCode};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -72,7 +74,7 @@ struct ApiResponse {
 pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
     fs::create_dir_all(&control_path)?;
 
-    let mut server = Server::bind(bind_address)?;
+    let server = Server::bind(bind_address).map_err(|e| anyhow::anyhow!("Failed to bind server: {}", e))?;
     println!("HTTP API server listening on {}", bind_address);
 
     for req in server.incoming() {
@@ -96,6 +98,11 @@ pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
                 (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &mut req),
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
+                (&Method::GET, path)
+                    if path.starts_with("/api/sessions/") && path.ends_with("/stream") =>
+                {
+                    handle_session_stream(&control_path, &path)
+                }
                 (&Method::GET, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/snapshot") =>
                 {
@@ -125,7 +132,7 @@ pub fn start_server(bind_address: &str, control_path: PathBuf) -> Result<()> {
                 }
             };
 
-            let _ = req.respond(response);
+            let _ = req.respond(response_to_bytes(response));
         });
     }
 
@@ -137,6 +144,19 @@ fn extract_session_id(path: &str) -> Option<String> {
     re.captures(path)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().to_string())
+}
+
+fn response_to_bytes(response: Response<String>) -> Vec<u8> {
+    let (parts, body) = response.into_parts();
+    let status_line = format!("HTTP/1.1 {} {}\r\n", parts.status.as_u16(), parts.status.canonical_reason().unwrap_or(""));
+    let mut headers = String::new();
+    for (name, value) in parts.headers {
+        if let Some(name) = name {
+            headers.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
+        }
+    }
+    let response_str = format!("{}{}\r\n{}", status_line, headers, body);
+    response_str.into_bytes()
 }
 
 fn json_response<T: Serialize>(status: StatusCode, data: &T) -> Response<String> {
@@ -193,7 +213,7 @@ fn handle_list_sessions(control_path: &PathBuf) -> Response<String> {
 
 fn handle_create_session(
     _control_path: &PathBuf,
-    _req: &mut blocking_http_server::HttpRequest,
+    _req: &mut crate::blocking_http_server::HttpRequest,
 ) -> Response<String> {
     // For now, return a stub response since reading request body is complex
     let session_id = Uuid::new_v4().to_string();
@@ -263,7 +283,7 @@ fn handle_session_snapshot(control_path: &PathBuf, path: &str) -> Response<Strin
 fn handle_session_input(
     control_path: &PathBuf,
     path: &str,
-    req: &mut blocking_http_server::HttpRequest,
+    req: &mut crate::blocking_http_server::HttpRequest,
 ) -> Response<String> {
     if let Some(session_id) = extract_session_id(path) {
         // Try to read the request body using the body() method
@@ -386,4 +406,223 @@ fn get_last_modified(file_path: &str) -> Option<String> {
                 .to_string()
         })
         .ok()
+}
+
+fn handle_session_stream(control_path: &PathBuf, path: &str) -> Response<String> {
+    if let Some(session_id) = extract_session_id(path) {
+        // First check if the session exists using sessions::list_sessions
+        let sessions = match sessions::list_sessions(control_path) {
+            Ok(sessions) => sessions,
+            Err(e) => {
+                let error = ApiResponse {
+                    success: None,
+                    message: None,
+                    error: Some(format!("Failed to list sessions: {}", e)),
+                    session_id: None,
+                };
+                return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+            }
+        };
+
+        let session_entry = match sessions.get(&session_id) {
+            Some(entry) => entry,
+            None => {
+                let error = ApiResponse {
+                    success: None,
+                    message: None,
+                    error: Some("Session not found".to_string()),
+                    session_id: None,
+                };
+                return json_response(StatusCode::NOT_FOUND, &error);
+            }
+        };
+
+        let stream_out_path = &session_entry.stream_out;
+
+        // Check if the stream-out file exists
+        if !std::path::Path::new(stream_out_path).exists() {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Session stream file not found".to_string()),
+                session_id: None,
+            };
+            return json_response(StatusCode::NOT_FOUND, &error);
+        }
+
+        println!("Starting long-lived SSE stream for session {}", session_id);
+
+        // This is a workaround for blocking-http-server's limitations
+        // We'll use tail -f and keep the connection open for a reasonable time
+        // The client should reconnect periodically to get fresh streams
+        
+        let start_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+
+        let mut response_body = String::new();
+
+        // First, send existing content from the file
+        if let Ok(content) = fs::read_to_string(stream_out_path) {
+            let mut header_sent = false;
+            
+            for line in content.lines() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
+                    // Check if this is a header line
+                    if parsed.get("version").is_some() && parsed.get("width").is_some() && parsed.get("height").is_some() {
+                        response_body.push_str(&format!("data: {}\n\n", line));
+                        header_sent = true;
+                    }
+                    // Check if this is an event line [timestamp, type, data]
+                    else if parsed.as_array().map(|arr| arr.len() >= 3).unwrap_or(false) {
+                        // Convert to instant event for immediate playback
+                        if let Some(arr) = parsed.as_array() {
+                            let instant_event = serde_json::json!([0, arr[1], arr[2]]);
+                            response_body.push_str(&format!("data: {}\n\n", instant_event));
+                        }
+                    }
+                }
+            }
+
+            // Send default header if none found
+            if !header_sent {
+                let default_header = serde_json::json!({
+                    "version": 2,
+                    "width": 80,
+                    "height": 24,
+                    "timestamp": start_time as u64,
+                    "env": { "TERM": "xterm-256color" }
+                });
+                response_body.push_str(&format!("data: {}\n\n", default_header));
+            }
+        } else {
+            // Send default header if file can't be read
+            let default_header = serde_json::json!({
+                "version": 2,
+                "width": 80,
+                "height": 24,
+                "timestamp": start_time as u64,
+                "env": { "TERM": "xterm-256color" }
+            });
+            response_body.push_str(&format!("data: {}\n\n", default_header));
+        }
+
+        // Now use tail -f to get new content for a longer period
+        // This provides a streaming-like experience within the constraints
+        let stream_path_clone = stream_out_path.clone();
+        
+        match Command::new("tail")
+            .args(&["-f", &stream_path_clone])
+            .stdout(Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child) => {
+                if let Some(stdout) = child.stdout.take() {
+                    let reader = BufReader::new(stdout);
+                    
+                    // Create a channel to communicate with the reader thread
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    
+                    // Spawn thread to read from tail
+                    let handle = thread::spawn(move || {
+                        for line in reader.lines() {
+                            if let Ok(line) = line {
+                                if line.trim().is_empty() {
+                                    continue;
+                                }
+                                
+                                if tx.send(line).is_err() {
+                                    break; // Channel closed
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Collect new content for up to 10 seconds or until no new data
+                    let timeout_duration = std::time::Duration::from_secs(10);
+                    let poll_duration = std::time::Duration::from_millis(100);
+                    let start_collect = std::time::Instant::now();
+                    let mut last_data_time = start_collect;
+                    
+                    while start_collect.elapsed() < timeout_duration {
+                        match rx.recv_timeout(poll_duration) {
+                            Ok(line) => {
+                                last_data_time = std::time::Instant::now();
+                                
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line) {
+                                    // Skip headers in tail output
+                                    if parsed.get("version").is_some() && parsed.get("width").is_some() {
+                                        continue;
+                                    }
+                                    
+                                    // Process event lines
+                                    if let Some(arr) = parsed.as_array() {
+                                        if arr.len() >= 3 {
+                                            let current_time = SystemTime::now()
+                                                .duration_since(SystemTime::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs_f64();
+                                            let real_time_event = serde_json::json!([current_time - start_time, arr[1], arr[2]]);
+                                            response_body.push_str(&format!("data: {}\n\n", real_time_event));
+                                        }
+                                    }
+                                } else {
+                                    // Handle non-JSON as raw output
+                                    let current_time = SystemTime::now()
+                                        .duration_since(SystemTime::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs_f64();
+                                    let cast_event = serde_json::json!([current_time - start_time, "o", line]);
+                                    response_body.push_str(&format!("data: {}\n\n", cast_event));
+                                }
+                            }
+                            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                                // If no data for 2 seconds, consider ending the stream
+                                if last_data_time.elapsed() > std::time::Duration::from_secs(2) {
+                                    break;
+                                }
+                            }
+                            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Clean up
+                    let _ = child.kill();
+                    let _ = handle.join();
+                }
+            }
+            Err(e) => {
+                println!("Failed to start tail command: {}", e);
+            }
+        }
+
+        // Send a final "end of stream" marker
+        response_body.push_str("data: {\"type\":\"end\"}\n\n");
+
+        // Return the SSE response
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "text/event-stream")
+            .header("Cache-Control", "no-cache")
+            .header("Connection", "keep-alive")
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Headers", "Cache-Control")
+            .body(response_body)
+            .unwrap()
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid session ID".to_string()),
+            session_id: None,
+        };
+        json_response(StatusCode::BAD_REQUEST, &error)
+    }
 }

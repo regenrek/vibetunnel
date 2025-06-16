@@ -1,3 +1,4 @@
+mod blocking_http_server;
 mod heuristics;
 mod protocol;
 mod server;
