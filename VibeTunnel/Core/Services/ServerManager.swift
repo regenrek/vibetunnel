@@ -9,20 +9,33 @@ import Foundation
 import SwiftUI
 import Combine
 import OSLog
+import Observation
 
 /// Manages the active server and handles switching between modes
 @MainActor
-class ServerManager: ObservableObject {
+@Observable
+class ServerManager {
     static let shared = ServerManager()
     
-    @AppStorage("serverMode") private var serverModeString: String = ServerMode.hummingbird.rawValue
-    @AppStorage("serverPort") var port: String = "4020"
-    @AppStorage("cleanupOnStartup") private var cleanupOnStartup: Bool = true
+    private var serverModeString: String {
+        get { UserDefaults.standard.string(forKey: "serverMode") ?? ServerMode.hummingbird.rawValue }
+        set { UserDefaults.standard.set(newValue, forKey: "serverMode") }
+    }
     
-    @Published private(set) var currentServer: ServerProtocol?
-    @Published private(set) var isRunning = false
-    @Published private(set) var isSwitching = false
-    @Published private(set) var lastError: Error?
+    var port: String {
+        get { UserDefaults.standard.string(forKey: "serverPort") ?? "4020" }
+        set { UserDefaults.standard.set(newValue, forKey: "serverPort") }
+    }
+    
+    private var cleanupOnStartup: Bool {
+        get { UserDefaults.standard.bool(forKey: "cleanupOnStartup") }
+        set { UserDefaults.standard.set(newValue, forKey: "cleanupOnStartup") }
+    }
+    
+    private(set) var currentServer: ServerProtocol?
+    private(set) var isRunning = false
+    private(set) var isSwitching = false
+    private(set) var lastError: Error?
     
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "ServerManager")
     private var cancellables = Set<AnyCancellable>()
@@ -35,6 +48,19 @@ class ServerManager: ObservableObject {
     
     var logPublisher: AnyPublisher<ServerLogEntry, Never> {
         logSubject.eraseToAnyPublisher()
+    }
+    
+    // Modern async stream for logs
+    var logStream: AsyncStream<ServerLogEntry> {
+        AsyncStream { continuation in
+            // Use logPublisher directly without storing the cancellable
+            Task { @MainActor in
+                for await entry in logPublisher.values {
+                    continuation.yield(entry)
+                }
+                continuation.finish()
+            }
+        }
     }
     
     private init() {

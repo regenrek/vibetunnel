@@ -6,11 +6,11 @@
 //
 
 import SwiftUI
-import Combine
+import Observation
 
 /// View for displaying server console logs
 struct ServerConsoleView: View {
-    @StateObject private var viewModel = ServerConsoleViewModel()
+    @State private var viewModel = ServerConsoleViewModel()
     @State private var autoScroll = true
     @State private var filterText = ""
     @State private var selectedLevel: ServerLogEntry.Level?
@@ -90,6 +90,9 @@ struct ServerConsoleView: View {
             }
         }
         .frame(minHeight: 200)
+        .onDisappear {
+            viewModel.cleanup()
+        }
     }
     
     private var filteredLogs: [ServerLogEntry] {
@@ -148,20 +151,24 @@ struct ServerLogEntryView: View {
 
 /// View model for the server console
 @MainActor
-class ServerConsoleViewModel: ObservableObject {
-    @Published private(set) var logs: [ServerLogEntry] = []
+@Observable
+class ServerConsoleViewModel {
+    private(set) var logs: [ServerLogEntry] = []
     
-    private var cancellables = Set<AnyCancellable>()
+    private var logTask: Task<Void, Never>?
     private let maxLogs = 1000
     
     init() {
-        // Subscribe to server logs
-        ServerManager.shared.logPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] entry in
+        // Subscribe to server logs using async stream
+        logTask = Task { [weak self] in
+            for await entry in ServerManager.shared.logStream {
                 self?.addLog(entry)
             }
-            .store(in: &cancellables)
+        }
+    }
+    
+    func cleanup() {
+        logTask?.cancel()
     }
     
     private func addLog(_ entry: ServerLogEntry) {

@@ -572,7 +572,7 @@ struct DebugSettingsView: View {
     @AppStorage("debugMode") private var debugMode = false
     @AppStorage("logLevel") private var logLevel = "info"
     @AppStorage("serverMode") private var serverModeString = ServerMode.hummingbird.rawValue
-    @StateObject private var serverManager = ServerManager.shared
+    @State private var serverManager = ServerManager.shared
     @State private var isServerHealthy = false
     @State private var heartbeatTask: Task<Void, Never>?
     @State private var showPurgeConfirmation = false
@@ -847,6 +847,20 @@ struct DebugSettingsView: View {
                     
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
+                            Text("Welcome Screen")
+                            Spacer()
+                            Button("Show Welcome") {
+                                AppDelegate.showWelcomeScreen()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        Text("Display the welcome screen again")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
                             Text("User Defaults")
                             Spacer()
                             Button("Purge All") {
@@ -973,6 +987,9 @@ struct DebugSettingsView: View {
         consoleWindow.center()
         
         let consoleView = ServerConsoleView()
+            .onDisappear {
+                // This will be called when the window closes
+            }
         consoleWindow.contentView = NSHostingView(rootView: consoleView)
         
         let windowController = NSWindowController(window: consoleWindow)

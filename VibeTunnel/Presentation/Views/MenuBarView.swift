@@ -45,6 +45,15 @@ struct MenuBarView: View {
             // Help menu with submenu indicator
             HStack {
                 Menu {
+                    // Show Tutorial
+                    Button(action: {
+                        AppDelegate.showWelcomeScreen()
+                    }) {
+                        Label("Show Tutorial", systemImage: "book")
+                    }
+                    
+                    Divider()
+                    
                     // Website
                     Button(action: {
                         if let url = URL(string: "http://vibetunnel.sh") {

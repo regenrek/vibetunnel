@@ -1,9 +1,11 @@
 import AppKit
 import SwiftUI
+import Observation
 
 /// A custom window size animator that works with SwiftUI Settings windows
 @MainActor
-final class WindowSizeAnimator: ObservableObject {
+@Observable
+final class WindowSizeAnimator {
     static let shared = WindowSizeAnimator()
 
     private weak var window: NSWindow?
@@ -74,7 +76,7 @@ final class WindowSizeAnimator: ObservableObject {
 /// A view modifier that captures the window and enables animated resizing
 struct AnimatedWindowSizing: ViewModifier {
     let size: CGSize
-    @StateObject private var animator = WindowSizeAnimator.shared
+    @State private var animator = WindowSizeAnimator.shared
 
     func body(content: Content) -> some View {
         content

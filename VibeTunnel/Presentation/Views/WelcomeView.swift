@@ -218,7 +218,7 @@ struct AccessDashboardPageView: View {
                     .font(.largeTitle)
                     .fontWeight(.semibold)
                 
-                Text("To access your desktop from any device, create a tunnel from your device.\n\nThis can be done via ngrok in settings or via **Tailscale** (recommended)")
+                Text("To access your terminals from any device, create a tunnel from your device.\n\nThis can be done via **ngrok** in settings or **Tailscale** (recommended).")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

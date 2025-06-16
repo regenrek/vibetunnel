@@ -20,6 +20,14 @@ struct VibeTunnelApp: App {
             .defaultSize(width: 1, height: 1)
             .windowStyle(.hiddenTitleBar)
             
+            // Welcome Window
+            WindowGroup("Welcome", id: "welcome") {
+                WelcomeView()
+            }
+            .windowResizability(.contentSize)
+            .defaultSize(width: 580, height: 480)
+            .windowStyle(.hiddenTitleBar)
+            
             Settings {
                 SettingsView()
             }
@@ -91,6 +99,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
 
+        // Show welcome screen on first launch
+        let hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
+        if !hasSeenWelcome && !isRunningInTests && !isRunningInPreview {
+            showWelcomeScreen()
+        }
 
 
         // Listen for update check requests
@@ -180,6 +193,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc
     private func handleCheckForUpdatesNotification() {
         sparkleUpdaterManager?.checkForUpdates()
+    }
+    
+    /// Shows the welcome screen
+    private func showWelcomeScreen() {
+        // Initialize the welcome window controller (singleton will handle the rest)
+        _ = WelcomeWindowController.shared
+        WelcomeWindowController.shared.show()
+    }
+    
+    /// Public method to show welcome screen (can be called from settings)
+    static func showWelcomeScreen() {
+        WelcomeWindowController.shared.show()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

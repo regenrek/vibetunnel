@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import os.log
+import Observation
 
 /// Service responsible for creating symlinks to command line tools with sudo authentication.
 ///
@@ -20,20 +21,43 @@ import os.log
 /// - Checks for existing symlinks and handles conflicts appropriately
 /// - Logs all operations for debugging purposes
 @MainActor
+@Observable
 final class CLIInstaller {
     // MARK: - Properties
     
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "CLIInstaller")
     
+    var isInstalled = false
+    var isInstalling = false
+    var lastError: String?
+    
     // MARK: - Public Interface
+    
+    /// Checks if the CLI tool is installed
+    func checkInstallationStatus() {
+        let targetPath = "/usr/local/bin/vt"
+        isInstalled = FileManager.default.fileExists(atPath: targetPath)
+        logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled)")
+    }
+    
+    /// Installs the CLI tool (async version for WelcomeView)
+    func install() async {
+        await MainActor.run {
+            installCLITool()
+        }
+    }
     
     /// Installs the vt CLI tool to /usr/local/bin with proper symlink
     func installCLITool() {
         logger.info("CLIInstaller: Starting CLI tool installation...")
+        isInstalling = true
+        lastError = nil
         
         guard let resourcePath = Bundle.main.path(forResource: "vt", ofType: nil) else {
             logger.error("CLIInstaller: Could not find vt binary in app bundle")
+            lastError = "The vt command line tool could not be found in the application bundle."
             showError("The vt command line tool could not be found in the application bundle.")
+            isInstalling = false
             return
         }
         
@@ -53,6 +77,7 @@ final class CLIInstaller {
             let response = alert.runModal()
             if response != .alertFirstButtonReturn {
                 logger.info("CLIInstaller: User cancelled replacement")
+                isInstalling = false
                 return
             }
         }
@@ -69,6 +94,7 @@ final class CLIInstaller {
         let response = confirmAlert.runModal()
         if response != .alertFirstButtonReturn {
             logger.info("CLIInstaller: User cancelled installation")
+            isInstalling = false
             return
         }
         
@@ -144,16 +170,22 @@ final class CLIInstaller {
             
             if task.terminationStatus == 0 {
                 logger.info("CLIInstaller: Installation completed successfully")
+                isInstalled = true
+                isInstalling = false
                 showSuccess()
             } else {
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
                 logger.error("CLIInstaller: Installation failed with status \(task.terminationStatus): \(errorString)")
+                lastError = "Installation failed: \(errorString)"
+                isInstalling = false
                 showError("Installation failed: \(errorString)")
             }
             
         } catch {
             logger.error("CLIInstaller: Installation failed with error: \(error)")
+            lastError = "Installation failed: \(error.localizedDescription)"
+            isInstalling = false
             showError("Installation failed: \(error.localizedDescription)")
         }
     }
