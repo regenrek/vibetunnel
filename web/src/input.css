@@ -60,8 +60,7 @@ session-view .xterm-helper-textarea {
 .session-preview .xterm .xterm-screen {
   max-width: 100% !important;
   max-height: 100% !important;
-  transform: scale(0.8); /* Scale down the content to fit better */
-  transform-origin: top left;
+  /* Scaling now handled by ScaleFitAddon */
 }
 
 .session-preview .xterm .xterm-viewport {

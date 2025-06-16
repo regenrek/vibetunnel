@@ -4,6 +4,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { ScaleFitAddon } from './scale-fit-addon.js';
 
 interface CastHeader {
   version: number;
@@ -23,6 +24,7 @@ export class Renderer {
   private container: HTMLElement;
   private terminal: Terminal;
   private fitAddon: FitAddon;
+  private scaleFitAddon: ScaleFitAddon;
   private webLinksAddon: WebLinksAddon;
   private isPreview: boolean;
 
@@ -72,9 +74,11 @@ export class Renderer {
 
     // Add addons
     this.fitAddon = new FitAddon();
+    this.scaleFitAddon = new ScaleFitAddon();
     this.webLinksAddon = new WebLinksAddon();
 
     this.terminal.loadAddon(this.fitAddon);
+    this.terminal.loadAddon(this.scaleFitAddon);
     this.terminal.loadAddon(this.webLinksAddon);
 
     this.setupDOM();
@@ -96,12 +100,12 @@ export class Renderer {
     // Open terminal in the wrapper
     this.terminal.open(terminalWrapper);
 
-    // Just use FitAddon
-    this.fitAddon.fit();
+    // Always use ScaleFitAddon for better scaling
+    this.scaleFitAddon.fit();
 
     // Handle container resize
     const resizeObserver = new ResizeObserver(() => {
-      this.fitAddon.fit();
+      this.scaleFitAddon.fit();
     });
     resizeObserver.observe(this.container);
   }
@@ -176,8 +180,12 @@ export class Renderer {
   }
 
   resize(width: number, height: number): void {
-    // Ignore session resize and just use FitAddon
-    this.fitAddon.fit();
+    if (this.isPreview) {
+      // For previews, resize to session dimensions then apply scaling
+      this.terminal.resize(width, height);
+    }
+    // Always use ScaleFitAddon for consistent scaling behavior
+    this.scaleFitAddon.fit();
   }
 
   clear(): void {
