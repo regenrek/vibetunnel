@@ -5,6 +5,7 @@ import SwiftUI
 struct VibeTunnelApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
+    @StateObject private var sessionMonitor = SessionMonitor.shared
 
     var body: some Scene {
         #if os(macOS)
@@ -18,6 +19,14 @@ struct VibeTunnelApp: App {
                     }
                 }
             }
+        
+            MenuBarExtra {
+                MenuBarView()
+                    .environmentObject(sessionMonitor)
+            } label: {
+                Image("menubar")
+                    .renderingMode(.template)
+            }
         #endif
     }
 }
@@ -27,8 +36,8 @@ struct VibeTunnelApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
-    private var statusItem: NSStatusItem?
     private(set) var httpServer: TunnelServerDemo?
+    private let sessionMonitor = SessionMonitor.shared
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
     private static let showSettingsNotification = Notification.Name("com.amantus.vibetunnel.showSettings")
@@ -53,9 +62,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
 
-        // Setup status item (menu bar icon)
-        setupStatusItem()
-
         // Show settings on first launch or when no window is open
         if !showInDock {
             // For menu bar apps, we need to ensure the settings window is accessible
@@ -75,15 +81,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         // Initialize and start HTTP server
-        let serverPort = UserDefaults.standard.integer(forKey: "httpServerPort")
+        let serverPort = UserDefaults.standard.integer(forKey: "serverPort")
         httpServer = TunnelServerDemo(port: serverPort > 0 ? serverPort : 8080)
         
         Task {
             do {
+                print("Attempting to start HTTP server on port \(httpServer?.port ?? 8080)...")
                 try await httpServer?.start()
-                print("HTTP server started automatically on port \(httpServer?.port ?? 8080)")
+                print("HTTP server started successfully on port \(httpServer?.port ?? 8080)")
+                print("Server is running: \(httpServer?.isRunning ?? false)")
+                
+                // Start monitoring sessions after server starts
+                sessionMonitor.startMonitoring()
+                
+                // Test the server after a short delay
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                if let url = URL(string: "http://localhost:\(httpServer?.port ?? 8080)/health") {
+                    let (_, response) = try await URLSession.shared.data(from: url)
+                    if let httpResponse = response as? HTTPURLResponse {
+                        print("Server health check response: \(httpResponse.statusCode)")
+                    }
+                }
             } catch {
                 print("Failed to start HTTP server: \(error)")
+                print("Error type: \(type(of: error))")
+                print("Error description: \(error.localizedDescription)")
+                if let nsError = error as NSError? {
+                    print("NSError domain: \(nsError.domain)")
+                    print("NSError code: \(nsError.code)")
+                    print("NSError userInfo: \(nsError.userInfo)")
+                }
             }
         }
     }
@@ -139,6 +166,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Stop session monitoring
+        sessionMonitor.stopMonitoring()
+        
         // Stop HTTP server
         Task {
             try? await httpServer?.stop()
@@ -167,52 +197,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    // MARK: - Status Item
-
-    private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        if let button = statusItem?.button {
-            button.image = NSImage(named: "menubar")
-            button.image?.isTemplate = true
-            button.action = #selector(statusItemClicked)
-            button.target = self
-        }
-
-        // Create menu
-        let menu = NSMenu()
-
-        let settingsItem = NSMenuItem(title: "Settings\u{2026}", action: #selector(showSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        let aboutItem = NSMenuItem(title: "About VibeTunnel", action: #selector(showAbout), keyEquivalent: "")
-        aboutItem.target = self
-        menu.addItem(aboutItem)
-        
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-
-        statusItem?.menu = menu
-    }
-
-    @objc
-    private func statusItemClicked() {
-        // Left click shows menu
-    }
-
-    @objc
-    private func showSettings() {
-        NSApp.openSettings()
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    @objc
-    private func showAbout() {
-        showAboutInSettings()
-    }
 }
 
 /// Shows the About section in the Settings window

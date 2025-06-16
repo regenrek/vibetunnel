@@ -39,7 +39,7 @@ public class TunnelClient {
 
     /// Default base URL for the tunnel server
     private static let defaultBaseURL: URL = {
-        guard let url = URL(string: "http://localhost:8080") else {
+        guard let url = URL(string: "http://127.0.0.1:8080") else {
             fatalError("Invalid default base URL - this should never happen with a hardcoded URL")
         }
         return url

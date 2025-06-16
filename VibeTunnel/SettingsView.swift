@@ -59,7 +59,7 @@ struct SettingsView: View {
                 }
                 .tag(SettingsTab.about)
         }
-        .frame(minWidth: 400, idealWidth: 400, minHeight: 400, idealHeight: 500)
+        .frame(minWidth: 200, idealWidth: 200, minHeight: 400, idealHeight: 400)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
@@ -155,12 +155,6 @@ struct AdvancedSettingsView: View {
     private var updateChannelRaw = UpdateChannel.stable.rawValue
 
     @State private var isCheckingForUpdates = false
-    @StateObject private var tunnelServer: TunnelServerDemo
-
-    init() {
-        let port = Int(UserDefaults.standard.string(forKey: "serverPort") ?? "8080") ?? 8_080
-        _tunnelServer = StateObject(wrappedValue: TunnelServerDemo(port: port))
-    }
 
     var updateChannel: UpdateChannel {
         UpdateChannel(rawValue: updateChannelRaw) ?? .stable
@@ -212,52 +206,22 @@ struct AdvancedSettingsView: View {
                 }
 
                 Section {
-                    // Tunnel Server
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text("Tunnel Server")
-                                    if tunnelServer.isRunning {
-                                        Circle()
-                                            .fill(.green)
-                                            .frame(width: 8, height: 8)
-                                    }
-                                }
-                                Text(tunnelServer
-                                    .isRunning ? "Server is running on port \(serverPort)" : "Server is stopped"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Button(tunnelServer.isRunning ? "Stop" : "Start") {
-                                toggleServer()
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(tunnelServer.isRunning ? .red : .blue)
-                        }
-
-                        if tunnelServer.isRunning, let serverURL = URL(string: "http://localhost:\(serverPort)") {
-                            Link("Open in Browser", destination: serverURL)
-                                .font(.caption)
-                        }
-                    }
-
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Server port:")
                             TextField("", text: $serverPort)
                                 .frame(width: 80)
-                                .disabled(tunnelServer.isRunning)
+                                .onChange(of: serverPort) { oldValue, newValue in
+                                    // Validate port number
+                                    if let port = Int(newValue), port > 0, port < 65536 {
+                                        restartServerWithNewPort(port)
+                                    }
+                                }
                         }
-                        Text("The port used for the local tunnel server. Restart server to apply changes.")
+                        Text("The server will automatically restart when the port is changed.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 8)
                 } header: {
                     Text("Server")
                         .font(.headline)
@@ -306,23 +270,36 @@ struct AdvancedSettingsView: View {
             isCheckingForUpdates = false
         }
     }
-
-    private func toggleServer() {
+    
+    private func restartServerWithNewPort(_ port: Int) {
+        guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
+        
         Task {
-            if tunnelServer.isRunning {
-               try await tunnelServer.stop()
-            } else {
-                do {
-                    try await tunnelServer.start()
-                } catch {
-                    // Show error alert
-                    await MainActor.run {
-                        let alert = NSAlert()
-                        alert.messageText = "Failed to Start Server"
-                        alert.informativeText = error.localizedDescription
-                        alert.alertStyle = .critical
-                        alert.runModal()
-                    }
+            // Stop the current server if running
+            if let server = appDelegate.httpServer, server.isRunning {
+                try? await server.stop()
+            }
+            
+            // Create and start new server with the new port
+            let newServer = TunnelServerDemo(port: port)
+            appDelegate.setHTTPServer(newServer)
+            
+            do {
+                try await newServer.start()
+                print("Server restarted on port \(port)")
+                
+                // Restart session monitoring with new port
+                SessionMonitor.shared.stopMonitoring()
+                SessionMonitor.shared.startMonitoring()
+            } catch {
+                print("Failed to restart server on port \(port): \(error)")
+                // Show error alert
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "Failed to Restart Server"
+                    alert.informativeText = "Could not start server on port \(port): \(error.localizedDescription)"
+                    alert.alertStyle = .critical
+                    alert.runModal()
                 }
             }
         }

@@ -8,6 +8,17 @@ import NIOCore
 import NIOPosix
 import os
 
+enum ServerError: LocalizedError {
+    case failedToStart(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .failedToStart(let message):
+            return message
+        }
+    }
+}
+
 /// HTTP server implementation for the macOS app
 @MainActor
 public final class TunnelServerDemo: ObservableObject {
@@ -26,6 +37,8 @@ public final class TunnelServerDemo: ObservableObject {
     
     public func start() async throws {
         guard !isRunning else { return }
+        
+        logger.info("Starting TunnelServerDemo on port \(port)")
         
         do {
             let router = Router(context: BasicRequestContext.self)
@@ -170,25 +183,43 @@ public final class TunnelServerDemo: ObservableObject {
                 logger: logger
             )
             
+            // Store the app reference first
             self.app = app
             
-            // Run the server in a separate task
-            serverTask = Task { @Sendable [weak self] in
+            // Run the server in a detached task to ensure it keeps running
+            serverTask = Task.detached(priority: .background) { [weak self, logger] in
                 do {
+                    logger.info("Starting Hummingbird application...")
                     try await app.run()
+                    logger.info("Hummingbird application stopped")
                 } catch {
-                    await MainActor.run {
+                    logger.error("Hummingbird error: \(error)")
+                    await MainActor.run { [weak self] in
                         self?.lastError = error
                         self?.isRunning = false
                     }
+                    throw error
                 }
             }
             
-            // Give the server a moment to start
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            // Wait for the server to actually start listening
+            var serverStarted = false
+            for _ in 0..<10 { // Try for up to 1 second
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
+                // Check if the server is actually listening
+                if await isServerListening(on: port) {
+                    serverStarted = true
+                    break
+                }
+            }
             
-            isRunning = true
-            logger.info("Server started on port \(port)")
+            if serverStarted {
+                isRunning = true
+                logger.info("Server started and listening on port \(port)")
+            } else {
+                throw ServerError.failedToStart("Server did not start listening on port \(port)")
+            }
             
         } catch {
             lastError = error
@@ -210,5 +241,21 @@ public final class TunnelServerDemo: ObservableObject {
         self.app = nil
         
         isRunning = false
+    }
+    
+    /// Check if the server is actually listening on the specified port
+    private func isServerListening(on port: Int) async -> Bool {
+        do {
+            let url = URL(string: "http://localhost:\(port)/health")!
+            let request = URLRequest(url: url, timeoutInterval: 1.0)
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                return httpResponse.statusCode == 200
+            }
+        } catch {
+            // Server not yet ready
+        }
+        return false
     }
 }
