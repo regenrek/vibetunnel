@@ -81,6 +81,11 @@ final class NgrokService: NgrokTunnelProtocol {
             }
         }
     }
+    
+    /// Check if auth token exists without triggering keychain prompt
+    var hasAuthToken: Bool {
+        KeychainHelper.hasNgrokAuthToken()
+    }
 
     /// The ngrok process if using CLI mode
     private var ngrokProcess: Process?
@@ -359,6 +364,23 @@ private enum KeychainHelper {
         }
 
         return token
+    }
+    
+    /// Check if a token exists without retrieving it (won't trigger keychain prompt)
+    static func hasNgrokAuthToken() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnAttributes as String: false,
+            kSecReturnData as String: false
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        return status == errSecSuccess
     }
 
     static func setNgrokAuthToken(_ token: String) {
