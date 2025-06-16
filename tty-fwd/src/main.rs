@@ -1,9 +1,10 @@
 mod heuristics;
 mod protocol;
+mod server;
+mod sessions;
 mod tty_spawn;
 mod utils;
 
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -15,64 +16,11 @@ use anyhow::anyhow;
 use argument_parser::Parser;
 use uuid::Uuid;
 
-use crate::protocol::{SessionInfo, SessionListEntry};
+use crate::protocol::SessionInfo;
 use crate::tty_spawn::TtySpawn;
 
 fn list_sessions(control_path: &Path) -> Result<(), anyhow::Error> {
-    let mut sessions = HashMap::new();
-
-    if !control_path.exists() {
-        println!("{}", serde_json::to_string(&sessions)?);
-        return Ok(());
-    }
-
-    for entry in fs::read_dir(control_path)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            let session_id = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown");
-            let session_json_path = path.join("session.json");
-            let stream_out_path = path.join("stream-out");
-            let stdin_path = path.join("stdin");
-            let notification_stream_path = path.join("notification-stream");
-
-            if session_json_path.exists() {
-                let stream_out = stream_out_path
-                    .canonicalize()
-                    .unwrap_or(stream_out_path.clone())
-                    .to_string_lossy()
-                    .to_string();
-                let stdin = stdin_path
-                    .canonicalize()
-                    .unwrap_or(stdin_path.clone())
-                    .to_string_lossy()
-                    .to_string();
-                let notification_stream = notification_stream_path
-                    .canonicalize()
-                    .unwrap_or(notification_stream_path.clone())
-                    .to_string_lossy()
-                    .to_string();
-                let session_info = fs::read_to_string(&session_json_path)
-                    .and_then(|content| serde_json::from_str(&content).map_err(Into::into))
-                    .unwrap_or_default();
-
-                sessions.insert(
-                    session_id.to_string(),
-                    SessionListEntry {
-                        session_info,
-                        stream_out,
-                        stdin,
-                        notification_stream,
-                    },
-                );
-            }
-        }
-    }
-
+    let sessions = crate::sessions::list_sessions(control_path)?;
     println!("{}", serde_json::to_string(&sessions)?);
     Ok(())
 }
@@ -187,7 +135,11 @@ fn send_signal_to_session(
                 Err(anyhow!("Failed to send signal {} to PID {}", signal, pid))
             }
         } else {
-            Err(anyhow!("Session {} process (PID: {}) is not running", session_id, pid))
+            Err(anyhow!(
+                "Session {} process (PID: {}) is not running",
+                session_id,
+                pid
+            ))
         }
     } else {
         Err(anyhow!("Session {} has no PID recorded", session_id))
@@ -258,6 +210,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut stop = false;
     let mut kill = false;
     let mut cleanup = false;
+    let mut serve_address = None::<String>;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -266,7 +219,10 @@ fn main() -> Result<(), anyhow::Error> {
                 control_path = parser.value()?;
             }
             p if p.is_long("list-sessions") => {
-                return list_sessions(&control_path);
+                let control_path: &Path = &control_path;
+                let sessions = crate::sessions::list_sessions(control_path)?;
+                println!("{}", serde_json::to_string(&sessions)?);
+                return Ok(());
             }
             p if p.is_long("session-name") => {
                 session_name = Some(parser.value()?);
@@ -282,7 +238,11 @@ fn main() -> Result<(), anyhow::Error> {
             }
             p if p.is_long("signal") => {
                 let signal_str: String = parser.value()?;
-                signal = Some(signal_str.parse().map_err(|_| anyhow!("Invalid signal number: {}", signal_str))?);
+                signal = Some(
+                    signal_str
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid signal number: {}", signal_str))?,
+                );
             }
             p if p.is_long("stop") => {
                 stop = true;
@@ -292,6 +252,14 @@ fn main() -> Result<(), anyhow::Error> {
             }
             p if p.is_long("cleanup") => {
                 cleanup = true;
+            }
+            p if p.is_long("serve") => {
+                let addr: String = parser.value()?;
+                serve_address = Some(if addr.contains(':') {
+                    addr
+                } else {
+                    format!("127.0.0.1:{}", addr)
+                });
             }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
@@ -307,9 +275,14 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter, ctrl_enter, shift_enter");
                 println!("  --send-text <text>      Send text input to session");
                 println!("  --signal <number>       Send signal number to session PID");
-                println!("  --stop                  Send SIGTERM to session (equivalent to --signal 15)");
-                println!("  --kill                  Send SIGKILL to session (equivalent to --signal 9)");
+                println!(
+                    "  --stop                  Send SIGTERM to session (equivalent to --signal 15)"
+                );
+                println!(
+                    "  --kill                  Send SIGKILL to session (equivalent to --signal 9)"
+                );
                 println!("  --cleanup               Remove exited sessions (all if no --session specified)");
+                println!("  --serve <addr>          Start HTTP server (hostname:port or just port for 127.0.0.1)");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
@@ -365,6 +338,11 @@ fn main() -> Result<(), anyhow::Error> {
     // Handle cleanup command
     if cleanup {
         return cleanup_sessions(&control_path, session_id.as_deref());
+    }
+
+    // Handle serve command
+    if let Some(addr) = serve_address {
+        return crate::server::start_server(&addr, control_path);
     }
 
     if cmdline.is_empty() {
