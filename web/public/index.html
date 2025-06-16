@@ -4,8 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VibeTunnel - Terminal Multiplexer</title>
+    <meta name="description" content="Interactive terminal sessions in your browser with real-time streaming and mobile support">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Theme colors -->
+    <meta name="theme-color" content="#007acc">
+    <meta name="msapplication-TileColor" content="#1e1e1e">
+    <meta name="msapplication-config" content="/browserconfig.xml">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VibeTunnel">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png">
+    <link rel="shortcut icon" href="/favicon.ico">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="VibeTunnel - Terminal Multiplexer">
+    <meta property="og:description" content="Interactive terminal sessions in your browser with real-time streaming and mobile support">
+    <meta property="og:image" content="/icons/icon-512x512.png">
+    <meta property="og:url" content="/">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Styles -->
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/asciinema-player@3.7.0/dist/bundle/asciinema-player.css" />
     <link href="output.css" rel="stylesheet">
+    
+    <!-- Import Maps -->
     <script type="importmap">
     {
         "imports": {
@@ -19,5 +52,76 @@
     <vibetunnel-app></vibetunnel-app>
     <script src="https://unpkg.com/asciinema-player@3.7.0/dist/bundle/asciinema-player.min.js"></script>
     <script type="module" src="app-entry.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('PWA: Service Worker registered successfully:', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            if (newWorker) {
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        // New update available
+                                        console.log('PWA: New version available');
+                                        // You could show a notification here to reload
+                                    }
+                                });
+                            }
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('PWA: Service Worker registration failed:', error);
+                    });
+            });
+
+            // Listen for messages from service worker
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'CACHE_UPDATED') {
+                    console.log('PWA: Cache updated');
+                }
+            });
+        }
+
+        // Handle install prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA: Install prompt available - you can install VibeTunnel!');
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            
+            // Show a temporary notification that install is available
+            console.log('PWA: App can be installed - look for the install icon in your browser!');
+            
+            // You can trigger the install prompt manually like this:
+            // deferredPrompt.prompt();
+        });
+
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA: App was installed successfully');
+        });
+
+        // Debug PWA readiness
+        window.addEventListener('load', () => {
+            // Check PWA criteria
+            console.log('PWA Debug Info:');
+            console.log('- HTTPS:', window.location.protocol === 'https:');
+            console.log('- Service Worker supported:', 'serviceWorker' in navigator);
+            console.log('- Manifest link present:', !!document.querySelector('link[rel="manifest"]'));
+            console.log('- Current URL:', window.location.href);
+            
+            // Check if already installed
+            if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+                console.log('PWA: App is running in standalone mode (already installed)');
+            }
+        });
+    </script>
 </body>
 </html>
