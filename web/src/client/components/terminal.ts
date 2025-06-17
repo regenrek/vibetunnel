@@ -476,9 +476,13 @@ export class Terminal extends LitElement {
       }
 
       // Check if cursor is on this line (relative to viewport)
-      // cursorY is absolute in buffer, need to check if it's in current viewport
+      // Cursor Y is relative to terminal size, but we're rendering with actualRows
+      // Need to offset cursor position by the difference
+      const adjustedCursorY = cursorY + (this.actualRows - this.rows);
       const isCursorLine =
-        row === cursorY && cursorY >= startRow && cursorY < startRow + this.actualRows;
+        row === adjustedCursorY &&
+        adjustedCursorY >= startRow &&
+        adjustedCursorY < startRow + this.actualRows;
       const lineContent = this.renderLine(line, cell, isCursorLine ? cursorX : -1);
       html += `<div class="terminal-line">${lineContent || ''}</div>`;
     }
@@ -607,11 +611,13 @@ export class Terminal extends LitElement {
 
     this.queueOperation(() => {
       const writeStart = performance.now();
-      this.terminal!.write(data);
-      const writeEnd = performance.now();
-      console.log(
-        `XTerm write took: ${(writeEnd - writeStart).toFixed(2)}ms for ${data.length} chars`
-      );
+      this.terminal!.write(data, () => {
+        const writeEnd = performance.now();
+
+        console.log(
+          `XTerm write took: ${(writeEnd - writeStart).toFixed(2)}ms for ${data.length} chars`
+        );
+      });
     });
   }
 
@@ -664,7 +670,7 @@ export class Terminal extends LitElement {
    * Scroll to a specific position in the buffer.
    * @param position - Line position (0 = top, max = bottom)
    */
-  public scrollTo(position: number) {
+  public scrollToPosition(position: number) {
     if (!this.terminal) return;
 
     this.queueOperation(() => {
