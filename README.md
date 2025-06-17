@@ -157,6 +157,17 @@ cd web && npm install && npm run build && cd ..
 open VibeTunnel.xcodeproj
 ```
 
+## Local Development Setup
+
+For local development, configure your development team ID in `Local.xcconfig`. Without this, you'll face repeated permission and keychain dialogs, especially with ad-hoc installations. With proper code signing, these dialogs only appear on first launch.
+
+To get your team ID:
+```bash
+security find-identity -v -p codesigning
+```
+
+Then copy `Local.xcconfig.template` to `Local.xcconfig` and insert your team ID. This file is gitignored to keep your personal settings private.
+
 ## Credits
 
 Created with ❤️ by:
