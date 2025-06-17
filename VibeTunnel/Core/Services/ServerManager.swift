@@ -64,6 +64,10 @@ class ServerManager {
         setupLogStream()
         setupObservers()
     }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     private func setupLogStream() {
         logStream = AsyncStream { continuation in
@@ -73,11 +77,17 @@ class ServerManager {
 
     private func setupObservers() {
         // Watch for server mode changes when the value actually changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(userDefaultsDidChange),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func userDefaultsDidChange() {
         Task { @MainActor in
-            let notifications = NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification)
-            for await _ in notifications {
-                await handleServerModeChange()
-            }
+            await handleServerModeChange()
         }
     }
 
