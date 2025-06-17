@@ -134,10 +134,10 @@ private struct TerminalPreferenceSection: View {
                 HStack {
                     Text("Test Terminal")
                     Spacer()
-                    Button("Test with 'banner hi'") {
+                    Button("Test with 'echo'") {
                         Task {
                             do {
-                                try terminalLauncher.launchCommand("banner hi")
+                                try terminalLauncher.launchCommand("echo 'VibeTunnel Terminal Test: Success!'")
                             } catch {
                                 print("Failed to launch terminal test: \(error)")
                             }
