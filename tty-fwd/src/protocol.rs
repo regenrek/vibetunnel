@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
-use std::sync::mpsc;
+use std::process::{self, Command, Stdio};
+use std::time::SystemTime;
 use std::{fmt, fs};
 
 use anyhow::Error;
@@ -229,8 +229,8 @@ impl StreamWriter {
             width,
             height,
             timestamp: Some(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
             ),
@@ -480,147 +480,167 @@ impl StreamEvent {
     }
 }
 
-pub struct StreamParser {
-    stream_path: String,
-    start_time: std::time::SystemTime,
+#[derive(Debug)]
+enum StreamingState {
+    ReadingExisting(BufReader<std::fs::File>),
+    InitializingTail,
+    Streaming {
+        reader: BufReader<process::ChildStdout>,
+        child: process::Child,
+    },
+    Error(String),
+    Finished,
 }
 
-impl StreamParser {
+pub struct StreamingIterator {
+    stream_path: String,
+    start_time: SystemTime,
+    state: StreamingState,
+}
+
+impl StreamingIterator {
     pub fn new(stream_path: String) -> Self {
+        let state = if let Ok(file) = fs::File::open(&stream_path) {
+            StreamingState::ReadingExisting(BufReader::new(file))
+        } else {
+            StreamingState::InitializingTail
+        };
+
         Self {
             stream_path,
-            start_time: std::time::SystemTime::now(),
+            start_time: SystemTime::now(),
+            state,
         }
     }
+}
 
-    pub fn start_streaming(&self, tx: mpsc::SyncSender<StreamEvent>) {
-        // First send existing content
-        if let Ok(file) = fs::File::open(&self.stream_path) {
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    if let Ok(mut event) = StreamEvent::from_json_line(&line) {
-                        // Convert terminal events to instant playback (time = 0)
-                        if let StreamEvent::Terminal(ref mut term_event) = event {
-                            term_event.time = 0.0;
+impl Iterator for StreamingIterator {
+    type Item = StreamEvent;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match &mut self.state {
+                StreamingState::ReadingExisting(reader) => {
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            // End of file, switch to tail mode
+                            self.state = StreamingState::InitializingTail;
+                            continue;
                         }
-                        if tx.send(event).is_err() {
-                            return;
+                        Ok(_) => {
+                            if let Ok(mut event) = StreamEvent::from_json_line(&line) {
+                                // Convert terminal events to instant playback (time = 0)
+                                if let StreamEvent::Terminal(ref mut term_event) = event {
+                                    term_event.time = 0.0;
+                                }
+                                return Some(event);
+                            }
+                            // If parsing fails, continue to next line
+                            continue;
+                        }
+                        Err(e) => {
+                            self.state =
+                                StreamingState::Error(format!("Error reading file: {}", e));
+                            continue;
                         }
                     }
                 }
-            }
-        }
+                StreamingState::InitializingTail => {
+                    match Command::new("tail")
+                        .args(["-f", &self.stream_path])
+                        .stdout(Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(mut child) => {
+                            if let Some(stdout) = child.stdout.take() {
+                                self.state = StreamingState::Streaming {
+                                    reader: BufReader::new(stdout),
+                                    child,
+                                };
+                                continue;
+                            } else {
+                                self.state =
+                                    StreamingState::Error("Failed to get tail stdout".to_string());
+                                continue;
+                            }
+                        }
+                        Err(e) => {
+                            self.state = StreamingState::Error(format!(
+                                "Failed to start tail command: {}",
+                                e
+                            ));
+                            continue;
+                        }
+                    }
+                }
+                StreamingState::Streaming { reader, child: _ } => {
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            // End of stream
+                            self.state = StreamingState::Finished;
+                            return Some(StreamEvent::End);
+                        }
+                        Ok(_) => {
+                            if line.trim().is_empty() {
+                                continue;
+                            }
 
-        // Now stream new content using tail -f
-        match Command::new("tail")
-            .args(["-f", &self.stream_path])
-            .stdout(Stdio::piped())
-            .spawn()
-        {
-            Ok(mut child) => {
-                if let Some(stdout) = child.stdout.take() {
-                    let reader = BufReader::new(stdout);
-
-                    for line in reader.lines() {
-                        match line {
-                            Ok(line) => {
-                                if line.trim().is_empty() {
-                                    continue;
-                                }
-
-                                if let Ok(mut event) = StreamEvent::from_json_line(&line) {
-                                    // Skip headers in tail output
+                            match StreamEvent::from_json_line(&line) {
+                                Ok(mut event) => {
                                     if matches!(event, StreamEvent::Header(_)) {
                                         continue;
                                     }
-
-                                    // Convert terminal events to real-time streaming
                                     if let StreamEvent::Terminal(ref mut term_event) = event {
-                                        let current_time = std::time::SystemTime::now()
-                                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                        let current_time = SystemTime::now()
+                                            .duration_since(SystemTime::UNIX_EPOCH)
                                             .unwrap_or_default()
                                             .as_secs_f64();
                                         let stream_start_time = self
                                             .start_time
-                                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                            .duration_since(SystemTime::UNIX_EPOCH)
                                             .unwrap_or_default()
                                             .as_secs_f64();
                                         term_event.time = current_time - stream_start_time;
                                     }
-
-                                    if tx.send(event).is_err() {
-                                        break;
-                                    }
-                                } else {
-                                    // Handle non-JSON as raw output
-                                    let current_time = std::time::SystemTime::now()
-                                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs_f64();
-                                    let stream_start_time = self
-                                        .start_time
-                                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs_f64();
-
-                                    let event = StreamEvent::Terminal(AsciinemaEvent {
-                                        time: current_time - stream_start_time,
-                                        event_type: AsciinemaEventType::Output,
-                                        data: line,
-                                    });
-
-                                    if tx.send(event).is_err() {
-                                        break;
-                                    }
+                                    return Some(event);
+                                }
+                                Err(err) => {
+                                    self.state = StreamingState::Error(format!(
+                                        "Error parsing JSON: {}",
+                                        err
+                                    ));
+                                    continue;
                                 }
                             }
-                            Err(e) => {
-                                let error_event = StreamEvent::Error {
-                                    message: format!("Error reading from tail: {}", e),
-                                };
-                                if tx.send(error_event).is_err() {
-                                    break;
-                                }
-                                break;
-                            }
+                        }
+                        Err(e) => {
+                            self.state =
+                                StreamingState::Error(format!("Error reading from tail: {}", e));
+                            continue;
                         }
                     }
                 }
-
-                let _ = child.kill();
-            }
-            Err(e) => {
-                let error_event = StreamEvent::Error {
-                    message: format!("Failed to start tail command: {}", e),
-                };
-                let _ = tx.send(error_event);
+                StreamingState::Error(message) => {
+                    let error_message = message.clone();
+                    self.state = StreamingState::Finished;
+                    return Some(StreamEvent::Error {
+                        message: error_message,
+                    });
+                }
+                StreamingState::Finished => {
+                    return None;
+                }
             }
         }
-
-        // Send end marker
-        let _ = tx.send(StreamEvent::End);
     }
+}
 
-    pub fn create_default_header(
-        &self,
-        session_info: &crate::protocol::SessionInfo,
-    ) -> StreamEvent {
-        let start_time = self
-            .start_time
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let mut header = AsciinemaHeader {
-            timestamp: Some(start_time),
-            ..Default::default()
-        };
-
-        let mut env = HashMap::new();
-        env.insert("TERM".to_string(), session_info.term.clone());
-        header.env = Some(env);
-
-        StreamEvent::Header(header)
+impl Drop for StreamingIterator {
+    fn drop(&mut self) {
+        if let StreamingState::Streaming { child, .. } = &mut self.state {
+            let _ = child.kill();
+        }
     }
 }

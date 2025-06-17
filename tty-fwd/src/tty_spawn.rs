@@ -7,16 +7,15 @@ use std::os::unix::prelude::{AsRawFd, OpenOptionsExt, OsStrExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tempfile::NamedTempFile;
 
 use crate::protocol::{
     AsciinemaEvent, AsciinemaEventType, NotificationEvent, NotificationWriter, SessionInfo,
     StreamWriter,
 };
-use jiff::Timestamp;
 
+use anyhow::Error;
+use jiff::Timestamp;
 use nix::errno::Errno;
-use nix::libc;
 use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
 use nix::pty::{openpty, Winsize};
 use nix::sys::select::{select, FdSet};
@@ -29,6 +28,7 @@ use nix::unistd::{
     close, dup2, execvp, fork, mkfifo, read, setsid, tcgetpgrp, write, ForkResult, Pid,
 };
 use signal_hook::consts::SIGWINCH;
+use tempfile::NamedTempFile;
 
 pub const DEFAULT_TERM: &str = "xterm-256color";
 
@@ -84,7 +84,7 @@ impl TtySpawn {
     }
 
     /// Sets a path as input file for stdin.
-    pub fn stdin_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, io::Error> {
+    pub fn stdin_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, Error> {
         let path = path.as_ref();
         mkfifo_atomic(path)?;
         // for the justification for write(true) see the explanation on
@@ -107,7 +107,7 @@ impl TtySpawn {
         &mut self,
         path: P,
         truncate: bool,
-    ) -> Result<&mut Self, io::Error> {
+    ) -> Result<&mut Self, Error> {
         let file = if truncate {
             File::options()
                 .create(true)
@@ -141,7 +141,7 @@ impl TtySpawn {
     }
 
     /// Sets a path as output file for notifications.
-    pub fn notification_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, io::Error> {
+    pub fn notification_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, Error> {
         let file = File::options().create(true).append(true).open(path)?;
 
         let notification_writer = NotificationWriter::new(file);
@@ -156,7 +156,7 @@ impl TtySpawn {
     }
 
     /// Spawns the application in the TTY.
-    pub fn spawn(&mut self) -> Result<i32, io::Error> {
+    pub fn spawn(&mut self) -> Result<i32, Error> {
         Ok(spawn(
             self.options.take().expect("builder only works once"),
         )?)
@@ -185,7 +185,7 @@ pub fn create_session_info(
     name: String,
     cwd: String,
     term: String,
-) -> Result<(), io::Error> {
+) -> Result<(), Error> {
     let session_info = SessionInfo {
         cmdline,
         name,
@@ -214,7 +214,7 @@ fn update_session_status(
     pid: Option<u32>,
     status: &str,
     exit_code: Option<i32>,
-) -> Result<(), io::Error> {
+) -> Result<(), Error> {
     if let Ok(content) = std::fs::read_to_string(session_json_path) {
         if let Ok(mut session_info) = serde_json::from_str::<SessionInfo>(&content) {
             if let Some(pid) = pid {
@@ -243,7 +243,7 @@ fn update_session_status(
 /// It leaves stdin/stdout/stderr connected but also writes events into the
 /// optional `out` log file.  Additionally it can retrieve instructions from
 /// the given control socket.
-fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
+fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
     // Create session info at the beginning if we have a session JSON path
     if let Some(ref session_json_path) = opts.session_json_path {
         // Get executable name for session name
@@ -274,8 +274,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Errno> {
             session_name.clone(),
             current_dir.clone(),
             opts.term.clone(),
-        )
-        .map_err(|e| Errno::from_raw(e.raw_os_error().unwrap_or(libc::EIO)))?;
+        )?;
 
         // Send session started notification
         if let Some(ref mut notification_writer) = opts.notification_writer {
@@ -531,7 +530,7 @@ fn communication_loop(
     flush: bool,
     _notification_writer: Option<&mut NotificationWriter>,
     _session_json_path: Option<&Path>,
-) -> Result<i32, Errno> {
+) -> Result<i32, Error> {
     let mut buf = [0; 4096];
     let mut read_stdin = is_tty;
     let mut done = false;
@@ -574,7 +573,7 @@ fn communication_loop(
             }
             Err(Errno::EINTR | Errno::EAGAIN) => continue,
             Ok(_) => {}
-            Err(err) => return Err(err),
+            Err(err) => return Err(err.into()),
         }
 
         if read_fds.contains(stdin.as_fd()) {
@@ -591,7 +590,7 @@ fn communication_loop(
                 Err(Errno::EIO) => {
                     done = true;
                 }
-                Err(err) => return Err(err),
+                Err(err) => return Err(err.into()),
             }
         }
         if let Some(ref f) = in_file {
@@ -601,7 +600,7 @@ fn communication_loop(
                 // see https://github.com/mitsuhiko/teetty/issues/3
                 match read(f.as_raw_fd(), &mut buf) {
                     Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
-                    Err(err) => return Err(err),
+                    Err(err) => return Err(err.into()),
                     Ok(n) => {
                         write_all(master.as_fd(), &buf[..n])?;
                     }
@@ -628,7 +627,7 @@ fn communication_loop(
                     forward_and_log(io::stdout().as_fd(), &mut stream_writer, &buf[..n], flush)?;
                 }
                 Err(Errno::EAGAIN | Errno::EINTR) => {}
-                Err(err) => return Err(err),
+                Err(err) => return Err(err.into()),
             }
         }
     }
@@ -645,14 +644,9 @@ fn forward_and_log(
     stream_writer: &mut Option<&mut StreamWriter>,
     buf: &[u8],
     _flush: bool,
-) -> Result<(), Errno> {
+) -> Result<(), Error> {
     if let Some(writer) = stream_writer {
-        writer
-            .write_output(buf)
-            .map_err(|x| match x.raw_os_error() {
-                Some(errno) => Errno::from_raw(errno),
-                None => Errno::EINVAL,
-            })?;
+        writer.write_output(buf)?;
     }
     write_all(fd, buf)?;
     Ok(())
@@ -663,7 +657,7 @@ fn forward_winsize(
     master: BorrowedFd,
     stderr_master: Option<BorrowedFd>,
     stream_writer: &mut Option<&mut StreamWriter>,
-) -> Result<(), Errno> {
+) -> Result<(), Error> {
     if let Some(winsize) = get_winsize(io::stdin().as_fd()) {
         set_winsize(master, winsize).ok();
         if let Some(second_master) = stderr_master {
@@ -681,12 +675,7 @@ fn forward_winsize(
                 event_type: AsciinemaEventType::Resize,
                 data: format!("{}x{}", winsize.ws_col, winsize.ws_row),
             };
-            writer
-                .write_event(event)
-                .map_err(|x| match x.raw_os_error() {
-                    Some(errno) => Errno::from_raw(errno),
-                    None => Errno::EINVAL,
-                })?;
+            writer.write_event(event)?;
         }
     }
     Ok(())
@@ -701,7 +690,7 @@ fn get_winsize(fd: BorrowedFd) -> Option<Winsize> {
 }
 
 /// Sets the winsize
-fn set_winsize(fd: BorrowedFd, winsize: Winsize) -> Result<(), Errno> {
+fn set_winsize(fd: BorrowedFd, winsize: Winsize) -> Result<(), Error> {
     nix::ioctl_write_ptr_bad!(_set_window_size, TIOCSWINSZ, Winsize);
     unsafe { _set_window_size(fd.as_raw_fd(), &winsize) }?;
     Ok(())
@@ -717,7 +706,7 @@ fn send_eof_sequence(fd: BorrowedFd) {
 }
 
 /// Calls write in a loop until it's done.
-fn write_all(fd: BorrowedFd, mut buf: &[u8]) -> Result<(), Errno> {
+fn write_all(fd: BorrowedFd, mut buf: &[u8]) -> Result<(), Error> {
     while !buf.is_empty() {
         // we generally assume that EINTR/EAGAIN can't happen on write()
         let n = write(fd, buf)?;
@@ -727,10 +716,10 @@ fn write_all(fd: BorrowedFd, mut buf: &[u8]) -> Result<(), Errno> {
 }
 
 /// Creates a FIFO at the path if the file does not exist yet.
-fn mkfifo_atomic(path: &Path) -> Result<(), Errno> {
+fn mkfifo_atomic(path: &Path) -> Result<(), Error> {
     match mkfifo(path, Mode::S_IRUSR | Mode::S_IWUSR) {
         Ok(()) | Err(Errno::EEXIST) => Ok(()),
-        Err(err) => Err(err),
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -749,7 +738,7 @@ fn monitor_detached_session(
     mut notification_writer: Option<NotificationWriter>,
     mut stream_writer: Option<StreamWriter>,
     stdin_file: Option<File>,
-) -> Result<(), Errno> {
+) -> Result<(), Error> {
     let mut buf = [0; 4096];
     let mut done = false;
 
@@ -769,14 +758,14 @@ fn monitor_detached_session(
             }
             Err(Errno::EINTR | Errno::EAGAIN) => continue,
             Ok(_) => {}
-            Err(err) => return Err(err),
+            Err(err) => return Err(err.into()),
         }
 
         if let Some(ref f) = stdin_file {
             if read_fds.contains(f.as_fd()) {
                 match read(f.as_raw_fd(), &mut buf) {
                     Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
-                    Err(err) => return Err(err),
+                    Err(err) => return Err(err.into()),
                     Ok(n) => {
                         write_all(master.as_fd(), &buf[..n])?;
                     }
@@ -800,16 +789,11 @@ fn monitor_detached_session(
                             event_type: AsciinemaEventType::Output,
                             data,
                         };
-                        writer
-                            .write_event(event)
-                            .map_err(|x| match x.raw_os_error() {
-                                Some(errno) => Errno::from_raw(errno),
-                                None => Errno::EINVAL,
-                            })?;
+                        writer.write_event(event)?;
                     }
                 }
                 Err(Errno::EAGAIN | Errno::EINTR) => {}
-                Err(err) => return Err(err),
+                Err(err) => return Err(err.into()),
             }
         }
     }

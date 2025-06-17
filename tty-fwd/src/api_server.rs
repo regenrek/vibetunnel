@@ -5,13 +5,12 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::http_server::{HttpRequest, HttpServer, Method, Response, StatusCode};
-use crate::protocol::{StreamEvent, StreamParser};
+use crate::protocol::{StreamEvent, StreamingIterator};
 use crate::sessions;
 use crate::tty_spawn::DEFAULT_TERM;
 
@@ -990,18 +989,12 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         return;
     }
 
-    // Create stream parser and channel
-    let parser = StreamParser::new(session_entry.stream_out.clone());
-    let (tx, rx) = mpsc::sync_channel::<StreamEvent>(10);
-
-    // Start the streaming parser in a separate thread
-    let _stream_handle = std::thread::spawn(move || parser.start_streaming(tx));
-
     // Process events from the channel and send as SSE
-    while let Ok(event) = rx.recv() {
+    for event in StreamingIterator::new(session_entry.stream_out.clone()) {
         // Log errors for debugging
         if let StreamEvent::Error { message } = &event {
             println!("Stream error: {message}");
+            break;
         }
 
         // Serialize and send the event as SSE data
