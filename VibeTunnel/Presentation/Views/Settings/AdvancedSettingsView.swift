@@ -6,6 +6,7 @@ struct AdvancedSettingsView: View {
     private var debugMode = false
     @AppStorage("cleanupOnStartup")
     private var cleanupOnStartup = true
+    @State private var cliInstaller = CLIInstaller()
 
     var body: some View {
         NavigationStack {
@@ -16,14 +17,42 @@ struct AdvancedSettingsView: View {
                         HStack {
                             Text("Install CLI Tool")
                             Spacer()
-                            Button("Install 'vt' Command") {
-                                installCLITool()
+                            if cliInstaller.isInstalled {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("CLI tool is installed")
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Button("Install 'vt' Command") {
+                                    Task {
+                                        await cliInstaller.install()
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(cliInstaller.isInstalling)
                             }
-                            .buttonStyle(.bordered)
                         }
-                        Text("Install the 'vt' command line tool to /usr/local/bin for terminal access.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        
+                        if cliInstaller.isInstalling {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                        
+                        if let error = cliInstaller.lastError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        } else if cliInstaller.isInstalled {
+                            Text("The 'vt' command line tool is installed at /usr/local/bin/vt")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Install the 'vt' command line tool to /usr/local/bin for terminal access.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 } header: {
                     Text("Integration")
@@ -60,10 +89,8 @@ struct AdvancedSettingsView: View {
             .scrollContentBackground(.hidden)
             .navigationTitle("Advanced Settings")
         }
-    }
-
-    private func installCLITool() {
-        let installer = CLIInstaller()
-        installer.installCLITool()
+        .onAppear {
+            cliInstaller.checkInstallationStatus()
+        }
     }
 }

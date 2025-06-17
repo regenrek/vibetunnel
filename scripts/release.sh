@@ -111,7 +111,7 @@ echo "=============================="
 echo ""
 
 # Step 1: Run pre-flight check
-echo -e "${BLUE}📋 Step 1/7: Running pre-flight check...${NC}"
+echo -e "${BLUE}📋 Step 1/8: Running pre-flight check...${NC}"
 if ! "$SCRIPT_DIR/preflight-check.sh"; then
     echo ""
     echo -e "${RED}❌ Pre-flight check failed. Please fix the issues above.${NC}"
@@ -149,12 +149,43 @@ echo "   Tag: $TAG_NAME"
 echo ""
 
 # Step 2: Clean build directory
-echo -e "${BLUE}📋 Step 2/7: Cleaning build directory...${NC}"
+echo -e "${BLUE}📋 Step 2/8: Cleaning build directory...${NC}"
 rm -rf "$PROJECT_ROOT/build"
 rm -rf "$PROJECT_ROOT/DerivedData"
 rm -rf "$PROJECT_ROOT/.build"
 rm -rf ~/Library/Developer/Xcode/DerivedData/VibeTunnel-*
 echo "✓ Cleaned all build artifacts"
+
+# Step 3: Update version in version.xcconfig
+echo ""
+echo -e "${BLUE}📋 Step 3/8: Setting version...${NC}"
+
+# Backup version.xcconfig
+cp "$VERSION_CONFIG" "$VERSION_CONFIG.bak"
+
+# Determine the version string to set
+if [[ "$RELEASE_TYPE" == "stable" ]]; then
+    # For stable releases, ensure MARKETING_VERSION doesn't have pre-release suffix
+    # Extract base version (remove any existing pre-release suffix)
+    BASE_VERSION=$(echo "$MARKETING_VERSION" | sed 's/-.*$//')
+    VERSION_TO_SET="$BASE_VERSION"
+else
+    # For pre-releases, set the full version with suffix
+    VERSION_TO_SET="$RELEASE_VERSION"
+fi
+
+# Update MARKETING_VERSION in version.xcconfig
+echo "📝 Updating MARKETING_VERSION to: $VERSION_TO_SET"
+sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $VERSION_TO_SET/" "$VERSION_CONFIG"
+
+# Verify the update
+NEW_MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$VERSION_CONFIG" | sed 's/.*MARKETING_VERSION = //')
+if [[ "$NEW_MARKETING_VERSION" != "$VERSION_TO_SET" ]]; then
+    echo -e "${RED}❌ Failed to update MARKETING_VERSION${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Version updated to: $VERSION_TO_SET${NC}"
 
 # Check if Xcode project was modified and commit if needed
 if ! git diff --quiet "$PROJECT_ROOT/VibeTunnel.xcodeproj/project.pbxproj"; then
@@ -164,9 +195,9 @@ if ! git diff --quiet "$PROJECT_ROOT/VibeTunnel.xcodeproj/project.pbxproj"; then
     echo -e "${GREEN}✅ Xcode project changes committed${NC}"
 fi
 
-# Step 3: Build the app
+# Step 4: Build the app
 echo ""
-echo -e "${BLUE}📋 Step 3/7: Building application...${NC}"
+echo -e "${BLUE}📋 Step 4/8: Building application...${NC}"
 
 # For pre-release builds, set the environment variable
 if [[ "$RELEASE_TYPE" != "stable" ]]; then
@@ -196,12 +227,12 @@ echo -e "${GREEN}✅ Build complete${NC}"
 
 # Step 4: Sign and notarize
 echo ""
-echo -e "${BLUE}📋 Step 4/7: Signing and notarizing...${NC}"
+echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
 "$SCRIPT_DIR/sign-and-notarize.sh" --sign-and-notarize
 
 # Step 5: Create DMG
 echo ""
-echo -e "${BLUE}📋 Step 5/7: Creating DMG...${NC}"
+echo -e "${BLUE}📋 Step 6/8: Creating DMG...${NC}"
 DMG_NAME="VibeTunnel-$RELEASE_VERSION.dmg"
 DMG_PATH="$PROJECT_ROOT/build/$DMG_NAME"
 "$SCRIPT_DIR/create-dmg.sh" "$APP_PATH" "$DMG_PATH"
@@ -215,7 +246,7 @@ echo -e "${GREEN}✅ DMG created: $DMG_NAME${NC}"
 
 # Step 6: Create GitHub release
 echo ""
-echo -e "${BLUE}📋 Step 6/7: Creating GitHub release...${NC}"
+echo -e "${BLUE}📋 Step 7/8: Creating GitHub release...${NC}"
 
 # Check if tag already exists
 if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
@@ -306,7 +337,7 @@ echo -e "${GREEN}✅ GitHub release created${NC}"
 
 # Step 7: Update appcast
 echo ""
-echo -e "${BLUE}📋 Step 7/7: Updating appcast...${NC}"
+echo -e "${BLUE}📋 Step 8/8: Updating appcast...${NC}"
 
 # Generate appcast
 echo "🔐 Generating appcast with EdDSA signatures..."
@@ -325,16 +356,30 @@ fi
 
 echo -e "${GREEN}✅ Appcast updated${NC}"
 
-# Commit and push appcast files
+# Commit and push appcast and version files
 echo ""
-echo "📤 Committing and pushing appcast..."
+echo "📤 Committing and pushing changes..."
+
+# Add version.xcconfig changes
+git add "$VERSION_CONFIG" 2>/dev/null || true
+
+# Add appcast files
 git add "$PROJECT_ROOT/appcast.xml" "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null || true
+
 if ! git diff --cached --quiet; then
-    git commit -m "Update appcast for $RELEASE_VERSION"
+    git commit -m "Update appcast and version for $RELEASE_VERSION"
     git push origin main
-    echo -e "${GREEN}✅ Appcast changes pushed${NC}"
+    echo -e "${GREEN}✅ Changes pushed${NC}"
 else
-    echo "ℹ️  No appcast changes to commit"
+    echo "ℹ️  No changes to commit"
+fi
+
+# For pre-releases, optionally restore base version
+if [[ "$RELEASE_TYPE" != "stable" ]]; then
+    echo ""
+    echo "📝 Note: MARKETING_VERSION is now set to '$VERSION_TO_SET'"
+    echo "   To restore base version for development, run:"
+    echo "   git checkout -- $VERSION_CONFIG"
 fi
 
 # Optional: Verify appcast

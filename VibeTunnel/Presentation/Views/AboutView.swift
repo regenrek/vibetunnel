@@ -25,7 +25,7 @@ struct AboutView: View {
                 descriptionSection
                 linksSection
 
-                Spacer(minLength: 20)
+                Spacer(minLength: 10)
 
                 copyrightSection
             }
