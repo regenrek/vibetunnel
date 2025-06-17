@@ -145,7 +145,10 @@ export class Terminal extends LitElement {
   }
 
   private measureCharacterWidth(): number {
-    if (!this.container) return 8;
+    if (!this.container) {
+      console.log('measureCharacterWidth: no container, returning default 8px');
+      return 8;
+    }
 
     // Create temporary element with same styles as terminal content, attached to container
     const measureEl = document.createElement('div');
@@ -159,13 +162,18 @@ export class Terminal extends LitElement {
     const testString =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
     const repeatCount = Math.ceil(this.cols / testString.length);
-    measureEl.textContent = testString.repeat(repeatCount).substring(0, this.cols);
+    const testContent = testString.repeat(repeatCount).substring(0, this.cols);
+    measureEl.textContent = testContent;
+
+    console.log(`measureCharacterWidth: measuring ${this.cols} chars, testContent length: ${testContent.length}`);
 
     // Attach to container so it inherits all the proper CSS context
     this.container.appendChild(measureEl);
     const measureRect = measureEl.getBoundingClientRect();
     const actualCharWidth = measureRect.width / this.cols;
     this.container.removeChild(measureEl);
+
+    console.log(`measureCharacterWidth: measureRect.width=${measureRect.width}px, cols=${this.cols}, calculated charWidth=${actualCharWidth}px`);
 
     return actualCharWidth;
   }
@@ -176,20 +184,27 @@ export class Terminal extends LitElement {
     if (this.fitHorizontally) {
       // Horizontal fitting: calculate fontSize to fit this.cols characters in container width
       const containerWidth = this.container.clientWidth;
+      const containerHeight = this.container.clientHeight;
       const targetCharWidth = containerWidth / this.cols;
+
+      console.log(`Horizontal fit: container ${containerWidth}x${containerHeight}px, target charWidth=${targetCharWidth}px for ${this.cols} cols`);
 
       // Calculate fontSize needed for target character width
       // Use current font size as starting point and measure actual character width
       const currentCharWidth = this.measureCharacterWidth();
       const scaleFactor = targetCharWidth / currentCharWidth;
-      const newFontSize = Math.max(8, Math.min(32, this.fontSize * scaleFactor));
+      const calculatedFontSize = this.fontSize * scaleFactor;
+      const newFontSize = Math.max(8, Math.min(32, calculatedFontSize));
+
+      console.log(`Horizontal fit: currentCharWidth=${currentCharWidth}px, scaleFactor=${scaleFactor}, calculatedFontSize=${calculatedFontSize}px, clampedFontSize=${newFontSize}px`);
 
       this.fontSize = newFontSize;
 
       // Also fit rows to use full container height with the new font size
-      const containerHeight = this.container.clientHeight;
       const lineHeight = this.fontSize * 1.2;
       const fittedRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+
+      console.log(`Horizontal fit: lineHeight=${lineHeight}px, fittedRows=${fittedRows}`);
 
       // Update both actualRows and the terminal's actual row count
       this.actualRows = fittedRows;
@@ -201,7 +216,7 @@ export class Terminal extends LitElement {
       }
 
       console.log(
-        `Horizontal fit: fontSize ${this.fontSize}px, ${this.cols}x${this.rows} in ${containerWidth}x${containerHeight}px`
+        `Horizontal fit: FINAL fontSize ${this.fontSize}px, ${this.cols}x${this.rows} in ${containerWidth}x${containerHeight}px`
       );
     } else {
       // Normal mode: just calculate how many rows fit in the viewport
