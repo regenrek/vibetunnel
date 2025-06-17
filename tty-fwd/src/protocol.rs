@@ -1,6 +1,13 @@
-use jiff::Timestamp;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
+use std::process::{self, Command, Stdio};
+use std::time::SystemTime;
+use std::{fmt, fs};
+
+use anyhow::Error;
+use jiff::Timestamp;
+use serde::de;
+use serde::{Deserialize, Serialize};
 
 use crate::tty_spawn::DEFAULT_TERM;
 
@@ -87,24 +94,99 @@ pub struct AsciinemaTheme {
     pub palette: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone)]
 pub enum AsciinemaEventType {
-    #[serde(rename = "o")]
     Output,
-    #[serde(rename = "i")]
     Input,
-    #[serde(rename = "m")]
     Marker,
-    #[serde(rename = "r")]
     Resize,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+impl AsciinemaEventType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AsciinemaEventType::Output => "o",
+            AsciinemaEventType::Input => "i",
+            AsciinemaEventType::Marker => "m",
+            AsciinemaEventType::Resize => "r",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "o" => Ok(AsciinemaEventType::Output),
+            "i" => Ok(AsciinemaEventType::Input),
+            "m" => Ok(AsciinemaEventType::Marker),
+            "r" => Ok(AsciinemaEventType::Resize),
+            _ => Err(format!("Unknown event type: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AsciinemaEvent {
     pub time: f64,
     pub event_type: AsciinemaEventType,
     pub data: String,
+}
+
+impl serde::Serialize for AsciinemaEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeTuple;
+        let mut tuple = serializer.serialize_tuple(3)?;
+        tuple.serialize_element(&self.time)?;
+        tuple.serialize_element(self.event_type.as_str())?;
+        tuple.serialize_element(&self.data)?;
+        tuple.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for AsciinemaEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{SeqAccess, Visitor};
+
+        struct AsciinemaEventVisitor;
+
+        impl<'de> Visitor<'de> for AsciinemaEventVisitor {
+            type Value = AsciinemaEvent;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a tuple of [time, type, data]")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let time: f64 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let event_type_str: String = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let data: String = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+
+                let event_type = AsciinemaEventType::from_str(&event_type_str)
+                    .map_err(|e| de::Error::custom(e))?;
+
+                Ok(AsciinemaEvent {
+                    time,
+                    event_type,
+                    data,
+                })
+            }
+        }
+
+        deserializer.deserialize_tuple(3, AsciinemaEventVisitor)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -121,7 +203,7 @@ pub struct StreamWriter {
 }
 
 impl StreamWriter {
-    pub fn new(file: std::fs::File, header: AsciinemaHeader) -> Result<Self, std::io::Error> {
+    pub fn new(file: std::fs::File, header: AsciinemaHeader) -> Result<Self, Error> {
         use std::io::Write;
         let mut writer = Self {
             file,
@@ -141,14 +223,14 @@ impl StreamWriter {
         command: Option<String>,
         title: Option<String>,
         env: Option<std::collections::HashMap<String, String>>,
-    ) -> Result<Self, std::io::Error> {
+    ) -> Result<Self, Error> {
         let header = AsciinemaHeader {
             version: 2,
             width,
             height,
             timestamp: Some(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
             ),
@@ -162,7 +244,7 @@ impl StreamWriter {
         Self::new(file, header)
     }
 
-    pub fn write_output(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+    pub fn write_output(&mut self, buf: &[u8]) -> Result<(), Error> {
         let time = self.elapsed_time();
 
         // Combine any buffered bytes with the new buffer
@@ -254,21 +336,10 @@ impl StreamWriter {
         }
     }
 
-    pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), std::io::Error> {
+    pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), Error> {
         use std::io::Write;
 
-        let event_array = [
-            serde_json::json!(event.time),
-            serde_json::json!(match event.event_type {
-                AsciinemaEventType::Output => "o",
-                AsciinemaEventType::Input => "i",
-                AsciinemaEventType::Marker => "m",
-                AsciinemaEventType::Resize => "r",
-            }),
-            serde_json::json!(event.data),
-        ];
-
-        let event_json = serde_json::to_string(&event_array)?;
+        let event_json = serde_json::to_string(&event)?;
         writeln!(self.file, "{event_json}")?;
         self.file.flush()?;
 
@@ -297,5 +368,279 @@ impl NotificationWriter {
         self.file.flush()?;
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum StreamEvent {
+    Header(AsciinemaHeader),
+    Terminal(AsciinemaEvent),
+    Error { message: String },
+    End,
+}
+
+// Error event JSON structure for serde
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ErrorEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    message: String,
+}
+
+// End event JSON structure for serde
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct EndEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+}
+
+impl serde::Serialize for StreamEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            StreamEvent::Header(header) => header.serialize(serializer),
+            StreamEvent::Terminal(event) => event.serialize(serializer),
+            StreamEvent::Error { message } => {
+                let error_event = ErrorEvent {
+                    event_type: "error".to_string(),
+                    message: message.clone(),
+                };
+                error_event.serialize(serializer)
+            }
+            StreamEvent::End => {
+                let end_event = EndEvent {
+                    event_type: "end".to_string(),
+                };
+                end_event.serialize(serializer)
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for StreamEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
+
+        // Try to parse as header first (has version and width fields)
+        if value.get("version").is_some() && value.get("width").is_some() {
+            let header: AsciinemaHeader = serde_json::from_value(value)
+                .map_err(|e| de::Error::custom(format!("Failed to parse header: {}", e)))?;
+            return Ok(StreamEvent::Header(header));
+        }
+
+        // Try to parse as an event array [timestamp, type, data]
+        if let Some(arr) = value.as_array() {
+            if arr.len() >= 3 {
+                let event: AsciinemaEvent = serde_json::from_value(value).map_err(|e| {
+                    de::Error::custom(format!("Failed to parse terminal event: {}", e))
+                })?;
+                return Ok(StreamEvent::Terminal(event));
+            }
+        }
+
+        // Try to parse as error or end event
+        if let Some(obj) = value.as_object() {
+            if let Some(event_type) = obj.get("type").and_then(|v| v.as_str()) {
+                match event_type {
+                    "error" => {
+                        let error_event: ErrorEvent =
+                            serde_json::from_value(value).map_err(|e| {
+                                de::Error::custom(format!("Failed to parse error event: {}", e))
+                            })?;
+                        return Ok(StreamEvent::Error {
+                            message: error_event.message,
+                        });
+                    }
+                    "end" => {
+                        return Ok(StreamEvent::End);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Err(de::Error::custom("Unrecognized stream event format"))
+    }
+}
+
+impl StreamEvent {
+    pub fn from_json_line(line: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let line = line.trim();
+        if line.is_empty() {
+            return Err("Empty line".into());
+        }
+
+        let event: StreamEvent = serde_json::from_str(line)?;
+        Ok(event)
+    }
+}
+
+#[derive(Debug)]
+enum StreamingState {
+    ReadingExisting(BufReader<std::fs::File>),
+    InitializingTail,
+    Streaming {
+        reader: BufReader<process::ChildStdout>,
+        child: process::Child,
+    },
+    Error(String),
+    Finished,
+}
+
+pub struct StreamingIterator {
+    stream_path: String,
+    start_time: SystemTime,
+    state: StreamingState,
+}
+
+impl StreamingIterator {
+    pub fn new(stream_path: String) -> Self {
+        let state = if let Ok(file) = fs::File::open(&stream_path) {
+            StreamingState::ReadingExisting(BufReader::new(file))
+        } else {
+            StreamingState::InitializingTail
+        };
+
+        Self {
+            stream_path,
+            start_time: SystemTime::now(),
+            state,
+        }
+    }
+}
+
+impl Iterator for StreamingIterator {
+    type Item = StreamEvent;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match &mut self.state {
+                StreamingState::ReadingExisting(reader) => {
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            // End of file, switch to tail mode
+                            self.state = StreamingState::InitializingTail;
+                            continue;
+                        }
+                        Ok(_) => {
+                            if let Ok(mut event) = StreamEvent::from_json_line(&line) {
+                                // Convert terminal events to instant playback (time = 0)
+                                if let StreamEvent::Terminal(ref mut term_event) = event {
+                                    term_event.time = 0.0;
+                                }
+                                return Some(event);
+                            }
+                            // If parsing fails, continue to next line
+                            continue;
+                        }
+                        Err(e) => {
+                            self.state =
+                                StreamingState::Error(format!("Error reading file: {}", e));
+                            continue;
+                        }
+                    }
+                }
+                StreamingState::InitializingTail => {
+                    match Command::new("tail")
+                        .args(["-f", &self.stream_path])
+                        .stdout(Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(mut child) => {
+                            if let Some(stdout) = child.stdout.take() {
+                                self.state = StreamingState::Streaming {
+                                    reader: BufReader::new(stdout),
+                                    child,
+                                };
+                                continue;
+                            } else {
+                                self.state =
+                                    StreamingState::Error("Failed to get tail stdout".to_string());
+                                continue;
+                            }
+                        }
+                        Err(e) => {
+                            self.state = StreamingState::Error(format!(
+                                "Failed to start tail command: {}",
+                                e
+                            ));
+                            continue;
+                        }
+                    }
+                }
+                StreamingState::Streaming { reader, child: _ } => {
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            // End of stream
+                            self.state = StreamingState::Finished;
+                            return Some(StreamEvent::End);
+                        }
+                        Ok(_) => {
+                            if line.trim().is_empty() {
+                                continue;
+                            }
+
+                            match StreamEvent::from_json_line(&line) {
+                                Ok(mut event) => {
+                                    if matches!(event, StreamEvent::Header(_)) {
+                                        continue;
+                                    }
+                                    if let StreamEvent::Terminal(ref mut term_event) = event {
+                                        let current_time = SystemTime::now()
+                                            .duration_since(SystemTime::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs_f64();
+                                        let stream_start_time = self
+                                            .start_time
+                                            .duration_since(SystemTime::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs_f64();
+                                        term_event.time = current_time - stream_start_time;
+                                    }
+                                    return Some(event);
+                                }
+                                Err(err) => {
+                                    self.state = StreamingState::Error(format!(
+                                        "Error parsing JSON: {}",
+                                        err
+                                    ));
+                                    continue;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.state =
+                                StreamingState::Error(format!("Error reading from tail: {}", e));
+                            continue;
+                        }
+                    }
+                }
+                StreamingState::Error(message) => {
+                    let error_message = message.clone();
+                    self.state = StreamingState::Finished;
+                    return Some(StreamEvent::Error {
+                        message: error_message,
+                    });
+                }
+                StreamingState::Finished => {
+                    return None;
+                }
+            }
+        }
+    }
+}
+
+impl Drop for StreamingIterator {
+    fn drop(&mut self) {
+        if let StreamingState::Streaming { child, .. } = &mut self.state {
+            let _ = child.kill();
+        }
     }
 }

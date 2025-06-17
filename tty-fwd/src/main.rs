@@ -202,7 +202,13 @@ fn main() -> Result<(), anyhow::Error> {
             std::process::exit(0);
         })
         .unwrap();
-        return crate::api_server::start_server(&addr, control_path, static_path, password, vibetunnel_path);
+        return crate::api_server::start_server(
+            &addr,
+            control_path,
+            static_path,
+            password,
+            vibetunnel_path,
+        );
     }
 
     // Spawn command
