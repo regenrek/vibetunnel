@@ -2,6 +2,29 @@
 
 All notable changes to VibeTunnel will be documented in this file.
 
+## [1.0.0-beta.1] - 2025-06-17
+
+### 🎉 First Public Beta Release
+
+This is the first public beta release of VibeTunnel, ready for testing by early adopters.
+
+### ✨ What's New Since Internal Testing
+- Improved stability and performance
+- Enhanced error handling for edge cases
+- Refined UI/UX based on internal feedback
+- Better session cleanup and resource management
+- Optimized for macOS Sonoma and Sequoia
+
+### 🐛 Known Issues
+- Occasional connection drops with certain terminal applications
+- Performance optimization needed for very long sessions
+- Some terminal escape sequences may not render perfectly
+
+### 📝 Notes
+- This is a beta release - please report any issues on GitHub
+- Auto-update functionality is fully enabled
+- All core features are stable and ready for daily use
+
 ## [1.0.0] - 2025-06-16
 
 ### 🎉 Initial Release
