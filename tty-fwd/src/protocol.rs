@@ -117,6 +117,7 @@ pub struct NotificationEvent {
 pub struct StreamWriter {
     file: std::fs::File,
     start_time: std::time::Instant,
+    utf8_buffer: Vec<u8>,
 }
 
 impl StreamWriter {
@@ -125,6 +126,7 @@ impl StreamWriter {
         let mut writer = Self {
             file,
             start_time: std::time::Instant::now(),
+            utf8_buffer: Vec::new(),
         };
         let header_json = serde_json::to_string(&header)?;
         writeln!(&mut writer.file, "{header_json}")?;
@@ -162,13 +164,94 @@ impl StreamWriter {
 
     pub fn write_output(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
         let time = self.elapsed_time();
-        let data = String::from_utf8_lossy(buf).to_string();
-        let event = AsciinemaEvent {
-            time,
-            event_type: AsciinemaEventType::Output,
-            data,
-        };
-        self.write_event(event)
+
+        // Combine any buffered bytes with the new buffer
+        let mut combined_buf = std::mem::take(&mut self.utf8_buffer);
+        combined_buf.extend_from_slice(buf);
+
+        // Check if we have a complete UTF-8 sequence at the end
+        match std::str::from_utf8(&combined_buf) {
+            Ok(_) => {
+                // Everything is valid UTF-8, process it all
+                let data = String::from_utf8(combined_buf).unwrap();
+
+                let event = AsciinemaEvent {
+                    time,
+                    event_type: AsciinemaEventType::Output,
+                    data,
+                };
+                self.write_event(event)
+            }
+            Err(e) => {
+                let valid_up_to = e.valid_up_to();
+
+                if let Some(error_len) = e.error_len() {
+                    // There's an invalid UTF-8 sequence at valid_up_to
+                    // Process up to and including the invalid sequence lossily
+                    let process_up_to = valid_up_to + error_len;
+                    let remaining = &combined_buf[process_up_to..];
+
+                    // Check if remaining bytes form an incomplete UTF-8 sequence (≤4 bytes)
+                    if remaining.len() <= 4 && !remaining.is_empty() {
+                        if let Err(e2) = std::str::from_utf8(remaining) {
+                            if e2.error_len().is_none() && e2.valid_up_to() == 0 {
+                                // Remaining bytes are an incomplete UTF-8 sequence, buffer them
+                                let data = String::from_utf8_lossy(&combined_buf[..process_up_to])
+                                    .to_string();
+                                self.utf8_buffer.extend_from_slice(remaining);
+                                let event = AsciinemaEvent {
+                                    time,
+                                    event_type: AsciinemaEventType::Output,
+                                    data,
+                                };
+                                return self.write_event(event);
+                            }
+                        }
+                    }
+
+                    // Default: process everything lossily (invalid UTF-8 or remaining bytes are also invalid)
+                    let event = AsciinemaEvent {
+                        time,
+                        event_type: AsciinemaEventType::Output,
+                        data: String::from_utf8_lossy(&combined_buf).to_string(),
+                    };
+                    self.write_event(event)
+                } else {
+                    // Incomplete UTF-8 at the end
+                    let incomplete_bytes = &combined_buf[valid_up_to..];
+
+                    // Only buffer up to 4 bytes (max UTF-8 character size)
+                    if incomplete_bytes.len() <= 4 {
+                        // Process the valid portion
+                        if valid_up_to > 0 {
+                            let data =
+                                String::from_utf8_lossy(&combined_buf[..valid_up_to]).to_string();
+                            self.utf8_buffer.extend_from_slice(incomplete_bytes);
+
+                            let event = AsciinemaEvent {
+                                time,
+                                event_type: AsciinemaEventType::Output,
+                                data,
+                            };
+                            self.write_event(event)
+                        } else {
+                            // Only incomplete bytes, buffer them
+                            self.utf8_buffer.extend_from_slice(incomplete_bytes);
+                            Ok(())
+                        }
+                    } else {
+                        // Too many incomplete bytes, process everything lossily
+
+                        let event = AsciinemaEvent {
+                            time,
+                            event_type: AsciinemaEventType::Output,
+                            data: String::from_utf8_lossy(&combined_buf).to_string(),
+                        };
+                        self.write_event(event)
+                    }
+                }
+            }
+        }
     }
 
     pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), std::io::Error> {
