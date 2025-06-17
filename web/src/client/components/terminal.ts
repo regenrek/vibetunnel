@@ -449,7 +449,8 @@ export class Terminal extends LitElement {
 
     const buffer = this.terminal.buffer.active;
     const bufferLength = buffer.length;
-    const startRow = Math.min(this.viewportY, Math.max(0, bufferLength - this.actualRows));
+    const maxScroll = Math.max(0, bufferLength - this.actualRows);
+    const startRow = Math.max(0, Math.min(maxScroll, this.viewportY));
 
     const bufferPrepStart = performance.now();
 
