@@ -9,6 +9,51 @@ struct VibeTunnelApp: App {
     var appDelegate
     @State private var sessionMonitor = SessionMonitor.shared
     @State private var serverMonitor = ServerMonitor.shared
+    
+    init() {
+        // Check if launched with spawn-terminal command
+        let args = CommandLine.arguments
+        if args.count >= 3 && args[1] == "spawn-terminal" {
+            handleSpawnTerminalCommand(args[2])
+            exit(0)
+        }
+    }
+    
+    private func handleSpawnTerminalCommand(_ jsonString: String) {
+        guard let data = jsonString.data(using: .utf8) else {
+            print("Error: Invalid JSON string encoding")
+            exit(1)
+        }
+        
+        struct SpawnTerminalParams: Codable {
+            let command: [String]
+            let workingDir: String
+            let sessionId: String
+        }
+        
+        do {
+            let params = try JSONDecoder().decode(SpawnTerminalParams.self, from: data)
+            
+            // Since we're in a command-line context and need to exit immediately,
+            // we'll run this synchronously on the main thread
+            DispatchQueue.main.sync {
+                do {
+                    try TerminalLauncher.shared.launchTerminalSession(
+                        workingDirectory: params.workingDir,
+                        command: params.command.joined(separator: " "),
+                        sessionId: params.sessionId
+                    )
+                    print("Terminal spawned successfully for session: \(params.sessionId)")
+                } catch {
+                    print("Error spawning terminal: \(error)")
+                    exit(1)
+                }
+            }
+        } catch {
+            print("Error parsing spawn-terminal parameters: \(error)")
+            exit(1)
+        }
+    }
 
     var body: some Scene {
         #if os(macOS)

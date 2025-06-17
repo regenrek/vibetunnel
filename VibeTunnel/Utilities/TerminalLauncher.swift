@@ -232,22 +232,16 @@ final class TerminalLauncher {
     static let shared = TerminalLauncher()
     
     private let logger = Logger(subsystem: "sh.vibetunnel.VibeTunnel", category: "TerminalLauncher")
-    private nonisolated(unsafe) var notificationObserver: NSObjectProtocol?
 
     @AppStorage("preferredTerminal")
     private var preferredTerminal = Terminal.terminal.rawValue
 
     private init() {
-        setupNotificationListener()
+        logger.info("TerminalLauncher initializing...")
         performFirstRunAutoDetection()
+        logger.info("TerminalLauncher initialized successfully")
     }
     
-    deinit {
-        // Clean up notification observer
-        if let observer = notificationObserver {
-            DistributedNotificationCenter.default().removeObserver(observer)
-        }
-    }
 
     func launchCommand(_ command: String) throws {
         let terminal = getValidTerminal()
@@ -388,65 +382,10 @@ final class TerminalLauncher {
         }
     }
     
-    // MARK: - Distributed Notification Handling
-    
-    private func setupNotificationListener() {
-        let notificationName = NSNotification.Name("sh.vibetunnel.vibetunnel.spawn")
-        
-        notificationObserver = DistributedNotificationCenter.default().addObserver(
-            forName: notificationName,
-            object: nil,
-            queue: .main
-        ) { notification in
-            // Extract values immediately to avoid sending notification across boundaries
-            let userInfo = notification.userInfo
-            let workingDirectory = userInfo?["workingDir"] as? String
-            let commandArray = userInfo?["command"] as? [String]
-            let sessionId = userInfo?["sessionId"] as? String
-            
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.processOpenSessionRequest(
-                    workingDirectory: workingDirectory,
-                    commandArray: commandArray,
-                    sessionId: sessionId
-                )
-            }
-        }
-        
-        logger.info("Registered for distributed notification: \(notificationName.rawValue)")
-    }
-    
-    private func processOpenSessionRequest(workingDirectory: String?, commandArray: [String]?, sessionId: String?) {
-        guard let workingDirectory = workingDirectory,
-              let commandArray = commandArray,
-              !commandArray.isEmpty,
-              let sessionId = sessionId else {
-            logger.error("Invalid notification payload: missing required fields")
-            return
-        }
-        
-        // Join command array into a single command string
-        let command = commandArray.joined(separator: " ")
-        
-        logger.info("Received spawn notification - sessionId: \(sessionId), workingDirectory: \(workingDirectory), command: \(command)")
-        
-        Task {
-            do {
-                try await launchTerminalSession(
-                    workingDirectory: workingDirectory,
-                    command: command,
-                    sessionId: sessionId
-                )
-            } catch {
-                logger.error("Failed to launch terminal session: \(error.localizedDescription)")
-            }
-        }
-    }
     
     // MARK: - Terminal Session Launching
     
-    func launchTerminalSession(workingDirectory: String, command: String, sessionId: String) async throws {
+    func launchTerminalSession(workingDirectory: String, command: String, sessionId: String) throws {
         // Find tty-fwd binary path
         let ttyFwdPath = findTTYFwdBinary()
         
