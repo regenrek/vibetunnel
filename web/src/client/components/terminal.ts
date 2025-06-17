@@ -1,9 +1,9 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { Terminal, IBufferLine, IBufferCell } from '@xterm/xterm';
+import { Terminal as XtermTerminal, IBufferLine, IBufferCell } from '@xterm/xterm';
 
-@customElement('dom-terminal')
-export class DomTerminal extends LitElement {
+@customElement('terminal')
+export class Terminal extends LitElement {
   // Disable shadow DOM for Tailwind compatibility and native text selection
   createRenderRoot() {
     return this as unknown as HTMLElement;
@@ -17,7 +17,7 @@ export class DomTerminal extends LitElement {
 
   private originalFontSize: number = 14;
 
-  @state() private terminal: Terminal | null = null;
+  @state() private terminal: XtermTerminal | null = null;
   @state() private viewportY = 0; // Current scroll position
   @state() private actualRows = 24; // Rows that fit in viewport
 
@@ -82,7 +82,7 @@ export class DomTerminal extends LitElement {
     try {
       this.requestUpdate();
 
-      this.container = this.querySelector('#dom-terminal-container') as HTMLElement;
+      this.container = this.querySelector('#terminal-container') as HTMLElement;
 
       if (!this.container) {
         throw new Error('Terminal container not found');
@@ -110,7 +110,7 @@ export class DomTerminal extends LitElement {
     try {
       console.log('Creating terminal for headless use...');
       // Create regular terminal but don't call .open() to make it headless
-      this.terminal = new Terminal({
+      this.terminal = new XtermTerminal({
         cursorBlink: false,
         fontSize: this.fontSize,
         fontFamily: 'Fira Code, ui-monospace, SFMono-Regular, monospace',
@@ -152,19 +152,19 @@ export class DomTerminal extends LitElement {
     measureEl.style.visibility = 'hidden';
     measureEl.style.top = '0';
     measureEl.style.left = '0';
-    
+
     // Use a mix of characters that represent typical terminal content
-    const testString = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+    const testString =
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
     const repeatCount = Math.ceil(this.cols / testString.length);
     measureEl.textContent = testString.repeat(repeatCount).substring(0, this.cols);
-    
+
     // Attach to container so it inherits all the proper CSS context
     this.container!.appendChild(measureEl);
     const measureRect = measureEl.getBoundingClientRect();
     const actualCharWidth = measureRect.width / this.cols;
     this.container!.removeChild(measureEl);
-    
-    
+
     return actualCharWidth;
   }
 
@@ -175,30 +175,32 @@ export class DomTerminal extends LitElement {
       // Horizontal fitting: calculate fontSize to fit this.cols characters in container width
       const containerWidth = this.container.clientWidth;
       const targetCharWidth = containerWidth / this.cols;
-      
+
       // Calculate fontSize needed for target character width
       // Use current font size as starting point and measure actual character width
       const currentCharWidth = this.measureCharacterWidth();
       const scaleFactor = targetCharWidth / currentCharWidth;
       const newFontSize = Math.max(8, Math.min(32, this.fontSize * scaleFactor));
-      
+
       this.fontSize = newFontSize;
-      
+
       // Also fit rows to use full container height with the new font size
       const containerHeight = this.container.clientHeight;
       const lineHeight = this.fontSize * 1.2;
       const fittedRows = Math.max(1, Math.floor(containerHeight / lineHeight));
-      
+
       // Update both actualRows and the terminal's actual row count
       this.actualRows = fittedRows;
       this.rows = fittedRows;
-      
+
       // Resize the terminal to the new dimensions
       if (this.terminal) {
         this.terminal.resize(this.cols, this.rows);
       }
-      
-      console.log(`Horizontal fit: fontSize ${this.fontSize}px, ${this.cols}x${this.rows} in ${containerWidth}x${containerHeight}px`);
+
+      console.log(
+        `Horizontal fit: fontSize ${this.fontSize}px, ${this.cols}x${this.rows} in ${containerWidth}x${containerHeight}px`
+      );
     } else {
       // Normal mode: just calculate how many rows fit in the viewport
       const containerHeight = this.container.clientHeight;
@@ -264,7 +266,7 @@ export class DomTerminal extends LitElement {
     const handlePointerDown = (e: PointerEvent) => {
       // Only handle touch pointers, not mouse
       if (e.pointerType !== 'touch' || !e.isPrimary) return;
-      
+
       this.isTouchActive = true;
       isScrolling = false;
       pointerStartY = e.clientY;
@@ -272,25 +274,24 @@ export class DomTerminal extends LitElement {
       velocity = 0;
       lastPointerTime = Date.now();
       this.touchScrollAccumulator = 0; // Reset accumulator on new pointer down
-      
+
       // Capture the pointer so we continue to receive events even if DOM rebuilds
       this.container!.setPointerCapture(e.pointerId);
-
     };
 
     const handlePointerMove = (e: PointerEvent) => {
       // Only handle touch pointers that we have captured
       if (e.pointerType !== 'touch' || !this.container!.hasPointerCapture(e.pointerId)) return;
-      
+
       const currentY = e.clientY;
       const deltaY = lastY - currentY; // Change since last move, not since start
       const currentTime = Date.now();
-      
+
       // Start scrolling if we've moved more than a few pixels
       if (!isScrolling && Math.abs(currentY - pointerStartY) > 5) {
         isScrolling = true;
       }
-      
+
       if (!isScrolling) return;
 
       // Calculate velocity for momentum (pixels per millisecond, recent movement only)
@@ -301,12 +302,10 @@ export class DomTerminal extends LitElement {
       lastPointerTime = currentTime;
 
       // Accumulate pointer scroll delta for smooth scrolling with small movements
-      const prevAccumulator = this.touchScrollAccumulator;
       this.touchScrollAccumulator += deltaY;
 
       const lineHeight = this.fontSize * 1.2;
       const deltaLines = Math.trunc(this.touchScrollAccumulator / lineHeight);
-
 
       if (Math.abs(deltaLines) >= 1) {
         this.scrollViewport(deltaLines);
@@ -320,12 +319,11 @@ export class DomTerminal extends LitElement {
     const handlePointerUp = (e: PointerEvent) => {
       // Only handle touch pointers
       if (e.pointerType !== 'touch') return;
-      
+
       this.isTouchActive = false;
-      
+
       // Release pointer capture
       this.container!.releasePointerCapture(e.pointerId);
-      
 
       // Add momentum scrolling if needed (only after touch scrolling)
       if (isScrolling && Math.abs(velocity) > 0.5) {
@@ -336,12 +334,11 @@ export class DomTerminal extends LitElement {
     const handlePointerCancel = (e: PointerEvent) => {
       // Only handle touch pointers
       if (e.pointerType !== 'touch') return;
-      
+
       this.isTouchActive = false;
-      
+
       // Release pointer capture
       this.container!.releasePointerCapture(e.pointerId);
-      
     };
 
     // Attach pointer events to the container (touch only)
@@ -361,18 +358,18 @@ export class DomTerminal extends LitElement {
       if (Math.abs(velocity) < 0.001) return;
 
       frameCount++;
-      
+
       // macOS-like deceleration curve - more natural feel
       const friction = frameCount < 10 ? 0.98 : frameCount < 30 ? 0.96 : 0.92;
-      
+
       // Convert velocity (pixels/ms) to pixels per frame
       const pixelsPerFrame = velocity * 16; // 16ms frame time
       accumulatedScroll += pixelsPerFrame;
-      
+
       // Convert accumulated pixels to lines
       const lineHeight = this.fontSize * 1.2;
       const deltaLines = Math.trunc(accumulatedScroll / lineHeight);
-      
+
       if (Math.abs(deltaLines) >= 1) {
         this.scrollViewport(deltaLines);
         // Subtract the scrolled amount, keep remainder
@@ -565,7 +562,7 @@ export class DomTerminal extends LitElement {
           --terminal-color-15: #ffffff;
         }
 
-        .dom-terminal-container {
+        .terminal-container {
           color: #d4d4d4;
           font-family: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
           font-size: ${this.fontSize}px;
@@ -613,7 +610,7 @@ export class DomTerminal extends LitElement {
           opacity: 0;
         }
       </style>
-      <div id="dom-terminal-container" class="dom-terminal-container w-full h-full"></div>
+      <div id="terminal-container" class="terminal-container w-full h-full"></div>
     `;
   }
 }
