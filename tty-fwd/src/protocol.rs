@@ -513,12 +513,12 @@ impl StreamParser {
         Ok(events)
     }
 
-    pub fn start_streaming(&self, tx: mpsc::Sender<StreamEvent>) -> Result<JoinHandle<()>, Error> {
+    pub fn start_streaming(&self, tx: mpsc::Sender<StreamEvent>) -> JoinHandle<()> {
         let stream_path = self.stream_path.clone();
         let start_time = self.start_time;
 
-        let handle = thread::spawn(move || {
-            // First send existing content
+        thread::spawn(move || {
+            // First send existing content (integrated parse_existing_content logic)
             if let Ok(file) = fs::File::open(&stream_path) {
                 let reader = BufReader::new(file);
                 for line in reader.lines() {
@@ -622,9 +622,7 @@ impl StreamParser {
 
             // Send end marker
             let _ = tx.send(StreamEvent::End);
-        });
-
-        Ok(handle)
+        })
     }
 
     pub fn create_default_header(

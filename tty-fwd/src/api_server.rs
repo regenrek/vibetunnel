@@ -995,37 +995,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
     let (tx, rx) = mpsc::channel::<StreamEvent>();
 
     // Start the streaming parser in a separate thread
-    let _stream_handle = match parser.start_streaming(tx) {
-        Ok(handle) => handle,
-        Err(e) => {
-            println!("Failed to start stream parser: {e}");
-            let error_event = StreamEvent::Error {
-                message: format!("Failed to start streaming: {e}"),
-            };
-            if let Ok(error_json) = serde_json::to_string(&error_event) {
-                let error_data = format!("data: {error_json}\n\n");
-                let _ = req.respond_raw(error_data.as_bytes());
-            }
-            return;
-        }
-    };
-
-    // If no header is found in existing content, send a default header
-    let existing_events = parser.parse_existing_content().unwrap_or_default();
-    let has_header = existing_events
-        .iter()
-        .any(|e| matches!(e, StreamEvent::Header(_)));
-
-    if !has_header {
-        let default_header = parser.create_default_header(&session_entry.session_info);
-        if let Ok(header_json) = serde_json::to_string(&default_header) {
-            let header_data = format!("data: {header_json}\n\n");
-            if let Err(e) = req.respond_raw(header_data.as_bytes()) {
-                println!("Failed to send default header: {e}");
-                return;
-            }
-        }
-    }
+    let _stream_handle = parser.start_streaming(tx);
 
     // Process events from the channel and send as SSE
     while let Ok(event) = rx.recv() {
