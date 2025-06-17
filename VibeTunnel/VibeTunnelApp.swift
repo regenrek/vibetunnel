@@ -100,10 +100,8 @@ struct VibeTunnelApp: App {
             }
             .commands {
                 CommandGroup(after: .appInfo) {
-                    SettingsLink {
-                        Text("About VibeTunnel")
-                    }
-                    .simultaneousGesture(TapGesture().onEnded {
+                    Button("About VibeTunnel") {
+                        SettingsOpener.openSettings()
                         // Navigate to About tab after settings opens
                         Task {
                             try? await Task.sleep(for: .milliseconds(100))
@@ -112,7 +110,7 @@ struct VibeTunnelApp: App {
                                 object: SettingsTab.about
                             )
                         }
-                    })
+                    }
                 }
             }
 

@@ -104,13 +104,8 @@ struct MenuBarView: View {
                     Divider()
 
                     // About
-                    SettingsLink {
-                        HStack {
-                            Image(systemName: "info.circle")
-                            Text("About VibeTunnel")
-                        }
-                    }
-                    .simultaneousGesture(TapGesture().onEnded {
+                    Button(action: {
+                        SettingsOpener.openSettings()
                         // Navigate to About tab after settings opens
                         Task {
                             try? await Task.sleep(for: .milliseconds(100))
@@ -119,7 +114,12 @@ struct MenuBarView: View {
                                 object: SettingsTab.about
                             )
                         }
-                    })
+                    }) {
+                        HStack {
+                            Image(systemName: "info.circle")
+                            Text("About VibeTunnel")
+                        }
+                    }
                 } label: {
                     Label("Help", systemImage: "questionmark.circle")
                 }
@@ -135,7 +135,9 @@ struct MenuBarView: View {
             )
 
             // Settings button
-            SettingsLink {
+            Button(action: {
+                SettingsOpener.openSettings()
+            }) {
                 Label("Settings…", systemImage: "gear")
             }
             .buttonStyle(MenuButtonStyle())
