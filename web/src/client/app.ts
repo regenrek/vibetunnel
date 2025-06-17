@@ -62,19 +62,7 @@ export class VibeTunnelApp extends LitElement {
     try {
       const response = await fetch('/api/sessions');
       if (response.ok) {
-        const sessionsData = await response.json();
-        this.sessions = sessionsData.map((session: any) => ({
-          id: session.id,
-          command: session.command,
-          workingDir: session.workingDir,
-          name: session.name,
-          status: session.status,
-          exitCode: session.exitCode,
-          startedAt: session.startedAt,
-          lastModified: session.lastModified,
-          pid: session.pid,
-          waiting: session.waiting,
-        }));
+        this.sessions = (await response.json()) as Session[];
         this.clearError();
       } else {
         this.showError('Failed to load sessions');
