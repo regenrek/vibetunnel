@@ -233,6 +233,37 @@ impl DerefMut for HttpRequest {
     }
 }
 
+pub struct SseResponseHelper<'a> {
+    request: &'a mut HttpRequest,
+}
+
+impl<'a> SseResponseHelper<'a> {
+    pub fn new(
+        request: &'a mut HttpRequest,
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let response = Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "text/event-stream")
+            .header("Cache-Control", "no-cache")
+            .header("Connection", "keep-alive")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(Vec::new())
+            .unwrap();
+        
+        request.respond(response)?;
+        
+        Ok(Self { request })
+    }
+
+    pub fn write_event(
+        &mut self,
+        event: &str,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let sse_data = format!("data: {}\n\n", event);
+        self.request.respond_raw(sse_data.as_bytes())
+    }
+}
+
 fn find_header_end(buffer: &[u8]) -> Option<usize> {
     buffer.windows(4).position(|w| w == b"\r\n\r\n")
 }

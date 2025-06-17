@@ -9,7 +9,7 @@ use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
 
-use crate::http_server::{HttpRequest, HttpServer, Method, Response, StatusCode};
+use crate::http_server::{HttpRequest, HttpServer, Method, Response, StatusCode, SseResponseHelper};
 use crate::protocol::{StreamEvent, StreamingIterator};
 use crate::sessions;
 use crate::tty_spawn::DEFAULT_TERM;
@@ -974,20 +974,14 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
 
     println!("Starting streaming SSE for session {session_id}");
 
-    // Send SSE headers
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/event-stream")
-        .header("Cache-Control", "no-cache")
-        .header("Connection", "keep-alive")
-        .header("Access-Control-Allow-Origin", "*")
-        .body(Vec::new())
-        .unwrap();
-
-    if let Err(e) = req.respond(response) {
-        println!("Failed to send SSE headers: {e}");
-        return;
-    }
+    // Initialize SSE response helper
+    let mut sse_helper = match SseResponseHelper::new(req) {
+        Ok(helper) => helper,
+        Err(e) => {
+            println!("Failed to initialize SSE helper: {e}");
+            return;
+        }
+    };
 
     // Process events from the channel and send as SSE
     for event in StreamingIterator::new(session_entry.stream_out.clone()) {
@@ -999,8 +993,7 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
 
         // Serialize and send the event as SSE data
         if let Ok(event_json) = serde_json::to_string(&event) {
-            let sse_data = format!("data: {event_json}\n\n");
-            if let Err(e) = req.respond_raw(sse_data.as_bytes()) {
+            if let Err(e) = sse_helper.write_event(&event_json) {
                 println!("Failed to send SSE data: {e}");
                 break;
             }
