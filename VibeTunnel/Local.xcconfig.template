@@ -4,6 +4,7 @@
 
 // Set your personal development team ID here
 // You can find your team ID in Xcode: Preferences > Accounts > Your Account > Team ID
+// Or terminal (Look for Developer ID): security find-identity -v -p codesigning
 DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
 
 // Code signing style (Automatic or Manual)
