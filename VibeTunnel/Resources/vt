@@ -27,6 +27,16 @@ find_claude() {
     return 1
 }
 
+# Get the real path of this script, resolving any symlinks
+SCRIPT_REAL_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || greadlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
+if [[ -z "$SCRIPT_REAL_PATH" ]]; then
+    # Fallback for systems without readlink -f, greadlink, or realpath
+    SCRIPT_REAL_PATH="${BASH_SOURCE[0]}"
+    while [[ -L "$SCRIPT_REAL_PATH" ]]; do
+        SCRIPT_REAL_PATH="$(readlink "$SCRIPT_REAL_PATH")"
+    done
+fi
+
 # Get the directory where this script is actually located (Resources folder)
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL_PATH")" && pwd)"
 
@@ -142,16 +152,6 @@ NOTE:
     VibeTunnel from the Resources folder.
 EOF
     exit 0
-fi
-
-# Get the real path of this script, resolving any symlinks
-SCRIPT_REAL_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || greadlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
-if [[ -z "$SCRIPT_REAL_PATH" ]]; then
-    # Fallback for systems without readlink -f, greadlink, or realpath
-    SCRIPT_REAL_PATH="${BASH_SOURCE[0]}"
-    while [[ -L "$SCRIPT_REAL_PATH" ]]; do
-        SCRIPT_REAL_PATH="$(readlink "$SCRIPT_REAL_PATH")"
-    done
 fi
 
 # Function to resolve command through user's shell
