@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import SwiftUI
 import os.log
 
 /// Service responsible for creating symlinks to command line tools with sudo authentication.
@@ -36,7 +37,13 @@ final class CLIInstaller {
     /// Checks if the CLI tool is installed
     func checkInstallationStatus() {
         let targetPath = "/usr/local/bin/vt"
-        isInstalled = FileManager.default.fileExists(atPath: targetPath)
+        let installed = FileManager.default.fileExists(atPath: targetPath)
+        
+        // Animate the state change for smooth UI transitions
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isInstalled = installed
+        }
+        
         logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled)")
     }
 
@@ -50,14 +57,18 @@ final class CLIInstaller {
     /// Installs the vt CLI tool to /usr/local/bin with proper symlink
     func installCLITool() {
         logger.info("CLIInstaller: Starting CLI tool installation...")
-        isInstalling = true
-        lastError = nil
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isInstalling = true
+            lastError = nil
+        }
 
         guard let resourcePath = Bundle.main.path(forResource: "vt", ofType: nil) else {
             logger.error("CLIInstaller: Could not find vt binary in app bundle")
             lastError = "The vt command line tool could not be found in the application bundle."
             showError("The vt command line tool could not be found in the application bundle.")
-            isInstalling = false
+            withAnimation(.easeInOut(duration: 0.3)) {
+                isInstalling = false
+            }
             return
         }
 
@@ -79,7 +90,9 @@ final class CLIInstaller {
             let response = alert.runModal()
             if response != .alertFirstButtonReturn {
                 logger.info("CLIInstaller: User cancelled replacement")
-                isInstalling = false
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isInstalling = false
+                }
                 return
             }
         }
@@ -98,7 +111,9 @@ final class CLIInstaller {
         let response = confirmAlert.runModal()
         if response != .alertFirstButtonReturn {
             logger.info("CLIInstaller: User cancelled installation")
-            isInstalling = false
+            withAnimation(.easeInOut(duration: 0.3)) {
+                isInstalling = false
+            }
             return
         }
 
@@ -174,21 +189,27 @@ final class CLIInstaller {
 
             if task.terminationStatus == 0 {
                 logger.info("CLIInstaller: Installation completed successfully")
-                isInstalled = true
-                isInstalling = false
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isInstalled = true
+                    isInstalling = false
+                }
                 showSuccess()
             } else {
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
                 logger.error("CLIInstaller: Installation failed with status \(task.terminationStatus): \(errorString)")
-                lastError = "Installation failed: \(errorString)"
-                isInstalling = false
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    lastError = "Installation failed: \(errorString)"
+                    isInstalling = false
+                }
                 showError("Installation failed: \(errorString)")
             }
         } catch {
             logger.error("CLIInstaller: Installation failed with error: \(error)")
-            lastError = "Installation failed: \(error.localizedDescription)"
-            isInstalling = false
+            withAnimation(.easeInOut(duration: 0.3)) {
+                lastError = "Installation failed: \(error.localizedDescription)"
+                isInstalling = false
+            }
             showError("Installation failed: \(error.localizedDescription)")
         }
     }

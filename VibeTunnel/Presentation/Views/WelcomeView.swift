@@ -229,7 +229,13 @@ private struct VTCommandPageView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .onAppear {
-            cliInstaller.checkInstallationStatus()
+            // Delay slightly to allow view to settle before animating
+            Task {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                await MainActor.run {
+                    cliInstaller.checkInstallationStatus()
+                }
+            }
         }
     }
 }
@@ -255,7 +261,7 @@ private struct RequestPermissionsPageView: View {
                     .fontWeight(.semibold)
                 
                 Text(
-                    "VibeTunnel needs AppleScript to launch and manage terminal sessions\nand accessibility to send commands to certain terminals."
+                    "VibeTunnel needs AppleScript automation to launch and manage terminal sessions\nand accessibility to send commands to certain terminals."
                 )
                 .font(.body)
                 .foregroundColor(.secondary)
