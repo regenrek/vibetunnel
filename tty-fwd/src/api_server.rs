@@ -1,15 +1,19 @@
 use anyhow::Result;
 use data_encoding::BASE64;
 use jiff::Timestamp;
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::thread;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use uuid::Uuid;
 
-use crate::http_server::{HttpRequest, HttpServer, Method, Response, StatusCode, SseResponseHelper};
+use crate::http_server::{
+    HttpRequest, HttpServer, Method, Response, SseResponseHelper, StatusCode,
+};
 use crate::protocol::{StreamEvent, StreamingIterator};
 use crate::sessions;
 use crate::tty_spawn::DEFAULT_TERM;
@@ -331,10 +335,12 @@ pub fn start_server(
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
                 (&Method::POST, "/api/mkdir") => handle_mkdir(&req),
                 (&Method::GET, "/api/fs/browse") => handle_browse(&req),
+                (&Method::GET, "/api/sessions/multistream") => {
+                    return handle_multi_stream(&control_path, &mut req);
+                }
                 (&Method::GET, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/stream") =>
                 {
-                    // Handle streaming differently - bypass normal response handling
                     return handle_session_stream_direct(&control_path, path, &mut req);
                 }
                 (&Method::GET, path)
@@ -1006,6 +1012,298 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
     }
 
     println!("Ended streaming SSE for session {session_id}");
+}
+
+fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
+    println!("Starting multiplex streaming with dynamic session discovery");
+
+    // Initialize SSE response helper
+    let mut sse_helper = match SseResponseHelper::new(req) {
+        Ok(helper) => helper,
+        Err(e) => {
+            println!("Failed to initialize SSE helper: {e}");
+            return;
+        }
+    };
+
+    // Create channels for communication
+    let (sender, receiver) = mpsc::sync_channel::<(String, StreamEvent)>(100);
+    let (session_discovery_tx, session_discovery_rx) = mpsc::channel::<String>();
+
+    // Spawn session discovery thread to watch for new session directories
+    let control_path_clone = control_path.to_path_buf();
+    let discovery_sender = session_discovery_tx.clone();
+    let session_discovery_handle = thread::spawn(move || {
+        // Set up watcher for the control directory
+        let (watcher_tx, watcher_rx) = mpsc::channel();
+        let mut watcher: RecommendedWatcher = match notify::Watcher::new(
+            move |res: notify::Result<Event>| {
+                if let Ok(event) = res {
+                    let _ = watcher_tx.send(event);
+                }
+            },
+            notify::Config::default(),
+        ) {
+            Ok(w) => w,
+            Err(e) => {
+                println!("Failed to create session discovery watcher: {}", e);
+                return;
+            }
+        };
+
+        if let Err(e) = watcher.watch(&control_path_clone, RecursiveMode::NonRecursive) {
+            println!(
+                "Failed to watch control directory {:?}: {}",
+                control_path_clone, e
+            );
+            return;
+        }
+
+        println!(
+            "Session discovery thread started, watching {:?}",
+            control_path_clone
+        );
+
+        // Also discover existing sessions at startup
+        if let Ok(sessions) = sessions::list_sessions(&control_path_clone) {
+            for session_id in sessions.keys() {
+                if discovery_sender.send(session_id.clone()).is_err() {
+                    println!("Failed to send initial session discovery");
+                    return;
+                }
+            }
+        }
+
+        // Watch for new directories being created
+        while let Ok(event) = watcher_rx.recv() {
+            match event.kind {
+                EventKind::Create(_) => {
+                    for path in event.paths {
+                        if path.is_dir() {
+                            if let Some(session_id) = path.file_name().and_then(|n| n.to_str()) {
+                                // Check if this looks like a session directory (has session.json)
+                                let session_json_path = path.join("session.json");
+                                if session_json_path.exists() {
+                                    println!("New session directory detected: {}", session_id);
+                                    if discovery_sender.send(session_id.to_string()).is_err() {
+                                        println!("Session discovery channel closed");
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        println!("Session discovery thread ended");
+    });
+
+    // Spawn session manager thread to handle new sessions
+    let control_path_clone2 = control_path.to_path_buf();
+    let main_sender = sender.clone();
+    let session_manager_handle = thread::spawn(move || {
+        use std::collections::HashSet;
+        let mut active_sessions = HashSet::new();
+        let mut session_handles = Vec::new();
+
+        while let Ok(session_id) = session_discovery_rx.recv() {
+            // Skip if we already have this session
+            if active_sessions.contains(&session_id) {
+                continue;
+            }
+
+            // Get session info
+            let sessions = match sessions::list_sessions(&control_path_clone2) {
+                Ok(sessions) => sessions,
+                Err(e) => {
+                    println!("Failed to list sessions: {}", e);
+                    continue;
+                }
+            };
+
+            let session_entry = match sessions.get(&session_id) {
+                Some(entry) => entry.clone(),
+                None => {
+                    println!("Session {} not found in session list", session_id);
+                    continue;
+                }
+            };
+
+            println!("Starting stream thread for new session: {}", session_id);
+            active_sessions.insert(session_id.clone());
+
+            // Spawn thread for this session
+            let session_id_clone = session_id.clone();
+            let stream_path = session_entry.stream_out.clone();
+            let thread_sender = main_sender.clone();
+
+            let handle = thread::spawn(move || {
+                loop {
+                    let stream = StreamingIterator::new(stream_path.clone());
+
+                    println!("Starting stream for session {}", session_id_clone);
+
+                    // Process events from this session's stream
+                    for event in stream {
+                        // Send event through channel
+                        if thread_sender
+                            .send((session_id_clone.clone(), event.clone()))
+                            .is_err()
+                        {
+                            println!(
+                                "Channel closed, ending stream thread for session {}",
+                                session_id_clone
+                            );
+                            return;
+                        }
+
+                        // If this is an End event, the stream is finished
+                        if matches!(event, StreamEvent::End) {
+                            println!(
+                                "Stream ended for session {}, waiting for file changes",
+                                session_id_clone
+                            );
+                            break;
+                        }
+                    }
+
+                    // Set up FS notify to watch for file recreation
+                    let (watcher_tx, watcher_rx) = mpsc::channel();
+                    let mut watcher: RecommendedWatcher = match notify::Watcher::new(
+                        move |res: notify::Result<Event>| {
+                            if let Ok(event) = res {
+                                let _ = watcher_tx.send(event);
+                            }
+                        },
+                        notify::Config::default(),
+                    ) {
+                        Ok(w) => w,
+                        Err(e) => {
+                            println!(
+                                "Failed to create file watcher for session {}: {}",
+                                session_id_clone, e
+                            );
+                            return;
+                        }
+                    };
+
+                    // Watch the stream file's parent directory
+                    let stream_path_buf = std::path::PathBuf::from(&stream_path);
+                    let parent_dir = match stream_path_buf.parent() {
+                        Some(parent) => parent,
+                        None => {
+                            println!("Cannot determine parent directory for {}", stream_path);
+                            return;
+                        }
+                    };
+
+                    if let Err(e) = watcher.watch(parent_dir, RecursiveMode::NonRecursive) {
+                        println!(
+                            "Failed to watch directory {:?} for session {}: {}",
+                            parent_dir, session_id_clone, e
+                        );
+                        return;
+                    }
+
+                    // Wait for the file to be recreated or timeout
+                    let mut file_recreated = false;
+                    let timeout = Duration::from_secs(30);
+                    let start_time = std::time::Instant::now();
+
+                    while start_time.elapsed() < timeout {
+                        if let Ok(event) = watcher_rx.recv_timeout(Duration::from_millis(100)) {
+                            match event.kind {
+                                EventKind::Create(_) | EventKind::Modify(_) => {
+                                    for path in event.paths {
+                                        if path.to_string_lossy() == stream_path {
+                                            println!(
+                                                "Stream file recreated for session {}",
+                                                session_id_clone
+                                            );
+                                            file_recreated = true;
+                                            break;
+                                        }
+                                    }
+                                    if file_recreated {
+                                        break;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        // Also check if file exists (in case we missed the event)
+                        if std::path::Path::new(&stream_path).exists() {
+                            file_recreated = true;
+                            break;
+                        }
+                    }
+
+                    if !file_recreated {
+                        println!(
+                            "Timeout waiting for stream file recreation for session {}, ending thread",
+                            session_id_clone
+                        );
+                        return;
+                    }
+
+                    // Small delay before restarting to ensure file is ready
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            });
+
+            session_handles.push((session_id.clone(), handle));
+        }
+
+        println!(
+            "Session manager thread ended, waiting for {} session threads",
+            session_handles.len()
+        );
+
+        // Wait for all session threads to finish
+        for (session_id, handle) in session_handles {
+            println!("Waiting for session thread {} to finish", session_id);
+            let _ = handle.join();
+        }
+
+        println!("All session threads finished");
+    });
+
+    // Drop original senders so channels close when threads finish
+    drop(sender);
+    drop(session_discovery_tx);
+
+    // Process events from the channel and send as SSE
+    while let Ok((session_id, event)) = receiver.recv() {
+        // Log errors for debugging
+        if let StreamEvent::Error { message } = &event {
+            println!("Stream error for session {session_id}: {message}");
+            continue;
+        }
+
+        // Serialize the normal event
+        if let Ok(event_json) = serde_json::to_string(&event) {
+            // Create the prefixed format: session_id:serialized_normal_event
+            let prefixed_event = format!("{}:{}", session_id, event_json);
+
+            // Send as SSE data
+            if let Err(e) = sse_helper.write_event(&prefixed_event) {
+                println!("Failed to send SSE data: {e}");
+                break;
+            }
+        }
+    }
+
+    println!("Multiplex streaming ended, cleaning up threads");
+
+    // Wait for discovery and manager threads to finish
+    let _ = session_discovery_handle.join();
+    let _ = session_manager_handle.join();
+
+    println!("All threads finished");
 }
 
 fn resolve_path(path: &str, home_dir: &str) -> PathBuf {

@@ -249,9 +249,9 @@ impl<'a> SseResponseHelper<'a> {
             .header("Access-Control-Allow-Origin", "*")
             .body(Vec::new())
             .unwrap();
-        
+
         request.respond(response)?;
-        
+
         Ok(Self { request })
     }
 
