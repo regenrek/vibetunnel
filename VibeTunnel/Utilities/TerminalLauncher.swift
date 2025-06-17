@@ -390,54 +390,14 @@ final class TerminalLauncher {
     }
     
     private func executeAppleScript(_ script: String) throws {
-        // Create a semaphore to wait for async execution
-        let semaphore = DispatchSemaphore(value: 0)
-        var executionError: Error?
-        
-        // Defer AppleScript execution to next run loop to avoid crashes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            var error: NSDictionary?
-            if let scriptObject = NSAppleScript(source: script) {
-                _ = scriptObject.executeAndReturnError(&error)
-                
-                if let error = error {
-                    let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
-                    let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
-                    
-                    // Log all error details
-                    self.logger.error("AppleScript execution failed:")
-                    self.logger.error("  Error code: \(errorNumber ?? -1)")
-                    self.logger.error("  Error message: \(errorMessage)")
-                    if let errorRange = error["NSAppleScriptErrorRange"] as? NSRange {
-                        self.logger.error("  Error range: \(errorRange)")
-                    }
-                    if let errorBriefMessage = error["NSAppleScriptErrorBriefMessage"] as? String {
-                        self.logger.error("  Brief message: \(errorBriefMessage)")
-                    }
-                    
-                    // Check for specific permission errors
-                    if let code = errorNumber, code == -1_743 {
-                        self.logger.error("  This is a permission error - user needs to grant Automation permission")
-                        executionError = TerminalLauncherError.appleScriptPermissionDenied
-                    } else {
-                        executionError = TerminalLauncherError.appleScriptExecutionFailed(errorMessage, errorCode: errorNumber)
-                    }
-                } else {
-                    // Log successful execution
-                    self.logger.debug("AppleScript executed successfully")
-                }
-            } else {
-                self.logger.error("Failed to create NSAppleScript object")
-                executionError = TerminalLauncherError.appleScriptExecutionFailed("Failed to create AppleScript object", errorCode: nil)
-            }
-            semaphore.signal()
-        }
-        
-        // Wait for execution to complete
-        _ = semaphore.wait(timeout: .now() + 5.0) // 5 second timeout
-        
-        if let error = executionError {
-            throw error
+        do {
+            try AppleScriptExecutor.shared.execute(script)
+        } catch let error as AppleScriptError {
+            // Convert AppleScriptError to TerminalLauncherError
+            throw error.toTerminalLauncherError()
+        } catch {
+            // Handle any unexpected errors
+            throw TerminalLauncherError.appleScriptExecutionFailed(error.localizedDescription, errorCode: nil)
         }
     }
     

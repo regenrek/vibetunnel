@@ -35,35 +35,7 @@ final class AppleScriptPermissionManager: ObservableObject {
         isChecking = true
         defer { isChecking = false }
         
-        // Try to execute a simple AppleScript to test permissions
-        let testScript = NSAppleScript(source: """
-            tell application "System Events"
-                return name of first process whose frontmost is true
-            end tell
-        """)
-        
-        var errorDict: NSDictionary?
-        let result = await withCheckedContinuation { continuation in
-            // Defer execution to next run loop to avoid crashes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                let result = testScript?.executeAndReturnError(&errorDict)
-                continuation.resume(returning: (result, errorDict))
-            }
-        }
-        
-        if let error = result.1 {
-            logger.debug("AppleScript permission check failed: \(error)")
-            
-            // Check for specific permission denied error
-            if let errorCode = error["NSAppleScriptErrorNumber"] as? Int,
-               errorCode == -1743 { // errAEEventNotPermitted
-                hasPermission = false
-                return false
-            }
-        }
-        
-        // If we got a result and no permission error, we have permission
-        let permitted = result.0 != nil && result.1 == nil
+        let permitted = await AppleScriptExecutor.shared.checkPermission()
         hasPermission = permitted
         
         logger.info("AppleScript permission status: \(permitted)")
