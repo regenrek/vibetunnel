@@ -31,6 +31,40 @@ export class Terminal extends LitElement {
   private touchScrollAccumulator = 0;
   private isTouchActive = false;
 
+  // Operation queue for batching buffer modifications
+  private operationQueue: (() => void)[] = [];
+
+  private queueOperation(operation: () => void) {
+    this.operationQueue.push(operation);
+
+    if (!this.renderPending) {
+      this.renderPending = true;
+      requestAnimationFrame(() => {
+        this.processOperationQueue();
+        this.renderPending = false;
+      });
+    }
+  }
+
+  private processOperationQueue() {
+    const queueStart = performance.now();
+    const operationCount = this.operationQueue.length;
+
+    // Process all queued operations in order
+    while (this.operationQueue.length > 0) {
+      const operation = this.operationQueue.shift()!;
+      operation();
+    }
+
+    const queueEnd = performance.now();
+    console.log(
+      `Processed ${operationCount} operations in ${(queueEnd - queueStart).toFixed(2)}ms`
+    );
+
+    // Render once after all operations are complete
+    this.renderBuffer();
+  }
+
   connectedCallback() {
     super.connectedCallback();
   }
@@ -411,13 +445,21 @@ export class Terminal extends LitElement {
   private renderBuffer() {
     if (!this.terminal || !this.container) return;
 
+    const renderStart = performance.now();
+
     const buffer = this.terminal.buffer.active;
     const bufferLength = buffer.length;
     const startRow = Math.min(this.viewportY, Math.max(0, bufferLength - this.actualRows));
 
+    const bufferPrepStart = performance.now();
+
     // Build complete innerHTML string
     let html = '';
     const cell = buffer.getNullCell();
+
+    // Get cursor position
+    const cursorX = this.terminal.buffer.active.cursorX;
+    const cursorY = this.terminal.buffer.active.cursorY;
 
     for (let i = 0; i < this.actualRows; i++) {
       const row = startRow + i;
@@ -433,18 +475,38 @@ export class Terminal extends LitElement {
         continue;
       }
 
-      const lineContent = this.renderLine(line, cell);
+      // Check if cursor is on this line (relative to viewport)
+      const isCursorLine = row === cursorY;
+      const lineContent = this.renderLine(line, cell, isCursorLine ? cursorX : -1);
       html += `<div class="terminal-line">${lineContent || ''}</div>`;
     }
+
+    const bufferPrepEnd = performance.now();
+    const domUpdateStart = performance.now();
 
     // Set the complete innerHTML at once
     this.container.innerHTML = html;
 
+    const domUpdateEnd = performance.now();
+    const linkProcessStart = performance.now();
+
     // Process links after rendering
     this.processLinks();
+
+    const linkProcessEnd = performance.now();
+    const renderEnd = performance.now();
+
+    const totalTime = renderEnd - renderStart;
+    const bufferPrepTime = bufferPrepEnd - bufferPrepStart;
+    const domUpdateTime = domUpdateEnd - domUpdateStart;
+    const linkProcessTime = linkProcessEnd - linkProcessStart;
+
+    console.log(
+      `Render performance: ${totalTime.toFixed(2)}ms total (buffer: ${bufferPrepTime.toFixed(2)}ms, DOM: ${domUpdateTime.toFixed(2)}ms, links: ${linkProcessTime.toFixed(2)}ms) - ${this.actualRows} rows`
+    );
   }
 
-  private renderLine(line: IBufferLine, cell: IBufferCell): string {
+  private renderLine(line: IBufferLine, cell: IBufferCell, cursorCol: number = -1): string {
     let html = '';
     let currentChars = '';
     let currentClasses = '';
@@ -473,6 +535,12 @@ export class Terminal extends LitElement {
       let classes = 'terminal-char';
       let style = '';
 
+      // Check if this is the cursor position
+      const isCursor = col === cursorCol;
+      if (isCursor) {
+        classes += ' cursor';
+      }
+
       // Get foreground color
       const fg = cell.getFgColor();
       if (fg !== undefined && typeof fg === 'number' && fg >= 0) {
@@ -483,6 +551,11 @@ export class Terminal extends LitElement {
       const bg = cell.getBgColor();
       if (bg !== undefined && typeof bg === 'number' && bg >= 0) {
         style += `background-color: var(--terminal-color-${bg});`;
+      }
+
+      // Override background for cursor
+      if (isCursor) {
+        style += `background-color: #23d18b;`;
       }
 
       // Get text attributes/flags
@@ -513,34 +586,165 @@ export class Terminal extends LitElement {
     return html;
   }
 
-  // Public API methods
+  /**
+   * DOM Terminal Public API
+   *
+   * This component provides a DOM-based terminal renderer with XTerm.js backend.
+   * All buffer-modifying operations are queued and executed in requestAnimationFrame
+   * to ensure optimal batching and rendering performance.
+   */
+
+  // === BUFFER MODIFICATION METHODS (Queued) ===
+
+  /**
+   * Write data to the terminal buffer.
+   * @param data - String data to write (supports ANSI escape sequences)
+   */
   public write(data: string) {
-    if (this.terminal) {
-      this.terminal.write(data, () => {
-        this.renderBuffer();
-      });
-    }
+    if (!this.terminal) return;
+
+    this.queueOperation(() => {
+      const writeStart = performance.now();
+      this.terminal!.write(data);
+      const writeEnd = performance.now();
+      console.log(
+        `XTerm write took: ${(writeEnd - writeStart).toFixed(2)}ms for ${data.length} chars`
+      );
+    });
   }
 
+  /**
+   * Clear the terminal buffer and reset scroll position.
+   */
   public clear() {
-    if (this.terminal) {
-      this.terminal.clear();
+    if (!this.terminal) return;
+
+    this.queueOperation(() => {
+      this.terminal!.clear();
       this.viewportY = 0;
-      this.renderBuffer();
-    }
+    });
   }
 
-  public setViewportSize(cols: number, rows: number) {
+  /**
+   * Resize the terminal to specified dimensions.
+   * @param cols - Number of columns
+   * @param rows - Number of rows
+   */
+  public setTerminalSize(cols: number, rows: number) {
     this.cols = cols;
     this.rows = rows;
 
-    if (this.terminal) {
-      this.terminal.resize(cols, rows);
-      this.fitTerminal();
-      this.renderBuffer();
-    }
+    if (!this.terminal) return;
 
-    this.requestUpdate();
+    this.queueOperation(() => {
+      this.terminal!.resize(cols, rows);
+      this.fitTerminal();
+      this.requestUpdate();
+    });
+  }
+
+  // === SCROLL CONTROL METHODS (Queued) ===
+
+  /**
+   * Scroll to the bottom of the buffer.
+   */
+  public scrollToBottom() {
+    if (!this.terminal) return;
+
+    this.queueOperation(() => {
+      const buffer = this.terminal!.buffer.active;
+      const maxScroll = Math.max(0, buffer.length - this.actualRows);
+      this.viewportY = maxScroll;
+    });
+  }
+
+  /**
+   * Scroll to a specific position in the buffer.
+   * @param position - Line position (0 = top, max = bottom)
+   */
+  public scrollTo(position: number) {
+    if (!this.terminal) return;
+
+    this.queueOperation(() => {
+      const buffer = this.terminal!.buffer.active;
+      const maxScroll = Math.max(0, buffer.length - this.actualRows);
+      this.viewportY = Math.max(0, Math.min(maxScroll, position));
+    });
+  }
+
+  /**
+   * Queue a custom operation to be executed after the next render is complete.
+   * Useful for actions that need to happen after terminal state is fully updated.
+   * @param callback - Function to execute after render
+   */
+  public queueCallback(callback: () => void) {
+    this.queueOperation(callback);
+  }
+
+  // === QUERY METHODS (Immediate) ===
+
+  private checkPendingOperations() {
+    if (this.operationQueue.length > 0) {
+      throw new Error(
+        `Cannot read terminal state: ${this.operationQueue.length} operations pending in RAF queue. Data may be stale.`
+      );
+    }
+  }
+
+  /**
+   * Get terminal dimensions.
+   * @returns Object with cols and rows
+   * @throws Error if operations are pending in RAF queue
+   */
+  public getTerminalSize(): { cols: number; rows: number } {
+    this.checkPendingOperations();
+    return {
+      cols: this.cols,
+      rows: this.rows,
+    };
+  }
+
+  /**
+   * Get number of visible rows in the current viewport.
+   * @returns Number of rows that fit in the viewport
+   * @throws Error if operations are pending in RAF queue
+   */
+  public getVisibleRows(): number {
+    this.checkPendingOperations();
+    return this.actualRows;
+  }
+
+  /**
+   * Get total number of lines in the scrollback buffer.
+   * @returns Total lines in buffer
+   * @throws Error if operations are pending in RAF queue
+   */
+  public getBufferSize(): number {
+    this.checkPendingOperations();
+    if (!this.terminal) return 0;
+    return this.terminal.buffer.active.length;
+  }
+
+  /**
+   * Get current scroll position.
+   * @returns Current scroll position (0 = top)
+   * @throws Error if operations are pending in RAF queue
+   */
+  public getScrollPosition(): number {
+    this.checkPendingOperations();
+    return this.viewportY;
+  }
+
+  /**
+   * Get maximum possible scroll position.
+   * @returns Maximum scroll position
+   * @throws Error if operations are pending in RAF queue
+   */
+  public getMaxScrollPosition(): number {
+    this.checkPendingOperations();
+    if (!this.terminal) return 0;
+    const buffer = this.terminal.buffer.active;
+    return Math.max(0, buffer.length - this.actualRows);
   }
 
   private processLinks() {
@@ -826,6 +1030,21 @@ export class Terminal extends LitElement {
 
         .terminal-char.invisible {
           opacity: 0;
+        }
+
+        .terminal-char.cursor {
+          animation: cursor-blink 1s infinite;
+        }
+
+        @keyframes cursor-blink {
+          0%,
+          50% {
+            opacity: 1;
+          }
+          51%,
+          100% {
+            opacity: 0.3;
+          }
         }
 
         .terminal-link {

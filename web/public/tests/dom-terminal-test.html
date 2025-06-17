@@ -153,6 +153,8 @@
         setupFitToggle();
         generateMockData();
 
+        terminal.write("Hello world")
+
         function generateMockData() {
             if (!terminal) return;
 
@@ -219,14 +221,13 @@
             content += '• Homepage: https://github.com/amantus-ai/vibetunnel\r\n';
             content += '• Documentation: https://docs.anthropic.com/en/docs/claude-code\r\n';
             content += '• API Reference: https://api.example.com/docs/v1/reference\r\n\r\n';
-            
+
             content += 'Multi-line URL that wraps across lines:\r\n';
-            content += 'Very long URL: https://example.com/api/v1/users/search?query=test&filters=active,verified&\r\n';
+            content += 'Very long URL: https://example.com/api/v1/users/search?query=test&filters=active,verified&';
             content += 'sort=created_at&order=desc&page=1&limit=50&include=profile,settings\r\n\r\n';
-            
+
             content += 'Another long URL in middle of text:\r\n';
-            content += 'Check out this amazing resource at https://very-long-domain-name.example.com/path/to/\r\n';
-            content += 'some/deeply/nested/resource/with/query?param1=value1&param2=value2 for more details.\r\n\r\n';
+            content += 'Check out this amazing resource at https://very-long-domain-name.example.com/path/to/some/deeply/nested/resource/with/query?param1=value1&param2=value2 for more details.\r\n\r\n';
 
             // Separator
             content += '\x1b[90m' + '═'.repeat(100) + '\x1b[0m\r\n\r\n';
@@ -387,7 +388,8 @@
 
             // System info
             content += '\x1b[1;32m🖥️  System Information:\x1b[0m\r\n';
-            content += `\x1b[36mTerminal Size:\x1b[0m ${terminal.cols}x${terminal.rows} characters\r\n`;
+            const terminalSize = terminal.getTerminalSize();
+            content += `\x1b[36mTerminal Size:\x1b[0m ${terminalSize.cols}x${terminalSize.rows} characters\r\n`;
             content += `\x1b[36mFont Family:\x1b[0m Fira Code, monospace\r\n`;
             content += `\x1b[36mFeatures:\x1b[0m Native text selection, smooth scrolling, touch support\r\n`;
             content += `\x1b[36mRendering:\x1b[0m DOM-based with virtual scrolling\r\n\r\n`;
@@ -414,16 +416,14 @@
             content += '\x1b[37m│ \x1b[32m>\x1b[0m                                                                                                          \x1b[37m│\r\n';
             content += '\x1b[37m╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\x1b[0m\r\n';
 
-            terminal.write(content);
+            // Only write first 10 lines
+            const lines = content.split('\r\n');
+            const firstTenLines = lines.slice(0, 50).join('\r\n');
+            terminal.write(firstTenLines);
 
             // Scroll to bottom after content is written
             setTimeout(() => {
-                if (terminal.terminal && terminal.terminal.buffer) {
-                    const buffer = terminal.terminal.buffer.active;
-                    const maxScroll = Math.max(0, buffer.length - terminal.actualRows);
-                    terminal.viewportY = maxScroll;
-                    terminal.renderBuffer();
-                }
+                terminal.scrollToBottom();
             }, 100);
 
             console.log('Mock data generation completed!');
@@ -445,8 +445,8 @@
                         buttons.forEach(b => b.classList.remove('active'));
                         button.classList.add('active');
 
-                        // Change viewport size
-                        terminal.setViewportSize(cols, rows);
+                        // Change terminal size
+                        terminal.setTerminalSize(cols, rows);
 
                         console.log(`Terminal viewport changed to ${cols}x${rows} - watch the content reflow!`);
                     }
