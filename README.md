@@ -107,6 +107,8 @@ Share terminal sessions with colleagues or students in real-time through a simpl
 
 ## Advanced Usage
 
+![VibeTunnel Frontend](assets/frontend.png)
+
 ### Command Options
 
 ```bash
