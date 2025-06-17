@@ -280,6 +280,9 @@ private struct RequestPermissionsPageView: View {
                                 .foregroundColor(.secondary)
                         }
                         .font(.body)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .frame(height: 38) // Match large button height
                     } else {
                         Button("Grant Automation Permission") {
                             appleScriptManager.requestPermission()
@@ -297,6 +300,9 @@ private struct RequestPermissionsPageView: View {
                                 .foregroundColor(.secondary)
                         }
                         .font(.body)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .frame(height: 38) // Match large button height
                     } else {
                         Button("Grant Accessibility Permission") {
                             AccessibilityPermissionManager.shared.requestPermission()

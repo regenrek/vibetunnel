@@ -854,6 +854,9 @@ private struct PermissionsSection: View {
                                 .foregroundColor(.secondary)
                         }
                         .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 2)
+                        .frame(height: 22) // Match small button height
                     } else {
                         Button("Grant Permission") {
                             appleScriptManager.requestPermission()
@@ -885,6 +888,9 @@ private struct PermissionsSection: View {
                                 .foregroundColor(.secondary)
                         }
                         .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 2)
+                        .frame(height: 22) // Match small button height
                     } else {
                         Button("Grant Permission") {
                             AccessibilityPermissionManager.shared.requestPermission()
@@ -900,6 +906,8 @@ private struct PermissionsSection: View {
         } footer: {
             Text("Terminal automation is required for all terminals. Accessibility is only needed for terminals that simulate keyboard input.")
                 .font(.caption)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
         }
         .task {
             _ = await appleScriptManager.checkPermission()
