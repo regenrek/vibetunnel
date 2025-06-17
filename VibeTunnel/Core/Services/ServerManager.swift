@@ -64,7 +64,7 @@ class ServerManager {
         setupLogStream()
         setupObservers()
     }
-    
+
     private func setupLogStream() {
         logStream = AsyncStream { continuation in
             self.logContinuation = continuation

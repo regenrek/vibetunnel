@@ -34,12 +34,12 @@ struct AdvancedSettingsView: View {
                                 .disabled(cliInstaller.isInstalling)
                             }
                         }
-                        
+
                         if cliInstaller.isInstalling {
                             ProgressView()
                                 .scaleEffect(0.8)
                         }
-                        
+
                         if let error = cliInstaller.lastError {
                             Text(error)
                                 .font(.caption)

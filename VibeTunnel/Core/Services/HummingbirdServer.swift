@@ -32,7 +32,7 @@ final class HummingbirdServer: ServerProtocol {
     }
 
     let logStream: AsyncStream<ServerLogEntry>
-    
+
     init() {
         var localContinuation: AsyncStream<ServerLogEntry>.Continuation?
         self.logStream = AsyncStream { continuation in
@@ -63,7 +63,11 @@ final class HummingbirdServer: ServerProtocol {
             try await server.start()
 
             logger.info("Hummingbird server started successfully")
-            logContinuation?.yield(ServerLogEntry(level: .info, message: "Hummingbird server is ready", source: .hummingbird))
+            logContinuation?.yield(ServerLogEntry(
+                level: .info,
+                message: "Hummingbird server is ready",
+                source: .hummingbird
+            ))
         } catch {
             logger.error("Failed to start Hummingbird server: \(error.localizedDescription)")
             logContinuation?.yield(ServerLogEntry(

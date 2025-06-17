@@ -308,7 +308,7 @@ private struct SecuritySection: View {
                             passwordSaved = false
                             // Clear cached password in LazyBasicAuthMiddleware
                             // Clear the password cache - middleware instance handles this internally
-            // The cache is managed by the actor and will be cleared on password change
+                            // The cache is managed by the actor and will be cleared on password change
                         }
                     }
 

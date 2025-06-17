@@ -89,7 +89,7 @@ final class RustServer: ServerProtocol {
     }
 
     let logStream: AsyncStream<ServerLogEntry>
-    
+
     init() {
         var localContinuation: AsyncStream<ServerLogEntry>.Continuation?
         self.logStream = AsyncStream { continuation in
@@ -112,7 +112,11 @@ final class RustServer: ServerProtocol {
         }
 
         logger.info("Starting Rust tty-fwd server on port \(self.port)")
-        logContinuation?.yield(ServerLogEntry(level: .info, message: "Initializing Rust tty-fwd server...", source: .rust))
+        logContinuation?.yield(ServerLogEntry(
+            level: .info,
+            message: "Initializing Rust tty-fwd server...",
+            source: .rust
+        ))
 
         // Get the tty-fwd binary path
         let binaryPath = Bundle.main.path(forResource: "tty-fwd", ofType: nil)
@@ -242,7 +246,11 @@ final class RustServer: ServerProtocol {
             if isHealthy {
                 logger.info("Rust server started successfully and is responding")
                 logContinuation?.yield(ServerLogEntry(level: .info, message: "Health check passed ✓", source: .rust))
-                logContinuation?.yield(ServerLogEntry(level: .info, message: "Rust tty-fwd server is ready", source: .rust))
+                logContinuation?.yield(ServerLogEntry(
+                    level: .info,
+                    message: "Rust tty-fwd server is ready",
+                    source: .rust
+                ))
 
                 // Monitor process termination with task context
                 Task {
@@ -289,7 +297,11 @@ final class RustServer: ServerProtocol {
         }
 
         logger.info("Stopping Rust server")
-        logContinuation?.yield(ServerLogEntry(level: .info, message: "Shutting down Rust tty-fwd server...", source: .rust))
+        logContinuation?.yield(ServerLogEntry(
+            level: .info,
+            message: "Shutting down Rust tty-fwd server...",
+            source: .rust
+        ))
 
         // Cancel output monitoring tasks
         outputTask?.cancel()
@@ -323,7 +335,11 @@ final class RustServer: ServerProtocol {
         isRunning = false
 
         logger.info("Rust server stopped")
-        logContinuation?.yield(ServerLogEntry(level: .info, message: "Rust tty-fwd server shutdown complete", source: .rust))
+        logContinuation?.yield(ServerLogEntry(
+            level: .info,
+            message: "Rust tty-fwd server shutdown complete",
+            source: .rust
+        ))
     }
 
     func restart() async throws {
@@ -408,7 +424,11 @@ final class RustServer: ServerProtocol {
                                     Task { @MainActor [weak self] in
                                         guard let self else { return }
                                         let level = self.detectLogLevel(from: line)
-                                        self.logContinuation?.yield(ServerLogEntry(level: level, message: line, source: .rust))
+                                        self.logContinuation?.yield(ServerLogEntry(
+                                            level: level,
+                                            message: line,
+                                            source: .rust
+                                        ))
                                     }
                                 }
                             }

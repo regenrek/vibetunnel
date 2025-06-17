@@ -112,15 +112,15 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware where 
 /// Actor to manage password caching in a thread-safe way
 private actor PasswordCache {
     private var cachedPassword: String?
-    
+
     func getPassword() -> String? {
         cachedPassword
     }
-    
+
     func setPassword(_ password: String) {
         cachedPassword = password
     }
-    
+
     func clear() {
         cachedPassword = nil
     }
