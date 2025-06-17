@@ -11,7 +11,7 @@ use std::process::Command;
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::protocol::{SessionInfo, SessionListEntry};
+use crate::protocol::{SessionEntryWithId, SessionInfo, SessionListEntry};
 use crate::tty_spawn::TtySpawn;
 
 pub fn list_sessions(
@@ -80,6 +80,65 @@ pub fn list_sessions(
     }
 
     Ok(sessions)
+}
+
+pub fn find_current_session(
+    control_path: &Path,
+) -> Result<Option<SessionEntryWithId>, anyhow::Error> {
+    let sessions = list_sessions(control_path)?;
+
+    // Get current process PID
+    let current_pid = std::process::id();
+
+    // Check each session to see if current process or any parent is part of it
+    for (session_id, session_entry) in sessions {
+        if let Some(session_pid) = session_entry.session_info.pid {
+            // Check if this session PID is in our process ancestry
+            if is_process_descendant_of(current_pid, session_pid) {
+                return Ok(Some(SessionEntryWithId {
+                    session_id,
+                    entry: session_entry,
+                }));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+fn is_process_descendant_of(mut current_pid: u32, target_pid: u32) -> bool {
+    // Check if current process is the target or a descendant of target
+    while current_pid > 1 {
+        if current_pid == target_pid {
+            return true;
+        }
+
+        // Get parent PID
+        match get_parent_pid(current_pid) {
+            Some(parent_pid) => current_pid = parent_pid,
+            None => break,
+        }
+    }
+
+    false
+}
+
+fn get_parent_pid(pid: u32) -> Option<u32> {
+    // Use ps command to get parent PID
+    let output = Command::new("ps")
+        .arg("-p")
+        .arg(pid.to_string())
+        .arg("-o")
+        .arg("ppid=")
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let ppid_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        ppid_str.parse::<u32>().ok()
+    } else {
+        None
+    }
 }
 
 pub fn send_key_to_session(

@@ -25,6 +25,8 @@ fn main() -> Result<(), anyhow::Error> {
     let mut stop = false;
     let mut kill = false;
     let mut cleanup = false;
+    let mut show_session_info = false;
+    let mut show_session_id = false;
     let mut serve_address = None::<String>;
     let mut static_path = None::<String>;
     let mut password = None::<String>;
@@ -38,8 +40,15 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("list-sessions") => {
                 let control_path: &Path = &control_path;
                 let sessions = sessions::list_sessions(control_path)?;
-                println!("{}", serde_json::to_string(&sessions)?);
+                println!("{}", serde_json::to_string_pretty(&sessions)?);
                 return Ok(());
+            }
+            p if p.is_long("show-session-info") => {
+                show_session_info = true;
+            }
+            p if p.is_long("show-session-id") => {
+                show_session_id = true;
+                show_session_info = true;
             }
             p if p.is_long("session-name") => {
                 session_name = Some(parser.value()?);
@@ -93,6 +102,10 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("  --control-path <path>   Where the control folder is located");
                 println!("  --session-name <name>   Names the session when creating");
                 println!("  --list-sessions         List all sessions");
+                println!("  --find-session          Find session for current process");
+                println!(
+                    "  --print-id              Print session ID only (implies --find-session)"
+                );
                 println!("  --session <I>           Operate on this session");
                 println!("  --send-key <key>        Send key input to session");
                 println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter, ctrl_enter, shift_enter");
@@ -115,6 +128,19 @@ fn main() -> Result<(), anyhow::Error> {
             }
             _ => return Err(parser.unexpected().into()),
         }
+    }
+
+    // show session info
+    if show_session_info || show_session_id {
+        let control_path: &Path = &control_path;
+        if let Some(entry) = sessions::find_current_session(control_path)? {
+            if show_session_id {
+                println!("{}", entry.session_id);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&entry)?);
+            }
+        }
+        return Ok(());
     }
 
     // Handle send-key command

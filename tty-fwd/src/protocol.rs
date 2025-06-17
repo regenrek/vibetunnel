@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::tty_spawn::DEFAULT_TERM;
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct SessionInfo {
     pub cmdline: Vec<String>,
     pub name: String,
@@ -24,7 +24,7 @@ fn get_default_term() -> String {
     DEFAULT_TERM.to_string()
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SessionListEntry {
     #[serde(flatten)]
     pub session_info: SessionInfo,
@@ -33,6 +33,13 @@ pub struct SessionListEntry {
     pub stdin: String,
     #[serde(rename = "notification-stream")]
     pub notification_stream: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SessionEntryWithId {
+    pub session_id: String,
+    #[serde(flatten)]
+    pub entry: SessionListEntry,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

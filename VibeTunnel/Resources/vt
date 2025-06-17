@@ -27,6 +27,21 @@ find_claude() {
     return 1
 }
 
+# Get the directory where this script is actually located (Resources folder)
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL_PATH")" && pwd)"
+
+# Path to tty-fwd executable in the same Resources directory
+TTY_FWD="$SCRIPT_DIR/tty-fwd"
+
+# Check if tty-fwd exists there, otherwise use the one from ../tty-fwd/target/debug/tty-fwd
+if [[ ! -x "$TTY_FWD" ]]; then
+    TTY_FWD="$SCRIPT_DIR/../tty-fwd/target/debug/tty-fwd"
+    if [[ ! -x "$TTY_FWD" ]]; then
+        echo "Error: tty-fwd executable not found at $TTY_FWD" >&2
+        exit 1
+    fi
+fi
+
 # Handle --claude option
 if [[ "$1" == "--claude" ]]; then
     shift
@@ -49,6 +64,18 @@ if [[ "$1" == "--claude-yolo" ]]; then
 
     # Re-execute vt with claude --dangerously-skip-permissions and remaining arguments
     exec "$0" "$claude_path" --dangerously-skip-permissions "$@"
+fi
+
+# Handle --show-session-info option
+if [[ "$1" == "--show-session-info" ]]; then
+    shift
+    exec "$TTY_FWD" --show-session-info "$@"
+fi
+
+# Handle --show-session-id option
+if [[ "$1" == "--show-session-id" ]]; then
+    shift
+    exec "$TTY_FWD" --show-session-id "$@"
 fi
 
 # Handle --shell or -i option (launch current shell)
@@ -76,6 +103,8 @@ USAGE:
     vt --shell [args...]
     vt -i [args...]
     vt --no-shell-wrap [command] [args...]
+    vt --show-session-info
+    vt --show-session-id
     vt -S [command] [args...]
     vt --help
 
@@ -105,6 +134,8 @@ OPTIONS:
     --shell, -i            Launch current shell (equivalent to vt $SHELL)
     --no-shell-wrap, -S    Execute command directly without shell wrapper
     --help, -h             Show this help message and exit
+    --show-session-info    Show current session info
+    --show-session-id      Show current session ID only
 
 NOTE:
     This script automatically uses the tty-fwd executable bundled with
@@ -121,18 +152,6 @@ if [[ -z "$SCRIPT_REAL_PATH" ]]; then
     while [[ -L "$SCRIPT_REAL_PATH" ]]; do
         SCRIPT_REAL_PATH="$(readlink "$SCRIPT_REAL_PATH")"
     done
-fi
-
-# Get the directory where this script is actually located (Resources folder)
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL_PATH")" && pwd)"
-
-# Path to tty-fwd executable in the same Resources directory
-TTY_FWD="$SCRIPT_DIR/tty-fwd"
-
-# Check if tty-fwd exists
-if [[ ! -x "$TTY_FWD" ]]; then
-    echo "Error: tty-fwd executable not found at $TTY_FWD" >&2
-    exit 1
 fi
 
 # Function to resolve command through user's shell
