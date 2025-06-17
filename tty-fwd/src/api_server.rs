@@ -4,14 +4,14 @@ use jiff::Timestamp;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::http_server::{HttpRequest, HttpServer, Method, Response, StatusCode};
+use crate::protocol::{StreamEvent, StreamParser};
 use crate::sessions;
 use crate::tty_spawn::DEFAULT_TERM;
 
@@ -326,7 +326,9 @@ pub fn start_server(
             let response = match (method, path.as_str()) {
                 (&Method::GET, "/api/health") => handle_health(),
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
-                (&Method::POST, "/api/sessions") => handle_create_session(&control_path, &req, vibetunnel_path.as_deref()),
+                (&Method::POST, "/api/sessions") => {
+                    handle_create_session(&control_path, &req, vibetunnel_path.as_deref())
+                }
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
                 (&Method::POST, "/api/mkdir") => handle_mkdir(&req),
                 (&Method::GET, "/api/fs/browse") => handle_browse(&req),
@@ -954,39 +956,12 @@ fn get_last_modified(file_path: &str) -> Option<String> {
 }
 
 fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpRequest) {
-    let session_id = if let Some(id) = extract_session_id(path) {
-        id
-    } else {
-        let error = ApiResponse {
-            success: None,
-            message: None,
-            error: Some("Invalid session ID".to_string()),
-            session_id: None,
-        };
-        let response = json_response(StatusCode::BAD_REQUEST, &error);
-        let _ = req.respond(response);
-        return;
-    };
+    let sessions = sessions::list_sessions(control_path).expect("Failed to list sessions");
 
-    // First check if the session exists
-    let sessions = match sessions::list_sessions(control_path) {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            let error = ApiResponse {
-                success: None,
-                message: None,
-                error: Some(format!("Failed to list sessions: {e}")),
-                session_id: None,
-            };
-            let response = json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
-            let _ = req.respond(response);
-            return;
-        }
-    };
-
-    let session_entry = if let Some(entry) = sessions.get(&session_id) {
-        entry
-    } else {
+    // Extract session ID and find the corresponding entry
+    let Some((session_id, session_entry)) =
+        extract_session_id(path).and_then(|id| sessions.get(&id).map(|entry| (id, entry)))
+    else {
         let error = ApiResponse {
             success: None,
             message: None,
@@ -997,21 +972,6 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         let _ = req.respond(response);
         return;
     };
-
-    let stream_out_path = &session_entry.stream_out;
-
-    // Check if the stream-out file exists
-    if !std::path::Path::new(stream_out_path).exists() {
-        let error = ApiResponse {
-            success: None,
-            message: None,
-            error: Some("Session stream file not found".to_string()),
-            session_id: None,
-        };
-        let response = json_response(StatusCode::NOT_FOUND, &error);
-        let _ = req.respond(response);
-        return;
-    }
 
     println!("Starting streaming SSE for session {session_id}");
 
@@ -1030,157 +990,64 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
         return;
     }
 
-    let start_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs_f64();
+    // Create stream parser and channel
+    let parser = StreamParser::new(session_entry.stream_out.clone());
+    let (tx, rx) = mpsc::channel::<StreamEvent>();
 
-    // First, send existing content from the file
-    if let Ok(content) = fs::read_to_string(stream_out_path) {
-        for line in content.lines() {
-            if line.trim().is_empty() {
-                continue;
+    // Start the streaming parser in a separate thread
+    let _stream_handle = match parser.start_streaming(tx) {
+        Ok(handle) => handle,
+        Err(e) => {
+            println!("Failed to start stream parser: {e}");
+            let error_event = StreamEvent::Error {
+                message: format!("Failed to start streaming: {e}"),
+            };
+            if let Ok(error_json) = serde_json::to_string(&error_event) {
+                let error_data = format!("data: {error_json}\n\n");
+                let _ = req.respond_raw(error_data.as_bytes());
             }
-
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
-                // Check if this is an event line [timestamp, type, data]
-                if parsed.as_array().is_some_and(|arr| arr.len() >= 3) {
-                    // Convert to instant event for immediate playback
-                    if let Some(arr) = parsed.as_array() {
-                        let instant_event = serde_json::json!([0, arr[1], arr[2]]);
-                        let data = format!("data: {instant_event}\n\n");
-                        if let Err(e) = req.respond_raw(data.as_bytes()) {
-                            println!("Failed to send event data: {e}");
-                            return;
-                        }
-                    }
-                // send headers unchanged
-                } else {
-                    req.respond_raw("data: ").ok();
-                    if let Err(e) = req.respond_raw(line.as_bytes()) {
-                        println!("Failed to send header: {e}");
-                        return;
-                    }
-                    req.respond_raw("\n\n").ok();
-                }
-            }
-        }
-    } else {
-        // Send default header if file can't be read
-        let mut default_header = crate::protocol::AsciinemaHeader {
-            timestamp: Some(start_time as u64),
-            ..Default::default()
-        };
-        default_header
-            .env
-            .get_or_insert_default()
-            .insert("TERM".to_string(), session_entry.session_info.term.clone());
-        let data = format!(
-            "data: {}\n\n",
-            serde_json::to_string(&default_header).unwrap()
-        );
-        if let Err(e) = req.respond_raw(data.as_bytes()) {
-            println!("Failed to send fallback header: {e}");
             return;
         }
-    }
+    };
 
-    // Now use tail -f to stream new content with immediate flushing
-    let stream_path_clone = stream_out_path.clone();
+    // If no header is found in existing content, send a default header
+    let existing_events = parser.parse_existing_content().unwrap_or_default();
+    let has_header = existing_events
+        .iter()
+        .any(|e| matches!(e, StreamEvent::Header(_)));
 
-    match Command::new("tail")
-        .args(["-f", &stream_path_clone])
-        .stdout(Stdio::piped())
-        .spawn()
-    {
-        Ok(mut child) => {
-            if let Some(stdout) = child.stdout.take() {
-                let reader = BufReader::new(stdout);
-
-                // Stream lines immediately as they come in
-                for line in reader.lines() {
-                    match line {
-                        Ok(line) => {
-                            if line.trim().is_empty() {
-                                continue;
-                            }
-
-                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&line) {
-                                // Skip headers in tail output
-                                if parsed.get("version").is_some() && parsed.get("width").is_some()
-                                {
-                                    continue;
-                                }
-
-                                // Process event lines
-                                if let Some(arr) = parsed.as_array() {
-                                    if arr.len() >= 3 {
-                                        let current_time = SystemTime::now()
-                                            .duration_since(SystemTime::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_secs_f64();
-                                        let real_time_event = serde_json::json!([
-                                            current_time - start_time,
-                                            arr[1],
-                                            arr[2]
-                                        ]);
-                                        let data = format!(
-                                            "data: {real_time_event}
-
-"
-                                        );
-                                        if let Err(e) = req.respond_raw(data.as_bytes()) {
-                                            println!("Failed to send streaming data: {e}");
-                                            break;
-                                        }
-                                    }
-                                }
-                            } else {
-                                // Handle non-JSON as raw output
-                                let current_time = SystemTime::now()
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs_f64();
-                                let cast_event =
-                                    serde_json::json!([current_time - start_time, "o", line]);
-                                let data = format!(
-                                    "data: {cast_event}
-
-"
-                                );
-                                if let Err(e) = req.respond_raw(data.as_bytes()) {
-                                    println!("Failed to send raw streaming data: {e}");
-                                    break;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!("Error reading from tail: {e}");
-                            break;
-                        }
-                    }
-                }
-
-                // Clean up
-                let _ = child.kill();
+    if !has_header {
+        let default_header = parser.create_default_header(&session_entry.session_info);
+        if let Ok(header_json) = serde_json::to_string(&default_header) {
+            let header_data = format!("data: {header_json}\n\n");
+            if let Err(e) = req.respond_raw(header_data.as_bytes()) {
+                println!("Failed to send default header: {e}");
+                return;
             }
         }
-        Err(e) => {
-            println!("Failed to start tail command: {e}");
-            let error_data = format!(
-                "data: {{\"type\":\"error\",\"message\":\"Failed to start streaming: {e}\"}}
-
-"
-            );
-            let _ = req.respond_raw(error_data.as_bytes());
-        }
     }
 
-    // Send end marker
-    let end_data = "data: {\"type\":\"end\"}
+    // Process events from the channel and send as SSE
+    while let Ok(event) = rx.recv() {
+        // Log errors for debugging
+        if let StreamEvent::Error { message } = &event {
+            println!("Stream error: {message}");
+        }
 
-";
-    let _ = req.respond_raw(end_data.as_bytes());
+        // Serialize and send the event as SSE data
+        if let Ok(event_json) = serde_json::to_string(&event) {
+            let sse_data = format!("data: {event_json}\n\n");
+            if let Err(e) = req.respond_raw(sse_data.as_bytes()) {
+                println!("Failed to send SSE data: {e}");
+                break;
+            }
+        }
+
+        // Break on End event
+        if matches!(event, StreamEvent::End) {
+            break;
+        }
+    }
 
     println!("Ended streaming SSE for session {session_id}");
 }

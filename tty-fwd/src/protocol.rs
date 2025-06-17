@@ -1,6 +1,14 @@
-use jiff::Timestamp;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::thread::JoinHandle;
+use std::{fmt, fs, thread};
+
+use anyhow::Error;
+use jiff::Timestamp;
+use serde::de;
+use serde::{Deserialize, Serialize};
 
 use crate::tty_spawn::DEFAULT_TERM;
 
@@ -87,24 +95,99 @@ pub struct AsciinemaTheme {
     pub palette: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone)]
 pub enum AsciinemaEventType {
-    #[serde(rename = "o")]
     Output,
-    #[serde(rename = "i")]
     Input,
-    #[serde(rename = "m")]
     Marker,
-    #[serde(rename = "r")]
     Resize,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+impl AsciinemaEventType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AsciinemaEventType::Output => "o",
+            AsciinemaEventType::Input => "i",
+            AsciinemaEventType::Marker => "m",
+            AsciinemaEventType::Resize => "r",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "o" => Ok(AsciinemaEventType::Output),
+            "i" => Ok(AsciinemaEventType::Input),
+            "m" => Ok(AsciinemaEventType::Marker),
+            "r" => Ok(AsciinemaEventType::Resize),
+            _ => Err(format!("Unknown event type: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AsciinemaEvent {
     pub time: f64,
     pub event_type: AsciinemaEventType,
     pub data: String,
+}
+
+impl serde::Serialize for AsciinemaEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeTuple;
+        let mut tuple = serializer.serialize_tuple(3)?;
+        tuple.serialize_element(&self.time)?;
+        tuple.serialize_element(self.event_type.as_str())?;
+        tuple.serialize_element(&self.data)?;
+        tuple.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for AsciinemaEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{SeqAccess, Visitor};
+
+        struct AsciinemaEventVisitor;
+
+        impl<'de> Visitor<'de> for AsciinemaEventVisitor {
+            type Value = AsciinemaEvent;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a tuple of [time, type, data]")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let time: f64 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let event_type_str: String = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let data: String = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+
+                let event_type = AsciinemaEventType::from_str(&event_type_str)
+                    .map_err(|e| de::Error::custom(e))?;
+
+                Ok(AsciinemaEvent {
+                    time,
+                    event_type,
+                    data,
+                })
+            }
+        }
+
+        deserializer.deserialize_tuple(3, AsciinemaEventVisitor)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -121,7 +204,7 @@ pub struct StreamWriter {
 }
 
 impl StreamWriter {
-    pub fn new(file: std::fs::File, header: AsciinemaHeader) -> Result<Self, std::io::Error> {
+    pub fn new(file: std::fs::File, header: AsciinemaHeader) -> Result<Self, Error> {
         use std::io::Write;
         let mut writer = Self {
             file,
@@ -141,7 +224,7 @@ impl StreamWriter {
         command: Option<String>,
         title: Option<String>,
         env: Option<std::collections::HashMap<String, String>>,
-    ) -> Result<Self, std::io::Error> {
+    ) -> Result<Self, Error> {
         let header = AsciinemaHeader {
             version: 2,
             width,
@@ -162,7 +245,7 @@ impl StreamWriter {
         Self::new(file, header)
     }
 
-    pub fn write_output(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+    pub fn write_output(&mut self, buf: &[u8]) -> Result<(), Error> {
         let time = self.elapsed_time();
 
         // Combine any buffered bytes with the new buffer
@@ -254,21 +337,10 @@ impl StreamWriter {
         }
     }
 
-    pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), std::io::Error> {
+    pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), Error> {
         use std::io::Write;
 
-        let event_array = [
-            serde_json::json!(event.time),
-            serde_json::json!(match event.event_type {
-                AsciinemaEventType::Output => "o",
-                AsciinemaEventType::Input => "i",
-                AsciinemaEventType::Marker => "m",
-                AsciinemaEventType::Resize => "r",
-            }),
-            serde_json::json!(event.data),
-        ];
-
-        let event_json = serde_json::to_string(&event_array)?;
+        let event_json = serde_json::to_string(&event)?;
         writeln!(self.file, "{event_json}")?;
         self.file.flush()?;
 
@@ -297,5 +369,283 @@ impl NotificationWriter {
         self.file.flush()?;
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum StreamEvent {
+    Header(AsciinemaHeader),
+    Terminal(AsciinemaEvent),
+    Error { message: String },
+    End,
+}
+
+// Error event JSON structure for serde
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ErrorEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    message: String,
+}
+
+// End event JSON structure for serde
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct EndEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+}
+
+impl serde::Serialize for StreamEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            StreamEvent::Header(header) => header.serialize(serializer),
+            StreamEvent::Terminal(event) => event.serialize(serializer),
+            StreamEvent::Error { message } => {
+                let error_event = ErrorEvent {
+                    event_type: "error".to_string(),
+                    message: message.clone(),
+                };
+                error_event.serialize(serializer)
+            }
+            StreamEvent::End => {
+                let end_event = EndEvent {
+                    event_type: "end".to_string(),
+                };
+                end_event.serialize(serializer)
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for StreamEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
+
+        // Try to parse as header first (has version and width fields)
+        if value.get("version").is_some() && value.get("width").is_some() {
+            let header: AsciinemaHeader = serde_json::from_value(value)
+                .map_err(|e| de::Error::custom(format!("Failed to parse header: {}", e)))?;
+            return Ok(StreamEvent::Header(header));
+        }
+
+        // Try to parse as an event array [timestamp, type, data]
+        if let Some(arr) = value.as_array() {
+            if arr.len() >= 3 {
+                let event: AsciinemaEvent = serde_json::from_value(value).map_err(|e| {
+                    de::Error::custom(format!("Failed to parse terminal event: {}", e))
+                })?;
+                return Ok(StreamEvent::Terminal(event));
+            }
+        }
+
+        // Try to parse as error or end event
+        if let Some(obj) = value.as_object() {
+            if let Some(event_type) = obj.get("type").and_then(|v| v.as_str()) {
+                match event_type {
+                    "error" => {
+                        let error_event: ErrorEvent =
+                            serde_json::from_value(value).map_err(|e| {
+                                de::Error::custom(format!("Failed to parse error event: {}", e))
+                            })?;
+                        return Ok(StreamEvent::Error {
+                            message: error_event.message,
+                        });
+                    }
+                    "end" => {
+                        return Ok(StreamEvent::End);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Err(de::Error::custom("Unrecognized stream event format"))
+    }
+}
+
+impl StreamEvent {
+    pub fn from_json_line(line: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let line = line.trim();
+        if line.is_empty() {
+            return Err("Empty line".into());
+        }
+
+        let event: StreamEvent = serde_json::from_str(line)?;
+        Ok(event)
+    }
+}
+
+pub struct StreamParser {
+    stream_path: String,
+    start_time: std::time::SystemTime,
+}
+
+impl StreamParser {
+    pub fn new(stream_path: String) -> Self {
+        Self {
+            stream_path,
+            start_time: std::time::SystemTime::now(),
+        }
+    }
+
+    pub fn parse_existing_content(&self) -> Result<Vec<StreamEvent>, Box<dyn std::error::Error>> {
+        use std::fs;
+        use std::io::{BufRead, BufReader};
+
+        let mut events = Vec::new();
+
+        if let Ok(file) = fs::File::open(&self.stream_path) {
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let line = line?;
+                if let Ok(event) = StreamEvent::from_json_line(&line) {
+                    events.push(event);
+                }
+            }
+        }
+
+        Ok(events)
+    }
+
+    pub fn start_streaming(&self, tx: mpsc::Sender<StreamEvent>) -> Result<JoinHandle<()>, Error> {
+        let stream_path = self.stream_path.clone();
+        let start_time = self.start_time;
+
+        let handle = thread::spawn(move || {
+            // First send existing content
+            if let Ok(file) = fs::File::open(&stream_path) {
+                let reader = BufReader::new(file);
+                for line in reader.lines() {
+                    if let Ok(line) = line {
+                        if let Ok(mut event) = StreamEvent::from_json_line(&line) {
+                            // Convert terminal events to instant playback (time = 0)
+                            if let StreamEvent::Terminal(ref mut term_event) = event {
+                                term_event.time = 0.0;
+                            }
+                            if tx.send(event).is_err() {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Now stream new content using tail -f
+            match Command::new("tail")
+                .args(["-f", &stream_path])
+                .stdout(Stdio::piped())
+                .spawn()
+            {
+                Ok(mut child) => {
+                    if let Some(stdout) = child.stdout.take() {
+                        let reader = BufReader::new(stdout);
+
+                        for line in reader.lines() {
+                            match line {
+                                Ok(line) => {
+                                    if line.trim().is_empty() {
+                                        continue;
+                                    }
+
+                                    if let Ok(mut event) = StreamEvent::from_json_line(&line) {
+                                        // Skip headers in tail output
+                                        if matches!(event, StreamEvent::Header(_)) {
+                                            continue;
+                                        }
+
+                                        // Convert terminal events to real-time streaming
+                                        if let StreamEvent::Terminal(ref mut term_event) = event {
+                                            let current_time = std::time::SystemTime::now()
+                                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs_f64();
+                                            let stream_start_time = start_time
+                                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs_f64();
+                                            term_event.time = current_time - stream_start_time;
+                                        }
+
+                                        if tx.send(event).is_err() {
+                                            break;
+                                        }
+                                    } else {
+                                        // Handle non-JSON as raw output
+                                        let current_time = std::time::SystemTime::now()
+                                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs_f64();
+                                        let stream_start_time = start_time
+                                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs_f64();
+
+                                        let event = StreamEvent::Terminal(AsciinemaEvent {
+                                            time: current_time - stream_start_time,
+                                            event_type: AsciinemaEventType::Output,
+                                            data: line,
+                                        });
+
+                                        if tx.send(event).is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let error_event = StreamEvent::Error {
+                                        message: format!("Error reading from tail: {}", e),
+                                    };
+                                    if tx.send(error_event).is_err() {
+                                        break;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    let _ = child.kill();
+                }
+                Err(e) => {
+                    let error_event = StreamEvent::Error {
+                        message: format!("Failed to start tail command: {}", e),
+                    };
+                    let _ = tx.send(error_event);
+                }
+            }
+
+            // Send end marker
+            let _ = tx.send(StreamEvent::End);
+        });
+
+        Ok(handle)
+    }
+
+    pub fn create_default_header(
+        &self,
+        session_info: &crate::protocol::SessionInfo,
+    ) -> StreamEvent {
+        let start_time = self
+            .start_time
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut header = AsciinemaHeader {
+            timestamp: Some(start_time),
+            ..Default::default()
+        };
+
+        let mut env = HashMap::new();
+        env.insert("TERM".to_string(), session_info.term.clone());
+        header.env = Some(env);
+
+        StreamEvent::Header(header)
     }
 }
