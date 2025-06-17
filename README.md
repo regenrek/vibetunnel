@@ -59,6 +59,8 @@ vt --shell
 
 ### 4. Open Your Dashboard
 
+![VibeTunnel Frontend](assets/frontend.png)
+
 Visit [http://localhost:4020](http://localhost:4020) to see all your terminal sessions in the browser.
 
 ## Real-World Use Cases
@@ -104,10 +106,6 @@ Share terminal sessions with colleagues or students in real-time through a simpl
 1. Set a dashboard password in settings
 2. Switch to "Network" mode
 3. Access via `http://[your-mac-ip]:4020`
-
-## Advanced Usage
-
-![VibeTunnel Frontend](assets/frontend.png)
 
 ### Command Options
 
