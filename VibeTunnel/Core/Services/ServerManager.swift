@@ -64,7 +64,7 @@ class ServerManager {
         setupLogStream()
         setupObservers()
     }
-    
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -84,7 +84,7 @@ class ServerManager {
             object: nil
         )
     }
-    
+
     @objc private func userDefaultsDidChange() {
         Task { @MainActor in
             await handleServerModeChange()
