@@ -25,6 +25,8 @@ export class DomTerminal extends LitElement {
   // Virtual scrolling optimization
   private renderPending = false;
   private scrollAccumulator = 0;
+  private touchScrollAccumulator = 0;
+  private isTouchActive = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -164,13 +166,13 @@ export class DomTerminal extends LitElement {
       'wheel',
       (e) => {
         e.preventDefault();
-        
+
         // Accumulate scroll delta for smooth scrolling with small movements
         this.scrollAccumulator += e.deltaY;
-        
+
         const lineHeight = this.fontSize * 1.2;
         const deltaLines = Math.trunc(this.scrollAccumulator / lineHeight);
-        
+
         if (Math.abs(deltaLines) >= 1) {
           this.scrollViewport(deltaLines);
           // Subtract the scrolled amount, keep remainder for next scroll
@@ -180,81 +182,119 @@ export class DomTerminal extends LitElement {
       { passive: false }
     );
 
-    // Handle touch events for mobile scrolling - use shared variables
-    let touchStartY = 0;
+    // Handle pointer events for mobile/touch scrolling only
+    let pointerStartY = 0;
     let lastY = 0;
-    let velocity = 0;
-    let lastTouchTime = 0;
+    let isScrolling = false;
 
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartY = e.touches[0].clientY;
-      lastY = e.touches[0].clientY;
-      velocity = 0;
-      lastTouchTime = Date.now();
-      console.log('TouchStart:', {
-        startY: touchStartY,
-        target: (e.target as HTMLElement)?.tagName,
-        targetClass: (e.target as HTMLElement)?.className,
+    const handlePointerDown = (e: PointerEvent) => {
+      // Only handle touch pointers, not mouse
+      if (e.pointerType !== 'touch' || !e.isPrimary) return;
+      
+      this.isTouchActive = true;
+      isScrolling = false;
+      pointerStartY = e.clientY;
+      lastY = e.clientY;
+      this.touchScrollAccumulator = 0; // Reset accumulator on new pointer down
+      
+      // Capture the pointer so we continue to receive events even if DOM rebuilds
+      this.container!.setPointerCapture(e.pointerId);
+
+      console.log('PointerDown:', {
+        clientY: e.clientY,
+        pointerStartY,
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        accumulator: this.touchScrollAccumulator
       });
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      const currentY = e.touches[0].clientY;
+    const handlePointerMove = (e: PointerEvent) => {
+      // Only handle touch pointers that we have captured
+      if (e.pointerType !== 'touch' || !this.container!.hasPointerCapture(e.pointerId)) return;
+      
+      const currentY = e.clientY;
       const deltaY = lastY - currentY; // Change since last move, not since start
-      const currentTime = Date.now();
-
-      // Calculate velocity for momentum (based on total movement from start)
-      const totalDelta = touchStartY - currentY;
-      const timeDelta = currentTime - lastTouchTime;
-      if (timeDelta > 0) {
-        velocity = totalDelta / (currentTime - (lastTouchTime - timeDelta));
+      
+      // Start scrolling if we've moved more than a few pixels
+      if (!isScrolling && Math.abs(currentY - pointerStartY) > 5) {
+        isScrolling = true;
       }
-      lastTouchTime = currentTime;
+      
+      if (!isScrolling) return;
 
-      const deltaLines = Math.round(deltaY / (this.fontSize * 1.2));
+      // Accumulate pointer scroll delta for smooth scrolling with small movements
+      const prevAccumulator = this.touchScrollAccumulator;
+      this.touchScrollAccumulator += deltaY;
 
-      console.log('TouchMove:', {
+      const lineHeight = this.fontSize * 1.2;
+      const deltaLines = Math.trunc(this.touchScrollAccumulator / lineHeight);
+
+      console.log('PointerMove:', {
         currentY,
         lastY,
         deltaY,
-        totalDelta,
-        fontSize: this.fontSize,
-        lineHeight: this.fontSize * 1.2,
+        prevAccumulator,
+        accumulator: this.touchScrollAccumulator,
+        lineHeight,
         deltaLines,
-        velocity: velocity.toFixed(3),
-        timeDelta,
+        willScroll: Math.abs(deltaLines) >= 1,
+        isScrolling,
+        pointerType: e.pointerType,
+        fontSize: this.fontSize
       });
 
-      if (Math.abs(deltaLines) > 0) {
-        console.log('Scrolling:', deltaLines, 'lines');
+      if (Math.abs(deltaLines) >= 1) {
         this.scrollViewport(deltaLines);
+        // Subtract the scrolled amount, keep remainder for next pointer move
+        this.touchScrollAccumulator -= deltaLines * lineHeight;
+        console.log('PointerMove - Scrolled:', {
+          scrolledLines: deltaLines,
+          newAccumulator: this.touchScrollAccumulator
+        });
       }
 
       lastY = currentY; // Update for next move event
     };
 
-    const handleTouchEnd = () => {
-      console.log('TouchEnd:', {
-        finalVelocity: velocity.toFixed(3),
-        willStartMomentum: Math.abs(velocity) > 0.5,
+    const handlePointerUp = (e: PointerEvent) => {
+      // Only handle touch pointers
+      if (e.pointerType !== 'touch') return;
+      
+      this.isTouchActive = false;
+      
+      // Release pointer capture
+      this.container!.releasePointerCapture(e.pointerId);
+      
+      console.log('PointerUp:', {
+        finalAccumulator: this.touchScrollAccumulator,
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        isScrolling
       });
-
-      // Add momentum scrolling if needed
-      if (Math.abs(velocity) > 0.5) {
-        this.startMomentumScroll(velocity);
-      }
     };
 
-    // Use event delegation on container with capture phase to catch all touch events
-    this.container.addEventListener('touchstart', handleTouchStart, {
-      passive: true,
-      capture: true,
-    });
-    this.container.addEventListener('touchmove', handleTouchMove, {
-      passive: false,
-      capture: true,
-    });
-    this.container.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
+    const handlePointerCancel = (e: PointerEvent) => {
+      // Only handle touch pointers
+      if (e.pointerType !== 'touch') return;
+      
+      this.isTouchActive = false;
+      
+      // Release pointer capture
+      this.container!.releasePointerCapture(e.pointerId);
+      
+      console.log('PointerCancel:', {
+        finalAccumulator: this.touchScrollAccumulator,
+        pointerId: e.pointerId,
+        pointerType: e.pointerType
+      });
+    };
+
+    // Attach pointer events to the container (touch only)
+    this.container.addEventListener('pointerdown', handlePointerDown);
+    this.container.addEventListener('pointermove', handlePointerMove);
+    this.container.addEventListener('pointerup', handlePointerUp);
+    this.container.addEventListener('pointercancel', handlePointerCancel);
   }
 
   private startMomentumScroll(initialVelocity: number) {
@@ -459,6 +499,7 @@ export class DomTerminal extends LitElement {
           font-size: ${this.fontSize}px;
           line-height: ${this.fontSize}px;
           white-space: pre;
+          touch-action: none;
         }
 
         .terminal-line {
