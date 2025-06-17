@@ -15,7 +15,7 @@
     "bundle": "npm run bundle:client && npm run bundle:renderer && npm run bundle:test",
     "bundle:client": "esbuild src/client/app-entry.ts --bundle --outfile=public/bundle/client-bundle.js --format=esm --sourcemap --external:@xterm/xterm/css/xterm.css",
     "bundle:renderer": "esbuild src/client/renderer-entry.ts --bundle --outfile=public/bundle/renderer.js --format=esm --sourcemap",
-    "bundle:test": "esbuild src/client/components/mobile-terminal.ts --bundle --outfile=public/bundle/mobile-terminal.js --format=esm --sourcemap",
+    "bundle:test": "esbuild src/client/test-terminals-entry.ts --bundle --outfile=public/bundle/terminal.js --format=esm --sourcemap",
     "bundle:watch": "concurrently \"npm run bundle:client -- --watch\" \"npm run bundle:renderer -- --watch\" \"npm run bundle:test -- --watch\"",
     "start": "node dist/server.js",
     "test": "jest",
@@ -31,6 +31,7 @@
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/headless": "^5.5.0",
     "@xterm/xterm": "^5.5.0",
     "asciinema-player": "^3.7.0",
     "express": "^4.18.2",

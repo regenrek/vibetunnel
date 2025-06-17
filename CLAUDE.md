@@ -1,0 +1,4 @@
+- Never commit and/or push before the user has tested your changes!
+- You do not need to manually build the web project, the user has npm run dev running in a separate terminal
+- Never screenshot via puppeteer. always query the DOM to see what's what.
+- NEVER EVER USE SETTIMEOUT FOR ANYTHING IN THE FRONTEND UNLESS EXPLICITELY PERMITTED
