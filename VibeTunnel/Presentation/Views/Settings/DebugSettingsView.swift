@@ -65,8 +65,6 @@ struct DebugSettingsView: View {
                     logLevel: $logLevel
                 )
 
-                TerminalPreferenceSection()
-
                 DeveloperToolsSection(
                     showPurgeConfirmation: $showPurgeConfirmation,
                     showServerConsole: showServerConsole,
@@ -630,47 +628,3 @@ private struct DeveloperToolsSection: View {
     }
 }
 
-// MARK: - Terminal Preference Section
-
-private struct TerminalPreferenceSection: View {
-    @AppStorage("preferredTerminal") private var preferredTerminal = Terminal.terminal.rawValue
-
-    var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Preferred Terminal")
-                    Spacer()
-                    Picker("", selection: $preferredTerminal) {
-                        ForEach(Terminal.installed, id: \.rawValue) { terminal in
-                            HStack {
-                                if let icon = terminal.appIcon {
-                                    Image(nsImage: icon)
-                                        .resizable()
-                                        .frame(width: 16, height: 16)
-                                }
-                                Text(terminal.displayName)
-                            }
-                            .tag(terminal.rawValue)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                }
-                Text("Select which terminal application to use when creating new sessions")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } header: {
-            Text("Terminal Preference")
-                .font(.headline)
-        } footer: {
-            Text(
-                "VibeTunnel will use this terminal when launching new terminal sessions. Falls back to Terminal if the selected app is not available."
-            )
-            .font(.caption)
-            .frame(maxWidth: .infinity)
-            .multilineTextAlignment(.center)
-        }
-    }
-}

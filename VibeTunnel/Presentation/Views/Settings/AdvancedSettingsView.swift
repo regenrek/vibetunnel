@@ -58,6 +58,9 @@ struct AdvancedSettingsView: View {
                     Text("Integration")
                         .font(.headline)
                 }
+                
+                // Terminal preference section
+                TerminalPreferenceSection()
 
                 // Advanced section
                 Section {
@@ -91,6 +94,71 @@ struct AdvancedSettingsView: View {
         }
         .onAppear {
             cliInstaller.checkInstallationStatus()
+        }
+    }
+}
+
+// MARK: - Terminal Preference Section
+
+private struct TerminalPreferenceSection: View {
+    @AppStorage("preferredTerminal") private var preferredTerminal = Terminal.terminal.rawValue
+    @State private var terminalLauncher = TerminalLauncher.shared
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Preferred Terminal")
+                    Spacer()
+                    Picker("", selection: $preferredTerminal) {
+                        ForEach(Terminal.installed, id: \.rawValue) { terminal in
+                            HStack {
+                                if let icon = terminal.appIcon {
+                                    Image(nsImage: icon)
+                                        .resizable()
+                                        .frame(width: 16, height: 16)
+                                }
+                                Text(terminal.displayName)
+                            }
+                            .tag(terminal.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+                Text("Select which terminal application to use when creating new sessions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                // Test button
+                HStack {
+                    Text("Test Terminal")
+                    Spacer()
+                    Button("Test with 'banner hi'") {
+                        Task {
+                            do {
+                                try terminalLauncher.launchCommand("banner hi")
+                            } catch {
+                                print("Failed to launch terminal test: \(error)")
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Text("Opens a new terminal window with a test command")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Terminal")
+                .font(.headline)
+        } footer: {
+            Text(
+                "VibeTunnel will use this terminal when launching new terminal sessions."
+            )
+            .font(.caption)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
     }
 }
