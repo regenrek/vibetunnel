@@ -157,6 +157,8 @@ export class Terminal extends LitElement {
     measureEl.style.visibility = 'hidden';
     measureEl.style.top = '0';
     measureEl.style.left = '0';
+    measureEl.style.fontSize = `${this.fontSize}px`;
+    measureEl.style.fontFamily = 'Fira Code, monospace';
 
     // Use a mix of characters that represent typical terminal content
     const testString =
@@ -165,7 +167,7 @@ export class Terminal extends LitElement {
     const testContent = testString.repeat(repeatCount).substring(0, this.cols);
     measureEl.textContent = testContent;
 
-    console.log(`measureCharacterWidth: measuring ${this.cols} chars, testContent length: ${testContent.length}`);
+    console.log(`measureCharacterWidth: measuring ${this.cols} chars with fontSize=${this.fontSize}px, testContent length: ${testContent.length}`);
 
     // Attach to container so it inherits all the proper CSS context
     this.container.appendChild(measureEl);
@@ -194,7 +196,7 @@ export class Terminal extends LitElement {
       const currentCharWidth = this.measureCharacterWidth();
       const scaleFactor = targetCharWidth / currentCharWidth;
       const calculatedFontSize = this.fontSize * scaleFactor;
-      const newFontSize = Math.max(8, Math.min(32, calculatedFontSize));
+      const newFontSize = Math.max(4, Math.min(32, calculatedFontSize));
 
       console.log(`Horizontal fit: currentCharWidth=${currentCharWidth}px, scaleFactor=${scaleFactor}, calculatedFontSize=${calculatedFontSize}px, clampedFontSize=${newFontSize}px`);
 
