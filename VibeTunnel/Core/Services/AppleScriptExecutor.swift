@@ -24,11 +24,13 @@ final class AppleScriptExecutor {
     /// This method defers the actual AppleScript execution to the next run loop
     /// to prevent crashes when called from SwiftUI actions.
     ///
-    /// - Parameter script: The AppleScript source code to execute
+    /// - Parameters:
+    ///   - script: The AppleScript source code to execute
+    ///   - timeout: The timeout in seconds (default: 5.0, max: 30.0)
     /// - Throws: `AppleScriptError` if execution fails
     /// - Returns: The result of the AppleScript execution, if any
     @discardableResult
-    func execute(_ script: String) throws -> NSAppleEventDescriptor? {
+    func execute(_ script: String, timeout: TimeInterval = 5.0) throws -> NSAppleEventDescriptor? {
         // Create a semaphore to wait for async execution
         let semaphore = DispatchSemaphore(value: 0)
         var executionResult: NSAppleEventDescriptor?
@@ -71,11 +73,12 @@ final class AppleScriptExecutor {
             semaphore.signal()
         }
         
-        // Wait for execution to complete with timeout
-        let waitResult = semaphore.wait(timeout: .now() + 5.0)
+        // Wait for execution to complete with timeout (default 5 seconds, max 30 seconds)
+        let timeoutDuration = min(timeout, 30.0)
+        let waitResult = semaphore.wait(timeout: .now() + timeoutDuration)
         
         if waitResult == .timedOut {
-            logger.error("AppleScript execution timed out after 5 seconds")
+            logger.error("AppleScript execution timed out after \(timeoutDuration) seconds")
             throw AppleScriptError.timeout
         }
         
@@ -91,9 +94,11 @@ final class AppleScriptExecutor {
     /// This method is useful when you don't need to wait for the result
     /// and want to avoid blocking the current thread.
     ///
-    /// - Parameter script: The AppleScript source code to execute
+    /// - Parameters:
+    ///   - script: The AppleScript source code to execute
+    ///   - timeout: The timeout in seconds (default: 5.0, max: 30.0)
     /// - Returns: The result of the AppleScript execution, if any
-    func executeAsync(_ script: String) async throws -> NSAppleEventDescriptor? {
+    func executeAsync(_ script: String, timeout: TimeInterval = 5.0) async throws -> NSAppleEventDescriptor? {
         return try await withCheckedThrowingContinuation { continuation in
             // Defer execution to next run loop to avoid crashes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

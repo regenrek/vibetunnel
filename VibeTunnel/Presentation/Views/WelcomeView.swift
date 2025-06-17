@@ -273,17 +273,11 @@ private struct RequestPermissionsPageView: View {
                         }
                         .font(.body)
                     } else {
-                        Button("Request Permission") {
+                        Button("Grant Permission") {
                             permissionManager.requestPermission()
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
-                        .disabled(permissionManager.isChecking)
-                        
-                        if permissionManager.isChecking {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        }
                     }
                 }
             }
@@ -291,7 +285,7 @@ private struct RequestPermissionsPageView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .task {
-            await permissionManager.checkPermission()
+            _ = await permissionManager.checkPermission()
         }
     }
 }

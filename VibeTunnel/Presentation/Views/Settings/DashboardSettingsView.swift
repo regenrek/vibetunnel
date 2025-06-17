@@ -853,22 +853,11 @@ private struct PermissionsSection: View {
                         }
                         .font(.caption)
                     } else {
-                        Button("Accept Permission") {
+                        Button("Grant Permission") {
                             permissionManager.requestPermission()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .disabled(permissionManager.isChecking)
-                    }
-                }
-                
-                if permissionManager.isChecking {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                        Text("Checking permissions...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -880,7 +869,7 @@ private struct PermissionsSection: View {
                 .font(.caption)
         }
         .task {
-            await permissionManager.checkPermission()
+            _ = await permissionManager.checkPermission()
         }
     }
 }

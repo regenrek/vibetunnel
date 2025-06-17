@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import ApplicationServices
 import Foundation
 import SwiftUI
 
@@ -11,23 +12,43 @@ import SwiftUI
 enum SettingsOpener {
     /// SwiftUI's hardcoded settings window identifier
     private static let settingsWindowIdentifier = "com_apple_SwiftUI_Settings_window"
+    private static var windowObserver: NSObjectProtocol?
 
     /// Opens the Settings window using the environment action via notification
     /// This is needed for cases where we can't use SettingsLink (e.g., from notifications)
     static func openSettings() {
-        // First try to open via menu item
-        let openedViaMenu = openSettingsViaMenuItem()
+        // Store the current dock visibility preference
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         
-        if !openedViaMenu {
-            // Fallback to notification approach
-            NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
+        // Temporarily show dock icon to ensure settings window can be brought to front
+        if !showInDock {
+            NSApp.setActivationPolicy(.regular)
         }
         
-        // Use AppleScript to ensure the window is brought to front
+        // Simple activation and window opening
         Task { @MainActor in
-            // Give time for window creation
-            try? await Task.sleep(for: .milliseconds(200))
-            bringSettingsToFrontWithAppleScript()
+            // Small delay to ensure dock icon is visible
+            try? await Task.sleep(for: .milliseconds(50))
+            
+            // Activate the app
+            NSApp.activate(ignoringOtherApps: true)
+            
+            // Try to open via menu item first
+            if !openSettingsViaMenuItem() {
+                // Fallback to notification
+                NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
+            }
+            
+            // Wait for window to appear and make it key
+            try? await Task.sleep(for: .milliseconds(100))
+            if let settingsWindow = findSettingsWindow() {
+                settingsWindow.makeKeyAndOrderFront(nil)
+            }
+            
+            // Set up observer to restore dock visibility when settings window closes
+            if !showInDock {
+                setupDockVisibilityRestoration()
+            }
         }
     }
     
@@ -136,6 +157,43 @@ enum SettingsOpener {
         }
     }
     
+    // MARK: - Dock Visibility Restoration
+    
+    private static func setupDockVisibilityRestoration() {
+        // Remove any existing observer
+        if let observer = windowObserver {
+            NotificationCenter.default.removeObserver(observer)
+            windowObserver = nil
+        }
+        
+        // Set up observer for window closing
+        windowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak windowObserver] notification in
+            guard let window = notification.object as? NSWindow else { return }
+            
+            Task { @MainActor in
+                guard window.title.contains("Settings") || window.identifier?.rawValue.contains(settingsWindowIdentifier) == true else {
+                    return
+                }
+                
+                // Window is closing, restore dock visibility
+                let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+                if !showInDock {
+                    NSApp.setActivationPolicy(.accessory)
+                }
+                
+                // Clean up observer
+                if let observer = windowObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    Self.windowObserver = nil
+                }
+            }
+        }
+    }
+    
     /// Finds the settings window using multiple detection methods
     static func findSettingsWindow() -> NSWindow? {
         // Try multiple methods to find the window
@@ -181,8 +239,11 @@ enum SettingsOpener {
 
     /// Focuses the settings window without level manipulation
     static func focusSettingsWindow() {
-        // Use AppleScript for most reliable focusing
-        bringSettingsToFrontWithAppleScript()
+        // With dock icon visible, simple activation is enough
+        NSApp.activate(ignoringOtherApps: true)
+        if let settingsWindow = findSettingsWindow() {
+            settingsWindow.makeKeyAndOrderFront(nil)
+        }
     }
 
     /// Brings a window to front using the most reliable method
@@ -212,32 +273,12 @@ enum SettingsOpener {
         setupWindowCloseObserver(for: window)
     }
     
-    /// Uses AppleScript to bring the settings window to front
-    /// This is a more aggressive approach that works even when other methods fail
+    /// Simple AppleScript approach to activate the app
+    /// Now that we show the dock icon, this is much simpler
     static func bringSettingsToFrontWithAppleScript() {
         let bundleIdentifier = Bundle.main.bundleIdentifier ?? "sh.vibetunnel.vibetunnel"
-        let script = """
-        tell application "System Events"
-            tell process "VibeTunnel"
-                set frontmost to true
-                -- Find and activate the settings window
-                if exists window "Settings" then
-                    tell window "Settings"
-                        perform action "AXRaise"
-                    end tell
-                else if exists window 1 whose title contains "Settings" then
-                    tell window 1 whose title contains "Settings"
-                        perform action "AXRaise"
-                    end tell
-                else if exists window 1 whose title contains "Preferences" then
-                    tell window 1 whose title contains "Preferences"
-                        perform action "AXRaise"
-                    end tell
-                end if
-            end tell
-        end tell
         
-        -- Also activate the app itself
+        let activateScript = """
         tell application "\(bundleIdentifier)"
             activate
         end tell
@@ -245,9 +286,9 @@ enum SettingsOpener {
         
         Task { @MainActor in
             do {
-                _ = try await AppleScriptExecutor.shared.executeAsync(script)
+                _ = try await AppleScriptExecutor.shared.executeAsync(activateScript)
             } catch {
-                print("AppleScript error bringing settings to front: \(error)")
+                print("AppleScript error activating app: \(error)")
             }
         }
     }
@@ -346,6 +387,40 @@ struct HiddenWindowView: View {
                     }
                 }
             }
+    }
+    
+    /// Uses Accessibility API to force window to front
+    /// This requires accessibility permissions but is very reliable
+    static func bringSettingsToFrontWithAccessibility() {
+        guard let settingsWindow = SettingsOpener.findSettingsWindow() else { return }
+        
+        // Use CGWindowListCopyWindowInfo to get window information
+        let windowNumber = settingsWindow.windowNumber
+        if let windowInfo = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(windowNumber)) as? [[String: Any]],
+           let firstWindow = windowInfo.first,
+           let pid = firstWindow[kCGWindowOwnerPID as String] as? Int32 {
+            
+            // Bring the owning process to front
+            if let app = NSRunningApplication(processIdentifier: pid) {
+                if #available(macOS 14.0, *) {
+                    app.activate(options: [.activateAllWindows])
+                } else {
+                    app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                }
+            }
+        }
+        
+        // Also try manipulating window directly
+        settingsWindow.collectionBehavior = [NSWindow.CollectionBehavior.moveToActiveSpace, NSWindow.CollectionBehavior.canJoinAllSpaces]
+        settingsWindow.level = NSWindow.Level.popUpMenu
+        settingsWindow.orderFrontRegardless()
+        
+        // Reset after a delay
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            settingsWindow.level = NSWindow.Level.normal
+            settingsWindow.collectionBehavior = []
+        }
     }
 }
 

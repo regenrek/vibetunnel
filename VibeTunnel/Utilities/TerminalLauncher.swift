@@ -391,7 +391,9 @@ final class TerminalLauncher {
     
     private func executeAppleScript(_ script: String) throws {
         do {
-            try AppleScriptExecutor.shared.execute(script)
+            // Use a longer timeout (15 seconds) for terminal launch operations
+            // as some terminals (like Ghostty) can take longer to start up
+            try AppleScriptExecutor.shared.execute(script, timeout: 15.0)
         } catch let error as AppleScriptError {
             // Convert AppleScriptError to TerminalLauncherError
             throw error.toTerminalLauncherError()
