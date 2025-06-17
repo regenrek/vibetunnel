@@ -5,43 +5,5 @@
         <link>https://github.com/amantus-ai/vibetunnel</link>
         <description>VibeTunnel pre-release and beta updates feed</description>
         <language>en</language>
-        <item>
-            <title>VibeTunnel 1.0-beta.2</title>
-            <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.2/VibeTunnel-1.0-beta.2.dmg</link>
-            <sparkle:version>102</sparkle:version>
-            <sparkle:shortVersionString>1.0-beta.2</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>VibeTunnel 1.0-beta.2</h2><p><strong>Pre-release version</strong></p><div><h2>VibeTunnel 1.0-beta.2</h2>
-<p>Latest version of VibeTunnel with new features and improvements.</p>
-<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md">View full changelog</a></p></div>
-            ]]></description>
-            <pubDate>Tue, 17 Jun 2025 00:55:25 +0200</pubDate>
-            <enclosure 
-                url="https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.2/VibeTunnel-1.0-beta.2.dmg"
-                length="19787462"
-                type="application/octet-stream"
-                sparkle:edSignature="yD4+l0VkjN/yixkDAOwgDKvx0ao7j8hffpUazfPPXfFsNEW6jD1mY4WqG2cM4wi9+CfJMyEbHgViteid3ufkDg=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
-        <item>
-            <title>VibeTunnel 1.0-beta.1</title>
-            <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.1/VibeTunnel-1.0-beta.1.dmg</link>
-            <sparkle:version>101</sparkle:version>
-            <sparkle:shortVersionString>1.0-beta.1</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>VibeTunnel 1.0-beta.1</h2><p><strong>Pre-release version</strong></p><div><h2>VibeTunnel 1.0-beta.1</h2>
-<p>Latest version of VibeTunnel with new features and improvements.</p>
-<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md">View full changelog</a></p></div>
-            ]]></description>
-            <pubDate>Tue, 17 Jun 2025 00:34:43 +0200</pubDate>
-            <enclosure 
-                url="https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.1/VibeTunnel-1.0-beta.1.dmg"
-                length="19780906"
-                type="application/octet-stream"
-                sparkle:edSignature="dkrZhxcPI56mRxuP68f/OnSjSmkcxUTzGtxrhCfp/C1fbdKXexupniaPzyArKWFEOqz5v0MofYPgAq1sqaSbBA=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
     </channel>
 </rss>
