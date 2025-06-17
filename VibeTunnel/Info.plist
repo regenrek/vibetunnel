@@ -43,7 +43,7 @@
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>VibeTunnel needs to send AppleScript commands to your preferred terminal application to open new terminal sessions.</string>
+	<string>VibeTunnel uses AppleScript to spawn a terminal when you create a new session in the dashboard. This allows VibeTunnel to automatically open your preferred terminal application and connect it to the remote session.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
