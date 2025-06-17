@@ -108,7 +108,11 @@ enum Terminal: String, CaseIterable {
             return .appleScript(script: """
                 tell application "Terminal"
                     activate
-                    do script "\(config.fullCommand)"
+                    tell application "System Events"
+                        keystroke "n" using {command down}
+                    end tell
+                    delay 0.1
+                    do script "\(config.fullCommand)" in front window
                 end tell
                 """)
             
@@ -328,11 +332,15 @@ final class TerminalLauncher {
             // Give the terminal time to start
             Thread.sleep(forTimeInterval: delay)
             
-            // Type the command
+            // Type the command with new window creation
             let typeScript = """
             tell application "System Events"
                 tell process "\(config.terminal.processName)"
                     set frontmost to true
+                    -- Create new window with Cmd+N
+                    keystroke "n" using {command down}
+                    delay 0.2
+                    -- Type the command
                     keystroke "\(config.fullCommand)"
                     key code 36
                 end tell
