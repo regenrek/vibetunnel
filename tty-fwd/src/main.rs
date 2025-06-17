@@ -2,6 +2,7 @@ mod api_server;
 mod http_server;
 mod protocol;
 mod sessions;
+mod term;
 mod tty_spawn;
 
 use std::env;

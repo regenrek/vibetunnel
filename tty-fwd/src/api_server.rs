@@ -59,10 +59,16 @@ struct CreateSessionRequest {
     working_dir: Option<String>,
     #[serde(default = "default_term_value")]
     term: String,
+    #[serde(default = "default_true")]
+    spawn_terminal: bool,
 }
 
 fn default_term_value() -> String {
     DEFAULT_TERM.to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -462,11 +468,37 @@ fn handle_create_session(
         return json_response(StatusCode::BAD_REQUEST, &error);
     }
 
-    // Generate a new session ID
-    let session_id = Uuid::new_v4().to_string();
-    let session_path = control_path.join(&session_id);
+    // Handle terminal spawning if requested
+    if create_request.spawn_terminal {
+        match crate::term::spawn_terminal_command(
+            &create_request.command,
+            create_request.working_dir.as_deref(),
+        ) {
+            Ok(terminal_session_id) => {
+                println!("Terminal spawned with session ID: {}", terminal_session_id);
+                let response = ApiResponse {
+                    success: Some(true),
+                    message: Some("Terminal spawned successfully".to_string()),
+                    error: None,
+                    session_id: Some(terminal_session_id),
+                };
+                return json_response(StatusCode::OK, &response);
+            }
+            Err(e) => {
+                let error = ApiResponse {
+                    success: None,
+                    message: None,
+                    error: Some(format!("Failed to spawn terminal: {e}")),
+                    session_id: None,
+                };
+                return json_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+            }
+        }
+    }
 
     // Create session directory
+    let session_id = Uuid::new_v4().to_string();
+    let session_path = control_path.join(&session_id);
     if let Err(e) = fs::create_dir_all(&session_path) {
         let error = ApiResponse {
             success: None,
