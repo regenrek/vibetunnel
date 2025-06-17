@@ -15,12 +15,20 @@ enum SettingsOpener {
     /// Opens the Settings window using the environment action via notification
     /// This is needed for cases where we can't use SettingsLink (e.g., from notifications)
     static func openSettings() {
-        // Use focus toggle approach - most reliable on macOS Sonoma
-        openSettingsWithFocusToggle()
+        // First try to open via menu item
+        let openedViaMenu = openSettingsViaMenuItem()
         
-        // Alternative methods if needed:
-        // openSettingsWithProcessSerial() // Legacy but reliable
-        // openSettingsWithAccessibility() // Requires permissions but very reliable
+        if !openedViaMenu {
+            // Fallback to notification approach
+            NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
+        }
+        
+        // Use AppleScript to ensure the window is brought to front
+        Task { @MainActor in
+            // Give time for window creation
+            try? await Task.sleep(for: .milliseconds(200))
+            bringSettingsToFrontWithAppleScript()
+        }
     }
     
     /// Opens settings window using modal session for guaranteed focus
@@ -173,21 +181,8 @@ enum SettingsOpener {
 
     /// Focuses the settings window without level manipulation
     static func focusSettingsWindow() {
-        // First try the SwiftUI settings window identifier
-        if let settingsWindow = NSApp.windows.first(where: {
-            $0.identifier?.rawValue == settingsWindowIdentifier
-        }) {
-            bringWindowToFront(settingsWindow)
-        } else if let settingsWindow = NSApp.windows.first(where: { window in
-            // Fallback to title-based search
-            window.isVisible &&
-                window.styleMask.contains(.titled) &&
-                (window.title.localizedCaseInsensitiveContains("settings") ||
-                    window.title.localizedCaseInsensitiveContains("preferences")
-                )
-        }) {
-            bringWindowToFront(settingsWindow)
-        }
+        // Use AppleScript for most reliable focusing
+        bringSettingsToFrontWithAppleScript()
     }
 
     /// Brings a window to front using the most reliable method
@@ -216,6 +211,46 @@ enum SettingsOpener {
         // Setup window close observer to restore activation policy
         setupWindowCloseObserver(for: window)
     }
+    
+    /// Uses AppleScript to bring the settings window to front
+    /// This is a more aggressive approach that works even when other methods fail
+    static func bringSettingsToFrontWithAppleScript() {
+        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "sh.vibetunnel.vibetunnel"
+        let script = """
+        tell application "System Events"
+            tell process "VibeTunnel"
+                set frontmost to true
+                -- Find and activate the settings window
+                if exists window "Settings" then
+                    tell window "Settings"
+                        perform action "AXRaise"
+                    end tell
+                else if exists window 1 whose title contains "Settings" then
+                    tell window 1 whose title contains "Settings"
+                        perform action "AXRaise"
+                    end tell
+                else if exists window 1 whose title contains "Preferences" then
+                    tell window 1 whose title contains "Preferences"
+                        perform action "AXRaise"
+                    end tell
+                end if
+            end tell
+        end tell
+        
+        -- Also activate the app itself
+        tell application "\(bundleIdentifier)"
+            activate
+        end tell
+        """
+        
+        Task { @MainActor in
+            do {
+                _ = try await AppleScriptExecutor.shared.executeAsync(script)
+            } catch {
+                print("AppleScript error bringing settings to front: \(error)")
+            }
+        }
+    }
 
     /// Observes when settings window closes to restore activation policy
     private static func setupWindowCloseObserver(for window: NSWindow) {
@@ -237,12 +272,22 @@ enum SettingsOpener {
 
     /// Opens the Settings window and navigates to a specific tab
     static func openSettingsTab(_ tab: SettingsTab) {
-        // Use focus toggle approach - most reliable on macOS Sonoma
-        openSettingsWithFocusToggle()
+        // First try to open via menu item
+        let openedViaMenu = openSettingsViaMenuItem()
+        
+        if !openedViaMenu {
+            // Fallback to notification approach
+            NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
+        }
 
         Task {
             // Small delay to ensure the settings window is fully initialized
             try? await Task.sleep(for: .milliseconds(300))
+            
+            // Use AppleScript to bring to front
+            bringSettingsToFrontWithAppleScript()
+            
+            // Then switch to the specific tab
             NotificationCenter.default.post(
                 name: .openSettingsTab,
                 object: tab
