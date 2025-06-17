@@ -15,8 +15,12 @@ enum SettingsOpener {
     /// Opens the Settings window using the environment action via notification
     /// This is needed for cases where we can't use SettingsLink (e.g., from notifications)
     static func openSettings() {
-        // Use modal approach for guaranteed focus
-        openSettingsWithModal()
+        // Use focus toggle approach - most reliable on macOS Sonoma
+        openSettingsWithFocusToggle()
+        
+        // Alternative methods if needed:
+        // openSettingsWithProcessSerial() // Legacy but reliable
+        // openSettingsWithAccessibility() // Requires permissions but very reliable
     }
     
     /// Opens settings window using modal session for guaranteed focus
@@ -51,6 +55,18 @@ enum SettingsOpener {
                 // Begin modal session
                 let session = NSApp.beginModalSession(for: settingsWindow)
                 
+                // Create a class to hold the session reference safely
+                final class SessionHolder: @unchecked Sendable {
+                    let session: NSApplication.ModalSession
+                    var isActive = true
+                    
+                    init(_ session: NSApplication.ModalSession) {
+                        self.session = session
+                    }
+                }
+                
+                let sessionHolder = SessionHolder(session)
+                
                 // Set up observer to end modal when window closes
                 let closeObserver = NotificationCenter.default.addObserver(
                     forName: NSWindow.willCloseNotification,
@@ -58,12 +74,15 @@ enum SettingsOpener {
                     queue: .main
                 ) { _ in
                     Task { @MainActor in
-                        NSApp.endModalSession(session)
-                        settingsWindow.level = .normal
-                        settingsWindow.collectionBehavior = []
-                        
-                        // Restore activation policy
-                        NSApp.setActivationPolicy(currentPolicy)
+                        if sessionHolder.isActive {
+                            sessionHolder.isActive = false
+                            NSApp.endModalSession(sessionHolder.session)
+                            settingsWindow.level = .normal
+                            settingsWindow.collectionBehavior = []
+                            
+                            // Restore activation policy
+                            NSApp.setActivationPolicy(currentPolicy)
+                        }
                     }
                 }
                 
@@ -72,9 +91,9 @@ enum SettingsOpener {
                     // Small initial delay
                     try? await Task.sleep(for: .milliseconds(100))
                     
-                    while settingsWindow.isVisible {
+                    while settingsWindow.isVisible && sessionHolder.isActive {
                         // Run one iteration of the modal session
-                        let result = NSApp.runModalSession(session)
+                        let result = NSApp.runModalSession(sessionHolder.session)
                         if result != .continue {
                             break
                         }
@@ -84,9 +103,12 @@ enum SettingsOpener {
                     }
                     
                     // Clean up when loop exits
-                    NSApp.endModalSession(session)
-                    settingsWindow.level = .normal
-                    settingsWindow.collectionBehavior = []
+                    if sessionHolder.isActive {
+                        sessionHolder.isActive = false
+                        NSApp.endModalSession(sessionHolder.session)
+                        settingsWindow.level = .normal
+                        settingsWindow.collectionBehavior = []
+                    }
                     NotificationCenter.default.removeObserver(closeObserver)
                     
                     // Restore activation policy if window closed
@@ -107,7 +129,7 @@ enum SettingsOpener {
     }
     
     /// Finds the settings window using multiple detection methods
-    private static func findSettingsWindow() -> NSWindow? {
+    static func findSettingsWindow() -> NSWindow? {
         // Try multiple methods to find the window
         return NSApp.windows.first { window in
             // Check by identifier
@@ -133,7 +155,7 @@ enum SettingsOpener {
     }
 
     /// Opens settings via the native menu item (more reliable)
-    private static func openSettingsViaMenuItem() -> Bool {
+    static func openSettingsViaMenuItem() -> Bool {
         let kAppMenuInternalIdentifier = "app"
         let kSettingsLocalizedStringKey = "Settings\\U2026"
 
@@ -215,8 +237,8 @@ enum SettingsOpener {
 
     /// Opens the Settings window and navigates to a specific tab
     static func openSettingsTab(_ tab: SettingsTab) {
-        // Use modal approach for guaranteed focus
-        openSettingsWithModal()
+        // Use focus toggle approach - most reliable on macOS Sonoma
+        openSettingsWithFocusToggle()
 
         Task {
             // Small delay to ensure the settings window is fully initialized
