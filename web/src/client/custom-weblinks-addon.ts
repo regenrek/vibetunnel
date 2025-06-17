@@ -27,7 +27,7 @@ export class CustomWebLinksAddon implements ITerminalAddon {
         hover: (
           event: MouseEvent,
           uri: string,
-          location: { start: { x: number; y: number }; end: { x: number; y: number } }
+          _location: { start: { x: number; y: number }; end: { x: number; y: number } }
         ) => {
           console.log('Custom WebLinks hover:', uri);
           // Style the link on hover

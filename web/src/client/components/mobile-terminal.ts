@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { Terminal } from '@xterm/xterm';
 import { ScaleFitAddon } from '../scale-fit-addon.js';
