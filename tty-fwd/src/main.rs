@@ -2,6 +2,7 @@ mod api_server;
 mod http_server;
 mod protocol;
 mod sessions;
+mod term;
 mod tty_spawn;
 
 use std::env;
@@ -30,6 +31,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut serve_address = None::<String>;
     let mut static_path = None::<String>;
     let mut password = None::<String>;
+    let mut spawn_terminal = None::<String>;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -93,6 +95,9 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("password") => {
                 password = Some(parser.value()?);
             }
+            p if p.is_long("spawn-terminal") => {
+                spawn_terminal = Some(parser.value()?);
+            }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
             }
@@ -123,6 +128,7 @@ fn main() -> Result<(), anyhow::Error> {
                     "  --static-path <path>    Path to static files directory for HTTP server"
                 );
                 println!("  --password <password>   Enable basic auth with random username and specified password");
+                println!("  --spawn-terminal <app>  Spawn command in a new terminal window (supports Terminal.app, Ghostty.app)");
                 println!("  --help                  Show this help message");
                 return Ok(());
             }
@@ -198,6 +204,13 @@ fn main() -> Result<(), anyhow::Error> {
         return crate::api_server::start_server(&addr, control_path, static_path, password);
     }
 
+    // Spawn terminal
+    if let Some(terminal) = spawn_terminal {
+        let exit_code = term::spawn_terminal(&terminal, &control_path, session_name)?;
+        std::process::exit(exit_code);
+    }
+
+    // Spawn command
     let exit_code = sessions::spawn_command(control_path, session_name, cmdline)?;
     std::process::exit(exit_code);
 }
