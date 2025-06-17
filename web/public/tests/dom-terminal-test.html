@@ -188,7 +188,7 @@
             content += '\x1b[37m┌──────────────┬──────────────┬──────────────┬──────────────┐\x1b[0m\r\n';
             content += '\x1b[37m│\x1b[1m     Name     \x1b[0m\x1b[37m│\x1b[1m    Status    \x1b[0m\x1b[37m│\x1b[1m     CPU%     \x1b[0m\x1b[37m│\x1b[1m   Memory%    \x1b[0m\x1b[37m│\x1b[0m\r\n';
             content += '\x1b[37m├──────────────┼──────────────┼──────────────┼──────────────┤\x1b[0m\r\n';
-            
+
             const processes = [
                 { name: 'web-server', status: 'running', cpu: '12.3', mem: '45.2', statusColor: '32' },
                 { name: 'database', status: 'running', cpu: '8.7', mem: '62.1', statusColor: '32' },
@@ -196,7 +196,7 @@
                 { name: 'cache', status: 'running', cpu: '2.1', mem: '18.9', statusColor: '32' },
                 { name: 'auth-svc', status: 'warning', cpu: '15.6', mem: '78.3', statusColor: '33' }
             ];
-            
+
             processes.forEach(proc => {
                 content += `\x1b[37m│\x1b[0m ${proc.name.padEnd(12)} \x1b[37m│\x1b[0m \x1b[${proc.statusColor}m${proc.status.padEnd(12)}\x1b[0m \x1b[37m│\x1b[0m ${proc.cpu.padStart(12)} \x1b[37m│\x1b[0m ${proc.mem.padStart(12)} \x1b[37m│\x1b[0m\r\n`;
             });
@@ -227,7 +227,7 @@
                 { hash: 'u7v8w9x', msg: 'chore: update dependencies to latest versions', author: 'bob', time: '2 days ago' },
                 { hash: 'y1z2a3b', msg: 'feat: add dark mode support', author: 'charlie', time: '3 days ago' }
             ];
-            
+
             commits.forEach(commit => {
                 content += `\x1b[33m${commit.hash}\x1b[0m \x1b[32m${commit.msg}\x1b[0m \x1b[90m(${commit.author}, ${commit.time})\x1b[0m\r\n`;
             });
@@ -242,7 +242,7 @@
                 { id: 'b4a8f2d9c1e7', image: 'redis:alpine', cmd: 'docker-entrypoint.sh', created: '1 hour ago', status: 'Exited (0)', ports: '', statusColor: '31' },
                 { id: '9c1e4b8f2a5d', image: 'node:16-alpine', cmd: 'npm start', created: '30 min ago', status: 'Up 30 minutes', ports: '0.0.0.0:3000->3000/tcp', statusColor: '32' }
             ];
-            
+
             containers.forEach(container => {
                 content += `${container.id.substring(0, 12)}   ${container.image.padEnd(18)} ${container.cmd.padEnd(24)} ${container.created.padEnd(14)} \x1b[${container.statusColor}m${container.status.padEnd(24)}\x1b[0m ${container.ports}\r\n`;
             });
@@ -266,7 +266,7 @@
                 'File not found: /var/log/application.log',
                 'SSL certificate expires in 7 days'
             ];
-            
+
             errors.forEach((error, i) => {
                 content += `\x1b[90m[${new Date().toISOString()}]\x1b[0m \x1b[31mERROR\x1b[0m ${error}\r\n`;
             });
@@ -281,7 +281,7 @@
                 { query: 'SELECT COUNT(*) FROM sessions WHERE expires_at > NOW()', time: '15ms', rows: '1' },
                 { query: 'DELETE FROM temp_files WHERE created_at < ?', time: '23ms', rows: '47' }
             ];
-            
+
             queries.forEach(q => {
                 content += `\x1b[37m[\x1b[32m${q.time.padStart(5)}\x1b[37m]\x1b[0m \x1b[35m${q.query}\x1b[0m \x1b[90m(${q.rows} rows)\x1b[0m\r\n`;
             });
@@ -299,7 +299,7 @@
                 { method: 'POST', path: '/api/v1/orders', description: 'Create order', auth: 'Bearer' },
                 { method: 'GET', path: '/health', description: 'Health check', auth: 'None' }
             ];
-            
+
             endpoints.forEach(ep => {
                 const methodColor = ep.method === 'GET' ? '32' : ep.method === 'POST' ? '33' : ep.method === 'PUT' ? '34' : '31';
                 const authColor = ep.auth === 'None' ? '90' : ep.auth === 'Admin' ? '31' : '36';
@@ -318,7 +318,7 @@
                 { name: 'lodash', version: '^4.17.21', type: 'runtime' },
                 { name: 'axios', version: '^1.4.0', type: 'runtime' }
             ];
-            
+
             deps.forEach(dep => {
                 const typeColor = dep.type === 'dev' ? '90' : '32';
                 content += `\x1b[36m${dep.name.padEnd(15)}\x1b[0m \x1b[33m${dep.version.padEnd(12)}\x1b[0m \x1b[${typeColor}m${dep.type}\x1b[0m\r\n`;
@@ -380,7 +380,7 @@
             // ASCII art
             content += '\x1b[1;31m🎭 ASCII Art:\x1b[0m\r\n';
             content += '\x1b[33m    ╭────────────────────────────────────╮\r\n';
-            content += '\x1b[33m    │  \x1b[36m*\x1b[32m+\x1b[35m#\x1b[31mo \x1b[1;37mDOM Terminal Ready! \x1b[31mo\x1b[35m#\x1b[32m+\x1b[36m*\x1b[33m  │\r\n';
+            content += '\x1b[33m    │  \x1b[36m*\x1b[32m+\x1b[35m#\x1b[31mo \x1b[1;37mDOM Terminal Ready! \x1b[31mo\x1b[35m#\x1b[32m+\x1b[36m*\x1b[33m     │\r\n';
             content += '\x1b[33m    ╰────────────────────────────────────╯\x1b[0m\r\n\r\n';
 
             // Interactive instructions
@@ -400,7 +400,7 @@
             content += '\x1b[37m╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\x1b[0m\r\n';
 
             terminal.write(content);
-            
+
             // Scroll to bottom after content is written
             setTimeout(() => {
                 if (terminal.terminal && terminal.terminal.buffer) {
@@ -410,7 +410,7 @@
                     terminal.renderBuffer();
                 }
             }, 100);
-            
+
             console.log('Mock data generation completed!');
         }
 
