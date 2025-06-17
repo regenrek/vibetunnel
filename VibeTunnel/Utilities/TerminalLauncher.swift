@@ -41,7 +41,7 @@ enum Terminal: String, CaseIterable {
     case tabby = "Tabby"
     case alacritty = "Alacritty"
     case hyper = "Hyper"
-    case prompt = "Prompt"
+    case wezterm = "WezTerm"
 
     var bundleIdentifier: String {
         switch self {
@@ -59,8 +59,8 @@ enum Terminal: String, CaseIterable {
             "org.alacritty"
         case .hyper:
             "co.zeit.hyper"
-        case .prompt:
-            "com.panic.prompt.3"
+        case .wezterm:
+            "com.github.wez.wezterm"
         }
     }
     
@@ -74,7 +74,7 @@ enum Terminal: String, CaseIterable {
         case .warp: return 70
         case .hyper: return 60
         case .tabby: return 50
-        case .prompt: return 85  // High priority SSH client
+        case .wezterm: return 95  // Excellent CLI support
         }
     }
 
@@ -140,9 +140,25 @@ enum Terminal: String, CaseIterable {
             // These terminals require launching first, then typing the command
             return .processWithTyping()
             
-        case .prompt:
-            // Prompt is an SSH client, use special handling
-            return .processWithTyping(delaySeconds: 1.0)  // Longer delay for Prompt
+        case .wezterm:
+            // WezTerm has excellent CLI support with the 'start' subcommand
+            // Use open -b with --args to pass arguments to wezterm
+            if let workingDirectory = config.workingDirectory {
+                return .processWithArgs(args: [
+                    "--args",
+                    "start",
+                    "--cwd", workingDirectory,
+                    "--",
+                    "sh", "-c", config.command
+                ])
+            } else {
+                return .processWithArgs(args: [
+                    "--args",
+                    "start",
+                    "--",
+                    "sh", "-c", config.command
+                ])
+            }
         }
     }
     
@@ -156,7 +172,7 @@ enum Terminal: String, CaseIterable {
         case .tabby: return "Tabby"
         case .alacritty: return "Alacritty"
         case .hyper: return "Hyper"
-        case .prompt: return "Prompt"
+        case .wezterm: return "WezTerm"
         }
     }
 }
