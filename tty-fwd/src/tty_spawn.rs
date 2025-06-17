@@ -647,21 +647,13 @@ fn forward_and_log(
     _flush: bool,
 ) -> Result<(), Errno> {
     if let Some(writer) = stream_writer {
-        let time = writer.elapsed_time();
-        let data = String::from_utf8_lossy(buf).to_string();
-        let event = AsciinemaEvent {
-            time,
-            event_type: AsciinemaEventType::Output,
-            data,
-        };
         writer
-            .write_event(event)
+            .write_output(buf)
             .map_err(|x| match x.raw_os_error() {
                 Some(errno) => Errno::from_raw(errno),
                 None => Errno::EINVAL,
             })?;
     }
-
     write_all(fd, buf)?;
     Ok(())
 }

@@ -160,6 +160,17 @@ impl StreamWriter {
         Self::new(file, header)
     }
 
+    pub fn write_output(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+        let time = self.elapsed_time();
+        let data = String::from_utf8_lossy(buf).to_string();
+        let event = AsciinemaEvent {
+            time,
+            event_type: AsciinemaEventType::Output,
+            data,
+        };
+        self.write_event(event)
+    }
+
     pub fn write_event(&mut self, event: AsciinemaEvent) -> Result<(), std::io::Error> {
         use std::io::Write;
 
