@@ -165,6 +165,7 @@ app.get('/api/sessions', async (req, res) => {
         id: sessionId,
         command: sessionInfo.cmdline.join(' '),
         workingDir: sessionInfo.cwd,
+        name: sessionInfo.name,
         status: sessionInfo.status,
         exitCode: sessionInfo.exit_code,
         startedAt: sessionInfo.started_at,
@@ -188,13 +189,13 @@ app.get('/api/sessions', async (req, res) => {
 // Create new session
 app.post('/api/sessions', async (req, res) => {
   try {
-    const { command, workingDir } = req.body;
+    const { command, workingDir, name } = req.body;
 
     if (!command || !Array.isArray(command) || command.length === 0) {
       return res.status(400).json({ error: 'Command array is required and cannot be empty' });
     }
 
-    const sessionName = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionName = name || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const cwd = resolvePath(workingDir, process.cwd());
 
     const args = [

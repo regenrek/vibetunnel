@@ -8,6 +8,7 @@ export interface Session {
   id: string;
   command: string;
   workingDir: string;
+  name?: string;
   status: 'running' | 'exited';
   exitCode?: number;
   startedAt: string;

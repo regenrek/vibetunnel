@@ -5,6 +5,7 @@ import './file-browser.js';
 export interface SessionCreateData {
   command: string[];
   workingDir: string;
+  name?: string;
 }
 
 @customElement('session-create-form')
@@ -16,6 +17,7 @@ export class SessionCreateForm extends LitElement {
 
   @property({ type: String }) workingDir = '~/';
   @property({ type: String }) command = 'zsh';
+  @property({ type: String }) sessionName = '';
   @property({ type: Boolean }) disabled = false;
   @property({ type: Boolean }) visible = false;
 
@@ -95,6 +97,11 @@ export class SessionCreateForm extends LitElement {
     this.command = input.value;
   }
 
+  private handleSessionNameChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    this.sessionName = input.value;
+  }
+
   private handleBrowse() {
     this.showFileBrowser = true;
   }
@@ -125,6 +132,11 @@ export class SessionCreateForm extends LitElement {
       workingDir: this.workingDir.trim(),
     };
 
+    // Add session name if provided
+    if (this.sessionName.trim()) {
+      sessionData.name = this.sessionName.trim();
+    }
+
     try {
       const response = await fetch('/api/sessions', {
         method: 'POST',
@@ -135,10 +147,11 @@ export class SessionCreateForm extends LitElement {
       if (response.ok) {
         const result = await response.json();
 
-        // Save to localStorage before clearing the command
+        // Save to localStorage before clearing the fields
         this.saveToLocalStorage();
 
         this.command = ''; // Clear command on success
+        this.sessionName = ''; // Clear session name on success
         this.dispatchEvent(
           new CustomEvent('session-created', {
             detail: result,
@@ -225,6 +238,18 @@ export class SessionCreateForm extends LitElement {
           </div>
 
           <div class="p-4">
+            <div class="mb-4">
+              <div class="text-vs-text mb-2">Session Name (optional):</div>
+              <input
+                type="text"
+                class="w-full bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
+                .value=${this.sessionName}
+                @input=${this.handleSessionNameChange}
+                placeholder="My Session"
+                ?disabled=${this.disabled || this.isCreating}
+              />
+            </div>
+
             <div class="mb-4">
               <div class="text-vs-text mb-2">Working Directory:</div>
               <div class="flex gap-4">

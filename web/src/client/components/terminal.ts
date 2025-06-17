@@ -145,6 +145,8 @@ export class Terminal extends LitElement {
   }
 
   private measureCharacterWidth(): number {
+    if (!this.container) return 8;
+
     // Create temporary element with same styles as terminal content, attached to container
     const measureEl = document.createElement('div');
     measureEl.className = 'terminal-line';
@@ -160,10 +162,10 @@ export class Terminal extends LitElement {
     measureEl.textContent = testString.repeat(repeatCount).substring(0, this.cols);
 
     // Attach to container so it inherits all the proper CSS context
-    this.container!.appendChild(measureEl);
+    this.container.appendChild(measureEl);
     const measureRect = measureEl.getBoundingClientRect();
     const actualCharWidth = measureRect.width / this.cols;
-    this.container!.removeChild(measureEl);
+    this.container.removeChild(measureEl);
 
     return actualCharWidth;
   }
@@ -276,12 +278,12 @@ export class Terminal extends LitElement {
       this.touchScrollAccumulator = 0; // Reset accumulator on new pointer down
 
       // Capture the pointer so we continue to receive events even if DOM rebuilds
-      this.container!.setPointerCapture(e.pointerId);
+      this.container?.setPointerCapture(e.pointerId);
     };
 
     const handlePointerMove = (e: PointerEvent) => {
       // Only handle touch pointers that we have captured
-      if (e.pointerType !== 'touch' || !this.container!.hasPointerCapture(e.pointerId)) return;
+      if (e.pointerType !== 'touch' || !this.container?.hasPointerCapture(e.pointerId)) return;
 
       const currentY = e.clientY;
       const deltaY = lastY - currentY; // Change since last move, not since start
@@ -323,7 +325,7 @@ export class Terminal extends LitElement {
       this.isTouchActive = false;
 
       // Release pointer capture
-      this.container!.releasePointerCapture(e.pointerId);
+      this.container?.releasePointerCapture(e.pointerId);
 
       // Add momentum scrolling if needed (only after touch scrolling)
       if (isScrolling && Math.abs(velocity) > 0.5) {
@@ -338,7 +340,7 @@ export class Terminal extends LitElement {
       this.isTouchActive = false;
 
       // Release pointer capture
-      this.container!.releasePointerCapture(e.pointerId);
+      this.container?.releasePointerCapture(e.pointerId);
     };
 
     // Attach pointer events to the container (touch only)

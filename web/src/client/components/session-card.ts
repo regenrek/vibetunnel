@@ -6,6 +6,7 @@ export interface Session {
   id: string;
   command: string;
   workingDir: string;
+  name?: string;
   status: 'running' | 'exited';
   exitCode?: number;
   startedAt: string;
@@ -194,7 +195,9 @@ export class SessionCard extends LitElement {
         <!-- Compact Header -->
         <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
           <div class="text-vs-text text-xs font-mono pr-2 flex-1 min-w-0">
-            <div class="truncate" title="${this.session.command}">${this.session.command}</div>
+            <div class="truncate" title="${this.session.name || this.session.command}">
+              ${this.session.name || this.session.command}
+            </div>
           </div>
           ${this.session.status === 'running'
             ? html`

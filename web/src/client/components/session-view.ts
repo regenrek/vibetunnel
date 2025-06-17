@@ -709,9 +709,9 @@ export class SessionView extends LitElement {
             <div class="text-vs-text min-w-0 flex-1 overflow-hidden">
               <div
                 class="text-vs-accent text-xs sm:text-sm overflow-x-auto scrollbar-thin scrollbar-thumb-vs-border scrollbar-track-transparent whitespace-nowrap"
-                title="${this.session.command}"
+                title="${this.session.name || this.session.command}"
               >
-                ${this.session.command}
+                ${this.session.name || this.session.command}
               </div>
               <div
                 class="text-vs-muted text-xs overflow-x-auto scrollbar-thin scrollbar-thumb-vs-border scrollbar-track-transparent whitespace-nowrap"
