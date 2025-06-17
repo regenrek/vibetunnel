@@ -35,6 +35,7 @@ xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
 *.xcscheme
+!xcshareddata/xcschemes/*.xcscheme
 
 # Swift Package Manager
 .build/
