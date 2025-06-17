@@ -3,8 +3,9 @@ import SwiftUI
 /// Welcome onboarding view for first-time users.
 ///
 /// Presents a multi-page onboarding experience that introduces VibeTunnel's features,
-/// guides through CLI installation, and explains dashboard security best practices.
-/// The view tracks completion state to ensure it's only shown once.
+/// guides through CLI installation, requests AppleScript permissions, and explains 
+/// dashboard security best practices. The view tracks completion state to ensure 
+/// it's only shown once.
 struct WelcomeView: View {
     @State private var currentPage = 0
     @Environment(\.dismiss)
@@ -12,6 +13,7 @@ struct WelcomeView: View {
     @AppStorage("hasSeenWelcome")
     private var hasSeenWelcome = false
     @State private var cliInstaller = CLIInstaller()
+    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,14 +31,20 @@ struct WelcomeView: View {
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                 }
 
-                // Page 3: Protect Your Dashboard
+                // Page 3: Request Permissions
                 if currentPage == 2 {
+                    RequestPermissionsPageView()
+                        .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                }
+
+                // Page 4: Protect Your Dashboard
+                if currentPage == 3 {
                     ProtectDashboardPageView()
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                 }
 
-                // Page 4: Accessing Dashboard
-                if currentPage == 3 {
+                // Page 5: Accessing Dashboard
+                if currentPage == 4 {
                     AccessDashboardPageView()
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                 }
@@ -48,7 +56,7 @@ struct WelcomeView: View {
             VStack(spacing: 0) {
                 // Page indicators
                 HStack(spacing: 8) {
-                    ForEach(0..<4) { index in
+                    ForEach(0..<5) { index in
                         Button(action: {
                             withAnimation {
                                 currentPage = index
@@ -89,11 +97,11 @@ struct WelcomeView: View {
     }
 
     private var buttonTitle: String {
-        currentPage == 3 ? "Finish" : "Next"
+        currentPage == 4 ? "Finish" : "Next"
     }
 
     private func handleNextAction() {
-        if currentPage < 3 {
+        if currentPage < 4 {
             withAnimation {
                 currentPage += 1
             }
@@ -226,9 +234,71 @@ private struct VTCommandPageView: View {
     }
 }
 
+// MARK: - Request Permissions Page
+
+/// Third page requesting AppleScript automation permissions.
+private struct RequestPermissionsPageView: View {
+    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            // App icon
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
+                .resizable()
+                .frame(width: 156, height: 156)
+                .shadow(radius: 10)
+            
+            VStack(spacing: 16) {
+                Text("Request Permissions")
+                    .font(.largeTitle)
+                    .fontWeight(.semibold)
+                
+                Text(
+                    "VibeTunnel uses AppleScript to spawn a terminal when you create a new session in the dashboard."
+                )
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 480)
+                .fixedSize(horizontal: false, vertical: true)
+                
+                // Permission status and button
+                VStack(spacing: 12) {
+                    if permissionManager.hasPermission {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Permission granted")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.body)
+                    } else {
+                        Button("Request Permission") {
+                            permissionManager.requestPermission()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(permissionManager.isChecking)
+                        
+                        if permissionManager.isChecking {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+        .task {
+            await permissionManager.checkPermission()
+        }
+    }
+}
+
 // MARK: - Protect Dashboard Page
 
-/// Third page explaining dashboard security and access protection.
+/// Fourth page explaining dashboard security and access protection.
 private struct ProtectDashboardPageView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
@@ -353,7 +423,7 @@ private struct ProtectDashboardPageView: View {
 
 // MARK: - Access Dashboard Page
 
-/// Fourth page showing how to access the dashboard and ngrok integration.
+/// Fifth page showing how to access the dashboard and ngrok integration.
 private struct AccessDashboardPageView: View {
     @AppStorage("ngrokEnabled")
     private var ngrokEnabled = false
