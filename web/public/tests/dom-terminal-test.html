@@ -227,16 +227,6 @@
             content += 'Another long URL in middle of text:\r\n';
             content += 'Check out this amazing resource at https://very-long-domain-name.example.com/path/to/\r\n';
             content += 'some/deeply/nested/resource/with/query?param1=value1&param2=value2 for more details.\r\n\r\n';
-            
-            content += 'Multi-line strings:\r\n';
-            content += 'config = {\r\n';
-            content += '  "database_url": "postgresql://user:password@localhost:5432/mydb?sslmode=require&\r\n';
-            content += 'connection_timeout=30&pool_size=10",\r\n';
-            content += '  "api_key": `very-long-api-key-that-spans-multiple-lines-\r\n';
-            content += 'because-it-is-really-really-long-and-complex`,\r\n';
-            content += '  "message": \'This is a single quoted string that\r\n';
-            content += 'spans multiple lines for demonstration\'\r\n';
-            content += '}\r\n\r\n';
 
             // Separator
             content += '\x1b[90m' + '═'.repeat(100) + '\x1b[0m\r\n\r\n';
