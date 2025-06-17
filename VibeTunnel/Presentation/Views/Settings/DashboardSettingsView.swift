@@ -20,6 +20,8 @@ struct DashboardSettingsView: View {
     @State private var showPasswordFields = false
     @State private var passwordError: String?
     @State private var passwordSaved = false
+    
+    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
 
     @State private var ngrokAuthToken = ""
     @State private var ngrokStatus: NgrokTunnelStatus?
@@ -44,6 +46,8 @@ struct DashboardSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                PermissionsSection()
+                
                 SecuritySection(
                     passwordEnabled: $passwordEnabled,
                     password: $password,
@@ -817,6 +821,66 @@ private struct NgrokErrorView: View {
             Text(error)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Permissions Section
+
+private struct PermissionsSection: View {
+    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
+    
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Terminal Automation")
+                            .font(.body)
+                        Text("Required to spawn terminal sessions from the dashboard")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    if permissionManager.hasPermission {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Granted")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                    } else {
+                        Button("Accept Permission") {
+                            permissionManager.requestPermission()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(permissionManager.isChecking)
+                    }
+                }
+                
+                if permissionManager.isChecking {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Checking permissions...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text("Permissions")
+                .font(.headline)
+        } footer: {
+            Text("AppleScript permission is required to open terminal applications when creating new sessions.")
+                .font(.caption)
+        }
+        .task {
+            await permissionManager.checkPermission()
         }
     }
 }

@@ -103,6 +103,9 @@ struct AdvancedSettingsView: View {
 private struct TerminalPreferenceSection: View {
     @AppStorage("preferredTerminal") private var preferredTerminal = Terminal.terminal.rawValue
     @State private var terminalLauncher = TerminalLauncher.shared
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    @State private var errorTitle = "Terminal Launch Failed"
 
     var body: some View {
         Section {
@@ -139,7 +142,48 @@ private struct TerminalPreferenceSection: View {
                             do {
                                 try terminalLauncher.launchCommand("echo 'VibeTunnel Terminal Test: Success!'")
                             } catch {
+                                // Log the error
                                 print("Failed to launch terminal test: \(error)")
+                                
+                                // Set up alert content based on error type
+                                if let terminalError = error as? TerminalLauncherError {
+                                    switch terminalError {
+                                    case .appleScriptPermissionDenied:
+                                        errorTitle = "Permission Denied"
+                                        errorMessage = "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
+                                    case .terminalNotFound:
+                                        errorTitle = "Terminal Not Found"
+                                        errorMessage = "The selected terminal application could not be found. Please select a different terminal."
+                                    case .appleScriptExecutionFailed(let details, let errorCode):
+                                        if let code = errorCode {
+                                            switch code {
+                                            case -1_743:
+                                                errorTitle = "Permission Denied"
+                                                errorMessage = "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
+                                            case -1_728:
+                                                errorTitle = "Terminal Not Available"
+                                                errorMessage = "The terminal application is not running or cannot be controlled.\n\nDetails: \(details)"
+                                            case -1_708:
+                                                errorTitle = "Terminal Communication Error"
+                                                errorMessage = "The terminal did not respond to the command.\n\nDetails: \(details)"
+                                            default:
+                                                errorTitle = "Terminal Launch Failed"
+                                                errorMessage = "AppleScript error \(code): \(details)"
+                                            }
+                                        } else {
+                                            errorTitle = "Terminal Launch Failed"
+                                            errorMessage = "Failed to launch terminal: \(details)"
+                                        }
+                                    case .processLaunchFailed(let details):
+                                        errorTitle = "Process Launch Failed"
+                                        errorMessage = "Failed to start terminal process: \(details)"
+                                    }
+                                } else {
+                                    errorTitle = "Terminal Launch Failed"
+                                    errorMessage = error.localizedDescription
+                                }
+                                
+                                showingError = true
                             }
                         }
                     }
@@ -159,6 +203,18 @@ private struct TerminalPreferenceSection: View {
             .font(.caption)
             .frame(maxWidth: .infinity)
             .multilineTextAlignment(.center)
+        }
+        .alert(errorTitle, isPresented: $showingError) {
+            Button("OK") { }
+            if errorTitle == "Permission Denied" {
+                Button("Open System Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        } message: {
+            Text(errorMessage)
         }
     }
 }
