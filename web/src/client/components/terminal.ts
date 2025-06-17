@@ -2,7 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { Terminal as XtermTerminal, IBufferLine, IBufferCell } from '@xterm/xterm';
 
-@customElement('terminal')
+@customElement('vibe-terminal')
 export class Terminal extends LitElement {
   // Disable shadow DOM for Tailwind compatibility and native text selection
   createRenderRoot() {
