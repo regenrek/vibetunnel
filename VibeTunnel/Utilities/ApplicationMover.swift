@@ -323,15 +323,15 @@ final class ApplicationMover {
             // Use openURL instead of openApplication to avoid non-Sendable return type
             configuration.activates = true
             configuration.promptsUserIfNeeded = true
-            
-            workspace.open(appURL, configuration: configuration) { (app, error) in
+
+            workspace.open(appURL, configuration: configuration) { app, error in
                 Task { @MainActor in
-                    if let error = error {
+                    if let error {
                         self.logger.error("Failed to launch app from Applications: \(error)")
                         self.showLaunchError(error)
                     } else {
                         self.logger.info("Launched app from Applications, quitting current instance")
-                        
+
                         // Quit current instance after a short delay to ensure the new one starts
                         Task {
                             try? await Task.sleep(for: .milliseconds(500))
