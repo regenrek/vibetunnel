@@ -86,3 +86,15 @@ web/dist/**/*.js.map
 web/public/**/*.js
 web/public/**/*.js.map
 VibeTunnel/Resources/tty-fwd
+
+# Rust/Cargo
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# LLVM Profiling data
+*.profraw
+*.profdata
+default.profraw
+default.profdata
