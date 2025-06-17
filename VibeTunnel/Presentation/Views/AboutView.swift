@@ -193,6 +193,7 @@ struct InteractiveAppIcon: View {
         isHovering ? 8 : 4
     }
 
+    @MainActor
     private func openWebsite() {
         guard let url = URL(string: "https://vibetunnel.ai") else { return }
         NSWorkspace.shared.open(url)
