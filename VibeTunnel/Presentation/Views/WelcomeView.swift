@@ -255,7 +255,7 @@ private struct RequestPermissionsPageView: View {
                     .fontWeight(.semibold)
                 
                 Text(
-                    "VibeTunnel needs permissions to launch terminal sessions and send commands to certain terminals."
+                    "VibeTunnel needs AppleScript to launch and manage terminal sessions\nand accessibility to send commands to certain terminals."
                 )
                 .font(.body)
                 .foregroundColor(.secondary)
@@ -263,77 +263,41 @@ private struct RequestPermissionsPageView: View {
                 .frame(maxWidth: 480)
                 .fixedSize(horizontal: false, vertical: true)
                 
-                // Permissions list
-                VStack(spacing: 20) {
-                    // AppleScript permission
-                    VStack(spacing: 12) {
+                // Permissions buttons
+                VStack(spacing: 16) {
+                    // Automation permission
+                    if appleScriptManager.hasPermission {
                         HStack {
-                            Image(systemName: "applescript")
-                                .font(.title2)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Automation Permission")
-                                    .font(.headline)
-                                Text("Required to launch and control terminal applications")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Automation permission granted")
+                                .foregroundColor(.secondary)
                         }
-                        
-                        if appleScriptManager.hasPermission {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("Automation permission granted")
-                                    .foregroundColor(.secondary)
-                            }
-                            .font(.body)
-                        } else {
-                            Button("Grant Automation Permission") {
-                                appleScriptManager.requestPermission()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
+                        .font(.body)
+                    } else {
+                        Button("Grant Automation Permission") {
+                            appleScriptManager.requestPermission()
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
                     }
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
                     
                     // Accessibility permission
-                    VStack(spacing: 12) {
+                    if hasAccessibilityPermission {
                         HStack {
-                            Image(systemName: "accessibility")
-                                .font(.title2)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Accessibility Permission")
-                                    .font(.headline)
-                                Text("Required for terminals like Ghostty that need keystroke input")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Accessibility permission granted")
+                                .foregroundColor(.secondary)
                         }
-                        
-                        if hasAccessibilityPermission {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("Accessibility permission granted")
-                                    .foregroundColor(.secondary)
-                            }
-                            .font(.body)
-                        } else {
-                            Button("Grant Accessibility Permission") {
-                                AccessibilityPermissionManager.shared.requestPermission()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.large)
+                        .font(.body)
+                    } else {
+                        Button("Grant Accessibility Permission") {
+                            AccessibilityPermissionManager.shared.requestPermission()
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
                     }
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
                 }
             }
         }
