@@ -74,7 +74,7 @@ class ServerManager {
     private func setupObservers() {
         // Watch for server mode changes when the value actually changes
         Task { @MainActor in
-            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
+            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification).values {
                 await handleServerModeChange()
             }
         }

@@ -319,17 +319,28 @@ final class ApplicationMover {
         let appURL = URL(fileURLWithPath: newPath)
 
         Task { @MainActor in
-            do {
-                let configuration = NSWorkspace.OpenConfiguration()
-                try await workspace.openApplication(at: appURL, configuration: configuration)
-                logger.info("Launched app from Applications, quitting current instance")
-
-                // Quit current instance after a short delay to ensure the new one starts
-                try? await Task.sleep(for: .milliseconds(500))
-                NSApp.terminate(nil)
-            } catch {
-                logger.error("Failed to launch app from Applications: \(error)")
-                showLaunchError(error)
+            let configuration = NSWorkspace.OpenConfiguration()
+            // Use openURL instead of openApplication to avoid non-Sendable return type
+            configuration.activates = true
+            configuration.promptsUserIfNeeded = true
+            
+            workspace.open(appURL, configuration: configuration) { (app, error) in
+                Task { @MainActor in
+                    if let error = error {
+                        self.logger.error("Failed to launch app from Applications: \(error)")
+                        self.showLaunchError(error)
+                    } else {
+                        self.logger.info("Launched app from Applications, quitting current instance")
+                        
+                        // Quit current instance after a short delay to ensure the new one starts
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(500))
+                            await MainActor.run {
+                                NSApp.terminate(nil)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
