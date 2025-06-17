@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 
 /// Common interface for server implementations.
@@ -26,8 +25,8 @@ protocol ServerProtocol: AnyObject {
     /// Restart the server
     func restart() async throws
 
-    /// Publisher for streaming log messages
-    var logPublisher: AnyPublisher<ServerLogEntry, Never> { get }
+    /// Stream for receiving log messages
+    var logStream: AsyncStream<ServerLogEntry> { get }
 }
 
 /// Server mode options.

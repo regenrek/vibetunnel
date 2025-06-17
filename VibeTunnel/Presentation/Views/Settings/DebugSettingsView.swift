@@ -219,8 +219,11 @@ struct DebugSettingsView: View {
             UserDefaults.standard.synchronize()
 
             // Quit the app after a short delay to ensure the purge completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                NSApplication.shared.terminate(nil)
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                await MainActor.run {
+                    NSApplication.shared.terminate(nil)
+                }
             }
         }
     }

@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import Hummingbird
 import OSLog
@@ -13,7 +12,7 @@ import OSLog
 final class HummingbirdServer: ServerProtocol {
     private var tunnelServer: TunnelServer?
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "HummingbirdServer")
-    private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
+    private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
 
     var serverType: ServerMode { .hummingbird }
 
@@ -32,8 +31,14 @@ final class HummingbirdServer: ServerProtocol {
         }
     }
 
-    var logPublisher: AnyPublisher<ServerLogEntry, Never> {
-        logSubject.eraseToAnyPublisher()
+    let logStream: AsyncStream<ServerLogEntry>
+    
+    init() {
+        var localContinuation: AsyncStream<ServerLogEntry>.Continuation?
+        self.logStream = AsyncStream { continuation in
+            localContinuation = continuation
+        }
+        self.logContinuation = localContinuation
     }
 
     func start() async throws {
@@ -43,7 +48,7 @@ final class HummingbirdServer: ServerProtocol {
         }
 
         logger.info("Starting Hummingbird server on port \(self.port)")
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Initializing Hummingbird server...",
             source: .hummingbird
@@ -58,10 +63,10 @@ final class HummingbirdServer: ServerProtocol {
             try await server.start()
 
             logger.info("Hummingbird server started successfully")
-            logSubject.send(ServerLogEntry(level: .info, message: "Hummingbird server is ready", source: .hummingbird))
+            logContinuation?.yield(ServerLogEntry(level: .info, message: "Hummingbird server is ready", source: .hummingbird))
         } catch {
             logger.error("Failed to start Hummingbird server: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .error,
                 message: "Failed to start: \(error.localizedDescription)",
                 source: .hummingbird
@@ -77,7 +82,7 @@ final class HummingbirdServer: ServerProtocol {
         }
 
         logger.info("Stopping Hummingbird server")
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Shutting down Hummingbird server...",
             source: .hummingbird
@@ -88,14 +93,14 @@ final class HummingbirdServer: ServerProtocol {
             tunnelServer = nil
 
             logger.info("Hummingbird server stopped")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .info,
                 message: "Hummingbird server shutdown complete",
                 source: .hummingbird
             ))
         } catch {
             logger.error("Error stopping Hummingbird server: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .error,
                 message: "Error stopping: \(error.localizedDescription)",
                 source: .hummingbird
@@ -105,7 +110,7 @@ final class HummingbirdServer: ServerProtocol {
 
     func restart() async throws {
         logger.info("Restarting Hummingbird server")
-        logSubject.send(ServerLogEntry(level: .info, message: "Restarting server", source: .hummingbird))
+        logContinuation?.yield(ServerLogEntry(level: .info, message: "Restarting server", source: .hummingbird))
 
         await stop()
         try await start()

@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import Observation
 import OSLog
@@ -52,45 +51,33 @@ class ServerManager {
     private(set) var lastError: Error?
 
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "ServerManager")
-    private var cancellables = Set<AnyCancellable>()
-    private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
+    private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
+    private var serverLogTask: Task<Void, Never>?
+    private(set) var logStream: AsyncStream<ServerLogEntry>!
 
     var serverMode: ServerMode {
         get { ServerMode(rawValue: serverModeString) ?? .rust }
         set { serverModeString = newValue.rawValue }
     }
 
-    var logPublisher: AnyPublisher<ServerLogEntry, Never> {
-        logSubject.eraseToAnyPublisher()
-    }
-
-    /// Modern async stream for logs
-    var logStream: AsyncStream<ServerLogEntry> {
-        AsyncStream { continuation in
-            // Use logPublisher directly without storing the cancellable
-            Task { @MainActor in
-                for await entry in logPublisher.values {
-                    continuation.yield(entry)
-                }
-                continuation.finish()
-            }
-        }
-    }
-
     private init() {
+        setupLogStream()
         setupObservers()
+    }
+    
+    private func setupLogStream() {
+        logStream = AsyncStream { continuation in
+            self.logContinuation = continuation
+        }
     }
 
     private func setupObservers() {
         // Watch for server mode changes when the value actually changes
-        // Since we're using @AppStorage, we need to observe changes differently
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    await self?.handleServerModeChange()
-                }
+        Task { @MainActor in
+            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
+                await handleServerModeChange()
             }
-            .store(in: &cancellables)
+        }
     }
 
     /// Start the server with current configuration
@@ -105,7 +92,7 @@ class ServerManager {
             ServerMonitor.shared.isServerRunning = true
 
             // Log for clarity
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .info,
                 message: "\(serverMode.displayName) server already running on port \(port)",
                 source: serverMode
@@ -114,7 +101,7 @@ class ServerManager {
         }
 
         // Log that we're starting a server
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Starting \(serverMode.displayName) server on port \(port)...",
             source: serverMode
@@ -125,11 +112,11 @@ class ServerManager {
             server.port = port
 
             // Subscribe to server logs
-            server.logPublisher
-                .sink { [weak self] entry in
-                    self?.logSubject.send(entry)
+            serverLogTask = Task { [weak self] in
+                for await entry in server.logStream {
+                    self?.logContinuation?.yield(entry)
                 }
-                .store(in: &cancellables)
+            }
 
             try await server.start()
 
@@ -146,7 +133,7 @@ class ServerManager {
             await triggerInitialCleanup()
         } catch {
             logger.error("Failed to start server: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .error,
                 message: "Failed to start \(serverMode.displayName) server: \(error.localizedDescription)",
                 source: serverMode
@@ -176,18 +163,20 @@ class ServerManager {
         logger.info("Stopping \(serverType.displayName) server")
 
         // Log that we're stopping the server
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Stopping \(serverType.displayName) server...",
             source: serverType
         ))
 
         await server.stop()
+        serverLogTask?.cancel()
+        serverLogTask = nil
         currentServer = nil
         isRunning = false
 
         // Log that the server has stopped
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "\(serverType.displayName) server stopped",
             source: serverType
@@ -207,7 +196,7 @@ class ServerManager {
         defer { isRestarting = false }
 
         // Log that we're restarting
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Restarting server...",
             source: serverMode
@@ -228,17 +217,17 @@ class ServerManager {
         logger.info("Switching from \(oldMode.displayName) to \(mode.displayName)")
 
         // Log the mode switch with a clear separator
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "════════════════════════════════════════════════════════",
             source: oldMode
         ))
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Switching server mode: \(oldMode.displayName) → \(mode.displayName)",
             source: oldMode
         ))
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "════════════════════════════════════════════════════════",
             source: oldMode
@@ -259,17 +248,17 @@ class ServerManager {
         await start()
 
         // Log completion
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "════════════════════════════════════════════════════════",
             source: mode
         ))
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "Server mode switch completed successfully",
             source: mode
         ))
-        logSubject.send(ServerLogEntry(
+        logContinuation?.yield(ServerLogEntry(
             level: .info,
             message: "════════════════════════════════════════════════════════",
             source: mode
@@ -326,14 +315,14 @@ class ServerManager {
                        let cleanedCount = jsonData["cleaned_count"] as? Int
                     {
                         logger.info("Initial cleanup completed: cleaned \(cleanedCount) exited sessions")
-                        logSubject.send(ServerLogEntry(
+                        logContinuation?.yield(ServerLogEntry(
                             level: .info,
                             message: "Cleaned up \(cleanedCount) exited sessions on startup",
                             source: serverMode
                         ))
                     } else {
                         logger.info("Initial cleanup completed successfully")
-                        logSubject.send(ServerLogEntry(
+                        logContinuation?.yield(ServerLogEntry(
                             level: .info,
                             message: "Cleaned up exited sessions on startup",
                             source: serverMode
@@ -346,7 +335,7 @@ class ServerManager {
         } catch {
             // Log the error but don't fail startup
             logger.warning("Failed to trigger initial cleanup: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .warning,
                 message: "Could not clean up old sessions: \(error.localizedDescription)",
                 source: serverMode

@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import OSLog
 
@@ -27,7 +26,7 @@ final class RustServer: ServerProtocol {
     private var errorTask: Task<Void, Never>?
 
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "RustServer")
-    private let logSubject = PassthroughSubject<ServerLogEntry, Never>()
+    private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
     private let processQueue = DispatchQueue(label: "com.steipete.VibeTunnel.RustServer", qos: .userInitiated)
 
     /// Actor to handle process operations on background thread.
@@ -89,8 +88,14 @@ final class RustServer: ServerProtocol {
         }
     }
 
-    var logPublisher: AnyPublisher<ServerLogEntry, Never> {
-        logSubject.eraseToAnyPublisher()
+    let logStream: AsyncStream<ServerLogEntry>
+    
+    init() {
+        var localContinuation: AsyncStream<ServerLogEntry>.Continuation?
+        self.logStream = AsyncStream { continuation in
+            localContinuation = continuation
+        }
+        self.logContinuation = localContinuation
     }
 
     func start() async throws {
@@ -102,19 +107,19 @@ final class RustServer: ServerProtocol {
         guard !port.isEmpty else {
             let error = RustServerError.invalidPort
             logger.error("Port not configured")
-            logSubject.send(ServerLogEntry(level: .error, message: error.localizedDescription, source: .rust))
+            logContinuation?.yield(ServerLogEntry(level: .error, message: error.localizedDescription, source: .rust))
             throw error
         }
 
         logger.info("Starting Rust tty-fwd server on port \(self.port)")
-        logSubject.send(ServerLogEntry(level: .info, message: "Initializing Rust tty-fwd server...", source: .rust))
+        logContinuation?.yield(ServerLogEntry(level: .info, message: "Initializing Rust tty-fwd server...", source: .rust))
 
         // Get the tty-fwd binary path
         let binaryPath = Bundle.main.path(forResource: "tty-fwd", ofType: nil)
         guard let binaryPath else {
             let error = RustServerError.binaryNotFound
             logger.error("tty-fwd binary not found in bundle")
-            logSubject.send(ServerLogEntry(level: .error, message: error.localizedDescription, source: .rust))
+            logContinuation?.yield(ServerLogEntry(level: .error, message: error.localizedDescription, source: .rust))
             throw error
         }
 
@@ -217,7 +222,7 @@ final class RustServer: ServerProtocol {
                     let errorData = stderrPipe.fileHandleForReading.availableData
                     if !errorData.isEmpty, let errorOutput = String(data: errorData, encoding: .utf8) {
                         logger.error("Process stderr: \(errorOutput)")
-                        logSubject.send(ServerLogEntry(
+                        logContinuation?.yield(ServerLogEntry(
                             level: .error,
                             message: "Process error: \(errorOutput)",
                             source: .rust
@@ -229,15 +234,15 @@ final class RustServer: ServerProtocol {
             }
 
             logger.info("Rust server process started, performing health check...")
-            logSubject.send(ServerLogEntry(level: .info, message: "Performing health check...", source: .rust))
+            logContinuation?.yield(ServerLogEntry(level: .info, message: "Performing health check...", source: .rust))
 
             // Perform health check to ensure server is actually responding
             let isHealthy = await performHealthCheck(maxAttempts: 10, delaySeconds: 0.5)
 
             if isHealthy {
                 logger.info("Rust server started successfully and is responding")
-                logSubject.send(ServerLogEntry(level: .info, message: "Health check passed ✓", source: .rust))
-                logSubject.send(ServerLogEntry(level: .info, message: "Rust tty-fwd server is ready", source: .rust))
+                logContinuation?.yield(ServerLogEntry(level: .info, message: "Health check passed ✓", source: .rust))
+                logContinuation?.yield(ServerLogEntry(level: .info, message: "Rust tty-fwd server is ready", source: .rust))
 
                 // Monitor process termination with task context
                 Task {
@@ -250,7 +255,7 @@ final class RustServer: ServerProtocol {
             } else {
                 // Server process is running but not responding
                 logger.error("Rust server process started but is not responding to health checks")
-                logSubject.send(ServerLogEntry(
+                logContinuation?.yield(ServerLogEntry(
                     level: .error,
                     message: "Health check failed - server not responding",
                     source: .rust
@@ -268,7 +273,7 @@ final class RustServer: ServerProtocol {
         } catch {
             isRunning = false
             logger.error("Failed to start Rust server: \(error.localizedDescription)")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .error,
                 message: "Failed to start: \(error.localizedDescription)",
                 source: .rust
@@ -284,7 +289,7 @@ final class RustServer: ServerProtocol {
         }
 
         logger.info("Stopping Rust server")
-        logSubject.send(ServerLogEntry(level: .info, message: "Shutting down Rust tty-fwd server...", source: .rust))
+        logContinuation?.yield(ServerLogEntry(level: .info, message: "Shutting down Rust tty-fwd server...", source: .rust))
 
         // Cancel output monitoring tasks
         outputTask?.cancel()
@@ -302,7 +307,7 @@ final class RustServer: ServerProtocol {
             // Force kill if termination timeout
             process.interrupt()
             logger.warning("Force killed Rust server after timeout")
-            logSubject.send(ServerLogEntry(
+            logContinuation?.yield(ServerLogEntry(
                 level: .warning,
                 message: "Force killed server after timeout",
                 source: .rust
@@ -318,12 +323,12 @@ final class RustServer: ServerProtocol {
         isRunning = false
 
         logger.info("Rust server stopped")
-        logSubject.send(ServerLogEntry(level: .info, message: "Rust tty-fwd server shutdown complete", source: .rust))
+        logContinuation?.yield(ServerLogEntry(level: .info, message: "Rust tty-fwd server shutdown complete", source: .rust))
     }
 
     func restart() async throws {
         logger.info("Restarting Rust server")
-        logSubject.send(ServerLogEntry(level: .info, message: "Restarting server", source: .rust))
+        logContinuation?.yield(ServerLogEntry(level: .info, message: "Restarting server", source: .rust))
 
         await stop()
         try await start()
@@ -342,7 +347,7 @@ final class RustServer: ServerProtocol {
                 var request = URLRequest(url: healthURL)
                 request.timeoutInterval = 2.0
 
-                logSubject.send(ServerLogEntry(
+                logContinuation?.yield(ServerLogEntry(
                     level: .debug,
                     message: "Health check attempt \(attempt)/\(maxAttempts)...",
                     source: .rust
@@ -357,7 +362,7 @@ final class RustServer: ServerProtocol {
             } catch {
                 logger.debug("Health check attempt \(attempt) failed: \(error.localizedDescription)")
                 if attempt == maxAttempts {
-                    logSubject.send(ServerLogEntry(
+                    logContinuation?.yield(ServerLogEntry(
                         level: .warning,
                         message: "Health check failed after \(maxAttempts) attempts",
                         source: .rust
@@ -403,7 +408,7 @@ final class RustServer: ServerProtocol {
                                     Task { @MainActor [weak self] in
                                         guard let self else { return }
                                         let level = self.detectLogLevel(from: line)
-                                        self.logSubject.send(ServerLogEntry(level: level, message: line, source: .rust))
+                                        self.logContinuation?.yield(ServerLogEntry(level: level, message: line, source: .rust))
                                     }
                                 }
                             }
@@ -437,7 +442,7 @@ final class RustServer: ServerProtocol {
                                     }
                                     Task { @MainActor [weak self] in
                                         guard let self else { return }
-                                        self.logSubject.send(ServerLogEntry(
+                                        self.logContinuation?.yield(ServerLogEntry(
                                             level: .error,
                                             message: line,
                                             source: .rust
@@ -464,7 +469,7 @@ final class RustServer: ServerProtocol {
             // Unexpected termination
             let exitCode = process.terminationStatus
             self.logger.error("Rust server terminated unexpectedly with exit code: \(exitCode)")
-            self.logSubject.send(ServerLogEntry(
+            self.logContinuation?.yield(ServerLogEntry(
                 level: .error,
                 message: "Server terminated unexpectedly with exit code: \(exitCode)",
                 source: .rust
@@ -477,7 +482,7 @@ final class RustServer: ServerProtocol {
                 try? await Task.sleep(for: .seconds(2))
                 if self.process == nil { // Only restart if not manually stopped
                     self.logger.info("Auto-restarting Rust server after crash")
-                    self.logSubject.send(ServerLogEntry(
+                    self.logContinuation?.yield(ServerLogEntry(
                         level: .info,
                         message: "Auto-restarting server after crash",
                         source: .rust

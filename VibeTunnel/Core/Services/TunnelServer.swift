@@ -395,7 +395,7 @@ public final class TunnelServer {
             // Wait for the server to actually start listening
             var serverStarted = false
             for _ in 0..<10 { // Try for up to 1 second
-                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                try await Task.sleep(for: .milliseconds(100))
 
                 // Check if the server is actually listening
                 if await isServerListening(on: port) {
@@ -769,7 +769,7 @@ public final class TunnelServer {
                 // Wait up to 3 seconds for session ID
                 let maxAttempts = 30
                 for _ in 0..<maxAttempts {
-                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                    try await Task.sleep(for: .milliseconds(100))
 
                     let moreData = outputPipe.fileHandleForReading.availableData
                     if !moreData.isEmpty {
@@ -975,7 +975,7 @@ public final class TunnelServer {
             // Send heartbeat every 15 seconds to keep connection alive
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(nanoseconds: 15_000_000_000) // 15 seconds
+                    try await Task.sleep(for: .seconds(15))
 
                     // Send SSE comment as heartbeat (comments start with ':')
                     var heartbeat = ByteBuffer()

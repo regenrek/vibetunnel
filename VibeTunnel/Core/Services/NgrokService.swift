@@ -298,7 +298,7 @@ final class NgrokService: NgrokTunnelProtocol {
             }
 
             group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                try await Task.sleep(for: .seconds(seconds))
                 throw NgrokError.networkError("Operation timed out")
             }
 
