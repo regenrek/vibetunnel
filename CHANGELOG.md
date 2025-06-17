@@ -2,6 +2,18 @@
 
 All notable changes to VibeTunnel will be documented in this file.
 
+## [1.0.0-beta.2] - 2025-06-17
+
+### 🐛 Bug Fixes
+- Fixed version string display (now correctly shows beta version)
+- Fixed Sparkle build number in appcast for proper auto-updates
+- Removed development files from app bundle (app-config.plist, Local.xcconfig, test files)
+
+### 🔧 Improvements
+- Enhanced build process with automatic cleanup of unwanted files
+- Improved release script with comprehensive build artifact cleaning
+- Better version consistency across all components
+
 ## [1.0.0-beta.1] - 2025-06-17
 
 ### 🎉 First Public Beta Release

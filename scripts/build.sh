@@ -140,6 +140,13 @@ if [[ "$CONFIGURATION" == "Release" ]]; then
     fi
 fi
 
+# Clean up unwanted files from the bundle
+echo "Cleaning up unwanted files from bundle..."
+rm -f "$APP_PATH/Contents/Resources/app-config.plist"
+rm -f "$APP_PATH/Contents/Resources/Local.xcconfig"
+rm -rf "$APP_PATH/Contents/Resources/web/public/tests"
+echo "✓ Removed development files from bundle"
+
 # Sign the app if requested
 if [[ "$SIGN_APP" == true ]]; then
     if [[ -n "${MACOS_SIGNING_CERTIFICATE_P12_BASE64:-}" ]]; then

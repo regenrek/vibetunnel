@@ -151,6 +151,10 @@ echo ""
 # Step 2: Clean build directory
 echo -e "${BLUE}📋 Step 2/7: Cleaning build directory...${NC}"
 rm -rf "$PROJECT_ROOT/build"
+rm -rf "$PROJECT_ROOT/DerivedData"
+rm -rf "$PROJECT_ROOT/.build"
+rm -rf ~/Library/Developer/Xcode/DerivedData/VibeTunnel-*
+echo "✓ Cleaned all build artifacts"
 
 # Check if Xcode project was modified and commit if needed
 if ! git diff --quiet "$PROJECT_ROOT/VibeTunnel.xcodeproj/project.pbxproj"; then
