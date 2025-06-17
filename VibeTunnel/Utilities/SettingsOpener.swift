@@ -1,4 +1,4 @@
-import AppKit
+@preconcurrency import AppKit
 import Foundation
 import SwiftUI
 
@@ -15,34 +15,120 @@ enum SettingsOpener {
     /// Opens the Settings window using the environment action via notification
     /// This is needed for cases where we can't use SettingsLink (e.g., from notifications)
     static func openSettings() {
-        // Temporarily switch to regular app to ensure window comes to front
+        // Use modal approach for guaranteed focus
+        openSettingsWithModal()
+    }
+    
+    /// Opens settings window using modal session for guaranteed focus
+    static func openSettingsWithModal() {
+        // Store current activation policy
         let currentPolicy = NSApp.activationPolicy()
+        
+        // Switch to regular app mode
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-
-        // Try the direct menu item approach first (from VibeMeter)
-        if openSettingsViaMenuItem() {
-            // Successfully opened via menu item
-            Task {
-                try? await Task.sleep(for: .milliseconds(100))
-                focusSettingsWindow()
-
-                // Restore activation policy after a delay
-                try? await Task.sleep(for: .milliseconds(200))
-                NSApp.setActivationPolicy(currentPolicy)
-            }
-        } else {
+        
+        // Try the direct menu item approach first
+        let openedViaMenu = openSettingsViaMenuItem()
+        
+        if !openedViaMenu {
             // Fallback to notification approach
             NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
-
-            Task {
-                try? await Task.sleep(for: .milliseconds(150))
-                focusSettingsWindow()
-
-                // Restore activation policy after a delay
-                try? await Task.sleep(for: .milliseconds(200))
+        }
+        
+        // Wait for window to appear and run modal session
+        Task { @MainActor in
+            // Give time for window creation
+            try? await Task.sleep(for: .milliseconds(200))
+            
+            if let settingsWindow = findSettingsWindow() {
+                // Configure window for modal presentation
+                settingsWindow.center()
+                settingsWindow.makeKeyAndOrderFront(nil)
+                settingsWindow.level = .modalPanel
+                settingsWindow.collectionBehavior = [.moveToActiveSpace, .canJoinAllSpaces]
+                
+                // Begin modal session
+                let session = NSApp.beginModalSession(for: settingsWindow)
+                
+                // Set up observer to end modal when window closes
+                let closeObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.willCloseNotification,
+                    object: settingsWindow,
+                    queue: .main
+                ) { _ in
+                    Task { @MainActor in
+                        NSApp.endModalSession(session)
+                        settingsWindow.level = .normal
+                        settingsWindow.collectionBehavior = []
+                        
+                        // Restore activation policy
+                        NSApp.setActivationPolicy(currentPolicy)
+                    }
+                }
+                
+                // Run modal loop in background to not block
+                Task { @MainActor in
+                    // Small initial delay
+                    try? await Task.sleep(for: .milliseconds(100))
+                    
+                    while settingsWindow.isVisible {
+                        // Run one iteration of the modal session
+                        let result = NSApp.runModalSession(session)
+                        if result != .continue {
+                            break
+                        }
+                        
+                        // Small delay to prevent busy loop
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
+                    
+                    // Clean up when loop exits
+                    NSApp.endModalSession(session)
+                    settingsWindow.level = .normal
+                    settingsWindow.collectionBehavior = []
+                    NotificationCenter.default.removeObserver(closeObserver)
+                    
+                    // Restore activation policy if window closed
+                    if !settingsWindow.isVisible {
+                        NSApp.setActivationPolicy(currentPolicy)
+                    }
+                }
+                
+                // Ensure window is properly focused after modal setup
+                settingsWindow.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+                
+            } else {
+                // No window found, restore activation policy
                 NSApp.setActivationPolicy(currentPolicy)
             }
+        }
+    }
+    
+    /// Finds the settings window using multiple detection methods
+    private static func findSettingsWindow() -> NSWindow? {
+        // Try multiple methods to find the window
+        return NSApp.windows.first { window in
+            // Check by identifier
+            if window.identifier?.rawValue == settingsWindowIdentifier {
+                return true
+            }
+            
+            // Check by title
+            if window.isVisible && window.styleMask.contains(.titled) &&
+               (window.title.localizedCaseInsensitiveContains("settings") ||
+                window.title.localizedCaseInsensitiveContains("preferences")) {
+                return true
+            }
+            
+            // Check by content view controller type
+            if let contentVC = window.contentViewController,
+               String(describing: type(of: contentVC)).contains("Settings") {
+                return true
+            }
+            
+            return false
         }
     }
 
@@ -129,11 +215,12 @@ enum SettingsOpener {
 
     /// Opens the Settings window and navigates to a specific tab
     static func openSettingsTab(_ tab: SettingsTab) {
-        openSettings()
+        // Use modal approach for guaranteed focus
+        openSettingsWithModal()
 
         Task {
             // Small delay to ensure the settings window is fully initialized
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(300))
             NotificationCenter.default.post(
                 name: .openSettingsTab,
                 object: tab
