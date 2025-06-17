@@ -18,7 +18,16 @@ struct TerminalLaunchConfig {
     }
     
     var escapedCommand: String {
-        command.replacingOccurrences(of: "\"", with: "\\\"")
+        command
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+    
+    var appleScriptEscapedCommand: String {
+        fullCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "'", with: "\\'")
     }
 }
 
@@ -100,6 +109,23 @@ enum Terminal: String, CaseIterable {
         allCases.filter(\.isInstalled)
     }
     
+    /// Generate AppleScript for terminals that use keyboard input
+    private func keystrokeAppleScript(for config: TerminalLaunchConfig) -> String {
+        """
+        tell application "\(processName)"
+            activate
+            tell application "System Events"
+                keystroke "n" using {command down}
+            end tell
+            delay 0.2
+            tell application "System Events"
+                keystroke "\(config.appleScriptEscapedCommand)"
+                key code 36
+            end tell
+        end tell
+        """
+    }
+    
     /// Determine the launch method for this terminal
     func launchMethod(for config: TerminalLaunchConfig) -> TerminalLaunchMethod {
         switch self {
@@ -112,7 +138,7 @@ enum Terminal: String, CaseIterable {
                         keystroke "n" using {command down}
                     end tell
                     delay 0.1
-                    do script "\(config.fullCommand)" in front window
+                    do script "\(config.command)" in front window
                 end tell
                 """)
             
@@ -130,18 +156,15 @@ enum Terminal: String, CaseIterable {
                         activate
                         create window with default profile
                         tell current session of current window
-                            write text "\(config.fullCommand)"
+                            write text "\(config.command)"
                         end tell
                     end tell
                     """)
             }
             
         case .ghostty:
-            var args = ["--args", "-e", config.command]
-            if let workingDirectory = config.workingDirectory {
-                args = ["--args", "--working-directory", workingDirectory, "-e", config.command]
-            }
-            return .processWithArgs(args: args)
+            // Ghostty requires AppleScript for command execution
+            return .appleScript(script: keystrokeAppleScript(for: config))
             
         case .alacritty:
             var args = ["--args", "-e", config.command]
@@ -151,38 +174,25 @@ enum Terminal: String, CaseIterable {
             return .processWithArgs(args: args)
             
         case .warp:
-            // Warp supports URL scheme for directory opening
-            if let workingDirectory = config.workingDirectory,
-               let encoded = workingDirectory.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                // Open Warp at the directory using URL scheme
-                let urlString = "warp://action/new_window?path=\(encoded)"
-                return .processWithArgs(args: [urlString])
-                // Note: Still need to type command after opening
-            }
-            return .processWithTyping()
+            // Warp requires AppleScript for command execution
+            return .appleScript(script: keystrokeAppleScript(for: config))
             
-        case .tabby, .hyper:
-            // These terminals have limited CLI support
+        case .hyper:
+            // Hyper requires AppleScript for command execution
+            return .appleScript(script: keystrokeAppleScript(for: config))
+            
+        case .tabby:
+            // Tabby has limited CLI support
             return .processWithTyping()
             
         case .wezterm:
             // WezTerm has excellent CLI support with the 'start' subcommand
+            var args = ["--args", "start"]
             if let workingDirectory = config.workingDirectory {
-                return .processWithArgs(args: [
-                    "--args",
-                    "start",
-                    "--cwd", workingDirectory,
-                    "--",
-                    "sh", "-c", config.command
-                ])
-            } else {
-                return .processWithArgs(args: [
-                    "--args",
-                    "start",
-                    "--",
-                    "sh", "-c", config.command
-                ])
+                args += ["--cwd", workingDirectory]
             }
+            args += ["--", "sh", "-c", config.command]
+            return .processWithArgs(args: args)
         }
     }
     
@@ -326,21 +336,8 @@ final class TerminalLauncher {
             // Give the terminal time to start
             Thread.sleep(forTimeInterval: delay)
             
-            // Type the command with new window creation
-            let typeScript = """
-            tell application "System Events"
-                tell process "\(config.terminal.processName)"
-                    set frontmost to true
-                    -- Create new window with Cmd+N
-                    keystroke "n" using {command down}
-                    delay 0.2
-                    -- Type the command
-                    keystroke "\(config.fullCommand)"
-                    key code 36
-                end tell
-            end tell
-            """
-            try executeAppleScript(typeScript)
+            // Use the same keystroke pattern as other terminals
+            try executeAppleScript(config.terminal.keystrokeAppleScript(for: config))
         }
     }
     

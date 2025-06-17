@@ -31,6 +31,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut serve_address = None::<String>;
     let mut static_path = None::<String>;
     let mut password = None::<String>;
+    let mut vibetunnel_path = None::<String>;
     let mut cmdline = Vec::<OsString>::new();
 
     while let Some(param) = parser.param()? {
@@ -94,6 +95,9 @@ fn main() -> Result<(), anyhow::Error> {
             p if p.is_long("password") => {
                 password = Some(parser.value()?);
             }
+            p if p.is_long("vibetunnel-path") => {
+                vibetunnel_path = Some(parser.value()?);
+            }
             p if p.is_pos() => {
                 cmdline.push(parser.value()?);
             }
@@ -124,6 +128,7 @@ fn main() -> Result<(), anyhow::Error> {
                     "  --static-path <path>    Path to static files directory for HTTP server"
                 );
                 println!("  --password <password>   Enable basic auth with random username and specified password");
+                println!("  --vibetunnel-path <path> Path to VibeTunnel executable (for terminal spawning)");
                 println!("  --spawn-terminal <app>  Spawn command in a new terminal window (supports Terminal.app, Ghostty.app)");
                 println!("  --help                  Show this help message");
                 return Ok(());
@@ -197,7 +202,7 @@ fn main() -> Result<(), anyhow::Error> {
             std::process::exit(0);
         })
         .unwrap();
-        return crate::api_server::start_server(&addr, control_path, static_path, password);
+        return crate::api_server::start_server(&addr, control_path, static_path, password, vibetunnel_path);
     }
 
     // Spawn command

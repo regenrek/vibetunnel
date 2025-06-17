@@ -34,9 +34,14 @@ struct VibeTunnelApp: App {
         do {
             let params = try JSONDecoder().decode(SpawnTerminalParams.self, from: data)
             
-            // Since we're in a command-line context and need to exit immediately,
-            // we'll run this synchronously on the main thread
-            DispatchQueue.main.sync {
+            // Initialize the app environment minimally for CLI usage
+            NSApplication.shared.setActivationPolicy(.accessory)
+            
+            // Use async approach with run loop to handle CLI invocation
+            let semaphore = DispatchSemaphore(value: 0)
+            var launchError: Error?
+            
+            DispatchQueue.main.async {
                 do {
                     try TerminalLauncher.shared.launchTerminalSession(
                         workingDirectory: params.workingDir,
@@ -45,9 +50,25 @@ struct VibeTunnelApp: App {
                     )
                     print("Terminal spawned successfully for session: \(params.sessionId)")
                 } catch {
+                    launchError = error
                     print("Error spawning terminal: \(error)")
-                    exit(1)
                 }
+                semaphore.signal()
+            }
+            
+            // Wait for completion with timeout
+            let timeout = DispatchTime.now() + .seconds(5)
+            let result = semaphore.wait(timeout: timeout)
+            
+            if result == .timedOut {
+                print("Warning: Terminal spawn operation timed out")
+                exit(0) // Still exit successfully as the terminal may have been spawned
+            }
+            
+            if launchError != nil {
+                exit(1)
+            } else {
+                exit(0) // Exit successfully after spawning terminal
             }
         } catch {
             print("Error parsing spawn-terminal parameters: \(error)")
