@@ -186,6 +186,8 @@ export class DomTerminal extends LitElement {
     let pointerStartY = 0;
     let lastY = 0;
     let isScrolling = false;
+    let velocity = 0;
+    let lastPointerTime = 0;
 
     const handlePointerDown = (e: PointerEvent) => {
       // Only handle touch pointers, not mouse
@@ -195,18 +197,13 @@ export class DomTerminal extends LitElement {
       isScrolling = false;
       pointerStartY = e.clientY;
       lastY = e.clientY;
+      velocity = 0;
+      lastPointerTime = Date.now();
       this.touchScrollAccumulator = 0; // Reset accumulator on new pointer down
       
       // Capture the pointer so we continue to receive events even if DOM rebuilds
       this.container!.setPointerCapture(e.pointerId);
 
-      console.log('PointerDown:', {
-        clientY: e.clientY,
-        pointerStartY,
-        pointerId: e.pointerId,
-        pointerType: e.pointerType,
-        accumulator: this.touchScrollAccumulator
-      });
     };
 
     const handlePointerMove = (e: PointerEvent) => {
@@ -215,6 +212,7 @@ export class DomTerminal extends LitElement {
       
       const currentY = e.clientY;
       const deltaY = lastY - currentY; // Change since last move, not since start
+      const currentTime = Date.now();
       
       // Start scrolling if we've moved more than a few pixels
       if (!isScrolling && Math.abs(currentY - pointerStartY) > 5) {
@@ -223,6 +221,13 @@ export class DomTerminal extends LitElement {
       
       if (!isScrolling) return;
 
+      // Calculate velocity for momentum (pixels per millisecond, recent movement only)
+      const timeDelta = currentTime - lastPointerTime;
+      if (timeDelta > 0) {
+        velocity = deltaY / timeDelta; // Use recent deltaY, not total
+      }
+      lastPointerTime = currentTime;
+
       // Accumulate pointer scroll delta for smooth scrolling with small movements
       const prevAccumulator = this.touchScrollAccumulator;
       this.touchScrollAccumulator += deltaY;
@@ -230,28 +235,11 @@ export class DomTerminal extends LitElement {
       const lineHeight = this.fontSize * 1.2;
       const deltaLines = Math.trunc(this.touchScrollAccumulator / lineHeight);
 
-      console.log('PointerMove:', {
-        currentY,
-        lastY,
-        deltaY,
-        prevAccumulator,
-        accumulator: this.touchScrollAccumulator,
-        lineHeight,
-        deltaLines,
-        willScroll: Math.abs(deltaLines) >= 1,
-        isScrolling,
-        pointerType: e.pointerType,
-        fontSize: this.fontSize
-      });
 
       if (Math.abs(deltaLines) >= 1) {
         this.scrollViewport(deltaLines);
         // Subtract the scrolled amount, keep remainder for next pointer move
         this.touchScrollAccumulator -= deltaLines * lineHeight;
-        console.log('PointerMove - Scrolled:', {
-          scrolledLines: deltaLines,
-          newAccumulator: this.touchScrollAccumulator
-        });
       }
 
       lastY = currentY; // Update for next move event
@@ -266,12 +254,11 @@ export class DomTerminal extends LitElement {
       // Release pointer capture
       this.container!.releasePointerCapture(e.pointerId);
       
-      console.log('PointerUp:', {
-        finalAccumulator: this.touchScrollAccumulator,
-        pointerId: e.pointerId,
-        pointerType: e.pointerType,
-        isScrolling
-      });
+
+      // Add momentum scrolling if needed (only after touch scrolling)
+      if (isScrolling && Math.abs(velocity) > 0.5) {
+        this.startMomentumScroll(velocity);
+      }
     };
 
     const handlePointerCancel = (e: PointerEvent) => {
@@ -283,11 +270,6 @@ export class DomTerminal extends LitElement {
       // Release pointer capture
       this.container!.releasePointerCapture(e.pointerId);
       
-      console.log('PointerCancel:', {
-        finalAccumulator: this.touchScrollAccumulator,
-        pointerId: e.pointerId,
-        pointerType: e.pointerType
-      });
     };
 
     // Attach pointer events to the container (touch only)
@@ -298,17 +280,35 @@ export class DomTerminal extends LitElement {
   }
 
   private startMomentumScroll(initialVelocity: number) {
-    let velocity = initialVelocity;
+    let velocity = initialVelocity * 0.8; // Scale down initial velocity for smoother feel
+    let accumulatedScroll = 0;
+    let frameCount = 0;
 
     const animate = () => {
-      if (Math.abs(velocity) < 0.01) return;
+      // Stop when velocity becomes very small
+      if (Math.abs(velocity) < 0.001) return;
 
-      const deltaLines = Math.round(velocity * 16); // 16ms frame time
-      if (Math.abs(deltaLines) > 0) {
+      frameCount++;
+      
+      // macOS-like deceleration curve - more natural feel
+      const friction = frameCount < 10 ? 0.98 : frameCount < 30 ? 0.96 : 0.92;
+      
+      // Convert velocity (pixels/ms) to pixels per frame
+      const pixelsPerFrame = velocity * 16; // 16ms frame time
+      accumulatedScroll += pixelsPerFrame;
+      
+      // Convert accumulated pixels to lines
+      const lineHeight = this.fontSize * 1.2;
+      const deltaLines = Math.trunc(accumulatedScroll / lineHeight);
+      
+      if (Math.abs(deltaLines) >= 1) {
         this.scrollViewport(deltaLines);
+        // Subtract the scrolled amount, keep remainder
+        accumulatedScroll -= deltaLines * lineHeight;
       }
 
-      velocity *= 0.95; // Friction
+      // Apply friction
+      velocity *= friction;
       requestAnimationFrame(animate);
     };
 
