@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
-use std::thread::JoinHandle;
-use std::{fmt, fs, thread};
+use std::{fmt, fs};
 
 use anyhow::Error;
 use jiff::Timestamp;
@@ -494,116 +493,113 @@ impl StreamParser {
         }
     }
 
-    pub fn start_streaming(&self, tx: mpsc::Sender<StreamEvent>) -> JoinHandle<()> {
-        let stream_path = self.stream_path.clone();
-        let start_time = self.start_time;
-
-        thread::spawn(move || {
-            // First send existing content
-            if let Ok(file) = fs::File::open(&stream_path) {
-                let reader = BufReader::new(file);
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        if let Ok(mut event) = StreamEvent::from_json_line(&line) {
-                            // Convert terminal events to instant playback (time = 0)
-                            if let StreamEvent::Terminal(ref mut term_event) = event {
-                                term_event.time = 0.0;
-                            }
-                            if tx.send(event).is_err() {
-                                return;
-                            }
+    pub fn start_streaming(&self, tx: mpsc::SyncSender<StreamEvent>) {
+        // First send existing content
+        if let Ok(file) = fs::File::open(&self.stream_path) {
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    if let Ok(mut event) = StreamEvent::from_json_line(&line) {
+                        // Convert terminal events to instant playback (time = 0)
+                        if let StreamEvent::Terminal(ref mut term_event) = event {
+                            term_event.time = 0.0;
+                        }
+                        if tx.send(event).is_err() {
+                            return;
                         }
                     }
                 }
             }
+        }
 
-            // Now stream new content using tail -f
-            match Command::new("tail")
-                .args(["-f", &stream_path])
-                .stdout(Stdio::piped())
-                .spawn()
-            {
-                Ok(mut child) => {
-                    if let Some(stdout) = child.stdout.take() {
-                        let reader = BufReader::new(stdout);
+        // Now stream new content using tail -f
+        match Command::new("tail")
+            .args(["-f", &self.stream_path])
+            .stdout(Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child) => {
+                if let Some(stdout) = child.stdout.take() {
+                    let reader = BufReader::new(stdout);
 
-                        for line in reader.lines() {
-                            match line {
-                                Ok(line) => {
-                                    if line.trim().is_empty() {
+                    for line in reader.lines() {
+                        match line {
+                            Ok(line) => {
+                                if line.trim().is_empty() {
+                                    continue;
+                                }
+
+                                if let Ok(mut event) = StreamEvent::from_json_line(&line) {
+                                    // Skip headers in tail output
+                                    if matches!(event, StreamEvent::Header(_)) {
                                         continue;
                                     }
 
-                                    if let Ok(mut event) = StreamEvent::from_json_line(&line) {
-                                        // Skip headers in tail output
-                                        if matches!(event, StreamEvent::Header(_)) {
-                                            continue;
-                                        }
-
-                                        // Convert terminal events to real-time streaming
-                                        if let StreamEvent::Terminal(ref mut term_event) = event {
-                                            let current_time = std::time::SystemTime::now()
-                                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                                .unwrap_or_default()
-                                                .as_secs_f64();
-                                            let stream_start_time = start_time
-                                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                                .unwrap_or_default()
-                                                .as_secs_f64();
-                                            term_event.time = current_time - stream_start_time;
-                                        }
-
-                                        if tx.send(event).is_err() {
-                                            break;
-                                        }
-                                    } else {
-                                        // Handle non-JSON as raw output
+                                    // Convert terminal events to real-time streaming
+                                    if let StreamEvent::Terminal(ref mut term_event) = event {
                                         let current_time = std::time::SystemTime::now()
                                             .duration_since(std::time::SystemTime::UNIX_EPOCH)
                                             .unwrap_or_default()
                                             .as_secs_f64();
-                                        let stream_start_time = start_time
+                                        let stream_start_time = self
+                                            .start_time
                                             .duration_since(std::time::SystemTime::UNIX_EPOCH)
                                             .unwrap_or_default()
                                             .as_secs_f64();
-
-                                        let event = StreamEvent::Terminal(AsciinemaEvent {
-                                            time: current_time - stream_start_time,
-                                            event_type: AsciinemaEventType::Output,
-                                            data: line,
-                                        });
-
-                                        if tx.send(event).is_err() {
-                                            break;
-                                        }
+                                        term_event.time = current_time - stream_start_time;
                                     }
-                                }
-                                Err(e) => {
-                                    let error_event = StreamEvent::Error {
-                                        message: format!("Error reading from tail: {}", e),
-                                    };
-                                    if tx.send(error_event).is_err() {
+
+                                    if tx.send(event).is_err() {
                                         break;
                                     }
+                                } else {
+                                    // Handle non-JSON as raw output
+                                    let current_time = std::time::SystemTime::now()
+                                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs_f64();
+                                    let stream_start_time = self
+                                        .start_time
+                                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs_f64();
+
+                                    let event = StreamEvent::Terminal(AsciinemaEvent {
+                                        time: current_time - stream_start_time,
+                                        event_type: AsciinemaEventType::Output,
+                                        data: line,
+                                    });
+
+                                    if tx.send(event).is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let error_event = StreamEvent::Error {
+                                    message: format!("Error reading from tail: {}", e),
+                                };
+                                if tx.send(error_event).is_err() {
                                     break;
                                 }
+                                break;
                             }
                         }
                     }
+                }
 
-                    let _ = child.kill();
-                }
-                Err(e) => {
-                    let error_event = StreamEvent::Error {
-                        message: format!("Failed to start tail command: {}", e),
-                    };
-                    let _ = tx.send(error_event);
-                }
+                let _ = child.kill();
             }
+            Err(e) => {
+                let error_event = StreamEvent::Error {
+                    message: format!("Failed to start tail command: {}", e),
+                };
+                let _ = tx.send(error_event);
+            }
+        }
 
-            // Send end marker
-            let _ = tx.send(StreamEvent::End);
-        })
+        // Send end marker
+        let _ = tx.send(StreamEvent::End);
     }
 
     pub fn create_default_header(

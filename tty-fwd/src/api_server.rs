@@ -992,10 +992,10 @@ fn handle_session_stream_direct(control_path: &Path, path: &str, req: &mut HttpR
 
     // Create stream parser and channel
     let parser = StreamParser::new(session_entry.stream_out.clone());
-    let (tx, rx) = mpsc::channel::<StreamEvent>();
+    let (tx, rx) = mpsc::sync_channel::<StreamEvent>(10);
 
     // Start the streaming parser in a separate thread
-    let _stream_handle = parser.start_streaming(tx);
+    let _stream_handle = std::thread::spawn(move || parser.start_streaming(tx));
 
     // Process events from the channel and send as SSE
     while let Ok(event) = rx.recv() {
