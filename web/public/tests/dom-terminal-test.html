@@ -93,8 +93,11 @@
             <button class="size-btn active" data-cols="120" data-rows="40">120x40</button>
             <button class="size-btn" data-cols="160" data-rows="50">160x50</button>
         </div>
+        <div style="padding: 8px; display: flex; gap: 8px; justify-content: center;">
+            <button id="fit-toggle-btn" class="size-btn">📐 Horizontal Fit: OFF</button>
+        </div>
         <div style="padding: 4px; text-align: center; color: #ccc; font-size: 10px;">
-            Try text selection, scrolling (wheel/touch), and different viewport sizes
+            Try text selection, scrolling (wheel/touch), different viewport sizes, and horizontal fitting
         </div>
     </header>
 
@@ -127,6 +130,7 @@
 
         let terminal = document.getElementById('main-terminal');
         setupSizeControls();
+        setupFitToggle();
         generateMockData();
 
         function generateMockData() {
@@ -415,6 +419,35 @@
             });
 
             console.log('Size controls setup complete - buttons will change viewport size and reflow existing content');
+        }
+
+        function setupFitToggle() {
+            const fitToggleBtn = document.getElementById('fit-toggle-btn');
+            let isHorizontalFit = false;
+
+            if (fitToggleBtn && terminal) {
+                fitToggleBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Toggle the horizontal fit mode
+                    isHorizontalFit = !isHorizontalFit;
+                    terminal.fitHorizontally = isHorizontalFit;
+
+                    // Update button text and appearance
+                    if (isHorizontalFit) {
+                        fitToggleBtn.textContent = '📐 Horizontal Fit: ON';
+                        fitToggleBtn.classList.add('active');
+                    } else {
+                        fitToggleBtn.textContent = '📐 Horizontal Fit: OFF';
+                        fitToggleBtn.classList.remove('active');
+                    }
+
+                    console.log(`Horizontal fit mode: ${isHorizontalFit ? 'ON' : 'OFF'}`);
+                });
+            }
+
+            console.log('Fit toggle setup complete - button will toggle horizontal fitting mode');
         }
     </script>
 </body>

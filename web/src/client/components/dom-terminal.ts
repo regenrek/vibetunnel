@@ -13,6 +13,9 @@ export class DomTerminal extends LitElement {
   @property({ type: Number }) cols = 80;
   @property({ type: Number }) rows = 24;
   @property({ type: Number }) fontSize = 14;
+  @property({ type: Boolean }) fitHorizontally = false;
+
+  private originalFontSize: number = 14;
 
   @state() private terminal: Terminal | null = null;
   @state() private viewportY = 0; // Current scroll position
@@ -54,9 +57,24 @@ export class DomTerminal extends LitElement {
         this.reinitializeTerminal();
       }
     }
+    if (changedProperties.has('fontSize')) {
+      // Store original font size when it changes (but not during horizontal fitting)
+      if (!this.fitHorizontally) {
+        this.originalFontSize = this.fontSize;
+      }
+    }
+    if (changedProperties.has('fitHorizontally')) {
+      if (!this.fitHorizontally) {
+        // Restore original font size when turning off horizontal fitting
+        this.fontSize = this.originalFontSize;
+      }
+      this.fitTerminal();
+    }
   }
 
   firstUpdated() {
+    // Store the initial font size as original
+    this.originalFontSize = this.fontSize;
     this.initializeTerminal();
   }
 
@@ -126,15 +144,69 @@ export class DomTerminal extends LitElement {
     }
   }
 
+  private measureCharacterWidth(): number {
+    // Create temporary element with same styles as terminal content, attached to container
+    const measureEl = document.createElement('div');
+    measureEl.className = 'terminal-line';
+    measureEl.style.position = 'absolute';
+    measureEl.style.visibility = 'hidden';
+    measureEl.style.top = '0';
+    measureEl.style.left = '0';
+    
+    // Use a mix of characters that represent typical terminal content
+    const testString = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+    const repeatCount = Math.ceil(this.cols / testString.length);
+    measureEl.textContent = testString.repeat(repeatCount).substring(0, this.cols);
+    
+    // Attach to container so it inherits all the proper CSS context
+    this.container!.appendChild(measureEl);
+    const measureRect = measureEl.getBoundingClientRect();
+    const actualCharWidth = measureRect.width / this.cols;
+    this.container!.removeChild(measureEl);
+    
+    
+    return actualCharWidth;
+  }
+
   private fitTerminal() {
     if (!this.terminal || !this.container) return;
 
-    // Calculate how many rows fit in the viewport
-    const containerHeight = this.container.clientHeight;
-    const lineHeight = this.fontSize * 1.2;
-    this.actualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+    if (this.fitHorizontally) {
+      // Horizontal fitting: calculate fontSize to fit this.cols characters in container width
+      const containerWidth = this.container.clientWidth;
+      const targetCharWidth = containerWidth / this.cols;
+      
+      // Calculate fontSize needed for target character width
+      // Use current font size as starting point and measure actual character width
+      const currentCharWidth = this.measureCharacterWidth();
+      const scaleFactor = targetCharWidth / currentCharWidth;
+      const newFontSize = Math.max(8, Math.min(32, this.fontSize * scaleFactor));
+      
+      this.fontSize = newFontSize;
+      
+      // Also fit rows to use full container height with the new font size
+      const containerHeight = this.container.clientHeight;
+      const lineHeight = this.fontSize * 1.2;
+      const fittedRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+      
+      // Update both actualRows and the terminal's actual row count
+      this.actualRows = fittedRows;
+      this.rows = fittedRows;
+      
+      // Resize the terminal to the new dimensions
+      if (this.terminal) {
+        this.terminal.resize(this.cols, this.rows);
+      }
+      
+      console.log(`Horizontal fit: fontSize ${this.fontSize}px, ${this.cols}x${this.rows} in ${containerWidth}x${containerHeight}px`);
+    } else {
+      // Normal mode: just calculate how many rows fit in the viewport
+      const containerHeight = this.container.clientHeight;
+      const lineHeight = this.fontSize * 1.2;
+      this.actualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+      console.log(`Viewport fits ${this.actualRows} rows`);
+    }
 
-    console.log(`Viewport fits ${this.actualRows} rows`);
     this.requestUpdate();
   }
 
@@ -497,7 +569,7 @@ export class DomTerminal extends LitElement {
           color: #d4d4d4;
           font-family: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
           font-size: ${this.fontSize}px;
-          line-height: ${this.fontSize}px;
+          line-height: ${this.fontSize * 1.2}px;
           white-space: pre;
           touch-action: none;
         }
