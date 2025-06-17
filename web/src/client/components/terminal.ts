@@ -439,6 +439,9 @@ export class Terminal extends LitElement {
 
     // Set the complete innerHTML at once
     this.container.innerHTML = html;
+
+    // Process links after rendering
+    this.processLinks();
   }
 
   private renderLine(line: IBufferLine, cell: IBufferCell): string {
@@ -540,6 +543,202 @@ export class Terminal extends LitElement {
     this.requestUpdate();
   }
 
+  private processLinks() {
+    if (!this.container) return;
+
+    // Get all terminal lines
+    const lines = this.container.querySelectorAll('.terminal-line');
+    if (lines.length === 0) return;
+
+    // Extract text content from all lines for multi-line URL detection
+    const fullText = Array.from(lines)
+      .map((line) => this.getLineText(line))
+      .join('\n');
+
+    // URL regex that matches common URL patterns
+    const urlRegex = /(https?:\/\/[^\s\n<>"']+)/gi;
+    const urls: Array<{ url: string; start: number; end: number }> = [];
+
+    let match;
+    while ((match = urlRegex.exec(fullText)) !== null) {
+      urls.push({
+        url: match[1],
+        start: match.index,
+        end: match.index + match[1].length,
+      });
+    }
+
+    if (urls.length === 0) return;
+
+    // Convert character positions to line/column positions
+    const urlPositions = urls.map((urlInfo) => {
+      const { url, start, end } = urlInfo;
+      return {
+        url,
+        startPos: this.charPosToLineCol(fullText, start),
+        endPos: this.charPosToLineCol(fullText, end),
+      };
+    });
+
+    // Apply link styling to each URL
+    urlPositions.forEach(({ url, startPos, endPos }) => {
+      this.createLinkSpans(lines, url, startPos, endPos);
+    });
+  }
+
+  private getLineText(lineElement: Element): string {
+    // Get the text content, preserving spaces but removing HTML tags
+    const textContent = lineElement.textContent || '';
+    return textContent;
+  }
+
+  private charPosToLineCol(fullText: string, charPos: number): { line: number; col: number } {
+    const lines = fullText.split('\n');
+    let currentPos = 0;
+
+    for (let line = 0; line < lines.length; line++) {
+      const lineLength = lines[line].length;
+      if (charPos <= currentPos + lineLength) {
+        return { line, col: charPos - currentPos };
+      }
+      currentPos += lineLength + 1; // +1 for the newline character
+    }
+
+    return { line: lines.length - 1, col: lines[lines.length - 1].length };
+  }
+
+  private createLinkSpans(
+    lines: NodeListOf<Element>,
+    url: string,
+    startPos: { line: number; col: number },
+    endPos: { line: number; col: number }
+  ) {
+    // Handle single-line and multi-line URLs
+    if (startPos.line === endPos.line) {
+      // Single line URL
+      this.createLinkInLine(lines[startPos.line], url, startPos.col, endPos.col);
+    } else {
+      // Multi-line URL
+      for (let lineIdx = startPos.line; lineIdx <= endPos.line; lineIdx++) {
+        const line = lines[lineIdx];
+        if (!line) continue;
+
+        let startCol, endCol;
+        if (lineIdx === startPos.line) {
+          // First line: from startPos.col to end of line
+          startCol = startPos.col;
+          endCol = this.getLineText(line).length;
+        } else if (lineIdx === endPos.line) {
+          // Last line: from start of line to endPos.col
+          startCol = 0;
+          endCol = endPos.col;
+        } else {
+          // Middle lines: entire line
+          startCol = 0;
+          endCol = this.getLineText(line).length;
+        }
+
+        this.createLinkInLine(line, url, startCol, endCol);
+      }
+    }
+  }
+
+  private createLinkInLine(lineElement: Element, url: string, startCol: number, endCol: number) {
+    if (startCol >= endCol) return;
+
+    // We need to work with the actual DOM structure, not just text
+    const walker = document.createTreeWalker(lineElement, NodeFilter.SHOW_TEXT, null);
+
+    const textNodes: Text[] = [];
+    let node;
+    while ((node = walker.nextNode())) {
+      textNodes.push(node as Text);
+    }
+
+    let currentPos = 0;
+    let foundStart = false;
+    let foundEnd = false;
+
+    for (const textNode of textNodes) {
+      const nodeText = textNode.textContent || '';
+      const nodeStart = currentPos;
+      const nodeEnd = currentPos + nodeText.length;
+
+      // Check if this text node contains part of our link
+      if (!foundEnd && nodeEnd > startCol && nodeStart < endCol) {
+        const linkStart = Math.max(0, startCol - nodeStart);
+        const linkEnd = Math.min(nodeText.length, endCol - nodeStart);
+
+        if (linkStart < linkEnd) {
+          this.wrapTextInLink(textNode, linkStart, linkEnd, url, !foundStart, nodeEnd >= endCol);
+          foundStart = true;
+          if (nodeEnd >= endCol) {
+            foundEnd = true;
+            break;
+          }
+        }
+      }
+
+      currentPos = nodeEnd;
+    }
+  }
+
+  private wrapTextInLink(
+    textNode: Text,
+    start: number,
+    end: number,
+    url: string,
+    _isFirst: boolean,
+    _isLast: boolean
+  ) {
+    const parent = textNode.parentNode;
+    if (!parent) return;
+
+    const nodeText = textNode.textContent || '';
+    const beforeText = nodeText.substring(0, start);
+    const linkText = nodeText.substring(start, end);
+    const afterText = nodeText.substring(end);
+
+    // Create the link element
+    const linkElement = document.createElement('span');
+    linkElement.className = 'terminal-link';
+    linkElement.style.color = '#4fc3f7';
+    linkElement.style.textDecoration = 'underline';
+    linkElement.style.cursor = 'pointer';
+    linkElement.textContent = linkText;
+    linkElement.setAttribute('data-url', url);
+
+    // Add click handler
+    linkElement.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open(url, '_blank');
+    });
+
+    // Add hover effects
+    linkElement.addEventListener('mouseenter', () => {
+      linkElement.style.backgroundColor = 'rgba(79, 195, 247, 0.2)';
+    });
+
+    linkElement.addEventListener('mouseleave', () => {
+      linkElement.style.backgroundColor = '';
+    });
+
+    // Replace the text node with the new structure
+    const fragment = document.createDocumentFragment();
+
+    if (beforeText) {
+      fragment.appendChild(document.createTextNode(beforeText));
+    }
+
+    fragment.appendChild(linkElement);
+
+    if (afterText) {
+      fragment.appendChild(document.createTextNode(afterText));
+    }
+
+    parent.replaceChild(fragment, textNode);
+  }
+
   render() {
     return html`
       <style>
@@ -609,6 +808,17 @@ export class Terminal extends LitElement {
 
         .terminal-char.invisible {
           opacity: 0;
+        }
+
+        .terminal-link {
+          color: #4fc3f7;
+          text-decoration: underline;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+
+        .terminal-link:hover {
+          background-color: rgba(79, 195, 247, 0.2);
         }
       </style>
       <div id="terminal-container" class="terminal-container w-full h-full"></div>

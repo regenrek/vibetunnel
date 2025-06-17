@@ -213,6 +213,21 @@
             }
             content += '\r\n';
 
+            // Clickable Links Demo
+            content += '\x1b[1;34m🔗 Clickable Links Demo:\x1b[0m\r\n';
+            content += 'Single line links:\r\n';
+            content += '• Homepage: https://github.com/amantus-ai/vibetunnel\r\n';
+            content += '• Documentation: https://docs.anthropic.com/en/docs/claude-code\r\n';
+            content += '• API Reference: https://api.example.com/docs/v1/reference\r\n\r\n';
+            
+            content += 'Multi-line URL that wraps across lines:\r\n';
+            content += 'Very long URL: https://example.com/api/v1/users/search?query=test&filters=active,verified&\r\n';
+            content += 'sort=created_at&order=desc&page=1&limit=50&include=profile,settings\r\n\r\n';
+            
+            content += 'Another long URL in middle of text:\r\n';
+            content += 'Check out this amazing resource at https://very-long-domain-name.example.com/path/to/\r\n';
+            content += 'some/deeply/nested/resource/with/query?param1=value1&param2=value2 for more details.\r\n\r\n';
+
             // Separator
             content += '\x1b[90m' + '═'.repeat(100) + '\x1b[0m\r\n\r\n';
 
