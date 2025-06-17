@@ -572,6 +572,12 @@ export class Terminal extends LitElement {
             remainingText = this.getLineText(lines[j]).trim();
           }
 
+          // Stop if line is empty (after trimming)
+          if (remainingText === '') {
+            endLine = j - 1; // URL ended on previous line
+            break;
+          }
+
           // Find first whitespace character in this line's text
           const whitespaceMatch = remainingText.match(/\s/);
           if (whitespaceMatch) {
