@@ -24,6 +24,7 @@ export class DomTerminal extends LitElement {
 
   // Virtual scrolling optimization
   private renderPending = false;
+  private scrollAccumulator = 0;
 
   connectedCallback() {
     super.connectedCallback();
@@ -158,13 +159,23 @@ export class DomTerminal extends LitElement {
   private setupScrolling() {
     if (!this.container) return;
 
-    // Handle wheel events
+    // Handle wheel events with accumulator for smooth scrolling
     this.container.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
-        const deltaLines = Math.round(e.deltaY / (this.fontSize * 1.2));
-        this.scrollViewport(deltaLines);
+        
+        // Accumulate scroll delta for smooth scrolling with small movements
+        this.scrollAccumulator += e.deltaY;
+        
+        const lineHeight = this.fontSize * 1.2;
+        const deltaLines = Math.trunc(this.scrollAccumulator / lineHeight);
+        
+        if (Math.abs(deltaLines) >= 1) {
+          this.scrollViewport(deltaLines);
+          // Subtract the scrolled amount, keep remainder for next scroll
+          this.scrollAccumulator -= deltaLines * lineHeight;
+        }
       },
       { passive: false }
     );
