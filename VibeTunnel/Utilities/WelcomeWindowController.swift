@@ -22,7 +22,8 @@ final class WelcomeWindowController: NSWindowController {
         window.isMovableByWindowBackground = true
         window.setFrameAutosaveName("WelcomeWindow")
         window.isReleasedWhenClosed = false
-        window.level = .floating
+        // Use normal window level instead of floating
+        window.level = .normal
 
         super.init(window: window)
 
@@ -47,7 +48,8 @@ final class WelcomeWindowController: NSWindowController {
         WindowCenteringHelper.centerOnActiveScreen(window)
 
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        // Use normal activation without forcing to front
+        NSApp.activate(ignoringOtherApps: false)
     }
 
     @objc
