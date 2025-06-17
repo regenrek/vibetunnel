@@ -134,36 +134,260 @@
 
             console.log('Generating mock data from HTML...');
 
-            const contentCols = 120;
-            const contentRows = 40;
-            const numPages = 10;
+            let content = '';
 
-            let lineNumber = 1;
-            let content = "";
+            // Header
+            content += '\x1b[1;31m╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗\r\n';
+            content += '\x1b[1;32m║\x1b[1;33m                                      🌈 DOM TERMINAL SHOWCASE 🌈                                                      \x1b[1;32m║\r\n';
+            content += '\x1b[1;34m╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝\x1b[0m\r\n';
+            content += '\r\n';
 
-            for (let page = 1; page <= numPages; page++) {
-                // Page header
-                const headerLine = '◄' + '='.repeat(contentCols - 2) + '►';
-                content += (`\x1b[43m${headerLine}\x1b[0m\n`);
-                lineNumber++;
+            // Welcome message
+            content += '\x1b[1;36mWelcome to the DOM Terminal Demo!\x1b[0m\r\n';
+            content += 'This showcase demonstrates various terminal features and rendering capabilities.\r\n';
+            content += 'Scroll down to see different sections and test the scrolling functionality.\r\n\r\n';
 
-                // Fill the page with numbered lines
-                const contentLines = contentRows - 2;
-                for (let line = 1; line <= contentLines; line++) {
-                    content += (`Line ${lineNumber.toString().padStart(4, '0')}: Content originally sized for ${contentCols}x${contentRows} terminal - watch it reflow!\n`);
-                    lineNumber++;
-                }
+            // Separator
+            content += '\x1b[90m' + '═'.repeat(100) + '\x1b[0m\r\n\r\n';
 
-                // Page footer
-                const footerLine = '◄' + '='.repeat(contentCols - 2) + '►';
-                content += (`\x1b[43m${footerLine}\x1b[0m\n`);
-                lineNumber++;
+            // Sample log output
+            content += '\x1b[1;33m📋 Sample Log Output:\x1b[0m\r\n';
+            for (let i = 1; i <= 15; i++) {
+                const level = ['INFO', 'WARN', 'ERROR', 'DEBUG'][i % 4];
+                const color = level === 'ERROR' ? '31' : level === 'WARN' ? '33' : level === 'DEBUG' ? '90' : '36';
+                content += `\x1b[90m[2024-06-17 21:58:${(10 + i).toString().padStart(2, '0')}]\x1b[0m \x1b[${color}m${level.padEnd(5)}\x1b[0m Sample log message ${i} - testing terminal output\r\n`;
             }
+            content += '\r\n';
 
-            content += ('\x1b[1;31m>>> END OF ALL CONTENT - THIS IS THE BOTTOM <<<\x1b[0m\n');
-            content += ('\x1b[1;33mIf you can see this, you reached the end. Scroll up to see all pages.\x1b[0m\n');
+            // Data table
+            content += '\x1b[1;35m📊 Sample Data Table:\x1b[0m\r\n';
+            content += '\x1b[37m┌──────────────┬──────────────┬──────────────┬──────────────┐\x1b[0m\r\n';
+            content += '\x1b[37m│\x1b[1m     Name     \x1b[0m\x1b[37m│\x1b[1m    Status    \x1b[0m\x1b[37m│\x1b[1m     CPU%     \x1b[0m\x1b[37m│\x1b[1m   Memory%    \x1b[0m\x1b[37m│\x1b[0m\r\n';
+            content += '\x1b[37m├──────────────┼──────────────┼──────────────┼──────────────┤\x1b[0m\r\n';
+            
+            const processes = [
+                { name: 'web-server', status: 'running', cpu: '12.3', mem: '45.2', statusColor: '32' },
+                { name: 'database', status: 'running', cpu: '8.7', mem: '62.1', statusColor: '32' },
+                { name: 'worker-1', status: 'stopped', cpu: '0.0', mem: '0.0', statusColor: '31' },
+                { name: 'cache', status: 'running', cpu: '2.1', mem: '18.9', statusColor: '32' },
+                { name: 'auth-svc', status: 'warning', cpu: '15.6', mem: '78.3', statusColor: '33' }
+            ];
+            
+            processes.forEach(proc => {
+                content += `\x1b[37m│\x1b[0m ${proc.name.padEnd(12)} \x1b[37m│\x1b[0m \x1b[${proc.statusColor}m${proc.status.padEnd(12)}\x1b[0m \x1b[37m│\x1b[0m ${proc.cpu.padStart(12)} \x1b[37m│\x1b[0m ${proc.mem.padStart(12)} \x1b[37m│\x1b[0m\r\n`;
+            });
+            content += '\x1b[37m└──────────────┴──────────────┴──────────────┴──────────────┘\x1b[0m\r\n\r\n';
+
+            // Network activity
+            content += '\x1b[1;32m🌐 Network Activity:\x1b[0m\r\n';
+            for (let i = 0; i < 10; i++) {
+                const method = ['GET', 'POST', 'PUT', 'DELETE'][i % 4];
+                const status = [200, 201, 404, 500][i % 4];
+                const statusColor = status < 300 ? '32' : status < 400 ? '33' : '31';
+                const path = ['/api/users', '/api/orders', '/health', '/metrics', '/login'][i % 5];
+                content += `\x1b[36m${method.padEnd(6)}\x1b[0m ${path.padEnd(15)} \x1b[${statusColor}m${status}\x1b[0m \x1b[90m${Math.floor(Math.random() * 500)}ms\x1b[0m\r\n`;
+            }
+            content += '\r\n';
+
+            // Separator
+            content += '\x1b[90m' + '═'.repeat(100) + '\x1b[0m\r\n\r\n';
+
+            // Git log simulation
+            content += '\x1b[1;31m🔄 Git Log:\x1b[0m\r\n';
+            const commits = [
+                { hash: 'a1b2c3d', msg: 'feat: implement user authentication system', author: 'alice', time: '2 hours ago' },
+                { hash: 'e4f5g6h', msg: 'fix: resolve memory leak in websocket handler', author: 'bob', time: '4 hours ago' },
+                { hash: 'i7j8k9l', msg: 'docs: update API documentation', author: 'charlie', time: '6 hours ago' },
+                { hash: 'm1n2o3p', msg: 'refactor: optimize database queries', author: 'alice', time: '8 hours ago' },
+                { hash: 'q4r5s6t', msg: 'test: add unit tests for payment module', author: 'diana', time: '1 day ago' },
+                { hash: 'u7v8w9x', msg: 'chore: update dependencies to latest versions', author: 'bob', time: '2 days ago' },
+                { hash: 'y1z2a3b', msg: 'feat: add dark mode support', author: 'charlie', time: '3 days ago' }
+            ];
+            
+            commits.forEach(commit => {
+                content += `\x1b[33m${commit.hash}\x1b[0m \x1b[32m${commit.msg}\x1b[0m \x1b[90m(${commit.author}, ${commit.time})\x1b[0m\r\n`;
+            });
+            content += '\r\n';
+
+            // Docker container status
+            content += '\x1b[1;34m🐳 Docker Containers:\x1b[0m\r\n';
+            content += '\x1b[37mCONTAINER ID   IMAGE               COMMAND                  CREATED        STATUS                   PORTS\x1b[0m\r\n';
+            const containers = [
+                { id: '8f2e1a9c4b5d', image: 'nginx:latest', cmd: '/docker-entrypoint.sh', created: '2 hours ago', status: 'Up 2 hours', ports: '0.0.0.0:80->80/tcp', statusColor: '32' },
+                { id: '3d7c9e1f8a2b', image: 'postgres:13', cmd: 'docker-entrypoint.sh', created: '3 hours ago', status: 'Up 3 hours', ports: '5432/tcp', statusColor: '32' },
+                { id: 'b4a8f2d9c1e7', image: 'redis:alpine', cmd: 'docker-entrypoint.sh', created: '1 hour ago', status: 'Exited (0)', ports: '', statusColor: '31' },
+                { id: '9c1e4b8f2a5d', image: 'node:16-alpine', cmd: 'npm start', created: '30 min ago', status: 'Up 30 minutes', ports: '0.0.0.0:3000->3000/tcp', statusColor: '32' }
+            ];
+            
+            containers.forEach(container => {
+                content += `${container.id.substring(0, 12)}   ${container.image.padEnd(18)} ${container.cmd.padEnd(24)} ${container.created.padEnd(14)} \x1b[${container.statusColor}m${container.status.padEnd(24)}\x1b[0m ${container.ports}\r\n`;
+            });
+            content += '\r\n';
+
+            // System metrics
+            content += '\x1b[1;35m📈 System Metrics:\x1b[0m\r\n';
+            content += `\x1b[36mCPU Usage:\x1b[0m     [\x1b[32m${'█'.repeat(15)}\x1b[90m${'░'.repeat(10)}\x1b[0m] 60%\r\n`;
+            content += `\x1b[36mMemory:\x1b[0m        [\x1b[33m${'█'.repeat(20)}\x1b[90m${'░'.repeat(5)}\x1b[0m] 80%\r\n`;
+            content += `\x1b[36mDisk Usage:\x1b[0m    [\x1b[31m${'█'.repeat(22)}\x1b[90m${'░'.repeat(3)}\x1b[0m] 88%\r\n`;
+            content += `\x1b[36mNetwork In:\x1b[0m    \x1b[32m↓ 1.2 MB/s\x1b[0m\r\n`;
+            content += `\x1b[36mNetwork Out:\x1b[0m   \x1b[31m↑ 850 KB/s\x1b[0m\r\n`;
+            content += `\x1b[36mUptime:\x1b[0m        \x1b[37m15 days, 7 hours, 23 minutes\x1b[0m\r\n\r\n`;
+
+            // Error messages
+            content += '\x1b[1;31m❌ Recent Errors:\x1b[0m\r\n';
+            const errors = [
+                'Connection timeout to database server (timeout: 30s)',
+                'Invalid JWT token provided in authorization header',
+                'Rate limit exceeded for IP 192.168.1.100 (max: 1000/hour)',
+                'File not found: /var/log/application.log',
+                'SSL certificate expires in 7 days'
+            ];
+            
+            errors.forEach((error, i) => {
+                content += `\x1b[90m[${new Date().toISOString()}]\x1b[0m \x1b[31mERROR\x1b[0m ${error}\r\n`;
+            });
+            content += '\r\n';
+
+            // SQL queries
+            content += '\x1b[1;36m🗄️ Database Activity:\x1b[0m\r\n';
+            const queries = [
+                { query: 'SELECT * FROM users WHERE status = ?', time: '12ms', rows: '156' },
+                { query: 'UPDATE orders SET status = ? WHERE id = ?', time: '8ms', rows: '1' },
+                { query: 'INSERT INTO audit_log (action, user_id) VALUES (?, ?)', time: '4ms', rows: '1' },
+                { query: 'SELECT COUNT(*) FROM sessions WHERE expires_at > NOW()', time: '15ms', rows: '1' },
+                { query: 'DELETE FROM temp_files WHERE created_at < ?', time: '23ms', rows: '47' }
+            ];
+            
+            queries.forEach(q => {
+                content += `\x1b[37m[\x1b[32m${q.time.padStart(5)}\x1b[37m]\x1b[0m \x1b[35m${q.query}\x1b[0m \x1b[90m(${q.rows} rows)\x1b[0m\r\n`;
+            });
+            content += '\r\n';
+
+            // API endpoints
+            content += '\x1b[1;33m🌍 API Endpoints:\x1b[0m\r\n';
+            const endpoints = [
+                { method: 'GET', path: '/api/v1/users', description: 'List all users', auth: 'Bearer' },
+                { method: 'POST', path: '/api/v1/users', description: 'Create new user', auth: 'Bearer' },
+                { method: 'GET', path: '/api/v1/users/{id}', description: 'Get user by ID', auth: 'Bearer' },
+                { method: 'PUT', path: '/api/v1/users/{id}', description: 'Update user', auth: 'Bearer' },
+                { method: 'DELETE', path: '/api/v1/users/{id}', description: 'Delete user', auth: 'Admin' },
+                { method: 'GET', path: '/api/v1/orders', description: 'List orders', auth: 'Bearer' },
+                { method: 'POST', path: '/api/v1/orders', description: 'Create order', auth: 'Bearer' },
+                { method: 'GET', path: '/health', description: 'Health check', auth: 'None' }
+            ];
+            
+            endpoints.forEach(ep => {
+                const methodColor = ep.method === 'GET' ? '32' : ep.method === 'POST' ? '33' : ep.method === 'PUT' ? '34' : '31';
+                const authColor = ep.auth === 'None' ? '90' : ep.auth === 'Admin' ? '31' : '36';
+                content += `\x1b[${methodColor}m${ep.method.padEnd(6)}\x1b[0m \x1b[37m${ep.path.padEnd(25)}\x1b[0m ${ep.description.padEnd(20)} \x1b[${authColor}m[${ep.auth}]\x1b[0m\r\n`;
+            });
+            content += '\r\n';
+
+            // Package.json dependencies
+            content += '\x1b[1;32m📦 Dependencies:\x1b[0m\r\n';
+            const deps = [
+                { name: 'express', version: '^4.18.2', type: 'runtime' },
+                { name: 'typescript', version: '^5.0.4', type: 'dev' },
+                { name: 'react', version: '^18.2.0', type: 'runtime' },
+                { name: 'webpack', version: '^5.88.0', type: 'dev' },
+                { name: 'jest', version: '^29.5.0', type: 'dev' },
+                { name: 'lodash', version: '^4.17.21', type: 'runtime' },
+                { name: 'axios', version: '^1.4.0', type: 'runtime' }
+            ];
+            
+            deps.forEach(dep => {
+                const typeColor = dep.type === 'dev' ? '90' : '32';
+                content += `\x1b[36m${dep.name.padEnd(15)}\x1b[0m \x1b[33m${dep.version.padEnd(12)}\x1b[0m \x1b[${typeColor}m${dep.type}\x1b[0m\r\n`;
+            });
+            content += '\r\n';
+
+            // Separator
+            content += '\x1b[90m' + '═'.repeat(100) + '\x1b[0m\r\n\r\n';
+
+            // Text styles demo
+            content += '\x1b[1mBold text\x1b[0m | \x1b[3mItalic text\x1b[0m | \x1b[4mUnderlined text\x1b[0m | \x1b[2mDim text\x1b[0m | \x1b[7mInverted text\x1b[0m\r\n\r\n';
+
+            // Progress bars
+            content += '\x1b[1;33m📊 Progress Bars:\x1b[0m\r\n';
+            for (let i = 0; i < 5; i++) {
+                content += `\x1b[36m${['Loading', 'Parsing', 'Building', 'Testing', 'Deploy'][i]}:\x1b[0m `;
+                const progress = Math.floor(Math.random() * 100);
+                const filled = Math.floor(progress / 5);
+                content += '\x1b[32m';
+                for (let j = 0; j < filled; j++) content += '█';
+                content += '\x1b[90m';
+                for (let j = filled; j < 20; j++) content += '░';
+                content += `\x1b[0m ${progress}%\r\n`;
+            }
+            content += '\r\n';
+
+            // File listing simulation
+            content += '\x1b[1;35m📁 File Listing:\x1b[0m\r\n';
+            const files = [
+                { name: 'package.json', size: '2.1K', icon: '📄', color: '33' },
+                { name: 'src/', size: '-', icon: '📁', color: '34' },
+                { name: 'README.md', size: '4.5K', icon: '📝', color: '36' },
+                { name: 'node_modules/', size: '-', icon: '📦', color: '90' },
+                { name: 'dist/', size: '-', icon: '🏗️', color: '32' }
+            ];
+
+            files.forEach(file => {
+                content += `${file.icon} \x1b[${file.color}m${file.name.padEnd(20)}\x1b[0m \x1b[90m${file.size.padStart(8)}\x1b[0m\r\n`;
+            });
+            content += '\r\n';
+
+            // Code sample
+            content += '\x1b[1;35m🎨 Code Sample:\x1b[0m\r\n';
+            content += '\x1b[90m┌────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\x1b[0m\r\n';
+            content += '\x1b[90m│\x1b[0m \x1b[35mfunction\x1b[0m \x1b[33mhelloWorld\x1b[0m\x1b[37m(\x1b[36mname\x1b[37m: \x1b[32mstring\x1b[37m) {\x1b[0m                                                                        \x1b[90m│\x1b[0m\r\n';
+            content += '\x1b[90m│\x1b[0m   \x1b[35mconst\x1b[0m \x1b[36mmessage\x1b[0m \x1b[37m=\x1b[0m \x1b[31m`Hello, \x1b[33m${name}\x1b[31m! Welcome to the DOM terminal.`\x1b[37m;\x1b[0m                                          \x1b[90m│\x1b[0m\r\n';
+            content += '\x1b[90m│\x1b[0m   \x1b[36mconsole\x1b[37m.\x1b[33mlog\x1b[37m(\x1b[36mmessage\x1b[37m);\x1b[0m                                                                                    \x1b[90m│\x1b[0m\r\n';
+            content += '\x1b[90m│\x1b[0m   \x1b[35mreturn\x1b[0m \x1b[36mmessage\x1b[37m;\x1b[0m                                                                                          \x1b[90m│\x1b[0m\r\n';
+            content += '\x1b[90m│\x1b[0m \x1b[37m}\x1b[0m                                                                                                          \x1b[90m│\x1b[0m\r\n';
+            content += '\x1b[90m└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\x1b[0m\r\n\r\n';
+
+            // System info
+            content += '\x1b[1;32m🖥️  System Information:\x1b[0m\r\n';
+            content += `\x1b[36mTerminal Size:\x1b[0m ${terminal.cols}x${terminal.rows} characters\r\n`;
+            content += `\x1b[36mFont Family:\x1b[0m Fira Code, monospace\r\n`;
+            content += `\x1b[36mFeatures:\x1b[0m Native text selection, smooth scrolling, touch support\r\n`;
+            content += `\x1b[36mRendering:\x1b[0m DOM-based with virtual scrolling\r\n\r\n`;
+
+            // ASCII art
+            content += '\x1b[1;31m🎭 ASCII Art:\x1b[0m\r\n';
+            content += '\x1b[33m    ╭────────────────────────────────────╮\r\n';
+            content += '\x1b[33m    │  \x1b[36m*\x1b[32m+\x1b[35m#\x1b[31mo \x1b[1;37mDOM Terminal Ready! \x1b[31mo\x1b[35m#\x1b[32m+\x1b[36m*\x1b[33m  │\r\n';
+            content += '\x1b[33m    ╰────────────────────────────────────╯\x1b[0m\r\n\r\n';
+
+            // Interactive instructions
+            content += '\x1b[1;33m🎮 Try These Features:\x1b[0m\r\n';
+            content += '\x1b[32m▸\x1b[0m Select text with your mouse\r\n';
+            content += '\x1b[32m▸\x1b[0m Scroll with mouse wheel or touch\r\n';
+            content += '\x1b[32m▸\x1b[0m Change terminal size with buttons above\r\n';
+            content += '\x1b[32m▸\x1b[0m Watch content reflow dynamically\r\n\r\n';
+
+            // Footer
+            content += '\x1b[90m────────────────────────────────────────────────────────────────────────────────────────────────────────────\x1b[0m\r\n';
+            content += '\x1b[1;35m✨ End of demonstration - scroll up to see all content! ✨\x1b[0m\r\n\r\n';
+
+            // Command prompt box
+            content += '\x1b[37m╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\r\n';
+            content += '\x1b[37m│ \x1b[32m>\x1b[0m                                                                                                          \x1b[37m│\r\n';
+            content += '\x1b[37m╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\x1b[0m\r\n';
+
             terminal.write(content);
-            console.log('Mock data generation completed from HTML');
+            
+            // Scroll to bottom after content is written
+            setTimeout(() => {
+                if (terminal.terminal && terminal.terminal.buffer) {
+                    const buffer = terminal.terminal.buffer.active;
+                    const maxScroll = Math.max(0, buffer.length - terminal.actualRows);
+                    terminal.viewportY = maxScroll;
+                    terminal.renderBuffer();
+                }
+            }, 100);
+            
+            console.log('Mock data generation completed!');
         }
 
         function setupSizeControls() {

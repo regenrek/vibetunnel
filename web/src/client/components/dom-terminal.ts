@@ -1,6 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, IBufferLine, IBufferCell } from '@xterm/xterm';
 
 @customElement('dom-terminal')
 export class DomTerminal extends LitElement {
@@ -19,12 +19,10 @@ export class DomTerminal extends LitElement {
   @state() private actualRows = 24; // Rows that fit in viewport
 
   private container: HTMLElement | null = null;
-  private textContainer: HTMLElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private resizeTimeout: NodeJS.Timeout | null = null;
 
   // Virtual scrolling optimization
-  private lineElements: HTMLElement[] = [];
   private renderPending = false;
 
   connectedCallback() {
@@ -64,9 +62,8 @@ export class DomTerminal extends LitElement {
       this.requestUpdate();
 
       this.container = this.querySelector('#dom-terminal-container') as HTMLElement;
-      this.textContainer = this.querySelector('#dom-text-container') as HTMLElement;
 
-      if (!this.container || !this.textContainer) {
+      if (!this.container) {
         throw new Error('Terminal container not found');
       }
 
@@ -84,7 +81,7 @@ export class DomTerminal extends LitElement {
     if (this.terminal) {
       this.terminal.resize(this.cols, this.rows);
       this.fitTerminal();
-      this.renderTerminalContent();
+      this.renderBuffer();
     }
   }
 
@@ -147,19 +144,19 @@ export class DomTerminal extends LitElement {
       }
       this.resizeTimeout = setTimeout(() => {
         this.fitTerminal();
-        this.renderTerminalContent();
+        this.renderBuffer();
       }, 50);
     });
     this.resizeObserver.observe(this.container);
 
     window.addEventListener('resize', () => {
       this.fitTerminal();
-      this.renderTerminalContent();
+      this.renderBuffer();
     });
   }
 
   private setupScrolling() {
-    if (!this.container || !this.textContainer) return;
+    if (!this.container) return;
 
     // Handle wheel events
     this.container.addEventListener(
@@ -283,60 +280,48 @@ export class DomTerminal extends LitElement {
       if (!this.renderPending) {
         this.renderPending = true;
         requestAnimationFrame(() => {
-          this.renderTerminalContent();
+          this.renderBuffer();
           this.renderPending = false;
         });
       }
     }
   }
 
-  private renderTerminalContent() {
-    if (!this.terminal || !this.textContainer) return;
+  private renderBuffer() {
+    if (!this.terminal || !this.container) return;
 
     const buffer = this.terminal.buffer.active;
     const bufferLength = buffer.length;
     const startRow = Math.min(this.viewportY, Math.max(0, bufferLength - this.actualRows));
-    // const endRow = Math.min(bufferLength, startRow + this.actualRows);
 
-    // Ensure we have enough line elements
-    while (this.lineElements.length < this.actualRows) {
-      const lineEl = document.createElement('div');
-      lineEl.className = 'terminal-line';
-      this.lineElements.push(lineEl);
-      this.textContainer.appendChild(lineEl);
-    }
+    // Build complete innerHTML string
+    let html = '';
+    const cell = buffer.getNullCell();
 
-    // Hide extra line elements
-    for (let i = this.actualRows; i < this.lineElements.length; i++) {
-      this.lineElements[i].style.display = 'none';
-    }
-
-    // Render visible lines
     for (let i = 0; i < this.actualRows; i++) {
       const row = startRow + i;
-      const lineEl = this.lineElements[i];
-      lineEl.style.display = 'block';
 
       if (row >= bufferLength) {
-        lineEl.innerHTML = '';
+        html += '<div class="terminal-line"></div>';
         continue;
       }
 
       const line = buffer.getLine(row);
       if (!line) {
-        lineEl.innerHTML = '';
+        html += '<div class="terminal-line"></div>';
         continue;
       }
 
-      // Always re-render the line
-      const content = this.renderLine(line);
-      lineEl.innerHTML = content || '';
+      const lineContent = this.renderLine(line, cell);
+      html += `<div class="terminal-line">${lineContent || ''}</div>`;
     }
+
+    // Set the complete innerHTML at once
+    this.container.innerHTML = html;
   }
 
-  private renderLine(line: any): string {
+  private renderLine(line: IBufferLine, cell: IBufferCell): string {
     let html = '';
-
     let currentChars = '';
     let currentClasses = '';
     let currentStyle = '';
@@ -350,10 +335,10 @@ export class DomTerminal extends LitElement {
 
     // Process each cell in the line
     for (let col = 0; col < line.length; col++) {
-      const cell = line.getCell(col);
+      line.getCell(col, cell);
       if (!cell) continue;
 
-      // XTerm.js cell API
+      // XTerm.js cell API - use || ' ' to ensure we get a space for empty cells
       const char = cell.getChars() || ' ';
       const width = cell.getWidth();
 
@@ -366,22 +351,14 @@ export class DomTerminal extends LitElement {
 
       // Get foreground color
       const fg = cell.getFgColor();
-      if (fg !== undefined) {
-        if (typeof fg === 'number') {
-          style += `color: var(--terminal-color-${fg});`;
-        } else if (fg.css) {
-          style += `color: ${fg.css};`;
-        }
+      if (fg !== undefined && typeof fg === 'number' && fg >= 0) {
+        style += `color: var(--terminal-color-${fg});`;
       }
 
       // Get background color
       const bg = cell.getBgColor();
-      if (bg !== undefined) {
-        if (typeof bg === 'number') {
-          style += `background-color: var(--terminal-color-${bg});`;
-        } else if (bg.css) {
-          style += `background-color: ${bg.css};`;
-        }
+      if (bg !== undefined && typeof bg === 'number' && bg >= 0) {
+        style += `background-color: var(--terminal-color-${bg});`;
       }
 
       // Get text attributes/flags
@@ -416,7 +393,7 @@ export class DomTerminal extends LitElement {
   public write(data: string) {
     if (this.terminal) {
       this.terminal.write(data, () => {
-        this.renderTerminalContent();
+        this.renderBuffer();
       });
     }
   }
@@ -425,12 +402,8 @@ export class DomTerminal extends LitElement {
     if (this.terminal) {
       this.terminal.clear();
       this.viewportY = 0;
-      this.renderTerminalContent();
+      this.renderBuffer();
     }
-  }
-
-  public getTerminal(): Terminal | null {
-    return this.terminal;
   }
 
   public setViewportSize(cols: number, rows: number) {
@@ -440,7 +413,7 @@ export class DomTerminal extends LitElement {
     if (this.terminal) {
       this.terminal.resize(cols, rows);
       this.fitTerminal();
-      this.renderTerminalContent();
+      this.renderBuffer();
     }
 
     this.requestUpdate();
@@ -474,6 +447,7 @@ export class DomTerminal extends LitElement {
           font-family: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
           font-size: ${this.fontSize}px;
           line-height: ${this.fontSize}px;
+          white-space: pre;
         }
 
         .terminal-line {
@@ -484,6 +458,7 @@ export class DomTerminal extends LitElement {
 
         .terminal-char {
           font-family: inherit;
+          display: inline-block;
         }
 
         .terminal-char.bold {
@@ -513,19 +488,8 @@ export class DomTerminal extends LitElement {
         .terminal-char.invisible {
           opacity: 0;
         }
-
-        /* Mobile touch improvements */
-        @media (max-width: 768px) {
-          .dom-terminal-container {
-            -webkit-overflow-scrolling: touch;
-            touch-action: pan-y;
-          }
-        }
       </style>
-
-      <div id="dom-terminal-container" class="dom-terminal-container w-full h-full">
-        <div id="dom-text-container" class="w-full h-full"></div>
-      </div>
+      <div id="dom-terminal-container" class="dom-terminal-container w-full h-full"></div>
     `;
   }
 }
