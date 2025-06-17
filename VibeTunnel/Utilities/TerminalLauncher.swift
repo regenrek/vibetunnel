@@ -64,17 +64,17 @@ enum Terminal: String, CaseIterable {
         }
     }
     
-    /// Priority for auto-detection (higher is better, Terminal has lowest priority)
+    /// Priority for auto-detection (higher is better, based on popularity)
     var detectionPriority: Int {
         switch self {
-        case .terminal: return 0  // Lowest priority
-        case .iTerm2: return 100
-        case .ghostty: return 90
-        case .alacritty: return 80
-        case .warp: return 70
-        case .hyper: return 60
-        case .tabby: return 50
-        case .wezterm: return 95  // Excellent CLI support
+        case .terminal: return 100   // Highest - macOS default, most popular
+        case .iTerm2: return 95      // Very popular among developers
+        case .warp: return 85        // Popular modern terminal
+        case .ghostty: return 80     // New but gaining popularity
+        case .alacritty: return 70   // Popular among power users
+        case .wezterm: return 60     // Less common but powerful
+        case .hyper: return 50       // Less popular Electron-based
+        case .tabby: return 40       // Least popular
         }
     }
 
@@ -104,6 +104,7 @@ enum Terminal: String, CaseIterable {
     func launchMethod(for config: TerminalLaunchConfig) -> TerminalLaunchMethod {
         switch self {
         case .terminal:
+            // Terminal.app has very limited CLI support, must use AppleScript
             return .appleScript(script: """
                 tell application "Terminal"
                     activate
@@ -112,15 +113,24 @@ enum Terminal: String, CaseIterable {
                 """)
             
         case .iTerm2:
-            return .appleScript(script: """
-                tell application "iTerm"
-                    activate
-                    create window with default profile
-                    tell current session of current window
-                        write text "\(config.fullCommand)"
+            // iTerm2 supports URL schemes for command execution
+            if let encoded = config.fullCommand.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                // Use iTerm2's URL scheme instead of AppleScript
+                // Note: URL must be opened with 'open' command, not as an argument
+                let urlString = "iterm2://profile=default?cmd=\(encoded)"
+                return .processWithArgs(args: [urlString])
+            } else {
+                // Fallback to AppleScript if encoding fails
+                return .appleScript(script: """
+                    tell application "iTerm"
+                        activate
+                        create window with default profile
+                        tell current session of current window
+                            write text "\(config.fullCommand)"
+                        end tell
                     end tell
-                end tell
-                """)
+                    """)
+            }
             
         case .ghostty:
             var args = ["--args", "-e", config.command]
@@ -136,13 +146,23 @@ enum Terminal: String, CaseIterable {
             }
             return .processWithArgs(args: args)
             
-        case .warp, .tabby, .hyper:
-            // These terminals require launching first, then typing the command
+        case .warp:
+            // Warp supports URL scheme for directory opening
+            if let workingDirectory = config.workingDirectory,
+               let encoded = workingDirectory.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                // Open Warp at the directory using URL scheme
+                let urlString = "warp://action/new_window?path=\(encoded)"
+                return .processWithArgs(args: [urlString])
+                // Note: Still need to type command after opening
+            }
+            return .processWithTyping()
+            
+        case .tabby, .hyper:
+            // These terminals have limited CLI support
             return .processWithTyping()
             
         case .wezterm:
             // WezTerm has excellent CLI support with the 'start' subcommand
-            // Use open -b with --args to pass arguments to wezterm
             if let workingDirectory = config.workingDirectory {
                 return .processWithArgs(args: [
                     "--args",
@@ -255,7 +275,7 @@ final class TerminalLauncher {
                 let installedTerminals = Terminal.installed.filter { $0 != .terminal }
                 if let bestTerminal = installedTerminals.max(by: { $0.detectionPriority < $1.detectionPriority }) {
                     preferredTerminal = bestTerminal.rawValue
-                    logger.info("No running terminals found, set preferred terminal to highest priority installed: \(bestTerminal.rawValue)")
+                    logger.info("No running terminals found, set preferred terminal to most popular installed: \(bestTerminal.rawValue)")
                 }
             }
         }
