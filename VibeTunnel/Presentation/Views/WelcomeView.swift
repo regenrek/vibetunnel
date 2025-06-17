@@ -41,10 +41,11 @@ struct WelcomeView: View {
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                 }
             }
+            .frame(maxHeight: .infinity)
             .animation(.easeInOut, value: currentPage)
 
-            // Custom page indicators and navigation
-            VStack(spacing: 16) {
+            // Custom page indicators and navigation - Fixed height container
+            VStack(spacing: 0) {
                 // Page indicators
                 HStack(spacing: 8) {
                     ForEach(0..<4) { index in
@@ -61,7 +62,7 @@ struct WelcomeView: View {
                         .pointingHandCursor()
                     }
                 }
-                .padding(.top, 12)
+                .frame(height: 32) // Fixed height for indicator area
 
                 // Navigation button
                 HStack {
@@ -75,8 +76,9 @@ struct WelcomeView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                .frame(height: 60) // Fixed height for button area
             }
+            .frame(height: 92) // Total fixed height: 32 + 60
         }
         .frame(width: 640, height: 560)
         .background(Color(NSColor.windowBackgroundColor))
@@ -110,8 +112,6 @@ struct WelcomeView: View {
 private struct WelcomePageView: View {
     var body: some View {
         VStack(spacing: 40) {
-            Spacer()
-
             // App icon
             Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
                 .resizable()
@@ -138,9 +138,8 @@ private struct WelcomePageView: View {
                 .frame(maxWidth: 480)
                 .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }
@@ -153,8 +152,6 @@ private struct VTCommandPageView: View {
 
     var body: some View {
         VStack(spacing: 30) {
-            Spacer()
-
             // App icon
             Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
                 .resizable()
@@ -220,9 +217,8 @@ private struct VTCommandPageView: View {
                     }
                 }
             }
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .onAppear {
             cliInstaller.checkInstallationStatus()
@@ -244,8 +240,6 @@ private struct ProtectDashboardPageView: View {
 
     var body: some View {
         VStack(spacing: 30) {
-            Spacer()
-
             // App icon
             Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
                 .resizable()
@@ -315,9 +309,8 @@ private struct ProtectDashboardPageView: View {
                         .foregroundColor(.secondary)
                 }
             }
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 
@@ -369,8 +362,6 @@ private struct AccessDashboardPageView: View {
 
     var body: some View {
         VStack(spacing: 30) {
-            Spacer()
-
             // App icon
             Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
                 .resizable()
@@ -433,8 +424,8 @@ private struct AccessDashboardPageView: View {
                     CreditLink(name: "@steipete", url: "https://steipete.me")
                 }
             }
-            .padding(.bottom, 8)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }
