@@ -151,6 +151,9 @@ private struct TerminalPreferenceSection: View {
                                     case .appleScriptPermissionDenied:
                                         errorTitle = "Permission Denied"
                                         errorMessage = "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
+                                    case .accessibilityPermissionDenied:
+                                        errorTitle = "Accessibility Permission Required"
+                                        errorMessage = "VibeTunnel needs Accessibility permission to send keystrokes to \(Terminal(rawValue: preferredTerminal)?.displayName ?? "terminal").\n\nPlease grant permission in System Settings > Privacy & Security > Accessibility."
                                     case .terminalNotFound:
                                         errorTitle = "Terminal Not Found"
                                         errorMessage = "The selected terminal application could not be found. Please select a different terminal."
@@ -166,6 +169,9 @@ private struct TerminalPreferenceSection: View {
                                             case -1_708:
                                                 errorTitle = "Terminal Communication Error"
                                                 errorMessage = "The terminal did not respond to the command.\n\nDetails: \(details)"
+                                            case -25211:
+                                                errorTitle = "Accessibility Permission Required"
+                                                errorMessage = "System Events requires Accessibility permission to send keystrokes.\n\nPlease grant permission in System Settings > Privacy & Security > Accessibility."
                                             default:
                                                 errorTitle = "Terminal Launch Failed"
                                                 errorMessage = "AppleScript error \(code): \(details)"

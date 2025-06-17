@@ -828,23 +828,25 @@ private struct NgrokErrorView: View {
 // MARK: - Permissions Section
 
 private struct PermissionsSection: View {
-    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
+    @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
+    @State private var hasAccessibilityPermission = false
     
     var body: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
+                // Automation permission
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Terminal Automation")
                             .font(.body)
-                        Text("Required to spawn terminal sessions from the dashboard")
+                        Text("Required to launch and control terminal applications")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     
                     Spacer()
                     
-                    if permissionManager.hasPermission {
+                    if appleScriptManager.hasPermission {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
@@ -854,7 +856,38 @@ private struct PermissionsSection: View {
                         .font(.caption)
                     } else {
                         Button("Grant Permission") {
-                            permissionManager.requestPermission()
+                            appleScriptManager.requestPermission()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                
+                Divider()
+                
+                // Accessibility permission
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Accessibility")
+                            .font(.body)
+                        Text("Required for terminals that need keystroke input (Ghostty, Warp, Hyper)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    if hasAccessibilityPermission {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Granted")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                    } else {
+                        Button("Grant Permission") {
+                            AccessibilityPermissionManager.shared.requestPermission()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -865,11 +898,16 @@ private struct PermissionsSection: View {
             Text("Permissions")
                 .font(.headline)
         } footer: {
-            Text("AppleScript permission is required to open terminal applications when creating new sessions.")
+            Text("Terminal automation is required for all terminals. Accessibility is only needed for terminals that simulate keyboard input.")
                 .font(.caption)
         }
         .task {
-            _ = await permissionManager.checkPermission()
+            _ = await appleScriptManager.checkPermission()
+            hasAccessibilityPermission = AccessibilityPermissionManager.shared.hasPermission()
+        }
+        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+            // Check accessibility permission status periodically
+            hasAccessibilityPermission = AccessibilityPermissionManager.shared.hasPermission()
         }
     }
 }

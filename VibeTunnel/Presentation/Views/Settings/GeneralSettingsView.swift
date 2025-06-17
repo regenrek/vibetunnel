@@ -80,9 +80,14 @@ struct GeneralSettingsView: View {
                     // Show in Dock
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Show in Dock", isOn: showInDockBinding)
-                        Text("Show VibeTunnel icon in the Dock.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Show VibeTunnel icon in the Dock.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("The dock icon is always displayed when the Settings dialog is visible.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 } header: {
                     Text("Appearance")
@@ -114,7 +119,8 @@ struct GeneralSettingsView: View {
             get: { showInDock },
             set: { newValue in
                 showInDock = newValue
-                NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+                // Don't change activation policy while settings window is open
+                // The change will be applied when the settings window closes
             }
         )
     }

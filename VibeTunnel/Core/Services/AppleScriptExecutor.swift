@@ -1,6 +1,11 @@
 import Foundation
-import AppKit
+@preconcurrency import AppKit
 import OSLog
+
+/// Sendable wrapper for NSAppleEventDescriptor
+private struct SendableDescriptor: @unchecked Sendable {
+    let descriptor: NSAppleEventDescriptor?
+}
 
 /// Safely executes AppleScript commands with proper error handling and crash prevention.
 ///
@@ -21,8 +26,8 @@ final class AppleScriptExecutor {
     
     /// Executes an AppleScript synchronously with proper error handling.
     ///
-    /// This method defers the actual AppleScript execution to the next run loop
-    /// to prevent crashes when called from SwiftUI actions.
+    /// This method runs on the main thread and is suitable for use in
+    /// synchronous contexts where async/await is not available.
     ///
     /// - Parameters:
     ///   - script: The AppleScript source code to execute
@@ -31,100 +36,155 @@ final class AppleScriptExecutor {
     /// - Returns: The result of the AppleScript execution, if any
     @discardableResult
     func execute(_ script: String, timeout: TimeInterval = 5.0) throws -> NSAppleEventDescriptor? {
-        // Create a semaphore to wait for async execution
-        let semaphore = DispatchSemaphore(value: 0)
-        var executionResult: NSAppleEventDescriptor?
-        var executionError: Error?
-        
-        // Defer AppleScript execution to next run loop to avoid crashes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        // If we're already on the main thread, execute directly
+        if Thread.isMainThread {
+            // Add a small delay to avoid crashes from SwiftUI actions
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+            
             var error: NSDictionary?
-            if let scriptObject = NSAppleScript(source: script) {
-                executionResult = scriptObject.executeAndReturnError(&error)
-                
-                if let error = error {
-                    let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
-                    let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
-                    
-                    // Log all error details
-                    self.logger.error("AppleScript execution failed:")
-                    self.logger.error("  Error code: \(errorNumber ?? -1)")
-                    self.logger.error("  Error message: \(errorMessage)")
-                    if let errorRange = error["NSAppleScriptErrorRange"] as? NSRange {
-                        self.logger.error("  Error range: \(errorRange)")
-                    }
-                    if let errorBriefMessage = error["NSAppleScriptErrorBriefMessage"] as? String {
-                        self.logger.error("  Brief message: \(errorBriefMessage)")
-                    }
-                    
-                    // Create appropriate error
-                    executionError = AppleScriptError.executionFailed(
-                        message: errorMessage,
-                        errorCode: errorNumber
-                    )
-                } else {
-                    // Log successful execution
-                    self.logger.debug("AppleScript executed successfully")
-                }
-            } else {
-                self.logger.error("Failed to create NSAppleScript object")
-                executionError = AppleScriptError.scriptCreationFailed
+            guard let scriptObject = NSAppleScript(source: script) else {
+                logger.error("Failed to create NSAppleScript object")
+                throw AppleScriptError.scriptCreationFailed
             }
-            semaphore.signal()
+            
+            let result = scriptObject.executeAndReturnError(&error)
+            
+            if let error = error {
+                let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
+                let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
+                
+                logger.error("AppleScript execution failed: \(errorMessage) (code: \(errorNumber ?? -1))")
+                
+                throw AppleScriptError.executionFailed(
+                    message: errorMessage,
+                    errorCode: errorNumber
+                )
+            }
+            
+            logger.debug("AppleScript executed successfully")
+            return result
+        } else {
+            // If on background thread, dispatch to main and wait
+            var result: Result<NSAppleEventDescriptor?, Error>?
+            
+            DispatchQueue.main.sync {
+                do {
+                    result = .success(try execute(script, timeout: timeout))
+                } catch {
+                    result = .failure(error)
+                }
+            }
+            
+            switch result! {
+            case .success(let value):
+                return value
+            case .failure(let error):
+                throw error
+            }
         }
-        
-        // Wait for execution to complete with timeout (default 5 seconds, max 30 seconds)
-        let timeoutDuration = min(timeout, 30.0)
-        let waitResult = semaphore.wait(timeout: .now() + timeoutDuration)
-        
-        if waitResult == .timedOut {
-            logger.error("AppleScript execution timed out after \(timeoutDuration) seconds")
-            throw AppleScriptError.timeout
-        }
-        
-        if let error = executionError {
-            throw error
-        }
-        
-        return executionResult
     }
     
     /// Executes an AppleScript asynchronously.
     ///
-    /// This method is useful when you don't need to wait for the result
-    /// and want to avoid blocking the current thread.
+    /// This method ensures AppleScript runs on the main thread with proper
+    /// timeout handling using Swift's modern concurrency features.
     ///
     /// - Parameters:
     ///   - script: The AppleScript source code to execute
     ///   - timeout: The timeout in seconds (default: 5.0, max: 30.0)
     /// - Returns: The result of the AppleScript execution, if any
     func executeAsync(_ script: String, timeout: TimeInterval = 5.0) async throws -> NSAppleEventDescriptor? {
-        return try await withCheckedThrowingContinuation { continuation in
-            // Defer execution to next run loop to avoid crashes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                var error: NSDictionary?
-                if let scriptObject = NSAppleScript(source: script) {
+        let timeoutDuration = min(timeout, 30.0)
+        
+        // Use a class with NSLock to ensure thread-safe access
+        final class ContinuationWrapper: @unchecked Sendable {
+            private let lock = NSLock()
+            private var hasResumed = false
+            private let continuation: CheckedContinuation<SendableDescriptor, Error>
+            
+            init(continuation: CheckedContinuation<SendableDescriptor, Error>) {
+                self.continuation = continuation
+            }
+            
+            func resume(throwing error: Error) {
+                lock.lock()
+                defer { lock.unlock() }
+                
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(throwing: error)
+            }
+            
+            func resume(returning value: NSAppleEventDescriptor?) {
+                lock.lock()
+                defer { lock.unlock() }
+                
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(returning: SendableDescriptor(descriptor: value))
+            }
+        }
+        
+        return try await withTaskCancellationHandler {
+            let sendableResult: SendableDescriptor = try await withCheckedThrowingContinuation { continuation in
+                let wrapper = ContinuationWrapper(continuation: continuation)
+                
+                Task { @MainActor in
+                    // Small delay to ensure we're not in a SwiftUI action context
+                    do {
+                        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                    } catch {
+                        wrapper.resume(throwing: error)
+                        return
+                    }
+                    
+                    var error: NSDictionary?
+                    guard let scriptObject = NSAppleScript(source: script) else {
+                        logger.error("Failed to create NSAppleScript object")
+                        wrapper.resume(throwing: AppleScriptError.scriptCreationFailed)
+                        return
+                    }
+                    
                     let result = scriptObject.executeAndReturnError(&error)
                     
                     if let error = error {
                         let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
                         let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
                         
-                        self.logger.error("AppleScript execution failed: \(errorMessage) (code: \(errorNumber ?? -1))")
+                        logger.error("AppleScript execution failed:")
+                        logger.error("  Error code: \(errorNumber ?? -1)")
+                        logger.error("  Error message: \(errorMessage)")
+                        if let errorRange = error["NSAppleScriptErrorRange"] as? NSRange {
+                            logger.error("  Error range: \(errorRange)")
+                        }
+                        if let errorBriefMessage = error["NSAppleScriptErrorBriefMessage"] as? String {
+                            logger.error("  Brief message: \(errorBriefMessage)")
+                        }
                         
-                        continuation.resume(throwing: AppleScriptError.executionFailed(
+                        wrapper.resume(throwing: AppleScriptError.executionFailed(
                             message: errorMessage,
                             errorCode: errorNumber
                         ))
                     } else {
-                        self.logger.debug("AppleScript executed successfully")
-                        continuation.resume(returning: result)
+                        logger.debug("AppleScript executed successfully")
+                        wrapper.resume(returning: result)
                     }
-                } else {
-                    self.logger.error("Failed to create NSAppleScript object")
-                    continuation.resume(throwing: AppleScriptError.scriptCreationFailed)
+                }
+                
+                // Set up timeout
+                Task {
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(timeoutDuration * 1_000_000_000))
+                        logger.error("AppleScript execution timed out after \(timeoutDuration) seconds")
+                        wrapper.resume(throwing: AppleScriptError.timeout)
+                    } catch {
+                        // Task was cancelled, do nothing
+                    }
                 }
             }
+            return sendableResult.descriptor
+        } onCancel: {
+            // Handle cancellation if needed
         }
     }
     

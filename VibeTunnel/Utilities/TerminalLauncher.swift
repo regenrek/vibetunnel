@@ -27,6 +27,14 @@ struct TerminalLaunchConfig {
         fullCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "'", with: "'\\''")
+    }
+    
+    var keystrokeEscapedCommand: String {
+        // For keystroke commands, we need to escape quotes differently
+        fullCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\\\\\"")
             .replacingOccurrences(of: "'", with: "\\'")
     }
 }
@@ -119,7 +127,7 @@ enum Terminal: String, CaseIterable {
             end tell
             delay 0.2
             tell application "System Events"
-                keystroke "\(config.appleScriptEscapedCommand)"
+                keystroke "\(config.keystrokeEscapedCommand)"
                 key code 36
             end tell
         end tell
@@ -138,7 +146,7 @@ enum Terminal: String, CaseIterable {
                         keystroke "n" using {command down}
                     end tell
                     delay 0.1
-                    do script "\(config.command)" in front window
+                    do script "\(config.escapedCommand)" in front window
                 end tell
                 """)
             
@@ -156,7 +164,7 @@ enum Terminal: String, CaseIterable {
                         activate
                         create window with default profile
                         tell current session of current window
-                            write text "\(config.command)"
+                            write text "\(config.escapedCommand)"
                         end tell
                     end tell
                     """)
@@ -209,6 +217,22 @@ enum Terminal: String, CaseIterable {
         case .wezterm: return "WezTerm"
         }
     }
+    
+    /// Whether this terminal requires keystroke-based input (needs Accessibility permission)
+    var requiresKeystrokeInput: Bool {
+        switch self {
+        case .terminal:
+            return false  // Uses 'do script' command, not keystrokes
+        case .iTerm2:
+            return false  // Uses URL scheme or 'write text' command
+        case .ghostty, .warp, .hyper:
+            return true   // Uses keystroke-based input
+        case .tabby:
+            return true   // Uses processWithTyping which requires keystrokes
+        case .alacritty, .wezterm:
+            return false  // Uses command line arguments
+        }
+    }
 }
 
 /// Errors that can occur when launching terminal commands.
@@ -218,6 +242,7 @@ enum Terminal: String, CaseIterable {
 enum TerminalLauncherError: LocalizedError {
     case terminalNotFound
     case appleScriptPermissionDenied
+    case accessibilityPermissionDenied
     case appleScriptExecutionFailed(String, errorCode: Int?)
     case processLaunchFailed(String)
 
@@ -227,6 +252,8 @@ enum TerminalLauncherError: LocalizedError {
             return "Selected terminal application not found"
         case .appleScriptPermissionDenied:
             return "AppleScript permission denied. Please grant permission in System Settings."
+        case .accessibilityPermissionDenied:
+            return "Accessibility permission required to send keystrokes. Please grant permission in System Settings."
         case .appleScriptExecutionFailed(let message, let errorCode):
             if let code = errorCode {
                 return "AppleScript error \(code): \(message)"
@@ -242,6 +269,8 @@ enum TerminalLauncherError: LocalizedError {
         switch self {
         case .appleScriptPermissionDenied:
             return "VibeTunnel needs Automation permission to control terminal applications."
+        case .accessibilityPermissionDenied:
+            return "VibeTunnel needs Accessibility permission to send keystrokes to terminal applications."
         case .appleScriptExecutionFailed(_, let errorCode):
             if let code = errorCode {
                 switch code {
@@ -251,6 +280,8 @@ enum TerminalLauncherError: LocalizedError {
                     return "The application is not running or cannot be controlled."
                 case -1_708:
                     return "The event was not handled by the target application."
+                case -25211:
+                    return "Accessibility permission is required to send keystrokes."
                 default:
                     return nil
                 }
@@ -395,6 +426,13 @@ final class TerminalLauncher {
             // as some terminals (like Ghostty) can take longer to start up
             try AppleScriptExecutor.shared.execute(script, timeout: 15.0)
         } catch let error as AppleScriptError {
+            // Check if this is a keystroke permission error
+            if case .executionFailed(_, let errorCode) = error,
+               let code = errorCode,
+               (code == -25211 || code == -1719) {
+                // These error codes indicate accessibility permission issues
+                throw TerminalLauncherError.accessibilityPermissionDenied
+            }
             // Convert AppleScriptError to TerminalLauncherError
             throw error.toTerminalLauncherError()
         } catch {

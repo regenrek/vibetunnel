@@ -236,9 +236,10 @@ private struct VTCommandPageView: View {
 
 // MARK: - Request Permissions Page
 
-/// Third page requesting AppleScript automation permissions.
+/// Third page requesting AppleScript automation and accessibility permissions.
 private struct RequestPermissionsPageView: View {
-    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
+    @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
+    @State private var hasAccessibilityPermission = false
     
     var body: some View {
         VStack(spacing: 30) {
@@ -254,7 +255,7 @@ private struct RequestPermissionsPageView: View {
                     .fontWeight(.semibold)
                 
                 Text(
-                    "VibeTunnel uses AppleScript to spawn a terminal when you create a new session in the dashboard."
+                    "VibeTunnel needs permissions to launch terminal sessions and send commands to certain terminals."
                 )
                 .font(.body)
                 .foregroundColor(.secondary)
@@ -262,30 +263,89 @@ private struct RequestPermissionsPageView: View {
                 .frame(maxWidth: 480)
                 .fixedSize(horizontal: false, vertical: true)
                 
-                // Permission status and button
-                VStack(spacing: 12) {
-                    if permissionManager.hasPermission {
+                // Permissions list
+                VStack(spacing: 20) {
+                    // AppleScript permission
+                    VStack(spacing: 12) {
                         HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("Permission granted")
-                                .foregroundColor(.secondary)
+                            Image(systemName: "applescript")
+                                .font(.title2)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Automation Permission")
+                                    .font(.headline)
+                                Text("Required to launch and control terminal applications")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
                         }
-                        .font(.body)
-                    } else {
-                        Button("Grant Permission") {
-                            permissionManager.requestPermission()
+                        
+                        if appleScriptManager.hasPermission {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Automation permission granted")
+                                    .foregroundColor(.secondary)
+                            }
+                            .font(.body)
+                        } else {
+                            Button("Grant Automation Permission") {
+                                appleScriptManager.requestPermission()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
                     }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
+                    
+                    // Accessibility permission
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "accessibility")
+                                .font(.title2)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Accessibility Permission")
+                                    .font(.headline)
+                                Text("Required for terminals like Ghostty that need keystroke input")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        
+                        if hasAccessibilityPermission {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Accessibility permission granted")
+                                    .foregroundColor(.secondary)
+                            }
+                            .font(.body)
+                        } else {
+                            Button("Grant Accessibility Permission") {
+                                AccessibilityPermissionManager.shared.requestPermission()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                        }
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .task {
-            _ = await permissionManager.checkPermission()
+            _ = await appleScriptManager.checkPermission()
+            hasAccessibilityPermission = AccessibilityPermissionManager.shared.hasPermission()
+        }
+        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+            // Check accessibility permission status periodically
+            hasAccessibilityPermission = AccessibilityPermissionManager.shared.hasPermission()
         }
     }
 }
