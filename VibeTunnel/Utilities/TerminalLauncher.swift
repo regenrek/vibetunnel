@@ -110,7 +110,7 @@ enum Terminal: String, CaseIterable {
     }
     
     /// Generate AppleScript for terminals that use keyboard input
-    private func keystrokeAppleScript(for config: TerminalLaunchConfig) -> String {
+    func keystrokeAppleScript(for config: TerminalLaunchConfig) -> String {
         """
         tell application "\(processName)"
             activate
@@ -218,16 +218,46 @@ enum Terminal: String, CaseIterable {
 enum TerminalLauncherError: LocalizedError {
     case terminalNotFound
     case appleScriptPermissionDenied
-    case appleScriptExecutionFailed(String)
+    case appleScriptExecutionFailed(String, errorCode: Int?)
+    case processLaunchFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .terminalNotFound:
-            "Selected terminal application not found"
+            return "Selected terminal application not found"
         case .appleScriptPermissionDenied:
-            "AppleScript permission denied. Please grant permission in System Settings."
-        case .appleScriptExecutionFailed(let message):
-            "Failed to execute AppleScript: \(message)"
+            return "AppleScript permission denied. Please grant permission in System Settings."
+        case .appleScriptExecutionFailed(let message, let errorCode):
+            if let code = errorCode {
+                return "AppleScript error \(code): \(message)"
+            } else {
+                return "AppleScript error: \(message)"
+            }
+        case .processLaunchFailed(let message):
+            return "Failed to launch process: \(message)"
+        }
+    }
+    
+    var failureReason: String? {
+        switch self {
+        case .appleScriptPermissionDenied:
+            return "VibeTunnel needs Automation permission to control terminal applications."
+        case .appleScriptExecutionFailed(_, let errorCode):
+            if let code = errorCode {
+                switch code {
+                case -1_743:
+                    return "User permission is required to control other applications."
+                case -1_728:
+                    return "The application is not running or cannot be controlled."
+                case -1_708:
+                    return "The event was not handled by the target application."
+                default:
+                    return nil
+                }
+            }
+            return nil
+        default:
+            return nil
         }
     }
 }
@@ -351,31 +381,63 @@ final class TerminalLauncher {
             process.waitUntilExit()
             
             if process.terminationStatus != 0 {
-                throw TerminalLauncherError.appleScriptExecutionFailed("Process exited with status \(process.terminationStatus)")
+                throw TerminalLauncherError.processLaunchFailed("Process exited with status \(process.terminationStatus)")
             }
         } catch {
             logger.error("Failed to launch terminal: \(error.localizedDescription)")
-            throw TerminalLauncherError.appleScriptExecutionFailed(error.localizedDescription)
+            throw TerminalLauncherError.processLaunchFailed(error.localizedDescription)
         }
     }
     
     private func executeAppleScript(_ script: String) throws {
-        var error: NSDictionary?
-        if let scriptObject = NSAppleScript(source: script) {
-            _ = scriptObject.executeAndReturnError(&error)
-            
-            if let error = error {
-                let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
-                let errorNumber = error["NSAppleScriptErrorNumber"] as? Int ?? 0
+        // Create a semaphore to wait for async execution
+        let semaphore = DispatchSemaphore(value: 0)
+        var executionError: Error?
+        
+        // Defer AppleScript execution to next run loop to avoid crashes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            var error: NSDictionary?
+            if let scriptObject = NSAppleScript(source: script) {
+                _ = scriptObject.executeAndReturnError(&error)
                 
-                // Check for permission errors
-                if errorNumber == -1_743 {
-                    throw TerminalLauncherError.appleScriptPermissionDenied
+                if let error = error {
+                    let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
+                    let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
+                    
+                    // Log all error details
+                    self.logger.error("AppleScript execution failed:")
+                    self.logger.error("  Error code: \(errorNumber ?? -1)")
+                    self.logger.error("  Error message: \(errorMessage)")
+                    if let errorRange = error["NSAppleScriptErrorRange"] as? NSRange {
+                        self.logger.error("  Error range: \(errorRange)")
+                    }
+                    if let errorBriefMessage = error["NSAppleScriptErrorBriefMessage"] as? String {
+                        self.logger.error("  Brief message: \(errorBriefMessage)")
+                    }
+                    
+                    // Check for specific permission errors
+                    if let code = errorNumber, code == -1_743 {
+                        self.logger.error("  This is a permission error - user needs to grant Automation permission")
+                        executionError = TerminalLauncherError.appleScriptPermissionDenied
+                    } else {
+                        executionError = TerminalLauncherError.appleScriptExecutionFailed(errorMessage, errorCode: errorNumber)
+                    }
+                } else {
+                    // Log successful execution
+                    self.logger.debug("AppleScript executed successfully")
                 }
-                
-                logger.error("AppleScript execution failed: \(errorMessage)")
-                throw TerminalLauncherError.appleScriptExecutionFailed(errorMessage)
+            } else {
+                self.logger.error("Failed to create NSAppleScript object")
+                executionError = TerminalLauncherError.appleScriptExecutionFailed("Failed to create AppleScript object", errorCode: nil)
             }
+            semaphore.signal()
+        }
+        
+        // Wait for execution to complete
+        _ = semaphore.wait(timeout: .now() + 5.0) // 5 second timeout
+        
+        if let error = executionError {
+            throw error
         }
     }
     
@@ -405,52 +467,13 @@ final class TerminalLauncher {
     }
     
     private func findTTYFwdBinary() -> String {
-        // First, check if tty-fwd is in PATH
-        let checkTTYFwd = Process()
-        checkTTYFwd.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        checkTTYFwd.arguments = ["tty-fwd"]
-        
-        let pipe = Pipe()
-        checkTTYFwd.standardOutput = pipe
-        checkTTYFwd.standardError = FileHandle.nullDevice
-        
-        do {
-            try checkTTYFwd.run()
-            checkTTYFwd.waitUntilExit()
-            
-            if checkTTYFwd.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !path.isEmpty {
-                    logger.info("Found tty-fwd in PATH at: \(path)")
-                    return path
-                }
-            }
-        } catch {
-            logger.warning("Failed to check for tty-fwd in PATH: \(error.localizedDescription)")
-        }
-        
-        // Look for bundled tty-fwd binary
+        // Look for bundled tty-fwd binary (shipped with the app)
         if let bundledTTYFwd = Bundle.main.path(forResource: "tty-fwd", ofType: nil) {
             logger.info("Using bundled tty-fwd at: \(bundledTTYFwd)")
             return bundledTTYFwd
         }
         
-        // Try common locations
-        let commonPaths = [
-            "/usr/local/bin/tty-fwd",
-            "/opt/homebrew/bin/tty-fwd",
-            "/usr/bin/tty-fwd"
-        ]
-        
-        for path in commonPaths {
-            if FileManager.default.fileExists(atPath: path) {
-                logger.info("Found tty-fwd at: \(path)")
-                return path
-            }
-        }
-        
-        logger.error("No tty-fwd binary found, command will fail")
-        return "echo 'VibeTunnel: tty-fwd binary not found'; false"
+        logger.error("No tty-fwd binary found in app bundle, command will fail")
+        return "echo 'VibeTunnel: tty-fwd binary not found in app bundle'; false"
     }
 }
