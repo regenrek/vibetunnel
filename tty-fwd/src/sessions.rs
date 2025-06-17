@@ -373,14 +373,15 @@ pub fn cleanup_sessions(
 pub fn spawn_command(
     control_path: std::path::PathBuf,
     session_name: Option<String>,
+    session_id: Option<String>,
     cmdline: Vec<OsString>,
 ) -> Result<i32, anyhow::Error> {
     if cmdline.is_empty() {
         return Err(anyhow!("No command provided"));
     }
 
-    let session_id = Uuid::new_v4();
-    let session_path = control_path.join(session_id.to_string());
+    let session_id = session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let session_path = control_path.join(session_id);
     fs::create_dir_all(&session_path)?;
     let session_info_path = session_path.join("session.json");
     let stream_out_path = session_path.join("stream-out");
