@@ -555,34 +555,71 @@ export class Terminal extends LitElement {
       .map((line) => this.getLineText(line))
       .join('\n');
 
+    // Find URLs and strings
+    const patterns: Array<{ text: string; start: number; end: number; type: 'url' | 'string' }> =
+      [];
+
     // URL regex that matches common URL patterns
     const urlRegex = /(https?:\/\/[^\s\n<>"']+)/gi;
-    const urls: Array<{ url: string; start: number; end: number }> = [];
-
     let match;
     while ((match = urlRegex.exec(fullText)) !== null) {
-      urls.push({
-        url: match[1],
+      patterns.push({
+        text: match[1],
         start: match.index,
         end: match.index + match[1].length,
+        type: 'url',
       });
     }
 
-    if (urls.length === 0) return;
+    // String regex that matches quoted strings (single, double, backtick)
+    const stringRegex = /(['"`])((?:\\.|(?!\1)[^\\])*?)\1/gs;
+    urlRegex.lastIndex = 0; // Reset regex
+    while ((match = stringRegex.exec(fullText)) !== null) {
+      // Only highlight strings that span multiple lines or are reasonably long
+      const stringContent = match[0];
+      const hasNewline = stringContent.includes('\n');
+      const isLong = stringContent.length > 20;
+
+      if (hasNewline || isLong) {
+        patterns.push({
+          text: stringContent,
+          start: match.index,
+          end: match.index + stringContent.length,
+          type: 'string',
+        });
+      }
+    }
+
+    if (patterns.length === 0) return;
+
+    // Sort by start position to handle overlaps
+    patterns.sort((a, b) => a.start - b.start);
+
+    // Remove overlapping patterns (URLs take precedence over strings)
+    const filteredPatterns = [];
+    for (const pattern of patterns) {
+      const hasOverlap = filteredPatterns.some(
+        (existing) => pattern.start < existing.end && pattern.end > existing.start
+      );
+      if (!hasOverlap) {
+        filteredPatterns.push(pattern);
+      }
+    }
 
     // Convert character positions to line/column positions
-    const urlPositions = urls.map((urlInfo) => {
-      const { url, start, end } = urlInfo;
+    const patternPositions = filteredPatterns.map((patternInfo) => {
+      const { text, start, end, type } = patternInfo;
       return {
-        url,
+        text,
+        type,
         startPos: this.charPosToLineCol(fullText, start),
         endPos: this.charPosToLineCol(fullText, end),
       };
     });
 
-    // Apply link styling to each URL
-    urlPositions.forEach(({ url, startPos, endPos }) => {
-      this.createLinkSpans(lines, url, startPos, endPos);
+    // Apply styling to each pattern
+    patternPositions.forEach(({ text, type, startPos, endPos }) => {
+      this.createClickableSpans(lines, text, type, startPos, endPos);
     });
   }
 
@@ -607,18 +644,19 @@ export class Terminal extends LitElement {
     return { line: lines.length - 1, col: lines[lines.length - 1].length };
   }
 
-  private createLinkSpans(
+  private createClickableSpans(
     lines: NodeListOf<Element>,
-    url: string,
+    text: string,
+    type: 'url' | 'string',
     startPos: { line: number; col: number },
     endPos: { line: number; col: number }
   ) {
-    // Handle single-line and multi-line URLs
+    // Handle single-line and multi-line patterns
     if (startPos.line === endPos.line) {
-      // Single line URL
-      this.createLinkInLine(lines[startPos.line], url, startPos.col, endPos.col);
+      // Single line pattern
+      this.createClickableInLine(lines[startPos.line], text, type, startPos.col, endPos.col);
     } else {
-      // Multi-line URL
+      // Multi-line pattern
       for (let lineIdx = startPos.line; lineIdx <= endPos.line; lineIdx++) {
         const line = lines[lineIdx];
         if (!line) continue;
@@ -638,12 +676,18 @@ export class Terminal extends LitElement {
           endCol = this.getLineText(line).length;
         }
 
-        this.createLinkInLine(line, url, startCol, endCol);
+        this.createClickableInLine(line, text, type, startCol, endCol);
       }
     }
   }
 
-  private createLinkInLine(lineElement: Element, url: string, startCol: number, endCol: number) {
+  private createClickableInLine(
+    lineElement: Element,
+    text: string,
+    type: 'url' | 'string',
+    startCol: number,
+    endCol: number
+  ) {
     if (startCol >= endCol) return;
 
     // We need to work with the actual DOM structure, not just text
@@ -670,7 +714,15 @@ export class Terminal extends LitElement {
         const linkEnd = Math.min(nodeText.length, endCol - nodeStart);
 
         if (linkStart < linkEnd) {
-          this.wrapTextInLink(textNode, linkStart, linkEnd, url, !foundStart, nodeEnd >= endCol);
+          this.wrapTextInClickable(
+            textNode,
+            linkStart,
+            linkEnd,
+            text,
+            type,
+            !foundStart,
+            nodeEnd >= endCol
+          );
           foundStart = true;
           if (nodeEnd >= endCol) {
             foundEnd = true;
@@ -683,11 +735,12 @@ export class Terminal extends LitElement {
     }
   }
 
-  private wrapTextInLink(
+  private wrapTextInClickable(
     textNode: Text,
     start: number,
     end: number,
-    url: string,
+    text: string,
+    type: 'url' | 'string',
     _isFirst: boolean,
     _isLast: boolean
   ) {
@@ -696,32 +749,42 @@ export class Terminal extends LitElement {
 
     const nodeText = textNode.textContent || '';
     const beforeText = nodeText.substring(0, start);
-    const linkText = nodeText.substring(start, end);
+    const clickableText = nodeText.substring(start, end);
     const afterText = nodeText.substring(end);
 
-    // Create the link element
-    const linkElement = document.createElement('span');
-    linkElement.className = 'terminal-link';
-    linkElement.style.color = '#4fc3f7';
-    linkElement.style.textDecoration = 'underline';
-    linkElement.style.cursor = 'pointer';
-    linkElement.textContent = linkText;
-    linkElement.setAttribute('data-url', url);
+    // Create the clickable element
+    const clickableElement = document.createElement('span');
 
-    // Add click handler
-    linkElement.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.open(url, '_blank');
-    });
+    if (type === 'url') {
+      clickableElement.className = 'terminal-link';
+      clickableElement.style.color = '#4fc3f7';
+      clickableElement.style.textDecoration = 'underline';
+      clickableElement.style.cursor = 'pointer';
+      clickableElement.setAttribute('data-url', text);
 
-    // Add hover effects
-    linkElement.addEventListener('mouseenter', () => {
-      linkElement.style.backgroundColor = 'rgba(79, 195, 247, 0.2)';
-    });
+      // Add click handler for URLs
+      clickableElement.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.open(text, '_blank');
+      });
 
-    linkElement.addEventListener('mouseleave', () => {
-      linkElement.style.backgroundColor = '';
-    });
+      // Add hover effects for URLs
+      clickableElement.addEventListener('mouseenter', () => {
+        clickableElement.style.backgroundColor = 'rgba(79, 195, 247, 0.2)';
+      });
+
+      clickableElement.addEventListener('mouseleave', () => {
+        clickableElement.style.backgroundColor = '';
+      });
+    } else {
+      // String styling
+      clickableElement.className = 'terminal-string';
+      clickableElement.style.color = '#ce9178';
+      clickableElement.style.backgroundColor = 'rgba(206, 145, 120, 0.1)';
+      clickableElement.setAttribute('data-string', text);
+    }
+
+    clickableElement.textContent = clickableText;
 
     // Replace the text node with the new structure
     const fragment = document.createDocumentFragment();
@@ -730,7 +793,7 @@ export class Terminal extends LitElement {
       fragment.appendChild(document.createTextNode(beforeText));
     }
 
-    fragment.appendChild(linkElement);
+    fragment.appendChild(clickableElement);
 
     if (afterText) {
       fragment.appendChild(document.createTextNode(afterText));
@@ -819,6 +882,11 @@ export class Terminal extends LitElement {
 
         .terminal-link:hover {
           background-color: rgba(79, 195, 247, 0.2);
+        }
+
+        .terminal-string {
+          color: #ce9178;
+          background-color: rgba(206, 145, 120, 0.1);
         }
       </style>
       <div id="terminal-container" class="terminal-container w-full h-full"></div>
