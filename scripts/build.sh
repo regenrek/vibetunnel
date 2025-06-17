@@ -81,10 +81,7 @@ if [[ -x "$PROJECT_DIR/tty-fwd/build-universal.sh" ]]; then
     # Verify the binary was built
     if [[ -f "$PROJECT_DIR/tty-fwd/target/release/tty-fwd-universal" ]]; then
         echo "✓ tty-fwd universal binary built successfully"
-        # Copy to Resources folder for inclusion in app bundle
-        cp "$PROJECT_DIR/tty-fwd/target/release/tty-fwd-universal" "$PROJECT_DIR/VibeTunnel/Resources/tty-fwd"
-        chmod +x "$PROJECT_DIR/VibeTunnel/Resources/tty-fwd"
-        echo "✓ Copied tty-fwd universal binary to Resources folder"
+        # Note: The Xcode build phase will copy this to the app bundle
     else
         echo "Error: Failed to build tty-fwd universal binary"
         exit 1

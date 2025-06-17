@@ -65,10 +65,12 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
                 logger.info("Sparkle updater initialized successfully with automatic downloads enabled")
 
                 // Start the updater
-                do {
-                    try controller.updater.start()
-                } catch {
-                    logger.error("Failed to start Sparkle updater: \(error)")
+                if let controller = updaterController {
+                    do {
+                        try controller.updater.start()
+                    } catch {
+                        logger.error("Failed to start Sparkle updater: \(error)")
+                    }
                 }
             #endif
 
