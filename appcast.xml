@@ -3,7 +3,7 @@
     <channel>
         <title>VibeTunnel Updates</title>
         <link>https://github.com/amantus-ai/vibetunnel</link>
-        <description>VibeTunnel stable release updates</description>
+        <description>VibeTunnel automatic updates feed</description>
         <language>en</language>
     </channel>
 </rss>

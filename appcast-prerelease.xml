@@ -5,5 +5,24 @@
         <link>https://github.com/amantus-ai/vibetunnel</link>
         <description>VibeTunnel pre-release and beta updates feed</description>
         <language>en</language>
+        <item>
+            <title>VibeTunnel 1.0-beta.1</title>
+            <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.1/VibeTunnel-1.0-beta.1.dmg</link>
+            <sparkle:version>103</sparkle:version>
+            <sparkle:shortVersionString>1.0-beta.1</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>VibeTunnel 1.0-beta.1</h2><p><strong>Pre-release version</strong></p><div><h2>VibeTunnel 1.0-beta.1</h2>
+<p>Latest version of VibeTunnel with new features and improvements.</p>
+<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md">View full changelog</a></p></div>
+            ]]></description>
+            <pubDate>Tue, 17 Jun 2025 01:09:18 +0200</pubDate>
+            <enclosure 
+                url="https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.1/VibeTunnel-1.0-beta.1.dmg"
+                length="17928597"
+                type="application/octet-stream"
+                sparkle:edSignature="lm3eCKxuykGYj1oRG3uRm3QB+3azo7EGGeuP2SzZHsobnKGBxq48H21rN9WDi2mry8NbGM9YwjdjfzS56h7GDA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
     </channel>
 </rss>
