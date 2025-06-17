@@ -8,7 +8,7 @@
         <item>
             <title>VibeTunnel 1.0-beta.1</title>
             <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.1/VibeTunnel-1.0-beta.1.dmg</link>
-            <sparkle:version>100</sparkle:version>
+            <sparkle:version>101</sparkle:version>
             <sparkle:shortVersionString>1.0-beta.1</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>VibeTunnel 1.0-beta.1</h2><p><strong>Pre-release version</strong></p><div><h2>VibeTunnel 1.0-beta.1</h2>
