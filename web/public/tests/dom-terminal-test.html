@@ -152,8 +152,9 @@
         setupSizeControls();
         setupFitToggle();
         generateMockData();
-
-        terminal.write("Hello world")
+        terminal.queueCallback(() => {
+        terminal.write("Hello world");
+        });
 
         function generateMockData() {
             if (!terminal) return;
@@ -388,8 +389,6 @@
 
             // System info
             content += '\x1b[1;32m🖥️  System Information:\x1b[0m\r\n';
-            const terminalSize = terminal.getTerminalSize();
-            content += `\x1b[36mTerminal Size:\x1b[0m ${terminalSize.cols}x${terminalSize.rows} characters\r\n`;
             content += `\x1b[36mFont Family:\x1b[0m Fira Code, monospace\r\n`;
             content += `\x1b[36mFeatures:\x1b[0m Native text selection, smooth scrolling, touch support\r\n`;
             content += `\x1b[36mRendering:\x1b[0m DOM-based with virtual scrolling\r\n\r\n`;
@@ -422,10 +421,7 @@
             terminal.write(firstTenLines);
 
             // Scroll to bottom after content is written
-            setTimeout(() => {
-                terminal.scrollToBottom();
-            }, 100);
-
+            terminal.scrollToBottom();
             console.log('Mock data generation completed!');
         }
 

@@ -476,7 +476,9 @@ export class Terminal extends LitElement {
       }
 
       // Check if cursor is on this line (relative to viewport)
-      const isCursorLine = row === cursorY;
+      // cursorY is absolute in buffer, need to check if it's in current viewport
+      const isCursorLine =
+        row === cursorY && cursorY >= startRow && cursorY < startRow + this.actualRows;
       const lineContent = this.renderLine(line, cell, isCursorLine ? cursorX : -1);
       html += `<div class="terminal-line">${lineContent || ''}</div>`;
     }
@@ -682,22 +684,16 @@ export class Terminal extends LitElement {
   }
 
   // === QUERY METHODS (Immediate) ===
-
-  private checkPendingOperations() {
-    if (this.operationQueue.length > 0) {
-      throw new Error(
-        `Cannot read terminal state: ${this.operationQueue.length} operations pending in RAF queue. Data may be stale.`
-      );
-    }
-  }
+  // Note: These methods return current state immediately but may return stale data
+  // if operations are pending in the RAF queue. For guaranteed fresh data, call
+  // these methods inside queueCallback() to ensure they run after all operations complete.
 
   /**
    * Get terminal dimensions.
    * @returns Object with cols and rows
-   * @throws Error if operations are pending in RAF queue
+   * @note May return stale data if operations are pending. Use queueCallback() for fresh data.
    */
   public getTerminalSize(): { cols: number; rows: number } {
-    this.checkPendingOperations();
     return {
       cols: this.cols,
       rows: this.rows,
@@ -707,20 +703,18 @@ export class Terminal extends LitElement {
   /**
    * Get number of visible rows in the current viewport.
    * @returns Number of rows that fit in the viewport
-   * @throws Error if operations are pending in RAF queue
+   * @note May return stale data if operations are pending. Use queueCallback() for fresh data.
    */
   public getVisibleRows(): number {
-    this.checkPendingOperations();
     return this.actualRows;
   }
 
   /**
    * Get total number of lines in the scrollback buffer.
    * @returns Total lines in buffer
-   * @throws Error if operations are pending in RAF queue
+   * @note May return stale data if operations are pending. Use queueCallback() for fresh data.
    */
   public getBufferSize(): number {
-    this.checkPendingOperations();
     if (!this.terminal) return 0;
     return this.terminal.buffer.active.length;
   }
@@ -728,20 +722,18 @@ export class Terminal extends LitElement {
   /**
    * Get current scroll position.
    * @returns Current scroll position (0 = top)
-   * @throws Error if operations are pending in RAF queue
+   * @note May return stale data if operations are pending. Use queueCallback() for fresh data.
    */
   public getScrollPosition(): number {
-    this.checkPendingOperations();
     return this.viewportY;
   }
 
   /**
    * Get maximum possible scroll position.
    * @returns Maximum scroll position
-   * @throws Error if operations are pending in RAF queue
+   * @note May return stale data if operations are pending. Use queueCallback() for fresh data.
    */
   public getMaxScrollPosition(): number {
-    this.checkPendingOperations();
     if (!this.terminal) return 0;
     const buffer = this.terminal.buffer.active;
     return Math.max(0, buffer.length - this.actualRows);
