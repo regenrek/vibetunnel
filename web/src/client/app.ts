@@ -67,11 +67,13 @@ export class VibeTunnelApp extends LitElement {
           id: session.id,
           command: session.command,
           workingDir: session.workingDir,
+          name: session.name,
           status: session.status,
           exitCode: session.exitCode,
           startedAt: session.startedAt,
           lastModified: session.lastModified,
           pid: session.pid,
+          waiting: session.waiting,
         }));
         this.clearError();
       } else {

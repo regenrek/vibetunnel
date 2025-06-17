@@ -14,6 +14,7 @@ export interface Session {
   startedAt: string;
   lastModified: string;
   pid?: number;
+  waiting?: boolean;
 }
 
 @customElement('session-list')
