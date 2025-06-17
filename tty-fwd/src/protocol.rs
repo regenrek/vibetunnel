@@ -494,31 +494,12 @@ impl StreamParser {
         }
     }
 
-    pub fn parse_existing_content(&self) -> Result<Vec<StreamEvent>, Box<dyn std::error::Error>> {
-        use std::fs;
-        use std::io::{BufRead, BufReader};
-
-        let mut events = Vec::new();
-
-        if let Ok(file) = fs::File::open(&self.stream_path) {
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                let line = line?;
-                if let Ok(event) = StreamEvent::from_json_line(&line) {
-                    events.push(event);
-                }
-            }
-        }
-
-        Ok(events)
-    }
-
     pub fn start_streaming(&self, tx: mpsc::Sender<StreamEvent>) -> JoinHandle<()> {
         let stream_path = self.stream_path.clone();
         let start_time = self.start_time;
 
         thread::spawn(move || {
-            // First send existing content (integrated parse_existing_content logic)
+            // First send existing content
             if let Ok(file) = fs::File::open(&stream_path) {
                 let reader = BufReader::new(file);
                 for line in reader.lines() {
