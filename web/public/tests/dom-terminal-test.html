@@ -8,6 +8,18 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Fira Code Font -->
+    <style>
+        @font-face {
+            font-family: 'Fira Code';
+            src: url('../fonts/FiraCode-VF.woff2') format('woff2'),
+                 url('../fonts/FiraCode-VF.ttf') format('truetype');
+            font-weight: 100 950;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
+
     <style>
         body {
             display: flex;
@@ -16,7 +28,7 @@
             height: 100dvh; /* Use dynamic viewport height for mobile */
             margin: 0;
             overflow: hidden;
-            font-family: monospace;
+            font-family: 'Fira Code', monospace;
             background: #1e1e1e;
         }
 
@@ -79,6 +91,14 @@
             width: 100%;
             height: 100%;
             box-sizing: border-box;
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Terminal line styles for measurement */
+        .terminal-line {
+            font-family: 'Fira Code', monospace;
+            white-space: pre;
+            line-height: 1.2;
         }
     </style>
 </head>
