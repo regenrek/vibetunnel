@@ -2,6 +2,7 @@ import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './terminal.js';
 import type { Terminal } from './terminal.js';
+import { CastConverter } from '../utils/cast-converter.js';
 
 export interface Session {
   id: string;
@@ -99,25 +100,11 @@ export class SessionCard extends LitElement {
 
       const castContent = await response.text();
 
-      // Clear terminal and write snapshot data
+      // Clear terminal first
       this.terminal.clear();
 
-      // Parse cast file and write content
-      const lines = castContent.trim().split('\n');
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const event = JSON.parse(line);
-            if (event.length >= 3 && event[1] === 'o') {
-              // Output event: [timestamp, 'o', data]
-              this.terminal.write(event[2], false); // Don't follow cursor for snapshot
-            }
-          } catch (_e) {
-            // Skip invalid lines
-            continue;
-          }
-        }
-      }
+      // Use the new super-fast dump method that handles everything in one operation
+      await CastConverter.dumpToTerminal(this.terminal, castContent);
 
       // Scroll to bottom after loading
       this.terminal.queueCallback(() => {

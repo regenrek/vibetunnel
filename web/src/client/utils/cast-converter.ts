@@ -208,4 +208,56 @@ export class CastConverter {
       }
     }
   }
+
+  /**
+   * Dump entire cast content to terminal instantly as a single write operation.
+   * This is the fastest way to load cast content - builds one string and writes it all at once.
+   * Handles resize events by applying the final dimensions to the terminal.
+   *
+   * @param terminal - DOM terminal instance with write() and setTerminalSize() methods
+   * @param castContent - Raw cast file content
+   * @returns Promise that resolves when dump is complete
+   */
+  static async dumpToTerminal(
+    terminal: {
+      write: (data: string, followCursor?: boolean) => void;
+      setTerminalSize?: (cols: number, rows: number) => void;
+    },
+    castContent: string
+  ): Promise<void> {
+    const converted = this.convertCast(castContent);
+
+    // Track final terminal dimensions from resize events
+    let finalCols = converted.header?.width || 80;
+    let finalRows = converted.header?.height || 24;
+
+    // Build up output string and track final resize dimensions
+    const outputChunks: string[] = [];
+
+    for (const event of converted.events) {
+      if (event.type === 'o') {
+        // Output event - add to content
+        outputChunks.push(event.data);
+      } else if (event.type === 'r') {
+        // Resize event - track final dimensions
+        const match = event.data.match(/^(\d+)x(\d+)$/);
+        if (match) {
+          finalCols = parseInt(match[1], 10);
+          finalRows = parseInt(match[2], 10);
+        }
+      }
+      // Ignore 'i' (input) events for dump
+    }
+
+    // Apply final terminal size first if we have resize capability
+    if (terminal.setTerminalSize) {
+      terminal.setTerminalSize(finalCols, finalRows);
+    }
+
+    // Write all content at once as a single operation (fastest possible)
+    const allContent = outputChunks.join('');
+    if (allContent) {
+      terminal.write(allContent, false); // Don't follow cursor during dump for performance
+    }
+  }
 }
