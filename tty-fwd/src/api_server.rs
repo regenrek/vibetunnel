@@ -1035,13 +1035,30 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
         return json_response(StatusCode::OK, &response);
     }
 
-    // Try SIGKILL first, then SIGKILL if needed
+    // Try SIGKILL and wait for process to actually die
     let (status, message) = match sessions::send_signal_to_session(control_path, &session_id, 9) {
         Ok(()) => {
-            // Update session status to exited after killing the process
+            // Wait up to 3 seconds for the process to actually die
             let session_path = control_path.join(&session_id);
             let session_json_path = session_path.join("session.json");
-
+            
+            let mut process_died = false;
+            if let Ok(content) = std::fs::read_to_string(&session_json_path) {
+                if let Ok(session_info) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(pid) = session_info.get("pid").and_then(|p| p.as_u64()) {
+                        // Wait for the process to actually die
+                        for _ in 0..30 { // 30 * 100ms = 3 seconds max
+                            if !sessions::is_pid_alive(pid as u32) {
+                                process_died = true;
+                                break;
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                    }
+                }
+            }
+            
+            // Update session status to exited after confirming kill
             if let Ok(content) = std::fs::read_to_string(&session_json_path) {
                 if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
                     session_info["status"] = serde_json::json!("exited");
@@ -1051,9 +1068,13 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
                     }
                 }
             }
-
-            (StatusCode::OK, "Session killed")
-        }
+            
+            if process_died {
+                (StatusCode::OK, "Session killed")
+            } else {
+                (StatusCode::OK, "Session kill signal sent (process may still be terminating)")
+            }
+        },
         Err(e) => {
             let response = ApiResponse {
                 success: None,

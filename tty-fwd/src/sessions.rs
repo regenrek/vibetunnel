@@ -249,7 +249,7 @@ fn write_to_pipe_with_timeout(
     Ok(())
 }
 
-fn is_pid_alive(pid: u32) -> bool {
+pub fn is_pid_alive(pid: u32) -> bool {
     let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
 
     match output {
