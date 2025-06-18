@@ -27,7 +27,8 @@ const isValidSessionName = (name: any): boolean => {
     typeof name === 'string' &&
     name.length > 0 &&
     name.length <= 255 &&
-    !/[<>:"|?*\x00-\x1f]/.test(name)
+    // eslint-disable-next-line no-control-regex
+    !/[<>:"|?*\u0000-\u001f]/.test(name)
   );
 };
 

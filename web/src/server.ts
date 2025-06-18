@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { spawn, ChildProcess } from 'child_process';
+import { PtyService, PtyError } from './pty/index.js';
 
 const app = express();
 const server = createServer(app);
@@ -35,6 +36,14 @@ if (!TTY_FWD_PATH) {
 const TTY_FWD_CONTROL_DIR =
   process.env.TTY_FWD_CONTROL_DIR || path.join(os.homedir(), '.vibetunnel/control');
 
+// Initialize PTY service with configuration
+const ptyService = new PtyService({
+  implementation: (process.env.PTY_IMPLEMENTATION as 'node-pty' | 'tty-fwd' | 'auto') || 'auto',
+  controlPath: TTY_FWD_CONTROL_DIR,
+  fallbackToTtyFwd: process.env.PTY_FALLBACK_TTY_FWD !== 'false',
+  ttyFwdPath: TTY_FWD_PATH || undefined,
+});
+
 // Ensure control directory exists
 if (!fs.existsSync(TTY_FWD_CONTROL_DIR)) {
   fs.mkdirSync(TTY_FWD_CONTROL_DIR, { recursive: true });
@@ -43,68 +52,11 @@ if (!fs.existsSync(TTY_FWD_CONTROL_DIR)) {
   console.log(`Using existing control directory: ${TTY_FWD_CONTROL_DIR}`);
 }
 
-console.log(`Using tty-fwd at: ${TTY_FWD_PATH}`);
+console.log(`PTY Service: Using ${ptyService.getCurrentImplementation()} implementation`);
+if (ptyService.isUsingTtyFwd()) {
+  console.log(`Using tty-fwd at: ${TTY_FWD_PATH}`);
+}
 console.log(`Control directory: ${TTY_FWD_CONTROL_DIR}`);
-
-// Types for tty-fwd responses
-interface TtyFwdSession {
-  cmdline: string[];
-  cwd: string;
-  exit_code: number | null;
-  name: string;
-  pid: number;
-  started_at: string;
-  status: 'running' | 'exited';
-  stdin: string;
-  'stream-out': string;
-  waiting: boolean;
-}
-
-interface TtyFwdListResponse {
-  [sessionId: string]: TtyFwdSession;
-}
-
-// Helper function to execute tty-fwd commands
-async function executeTtyFwd(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(TTY_FWD_PATH, args);
-    let output = '';
-    let isResolved = false;
-
-    // Set a timeout to prevent hanging
-    const timeout = setTimeout(() => {
-      if (!isResolved) {
-        isResolved = true;
-        child.kill('SIGTERM');
-        reject(new Error('tty-fwd command timed out after 5 seconds'));
-      }
-    }, 5000);
-
-    child.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    child.on('close', (code) => {
-      if (!isResolved) {
-        isResolved = true;
-        clearTimeout(timeout);
-        if (code === 0) {
-          resolve(output);
-        } else {
-          reject(new Error(`tty-fwd failed with code ${code}`));
-        }
-      }
-    });
-
-    child.on('error', (error) => {
-      if (!isResolved) {
-        isResolved = true;
-        clearTimeout(timeout);
-        reject(error);
-      }
-    });
-  });
-}
 
 // Helper function to resolve paths with ~ expansion
 function resolvePath(inputPath: string, fallback?: string): string {
@@ -132,12 +84,11 @@ const hotReloadClients = new Set<WebSocket>();
 // List all sessions
 app.get('/api/sessions', async (req, res) => {
   try {
-    const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
-    const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
+    const sessions = ptyService.listSessions();
 
-    const sessionData = Object.entries(sessions).map(([sessionId, sessionInfo]) => {
+    const sessionData = sessions.map((sessionInfo) => {
       // Get actual last modified time from stream-out file
-      let lastModified = sessionInfo.started_at;
+      let lastModified = sessionInfo.started_at || new Date().toISOString();
       try {
         if (fs.existsSync(sessionInfo['stream-out'])) {
           const stats = fs.statSync(sessionInfo['stream-out']);
@@ -148,7 +99,7 @@ app.get('/api/sessions', async (req, res) => {
       }
 
       return {
-        id: sessionId,
+        id: sessionInfo.session_id,
         command: sessionInfo.cmdline.join(' '),
         workingDir: sessionInfo.cwd,
         name: sessionInfo.name,
@@ -166,8 +117,8 @@ app.get('/api/sessions', async (req, res) => {
       (a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
     );
     res.json(sessionData);
-  } catch (_error) {
-    console.error('Failed to list sessions:', _error);
+  } catch (error) {
+    console.error('Failed to list sessions:', error);
     res.status(500).json({ error: 'Failed to list sessions' });
   }
 });
@@ -184,83 +135,25 @@ app.post('/api/sessions', async (req, res) => {
     const sessionName = name || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const cwd = resolvePath(workingDir, process.cwd());
 
-    const args = [
-      '--control-path',
-      TTY_FWD_CONTROL_DIR,
-      '--session-name',
+    console.log(`Creating session with PTY service: ${command.join(' ')} in ${cwd}`);
+
+    const result = await ptyService.createSession(command, {
       sessionName,
-      '--',
-    ].concat(command);
-
-    console.log(`Creating session: ${TTY_FWD_PATH} ${args.join(' ')}`);
-
-    const child = spawn(TTY_FWD_PATH, args, {
-      cwd: cwd,
-      detached: false,
-      stdio: 'pipe',
+      workingDir: cwd,
+      term: 'xterm-256color',
+      cols: 80,
+      rows: 24,
     });
 
-    // Capture session ID from stdout
-    let sessionId = '';
-    child.stdout.on('data', (data) => {
-      const output = data.toString().trim();
-      if (output && !sessionId) {
-        // First line of output should be the session ID
-        sessionId = output;
-        console.log(`Session created with ID: ${sessionId}`);
-      }
-    });
-
-    child.stderr.on('data', (data) => {
-      // Only log stderr if it contains actual errors
-      const output = data.toString();
-      if (output.includes('error') || output.includes('Error')) {
-        console.error(`Session ${sessionName} stderr:`, output);
-      }
-    });
-
-    child.on('close', async (code) => {
-      console.log(`Session ${sessionId || sessionName} exited with code: ${code}`);
-
-      // Send exit event to all clients watching this session
-      const streamInfo = activeStreams.get(sessionId);
-      if (streamInfo) {
-        console.log(`Sending exit event to stream ${sessionId}`);
-        const exitEvent = JSON.stringify(['exit', code, sessionId]);
-        const eventData = `data: ${exitEvent}\n\n`;
-
-        streamInfo.clients.forEach((client) => {
-          try {
-            client.write(eventData);
-          } catch (_error) {
-            console.error('Error sending exit event to client:', _error);
-          }
-        });
-      }
-    });
-
-    // Wait for session ID from tty-fwd or timeout after 3 seconds
-    const waitForSessionId = new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Failed to get session ID from tty-fwd within 3 seconds'));
-      }, 3000);
-
-      const checkSessionId = () => {
-        if (sessionId) {
-          clearTimeout(timeout);
-          resolve(sessionId);
-        } else {
-          setTimeout(checkSessionId, 100);
-        }
-      };
-      checkSessionId();
-    });
-
-    const finalSessionId = await waitForSessionId;
-    res.json({ sessionId: finalSessionId });
-  } catch (_error) {
-    console.error('Error creating session:', _error);
-    res.status(500).json({ error: 'Failed to create session' });
+    console.log(`Session created with ID: ${result.sessionId}`);
+    res.json({ sessionId: result.sessionId });
+  } catch (error) {
+    console.error('Error creating session:', error);
+    if (error instanceof PtyError) {
+      res.status(500).json({ error: 'Failed to create session', details: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to create session' });
+    }
   }
 });
 
@@ -269,34 +162,23 @@ app.delete('/api/sessions/:sessionId', async (req, res) => {
   const sessionId = req.params.sessionId;
 
   try {
-    const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
-    const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
-    const session = sessions[sessionId];
+    const session = ptyService.getSession(sessionId);
 
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    if (session.pid) {
-      try {
-        process.kill(session.pid, 'SIGTERM');
-        setTimeout(() => {
-          try {
-            process.kill(session.pid, 0); // Check if still alive
-            process.kill(session.pid, 'SIGKILL'); // Force kill
-          } catch (_e) {
-            // Process already dead
-          }
-        }, 1000);
-      } catch (_error) {
-        // Process already dead
-      }
-    }
+    ptyService.killSession(sessionId, 'SIGTERM');
+    console.log(`Session ${sessionId} killed`);
 
     res.json({ success: true, message: 'Session killed' });
-  } catch (_error) {
-    console.error('Error killing session:', _error);
-    res.status(500).json({ error: 'Failed to kill session' });
+  } catch (error) {
+    console.error('Error killing session:', error);
+    if (error instanceof PtyError) {
+      res.status(500).json({ error: 'Failed to kill session', details: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to kill session' });
+    }
   }
 });
 
@@ -305,26 +187,15 @@ app.delete('/api/sessions/:sessionId/cleanup', async (req, res) => {
   const sessionId = req.params.sessionId;
 
   try {
-    await executeTtyFwd([
-      '--control-path',
-      TTY_FWD_CONTROL_DIR,
-      '--session',
-      sessionId,
-      '--cleanup',
-    ]);
+    ptyService.cleanupSession(sessionId);
+    console.log(`Session ${sessionId} cleaned up`);
 
     res.json({ success: true, message: 'Session cleaned up' });
-  } catch (_error) {
-    // If tty-fwd cleanup fails, force remove directory
-    console.log('tty-fwd cleanup failed, force removing directory');
-    const sessionDir = path.join(TTY_FWD_CONTROL_DIR, sessionId);
-    try {
-      if (fs.existsSync(sessionDir)) {
-        fs.rmSync(sessionDir, { recursive: true, force: true });
-      }
-      res.json({ success: true, message: 'Session force cleaned up' });
-    } catch (fsError) {
-      console.error('Error force removing session directory:', fsError);
+  } catch (error) {
+    console.error('Error cleaning up session:', error);
+    if (error instanceof PtyError) {
+      res.status(500).json({ error: 'Failed to cleanup session', details: error.message });
+    } else {
       res.status(500).json({ error: 'Failed to cleanup session' });
     }
   }
@@ -333,12 +204,21 @@ app.delete('/api/sessions/:sessionId/cleanup', async (req, res) => {
 // Cleanup all exited sessions
 app.post('/api/cleanup-exited', async (req, res) => {
   try {
-    await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--cleanup']);
+    const cleanedSessions = ptyService.cleanupExitedSessions();
+    console.log(`Cleaned up ${cleanedSessions.length} exited sessions`);
 
-    res.json({ success: true, message: 'All exited sessions cleaned up' });
-  } catch (_error) {
-    console.error('Error cleaning up exited sessions:', _error);
-    res.status(500).json({ error: 'Failed to cleanup exited sessions' });
+    res.json({
+      success: true,
+      message: `${cleanedSessions.length} exited sessions cleaned up`,
+      cleanedSessions,
+    });
+  } catch (error) {
+    console.error('Error cleaning up exited sessions:', error);
+    if (error instanceof PtyError) {
+      res.status(500).json({ error: 'Failed to cleanup exited sessions', details: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to cleanup exited sessions' });
+    }
   }
 });
 
@@ -674,44 +554,19 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
   console.log(`Sending input to session ${sessionId}:`, JSON.stringify(text));
 
   try {
-    // Validate session exists and is running
-    const output = await executeTtyFwd(['--control-path', TTY_FWD_CONTROL_DIR, '--list-sessions']);
-    const sessions: TtyFwdListResponse = JSON.parse(output || '{}');
-
-    if (!sessions[sessionId]) {
+    // Validate session exists
+    const session = ptyService.getSession(sessionId);
+    if (!session) {
       console.error(`Session ${sessionId} not found in active sessions`);
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    const session = sessions[sessionId];
     if (session.status !== 'running') {
       console.error(`Session ${sessionId} is not running (status: ${session.status})`);
       return res.status(400).json({ error: 'Session is not running' });
     }
 
-    // Check if the process is actually still alive
-    if (session.pid) {
-      try {
-        process.kill(session.pid, 0); // Signal 0 just checks if process exists
-      } catch (_error) {
-        console.error(`Session ${sessionId} process ${session.pid} is dead, cleaning up`);
-        // Try to cleanup the stale session
-        try {
-          await executeTtyFwd([
-            '--control-path',
-            TTY_FWD_CONTROL_DIR,
-            '--session',
-            sessionId,
-            '--cleanup',
-          ]);
-        } catch (cleanupError) {
-          console.error('Failed to cleanup stale session:', cleanupError);
-        }
-        return res.status(410).json({ error: 'Session process has died' });
-      }
-    }
-
-    // Check if this is a special key that should use --send-key
+    // Check if this is a special key
     const specialKeys = [
       'arrow_up',
       'arrow_down',
@@ -724,35 +579,48 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
     ];
     const isSpecialKey = specialKeys.includes(text);
 
-    // const startTime = Date.now();
-
     if (isSpecialKey) {
-      await executeTtyFwd([
-        '--control-path',
-        TTY_FWD_CONTROL_DIR,
-        '--session',
-        sessionId,
-        '--send-key',
-        text,
-      ]);
-      // Key sent successfully (removed verbose logging)
+      ptyService.sendInput(sessionId, {
+        key: text as
+          | 'arrow_up'
+          | 'arrow_down'
+          | 'arrow_left'
+          | 'arrow_right'
+          | 'escape'
+          | 'enter'
+          | 'ctrl_enter'
+          | 'shift_enter',
+      });
     } else {
-      await executeTtyFwd([
-        '--control-path',
-        TTY_FWD_CONTROL_DIR,
-        '--session',
-        sessionId,
-        '--send-text',
-        text,
-      ]);
-      // Text sent successfully (removed verbose logging)
+      ptyService.sendInput(sessionId, { text });
     }
 
     res.json({ success: true });
-  } catch (_error) {
-    console.error('Error sending input via tty-fwd:', _error);
-    const errorMessage = _error instanceof Error ? _error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to send input', details: errorMessage });
+  } catch (error) {
+    console.error('Error sending input via PTY service:', error);
+    if (error instanceof PtyError) {
+      res.status(500).json({ error: 'Failed to send input', details: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to send input' });
+    }
+  }
+});
+
+// PTY service status endpoint
+app.get('/api/pty/status', (req, res) => {
+  try {
+    const status = {
+      implementation: ptyService.getCurrentImplementation(),
+      usingNodePty: ptyService.isUsingNodePty(),
+      usingTtyFwd: ptyService.isUsingTtyFwd(),
+      activeSessionCount: ptyService.getActiveSessionCount(),
+      controlPath: ptyService.getControlPath(),
+      config: ptyService.getConfig(),
+    };
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting PTY service status:', error);
+    res.status(500).json({ error: 'Failed to get PTY service status' });
   }
 });
 

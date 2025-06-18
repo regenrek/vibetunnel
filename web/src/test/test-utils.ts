@@ -58,10 +58,10 @@ export const mockWebSocketServer = () => {
 
 // Custom type declarations for test matchers
 declare module 'vitest' {
-  interface Assertion<T = unknown> {
+  interface Assertion<T = any> {
     toBeValidSession(): T;
   }
   interface AsymmetricMatchersContaining {
-    toBeValidSession(): unknown;
+    toBeValidSession(): any;
   }
 }

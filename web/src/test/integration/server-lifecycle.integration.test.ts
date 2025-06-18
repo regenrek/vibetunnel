@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-// @ts-expect-error - TypeScript module imports in tests
 import { app, server } from '../../server';
 
 // Set up test environment
@@ -52,8 +51,6 @@ describe('Server Lifecycle Integration Tests', () => {
       expect(fs.existsSync(testControlDir)).toBe(true);
     });
 
-
-
     it('should have all API endpoints available', async () => {
       const endpoints = [
         { method: 'get', path: '/api/sessions', expected: 200 },
@@ -69,7 +66,7 @@ describe('Server Lifecycle Integration Tests', () => {
         if (endpoint.method === 'post' && endpoint.body !== undefined) {
           response = await request(app)[endpoint.method](endpoint.path).send(endpoint.body);
         } else {
-          response = await request(app)[endpoint.method](endpoint.path);
+          response = await (request(app) as any)[endpoint.method](endpoint.path);
         }
 
         // Should not return 404 (may return other errors like 400 for missing params)
@@ -173,5 +170,4 @@ describe('Server Lifecycle Integration Tests', () => {
       }
     });
   });
-
 });

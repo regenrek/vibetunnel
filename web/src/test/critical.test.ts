@@ -136,7 +136,7 @@ describe('Critical VibeTunnel Functionality', () => {
     });
 
     it('should handle terminal input/output', async () => {
-      const mockStreamProcess = new EventEmitter();
+      const mockStreamProcess = new EventEmitter() as any;
       mockStreamProcess.stdout = new EventEmitter();
       mockStreamProcess.stderr = new EventEmitter();
       mockStreamProcess.kill = vi.fn();
@@ -338,7 +338,7 @@ describe('Critical VibeTunnel Functionality', () => {
     it('should handle large terminal output efficiently', () => {
       const largeOutput = 'X'.repeat(100000); // 100KB of data
 
-      const mockProcess = new EventEmitter();
+      const mockProcess = new EventEmitter() as any;
       mockProcess.stdout = new EventEmitter();
       mockProcess.stderr = new EventEmitter();
       mockProcess.kill = vi.fn();

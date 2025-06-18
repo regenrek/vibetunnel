@@ -1,0 +1,86 @@
+
+> vibetunnel-web@1.0.0 lint
+> eslint 'src/**/*.{ts,tsx}'
+
+
+/Users/badlogic/workspaces/vibetunnel/web/src/pty/PtyManager.ts
+  43:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/pty/integration-example.ts
+   12:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   28:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   63:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  145:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  145:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  171:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  171:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  183:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  183:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  200:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  200:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/pty/types.ts
+   83:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:10  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  121:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  122:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/server.ts
+  603:7  error  Insert `··`                           prettier/prettier
+  604:1  error  Insert `··`                           prettier/prettier
+  605:1  error  Replace `········` with `··········`  prettier/prettier
+  606:1  error  Insert `··`                           prettier/prettier
+  607:1  error  Insert `··`                           prettier/prettier
+  608:9  error  Insert `··`                           prettier/prettier
+  609:9  error  Insert `··`                           prettier/prettier
+  610:1  error  Replace `········` with `··········`  prettier/prettier
+  611:1  error  Insert `··`                           prettier/prettier
+  612:1  error  Insert `··`                           prettier/prettier
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/critical.test.ts
+   27:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  283:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/integration/server-lifecycle.integration.test.ts
+  38:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  43:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/integration/websocket.integration.test.ts
+   40:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   46:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   64:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/session/session-manager.test.ts
+   30:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  190:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  355:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  356:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  416:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  417:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  470:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  471:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/setup.ts
+  33:8  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/unit/session-validation.test.ts
+    4:32  warning  Unexpected any. Specify a different type                           @typescript-eslint/no-explicit-any
+    8:35  warning  Unexpected any. Specify a different type                           @typescript-eslint/no-explicit-any
+   16:34  warning  Unexpected any. Specify a different type                           @typescript-eslint/no-explicit-any
+   25:35  warning  Unexpected any. Specify a different type                           @typescript-eslint/no-explicit-any
+   30:6   error    Unexpected control character(s) in regular expression: \x00, \x1f  no-control-regex
+  184:33  warning  Unexpected any. Specify a different type                           @typescript-eslint/no-explicit-any
+
+/Users/badlogic/workspaces/vibetunnel/web/src/test/unit/utils.test.ts
+  46:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 56 problems (11 errors, 45 warnings)
+  10 errors and 0 warnings potentially fixable with the `--fix` option.
+

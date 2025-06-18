@@ -5,7 +5,6 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-// @ts-expect-error - TypeScript module imports in tests
 import { app, server, wss } from '../../server';
 
 // Set up test environment

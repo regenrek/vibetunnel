@@ -358,7 +358,7 @@ describe('Session Manager', () => {
 
     it('should stream terminal output', async () => {
       const sessionId = 'stream-session';
-      const mockStreamProcess = new EventEmitter();
+      const mockStreamProcess = new EventEmitter() as any;
       mockStreamProcess.stdout = new EventEmitter();
       mockStreamProcess.stderr = new EventEmitter();
       mockStreamProcess.kill = vi.fn();

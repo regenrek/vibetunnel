@@ -197,8 +197,6 @@ export class SessionCard extends LitElement {
   }
 
   render() {
-    const _isRunning = this.session.status === 'running';
-
     return html`
       <div
         class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden ${this
