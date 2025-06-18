@@ -251,88 +251,136 @@ impl StreamWriter {
         let mut combined_buf = std::mem::take(&mut self.utf8_buffer);
         combined_buf.extend_from_slice(buf);
 
-        // Check if we have a complete UTF-8 sequence at the end
-        match std::str::from_utf8(&combined_buf) {
-            Ok(_) => {
-                // Everything is valid UTF-8, process it all
-                let data = String::from_utf8(combined_buf).unwrap();
+        // Process data in escape-sequence-aware chunks
+        let (processed_data, remaining_buffer) = self.process_terminal_data(&combined_buf);
+        
+        if !processed_data.is_empty() {
+            let event = AsciinemaEvent {
+                time,
+                event_type: AsciinemaEventType::Output,
+                data: processed_data,
+            };
+            self.write_event(event)?;
+        }
 
-                let event = AsciinemaEvent {
-                    time,
-                    event_type: AsciinemaEventType::Output,
-                    data,
-                };
-                self.write_event(event)
-            }
-            Err(e) => {
-                let valid_up_to = e.valid_up_to();
+        // Store any remaining incomplete data for next time
+        self.utf8_buffer = remaining_buffer;
+        Ok(())
+    }
 
-                if let Some(error_len) = e.error_len() {
-                    // There's an invalid UTF-8 sequence at valid_up_to
-                    // Process up to and including the invalid sequence lossily
-                    let process_up_to = valid_up_to + error_len;
-                    let remaining = &combined_buf[process_up_to..];
-
-                    // Check if remaining bytes form an incomplete UTF-8 sequence (≤4 bytes)
-                    if remaining.len() <= 4 && !remaining.is_empty() {
-                        if let Err(e2) = std::str::from_utf8(remaining) {
-                            if e2.error_len().is_none() && e2.valid_up_to() == 0 {
-                                // Remaining bytes are an incomplete UTF-8 sequence, buffer them
-                                let data = String::from_utf8_lossy(&combined_buf[..process_up_to])
-                                    .to_string();
-                                self.utf8_buffer.extend_from_slice(remaining);
-                                let event = AsciinemaEvent {
-                                    time,
-                                    event_type: AsciinemaEventType::Output,
-                                    data,
-                                };
-                                return self.write_event(event);
+    /// Process terminal data while preserving escape sequences
+    fn process_terminal_data(&self, buf: &[u8]) -> (String, Vec<u8>) {
+        let mut result = String::new();
+        let mut pos = 0;
+        
+        while pos < buf.len() {
+            // Look for escape sequences starting with ESC (0x1B)
+            if buf[pos] == 0x1B {
+                // Try to find complete escape sequence
+                if let Some(seq_end) = self.find_escape_sequence_end(&buf[pos..]) {
+                    let seq_bytes = &buf[pos..pos + seq_end];
+                    // Preserve escape sequence as-is using lossy conversion
+                    // This will preserve most escape sequences correctly
+                    result.push_str(&String::from_utf8_lossy(seq_bytes));
+                    pos += seq_end;
+                } else {
+                    // Incomplete escape sequence at end of buffer - save for later
+                    return (result, buf[pos..].to_vec());
+                }
+            } else {
+                // Regular text - find the next escape sequence or end of valid UTF-8
+                let chunk_start = pos;
+                while pos < buf.len() && buf[pos] != 0x1B {
+                    pos += 1;
+                }
+                
+                let text_chunk = &buf[chunk_start..pos];
+                
+                // Handle UTF-8 validation for text chunks
+                match std::str::from_utf8(text_chunk) {
+                    Ok(valid_text) => {
+                        result.push_str(valid_text);
+                    }
+                    Err(e) => {
+                        let valid_up_to = e.valid_up_to();
+                        
+                        // Process valid part
+                        if valid_up_to > 0 {
+                            result.push_str(&String::from_utf8_lossy(&text_chunk[..valid_up_to]));
+                        }
+                        
+                        // Check if we have incomplete UTF-8 at the end
+                        let invalid_start = chunk_start + valid_up_to;
+                        let remaining = &buf[invalid_start..];
+                        
+                        if remaining.len() <= 4 && pos >= buf.len() {
+                            // Might be incomplete UTF-8 at buffer end
+                            if let Err(utf8_err) = std::str::from_utf8(remaining) {
+                                if utf8_err.error_len().is_none() {
+                                    // Incomplete UTF-8 sequence - buffer it
+                                    return (result, remaining.to_vec());
+                                }
                             }
                         }
-                    }
-
-                    // Default: process everything lossily (invalid UTF-8 or remaining bytes are also invalid)
-                    let event = AsciinemaEvent {
-                        time,
-                        event_type: AsciinemaEventType::Output,
-                        data: String::from_utf8_lossy(&combined_buf).to_string(),
-                    };
-                    self.write_event(event)
-                } else {
-                    // Incomplete UTF-8 at the end
-                    let incomplete_bytes = &combined_buf[valid_up_to..];
-
-                    // Only buffer up to 4 bytes (max UTF-8 character size)
-                    if incomplete_bytes.len() <= 4 {
-                        // Process the valid portion
-                        if valid_up_to > 0 {
-                            let data =
-                                String::from_utf8_lossy(&combined_buf[..valid_up_to]).to_string();
-                            self.utf8_buffer.extend_from_slice(incomplete_bytes);
-
-                            let event = AsciinemaEvent {
-                                time,
-                                event_type: AsciinemaEventType::Output,
-                                data,
-                            };
-                            self.write_event(event)
-                        } else {
-                            // Only incomplete bytes, buffer them
-                            self.utf8_buffer.extend_from_slice(incomplete_bytes);
-                            Ok(())
-                        }
-                    } else {
-                        // Too many incomplete bytes, process everything lossily
-
-                        let event = AsciinemaEvent {
-                            time,
-                            event_type: AsciinemaEventType::Output,
-                            data: String::from_utf8_lossy(&combined_buf).to_string(),
-                        };
-                        self.write_event(event)
+                        
+                        // Invalid UTF-8 in middle or complete invalid sequence
+                        // Use lossy conversion for this part
+                        let invalid_part = &text_chunk[valid_up_to..];
+                        result.push_str(&String::from_utf8_lossy(invalid_part));
                     }
                 }
             }
+        }
+        
+        (result, Vec::new())
+    }
+
+    /// Find the end of an ANSI escape sequence starting at the given position
+    fn find_escape_sequence_end(&self, buf: &[u8]) -> Option<usize> {
+        if buf.is_empty() || buf[0] != 0x1B {
+            return None;
+        }
+        
+        if buf.len() < 2 {
+            return None; // Incomplete - need more data
+        }
+        
+        match buf[1] {
+            // CSI sequences: ESC [ ... final_char
+            b'[' => {
+                let mut pos = 2;
+                // Skip parameter and intermediate characters
+                while pos < buf.len() {
+                    match buf[pos] {
+                        0x30..=0x3F => pos += 1, // Parameter characters 0-9 : ; < = > ?
+                        0x20..=0x2F => pos += 1, // Intermediate characters (space) ! " # $ % & ' ( ) * + , - . /
+                        0x40..=0x7E => return Some(pos + 1), // Final character @ A-Z [ \ ] ^ _ ` a-z { | } ~
+                        _ => return Some(pos), // Invalid sequence, stop here
+                    }
+                }
+                None // Incomplete sequence
+            }
+            
+            // OSC sequences: ESC ] ... (ST or BEL)
+            b']' => {
+                let mut pos = 2;
+                while pos < buf.len() {
+                    match buf[pos] {
+                        0x07 => return Some(pos + 1), // BEL terminator
+                        0x1B if pos + 1 < buf.len() && buf[pos + 1] == b'\\' => {
+                            return Some(pos + 2); // ESC \ (ST) terminator
+                        }
+                        _ => pos += 1,
+                    }
+                }
+                None // Incomplete sequence
+            }
+            
+            // Simple two-character sequences: ESC letter
+            0x40..=0x5F | 0x60..=0x7E => Some(2),
+            
+            // Other escape sequences - assume two characters for now
+            _ => Some(2),
         }
     }
 

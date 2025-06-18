@@ -676,10 +676,27 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
         let stream_path = control_path.join(&session_id).join("stream-out");
 
         if let Ok(content) = fs::read_to_string(&stream_path) {
+            // Optimize snapshot by finding last clear command
+            let optimized_content = optimize_snapshot_content(&content);
+            
+            // Log optimization results
+            let original_lines = content.lines().count();
+            let optimized_lines = optimized_content.lines().count();
+            let reduction = if original_lines > 0 {
+                (original_lines - optimized_lines) as f64 / original_lines as f64 * 100.0
+            } else {
+                0.0
+            };
+            
+            println!(
+                "Snapshot for {}: {} lines → {} lines ({:.1}% reduction)",
+                session_id, original_lines, optimized_lines, reduction
+            );
+            
             Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "text/plain")
-                .body(content)
+                .body(optimized_content)
                 .unwrap()
         } else {
             let error = ApiResponse {
@@ -699,6 +716,112 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
         };
         json_response(StatusCode::BAD_REQUEST, &error)
     }
+}
+
+fn optimize_snapshot_content(content: &str) -> String {
+    let lines: Vec<&str> = content.trim().split('\n').collect();
+    let mut header_line: Option<&str> = None;
+    let mut all_events: Vec<&str> = Vec::new();
+    
+    // Parse all lines first
+    for line in &lines {
+        if line.trim().is_empty() {
+            continue;
+        }
+        
+        // Try to parse as JSON to identify headers vs events
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
+            // Check if it's a header (has version, width, height)
+            if parsed.get("version").is_some() && 
+               parsed.get("width").is_some() && 
+               parsed.get("height").is_some() {
+                header_line = Some(line);
+            } else if parsed.as_array().is_some() {
+                // It's an event array [timestamp, type, data]
+                all_events.push(line);
+            }
+        }
+    }
+    
+    // Find the last clear command
+    let mut last_clear_index = None;
+    let mut last_resize_before_clear: Option<&str> = None;
+    
+    for (i, event_line) in all_events.iter().enumerate().rev() {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(event_line) {
+            if let Some(array) = parsed.as_array() {
+                if array.len() >= 3 {
+                    if let (Some(event_type), Some(data)) = (array[1].as_str(), array[2].as_str()) {
+                        if event_type == "o" {
+                            // Look for clear screen escape sequences
+                            if data.contains("\x1b[2J") ||      // Clear entire screen
+                               data.contains("\x1b[H\x1b[2J") || // Home cursor + clear screen  
+                               data.contains("\x1b[3J") ||      // Clear scrollback
+                               data.contains("\x1bc") {         // Full reset
+                                last_clear_index = Some(i);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Find the last resize event before the clear (if any)
+    if let Some(clear_idx) = last_clear_index {
+        for event_line in all_events.iter().take(clear_idx).rev() {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(event_line) {
+                if let Some(array) = parsed.as_array() {
+                    if array.len() >= 3 {
+                        if let Some(event_type) = array[1].as_str() {
+                            if event_type == "r" {
+                                last_resize_before_clear = Some(event_line);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Build optimized content
+    let mut result_lines = Vec::new();
+    
+    // Add header if found
+    if let Some(header) = header_line {
+        result_lines.push(header.to_string());
+    }
+    
+    // Add last resize before clear if found
+    if let Some(resize_line) = last_resize_before_clear {
+        // Modify the resize event to have timestamp 0
+        if let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(resize_line) {
+            if let Some(array) = parsed.as_array_mut() {
+                if array.len() >= 3 {
+                    array[0] = serde_json::Value::Number(serde_json::Number::from(0));
+                    result_lines.push(serde_json::to_string(&parsed).unwrap_or_else(|_| resize_line.to_string()));
+                }
+            }
+        }
+    }
+    
+    // Add events after the last clear (or all events if no clear found)
+    let start_index = last_clear_index.unwrap_or(0);
+    for event_line in all_events.iter().skip(start_index) {
+        // Modify event to have timestamp 0 for immediate playback
+        if let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(event_line) {
+            if let Some(array) = parsed.as_array_mut() {
+                if array.len() >= 3 {
+                    array[0] = serde_json::Value::Number(serde_json::Number::from(0));
+                    result_lines.push(serde_json::to_string(&parsed).unwrap_or_else(|_| event_line.to_string()));
+                }
+            }
+        }
+    }
+    
+    result_lines.join("\n")
 }
 
 fn handle_session_input(
