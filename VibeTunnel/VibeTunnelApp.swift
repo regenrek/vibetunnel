@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show welcome screen when version changes
         let storedWelcomeVersion = UserDefaults.standard.integer(forKey: AppConstants.UserDefaultsKeys.welcomeVersion)
-        
+
         // Show welcome if version is different from current
         if storedWelcomeVersion < AppConstants.currentWelcomeVersion && !isRunningInTests && !isRunningInPreview {
             showWelcomeScreen()

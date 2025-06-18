@@ -253,7 +253,7 @@ impl StreamWriter {
 
         // Process data in escape-sequence-aware chunks
         let (processed_data, remaining_buffer) = self.process_terminal_data(&combined_buf);
-        
+
         if !processed_data.is_empty() {
             let event = AsciinemaEvent {
                 time,
@@ -272,7 +272,7 @@ impl StreamWriter {
     fn process_terminal_data(&self, buf: &[u8]) -> (String, Vec<u8>) {
         let mut result = String::new();
         let mut pos = 0;
-        
+
         while pos < buf.len() {
             // Look for escape sequences starting with ESC (0x1B)
             if buf[pos] == 0x1B {
@@ -293,9 +293,9 @@ impl StreamWriter {
                 while pos < buf.len() && buf[pos] != 0x1B {
                     pos += 1;
                 }
-                
+
                 let text_chunk = &buf[chunk_start..pos];
-                
+
                 // Handle UTF-8 validation for text chunks
                 match std::str::from_utf8(text_chunk) {
                     Ok(valid_text) => {
@@ -303,16 +303,16 @@ impl StreamWriter {
                     }
                     Err(e) => {
                         let valid_up_to = e.valid_up_to();
-                        
+
                         // Process valid part
                         if valid_up_to > 0 {
                             result.push_str(&String::from_utf8_lossy(&text_chunk[..valid_up_to]));
                         }
-                        
+
                         // Check if we have incomplete UTF-8 at the end
                         let invalid_start = chunk_start + valid_up_to;
                         let remaining = &buf[invalid_start..];
-                        
+
                         if remaining.len() <= 4 && pos >= buf.len() {
                             // Might be incomplete UTF-8 at buffer end
                             if let Err(utf8_err) = std::str::from_utf8(remaining) {
@@ -322,7 +322,7 @@ impl StreamWriter {
                                 }
                             }
                         }
-                        
+
                         // Invalid UTF-8 in middle or complete invalid sequence
                         // Use lossy conversion for this part
                         let invalid_part = &text_chunk[valid_up_to..];
@@ -331,7 +331,7 @@ impl StreamWriter {
                 }
             }
         }
-        
+
         (result, Vec::new())
     }
 
@@ -340,11 +340,11 @@ impl StreamWriter {
         if buf.is_empty() || buf[0] != 0x1B {
             return None;
         }
-        
+
         if buf.len() < 2 {
             return None; // Incomplete - need more data
         }
-        
+
         match buf[1] {
             // CSI sequences: ESC [ ... final_char
             b'[' => {
@@ -352,15 +352,15 @@ impl StreamWriter {
                 // Skip parameter and intermediate characters
                 while pos < buf.len() {
                     match buf[pos] {
-                        0x30..=0x3F => pos += 1, // Parameter characters 0-9 : ; < = > ?
+                        0x30..=0x3F => pos += 1,             // Parameter characters 0-9 : ; < = > ?
                         0x20..=0x2F => pos += 1, // Intermediate characters (space) ! " # $ % & ' ( ) * + , - . /
                         0x40..=0x7E => return Some(pos + 1), // Final character @ A-Z [ \ ] ^ _ ` a-z { | } ~
-                        _ => return Some(pos), // Invalid sequence, stop here
+                        _ => return Some(pos),               // Invalid sequence, stop here
                     }
                 }
                 None // Incomplete sequence
             }
-            
+
             // OSC sequences: ESC ] ... (ST or BEL)
             b']' => {
                 let mut pos = 2;
@@ -375,10 +375,10 @@ impl StreamWriter {
                 }
                 None // Incomplete sequence
             }
-            
+
             // Simple two-character sequences: ESC letter
             0x40..=0x5F | 0x60..=0x7E => Some(2),
-            
+
             // Other escape sequences - assume two characters for now
             _ => Some(2),
         }
