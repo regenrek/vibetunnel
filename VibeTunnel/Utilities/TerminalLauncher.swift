@@ -129,41 +129,20 @@ enum Terminal: String, CaseIterable {
             """
         }
         
-        // Warp has issues with key code 36 (Enter), so we use a special approach
-        if self == .warp {
-            return """
-            tell application "\(processName)"
-                activate
-                tell application "System Events"
-                    keystroke "n" using {command down}
-                end tell
-                delay 3
-                tell application "System Events"
-                    -- Warp needs special handling for command execution
-                    -- First, type the command
-                    keystroke "\(config.keystrokeEscapedCommand)"
-                    delay 0.1
-                    -- Try multiple approaches to execute the command
-                    -- Option 1: Ctrl+J (line feed)
-                    keystroke "j" using {control down}
-                    delay 0.1
-                    -- Option 2: If that didn't work, try regular Enter
-                    key code 36
-                end tell
-            end tell
-            """
-        }
-        
-        // Standard approach for other terminals
+        // For all other terminals, use clipboard approach for reliability
+        // This avoids issues with special characters and long commands
+        // Note: The command is already copied to clipboard before this script runs
         return """
         tell application "\(processName)"
             activate
             tell application "System Events"
+                -- Create new window/tab
                 keystroke "n" using {command down}
-            end tell
-            delay 3
-            tell application "System Events"
-                keystroke "\(config.keystrokeEscapedCommand)"
+                delay 0.5
+                -- Paste command from clipboard
+                keystroke "v" using {command down}
+                delay 0.1
+                -- Execute the command
                 key code 36
             end tell
         end tell
@@ -381,6 +360,10 @@ final class TerminalLauncher {
         switch method {
         case .appleScript(let script):
             logger.debug("Generated AppleScript:\n\(script)")
+            // For non-Terminal.app terminals, copy command to clipboard first
+            if config.terminal != .terminal {
+                copyToClipboard(config.fullCommand)
+            }
             try executeAppleScript(script)
             
         case .processWithArgs(let args):
@@ -437,6 +420,12 @@ final class TerminalLauncher {
             logger.error("Failed to launch terminal: \(error.localizedDescription)")
             throw TerminalLauncherError.processLaunchFailed(error.localizedDescription)
         }
+    }
+    
+    private func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
     
     private func executeAppleScript(_ script: String) throws {
@@ -504,7 +493,7 @@ final class TerminalLauncher {
         let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
         
         // Use provided tty-fwd path or find bundled one
-        let ttyFwd = ttyFwdPath ?? findTTYFwdBinary()
+        _ = ttyFwdPath ?? findTTYFwdBinary()
         
         // The command comes pre-formatted from Rust, just launch it
         // Pass the working directory separately to avoid double-escaping issues
