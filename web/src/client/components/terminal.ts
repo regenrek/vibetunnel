@@ -350,7 +350,7 @@ export class Terminal extends LitElement {
         }
 
         // Apply horizontal scrolling (native browser scrollLeft) - only if not in horizontal fit mode
-        if (Math.abs(deltaPixelsX) > 0 && !this.fitHorizontally) {
+        if (Math.abs(deltaPixelsX) > 0 && !this.fitHorizontally && this.container) {
           this.container.scrollLeft += deltaPixelsX;
         }
       },
@@ -674,9 +674,6 @@ export class Terminal extends LitElement {
           const g = (fg >> 8) & 0xff;
           const b = fg & 0xff;
           style += `color: rgb(${r}, ${g}, ${b});`;
-        } else if (typeof fg === 'object' && fg.css) {
-          // RGB color object with CSS representation
-          style += `color: ${fg.css};`;
         }
       }
 
@@ -692,9 +689,6 @@ export class Terminal extends LitElement {
           const g = (bg >> 8) & 0xff;
           const b = bg & 0xff;
           style += `background-color: rgb(${r}, ${g}, ${b});`;
-        } else if (typeof bg === 'object' && bg.css) {
-          // RGB color object with CSS representation
-          style += `background-color: ${bg.css};`;
         }
       }
 
