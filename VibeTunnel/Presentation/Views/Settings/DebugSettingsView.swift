@@ -253,6 +253,46 @@ private struct ServerSection: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
+                // Server Mode Configuration
+                HStack {
+                    Text("Server Mode")
+                    Spacer()
+                    Picker("", selection: Binding(
+                        get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
+                        set: { newMode in
+                            serverModeString = newMode.rawValue
+                            Task {
+                                await serverManager.switchMode(to: newMode)
+                            }
+                        }
+                    )) {
+                        ForEach(ServerMode.allCases, id: \.self) { mode in
+                            VStack(alignment: .leading) {
+                                Text(mode.displayName)
+                                Text(mode.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .disabled(serverManager.isSwitching)
+                }
+
+                if serverManager.isSwitching {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Switching server mode...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
                 // Server Status
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -275,8 +315,8 @@ private struct ServerSection: View {
 
                     Spacer()
 
-                    // Show restart button for Rust mode when server is not healthy
-                    if serverModeString == ServerMode.rust.rawValue && (!isServerRunning || !isServerHealthy) {
+                    // Show restart button for Rust mode always
+                    if serverModeString == ServerMode.rust.rawValue {
                         Button("Restart") {
                             Task {
                                 await serverManager.manualRestart()
@@ -322,46 +362,6 @@ private struct ServerSection: View {
                             Text("http://127.0.0.1:\(serverPort)")
                                 .font(.system(.body, design: .monospaced))
                         }
-                    }
-                }
-
-                Divider()
-
-                // Server Mode Configuration
-                HStack {
-                    Text("Server Mode")
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
-                        set: { newMode in
-                            serverModeString = newMode.rawValue
-                            Task {
-                                await serverManager.switchMode(to: newMode)
-                            }
-                        }
-                    )) {
-                        ForEach(ServerMode.allCases, id: \.self) { mode in
-                            VStack(alignment: .leading) {
-                                Text(mode.displayName)
-                                Text(mode.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(serverManager.isSwitching)
-                }
-
-                if serverManager.isSwitching {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Switching server mode...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
