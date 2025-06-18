@@ -150,16 +150,28 @@ export class FileBrowser extends LitElement {
         style="z-index: 9999;"
       >
         <div
-          class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 h-96 flex flex-col"
+          class="font-mono text-sm w-96 h-96 flex flex-col"
+          style="background: black; border: 1px solid #569cd6; border-radius: 4px;"
         >
-          <div class="p-4 border-b border-vs-border flex-shrink-0">
+          <div class="p-4 flex-shrink-0" style="border-bottom: 1px solid #444;">
             <div class="flex justify-between items-center mb-2">
-              <div class="text-vs-assistant text-sm">Select Directory</div>
+              <div class="text-vs-user text-sm">Select Directory</div>
               <button
-                class="bg-vs-user text-vs-bg hover:bg-vs-accent font-mono px-2 py-1 text-xs border-none rounded"
+                class="font-mono px-2 py-1 text-xs rounded transition-colors"
+                style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
                 @click=${this.handleCreateFolder}
                 ?disabled=${this.loading}
                 title="Create new folder"
+                @mouseover=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = '#569cd6';
+                  btn.style.color = 'black';
+                }}
+                @mouseout=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = 'black';
+                  btn.style.color = '#d4d4d4';
+                }}
               >
                 + folder
               </button>
@@ -216,7 +228,8 @@ export class FileBrowser extends LitElement {
                   <div class="flex gap-2">
                     <input
                       type="text"
-                      class="flex-1 bg-vs-bg border border-vs-border text-vs-text px-2 py-1 text-sm font-mono"
+                      class="flex-1 outline-none font-mono px-2 py-1 text-sm"
+                      style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
                       placeholder="Folder name"
                       .value=${this.newFolderName}
                       @input=${this.handleFolderNameInput}
@@ -224,16 +237,46 @@ export class FileBrowser extends LitElement {
                       ?disabled=${this.creating}
                     />
                     <button
-                      class="bg-vs-user text-vs-bg hover:bg-vs-accent font-mono px-2 py-1 text-xs border-none"
+                      class="font-mono px-2 py-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
                       @click=${this.createFolder}
                       ?disabled=${this.creating || !this.newFolderName.trim()}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        if (!btn.hasAttribute('disabled')) {
+                          btn.style.background = '#569cd6';
+                          btn.style.color = 'black';
+                        }
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        if (!btn.hasAttribute('disabled')) {
+                          btn.style.background = 'black';
+                          btn.style.color = '#d4d4d4';
+                        }
+                      }}
                     >
                       ${this.creating ? '...' : 'create'}
                     </button>
                     <button
-                      class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-2 py-1 text-xs border-none"
+                      class="font-mono px-2 py-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
                       @click=${this.handleCancelCreateFolder}
                       ?disabled=${this.creating}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        if (!btn.hasAttribute('disabled')) {
+                          btn.style.background = '#888';
+                          btn.style.color = 'black';
+                        }
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        if (!btn.hasAttribute('disabled')) {
+                          btn.style.background = 'black';
+                          btn.style.color = '#d4d4d4';
+                        }
+                      }}
                     >
                       cancel
                     </button>
@@ -244,14 +287,36 @@ export class FileBrowser extends LitElement {
 
           <div class="p-4 border-t border-vs-border flex gap-4 justify-end flex-shrink-0">
             <button
-              class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-4 py-2 border-none"
+              class="font-mono px-4 py-2 transition-colors"
+              style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
               @click=${this.handleCancel}
+              @mouseover=${(e: Event) => {
+                const btn = e.target as HTMLElement;
+                btn.style.background = '#888';
+                btn.style.color = 'black';
+              }}
+              @mouseout=${(e: Event) => {
+                const btn = e.target as HTMLElement;
+                btn.style.background = 'black';
+                btn.style.color = '#d4d4d4';
+              }}
             >
               cancel
             </button>
             <button
-              class="bg-vs-user text-vs-bg hover:bg-vs-accent font-mono px-4 py-2 border-none"
+              class="font-mono px-4 py-2 transition-colors"
+              style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
               @click=${this.handleSelect}
+              @mouseover=${(e: Event) => {
+                const btn = e.target as HTMLElement;
+                btn.style.background = '#569cd6';
+                btn.style.color = 'black';
+              }}
+              @mouseout=${(e: Event) => {
+                const btn = e.target as HTMLElement;
+                btn.style.background = 'black';
+                btn.style.color = '#d4d4d4';
+              }}
             >
               select
             </button>

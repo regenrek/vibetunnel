@@ -209,8 +209,11 @@ export class SessionCard extends LitElement {
         @click=${this.handleCardClick}
       >
         <!-- Compact Header -->
-        <div class="flex justify-between items-center px-3 py-2 border-b border-vs-border">
-          <div class="text-vs-text text-xs font-mono pr-2 flex-1 min-w-0">
+        <div
+          class="flex justify-between items-center px-3 py-2 border-b border-vs-border"
+          style="background: black;"
+        >
+          <div class="text-xs font-mono pr-2 flex-1 min-w-0" style="color: #569cd6;">
             <div class="truncate" title="${this.session.name || this.session.command}">
               ${this.session.name || this.session.command}
             </div>
@@ -218,9 +221,24 @@ export class SessionCard extends LitElement {
           ${this.session.status === 'running'
             ? html`
                 <button
-                  class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-0.5 border-none text-xs disabled:opacity-50 flex-shrink-0 rounded"
+                  class="font-mono px-2 py-0.5 text-xs disabled:opacity-50 flex-shrink-0 rounded transition-colors"
+                  style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
                   @click=${this.handleKillClick}
                   ?disabled=${this.killing}
+                  @mouseover=${(e: Event) => {
+                    const btn = e.target as HTMLElement;
+                    if (!this.killing) {
+                      btn.style.background = '#d19a66';
+                      btn.style.color = 'black';
+                    }
+                  }}
+                  @mouseout=${(e: Event) => {
+                    const btn = e.target as HTMLElement;
+                    if (!this.killing) {
+                      btn.style.background = 'black';
+                      btn.style.color = '#d4d4d4';
+                    }
+                  }}
                 >
                   ${this.killing ? 'killing...' : 'kill'}
                 </button>
@@ -253,7 +271,10 @@ export class SessionCard extends LitElement {
         </div>
 
         <!-- Compact Footer -->
-        <div class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border">
+        <div
+          class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border"
+          style="background: black;"
+        >
           <div class="flex justify-between items-center min-w-0">
             <span class="${this.getStatusColor()} text-xs flex items-center gap-1 flex-shrink-0">
               <div class="w-2 h-2 rounded-full ${this.getStatusDotColor()}"></div>

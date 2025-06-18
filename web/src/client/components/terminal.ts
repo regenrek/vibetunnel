@@ -1033,6 +1033,53 @@ export class Terminal extends LitElement {
     this.requestUpdate();
   };
 
+  /**
+   * Handle fit to width toggle
+   */
+  public handleFitToggle = () => {
+    if (!this.terminal || !this.container) {
+      this.fitHorizontally = !this.fitHorizontally;
+      this.requestUpdate();
+      return;
+    }
+
+    // Store current logical scroll position before toggling
+    const buffer = this.terminal.buffer.active;
+    const currentLineHeight = this.fontSize * 1.2;
+    const currentScrollLines = currentLineHeight > 0 ? this.viewportY / currentLineHeight : 0;
+    const wasAtBottom = this.isScrolledToBottom();
+
+    // Store original font size when entering fit mode
+    if (!this.fitHorizontally) {
+      this.originalFontSize = this.fontSize;
+    }
+
+    // Toggle the mode
+    this.fitHorizontally = !this.fitHorizontally;
+
+    // Restore original font size when exiting fit mode
+    if (!this.fitHorizontally) {
+      this.fontSize = this.originalFontSize;
+    }
+
+    // Recalculate fit
+    this.fitTerminal();
+
+    // Restore scroll position - prioritize staying at bottom if we were there
+    if (wasAtBottom) {
+      // Force scroll to bottom with new dimensions
+      this.scrollToBottom();
+    } else {
+      // Restore logical scroll position for non-bottom positions
+      const newLineHeight = this.fontSize * 1.2;
+      const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * newLineHeight);
+      const newViewportY = currentScrollLines * newLineHeight;
+      this.viewportY = Math.max(0, Math.min(maxScrollPixels, newViewportY));
+    }
+
+    this.requestUpdate();
+  };
+
   render() {
     return html`
       <style>
@@ -1135,17 +1182,17 @@ export class Terminal extends LitElement {
           position: absolute;
           bottom: 12px;
           left: 12px;
-          width: 32px;
-          height: 32px;
+          width: 48px;
+          height: 48px;
           background: rgba(0, 0, 0, 0.8);
           border: 1px solid #444;
-          border-radius: 4px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
           color: #d4d4d4;
-          font-size: 16px;
+          font-size: 24px;
           transition: all 0.2s ease;
           user-select: none;
           z-index: 10;
@@ -1190,6 +1237,41 @@ export class Terminal extends LitElement {
         .debug-overlay .metric-value {
           font-weight: bold;
           margin-left: 8px;
+        }
+
+        .fit-toggle {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          width: 48px;
+          height: 48px;
+          background: rgba(0, 0, 0, 0.8);
+          border: 1px solid #444;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: #d4d4d4;
+          font-size: 20px;
+          transition: all 0.2s ease;
+          user-select: none;
+          z-index: 10;
+        }
+
+        .fit-toggle:hover {
+          background: rgba(0, 0, 0, 0.9);
+          border-color: #666;
+          transform: translateY(-1px);
+        }
+
+        .fit-toggle:active {
+          transform: translateY(0px);
+        }
+
+        .fit-toggle.active {
+          border-color: #569cd6;
+          color: #569cd6;
         }
       </style>
       <div style="position: relative; width: 100%; height: 100%;">

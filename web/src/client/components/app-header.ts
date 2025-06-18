@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Session } from './session-list.js';
+import './vibe-logo.js';
 
 @customElement('app-header')
 export class AppHeader extends LitElement {
@@ -40,11 +41,13 @@ export class AppHeader extends LitElement {
     }
 
     return html`
-      <div class="app-header p-4 border-b border-vs-border">
+      <div class="app-header p-4" style="background: black;">
         <!-- Mobile layout -->
         <div class="flex flex-col gap-3 sm:hidden">
           <!-- Centered VibeTunnel title -->
-          <div class="text-vs-user font-mono text-sm text-center">-=[ VibeTunnel ]=-</div>
+          <div class="text-center">
+            <vibe-logo></vibe-logo>
+          </div>
 
           <!-- Controls row: hide exited on left, buttons on right -->
           <div class="flex items-center justify-between">
@@ -89,16 +92,38 @@ export class AppHeader extends LitElement {
               ${runningSessions.length > 0 && !this.killingAll
                 ? html`
                     <button
-                      class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-2 py-1.5 border-none rounded transition-colors text-xs whitespace-nowrap"
+                      class="font-mono px-2 py-1.5 rounded transition-colors text-xs whitespace-nowrap"
+                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
                       @click=${this.handleKillAll}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = '#d19a66';
+                        btn.style.color = 'black';
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = 'black';
+                        btn.style.color = '#d4d4d4';
+                      }}
                     >
                       KILL (${runningSessions.length})
                     </button>
                   `
                 : ''}
               <button
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-2 py-1.5 border-none rounded transition-colors text-xs whitespace-nowrap"
+                class="font-mono px-2 py-1.5 rounded transition-colors text-xs whitespace-nowrap"
+                style="background: black; color: #d4d4d4; border: 1px solid #569cd6;"
                 @click=${this.handleCreateSession}
+                @mouseover=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = '#569cd6';
+                  btn.style.color = 'black';
+                }}
+                @mouseout=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = 'black';
+                  btn.style.color = '#d4d4d4';
+                }}
               >
                 CREATE
               </button>
@@ -108,7 +133,7 @@ export class AppHeader extends LitElement {
 
         <!-- Desktop layout: single row -->
         <div class="hidden sm:flex sm:items-center sm:justify-between">
-          <div class="text-vs-user font-mono text-sm">-=[ VibeTunnel ]=-</div>
+          <vibe-logo></vibe-logo>
           <div class="flex items-center gap-3">
             <label
               class="flex items-center gap-2 text-vs-text text-sm cursor-pointer hover:text-vs-accent transition-colors"
@@ -150,16 +175,38 @@ export class AppHeader extends LitElement {
               ${runningSessions.length > 0 && !this.killingAll
                 ? html`
                     <button
-                      class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-3 sm:px-4 py-2 border-none rounded transition-colors text-sm whitespace-nowrap"
+                      class="font-mono px-3 sm:px-4 py-2 rounded transition-colors text-sm whitespace-nowrap"
+                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
                       @click=${this.handleKillAll}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = '#d19a66';
+                        btn.style.color = 'black';
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = 'black';
+                        btn.style.color = '#d4d4d4';
+                      }}
                     >
                       KILL ALL (${runningSessions.length})
                     </button>
                   `
                 : ''}
               <button
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-3 sm:px-4 py-2 border-none rounded transition-colors text-sm whitespace-nowrap"
+                class="font-mono px-3 sm:px-4 py-2 rounded transition-colors text-sm whitespace-nowrap"
+                style="background: black; color: #d4d4d4; border: 1px solid #569cd6;"
                 @click=${this.handleCreateSession}
+                @mouseover=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = '#569cd6';
+                  btn.style.color = 'black';
+                }}
+                @mouseout=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = 'black';
+                  btn.style.color = '#d4d4d4';
+                }}
               >
                 CREATE SESSION
               </button>

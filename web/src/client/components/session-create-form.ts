@@ -227,16 +227,11 @@ export class SessionCreateForm extends LitElement {
         style="z-index: 9999;"
       >
         <div
-          class="bg-vs-bg-secondary border border-vs-border font-mono text-sm w-96 max-w-full mx-4"
+          class="font-mono text-sm w-96 max-w-full mx-4"
+          style="background: black; border: 1px solid #569cd6; border-radius: 4px;"
         >
-          <div class="p-4 border-b border-vs-border flex justify-between items-center">
-            <div class="text-vs-assistant text-sm">Create New Session</div>
-            <button
-              class="text-vs-muted hover:text-vs-text text-lg leading-none border-none bg-transparent cursor-pointer"
-              @click=${this.handleCancel}
-            >
-              ×
-            </button>
+          <div class="p-4" style="border-bottom: 1px solid #444;">
+            <div class="text-vs-user text-sm">Create New Session</div>
           </div>
 
           <div class="p-4">
@@ -244,7 +239,8 @@ export class SessionCreateForm extends LitElement {
               <div class="text-vs-text mb-2">Session Name (optional):</div>
               <input
                 type="text"
-                class="w-full bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
+                class="w-full outline-none font-mono px-4 py-2"
+                style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
                 .value=${this.sessionName}
                 @input=${this.handleSessionNameChange}
                 placeholder="My Session"
@@ -257,16 +253,28 @@ export class SessionCreateForm extends LitElement {
               <div class="flex gap-4">
                 <input
                   type="text"
-                  class="flex-1 bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
+                  class="flex-1 outline-none font-mono px-4 py-2"
+                  style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
                   .value=${this.workingDir}
                   @input=${this.handleWorkingDirChange}
                   placeholder="~/"
                   ?disabled=${this.disabled || this.isCreating}
                 />
                 <button
-                  class="bg-vs-function text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none"
+                  class="font-mono px-4 py-2 transition-colors"
+                  style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
                   @click=${this.handleBrowse}
                   ?disabled=${this.disabled || this.isCreating}
+                  @mouseover=${(e: Event) => {
+                    const btn = e.target as HTMLElement;
+                    btn.style.background = '#569cd6';
+                    btn.style.color = 'black';
+                  }}
+                  @mouseout=${(e: Event) => {
+                    const btn = e.target as HTMLElement;
+                    btn.style.background = 'black';
+                    btn.style.color = '#d4d4d4';
+                  }}
                 >
                   browse
                 </button>
@@ -277,7 +285,8 @@ export class SessionCreateForm extends LitElement {
               <div class="text-vs-text mb-2">Command:</div>
               <input
                 type="text"
-                class="w-full bg-vs-bg text-vs-text border border-vs-border outline-none font-mono px-4 py-2"
+                class="w-full outline-none font-mono px-4 py-2"
+                style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
                 .value=${this.command}
                 @input=${this.handleCommandChange}
                 @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
@@ -288,19 +297,45 @@ export class SessionCreateForm extends LitElement {
 
             <div class="flex gap-4 justify-end">
               <button
-                class="bg-vs-muted text-vs-bg hover:bg-vs-text font-mono px-4 py-2 border-none"
+                class="font-mono px-4 py-2 transition-colors"
+                style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
                 @click=${this.handleCancel}
                 ?disabled=${this.isCreating}
+                @mouseover=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = '#888';
+                  btn.style.color = 'black';
+                }}
+                @mouseout=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  btn.style.background = 'black';
+                  btn.style.color = '#d4d4d4';
+                }}
               >
                 cancel
               </button>
               <button
-                class="bg-vs-user text-vs-text hover:bg-vs-accent font-mono px-4 py-2 border-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-vs-user"
+                class="font-mono px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
                 @click=${this.handleCreate}
                 ?disabled=${this.disabled ||
                 this.isCreating ||
                 !this.workingDir.trim() ||
                 !this.command.trim()}
+                @mouseover=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  if (!btn.hasAttribute('disabled')) {
+                    btn.style.background = '#569cd6';
+                    btn.style.color = 'black';
+                  }
+                }}
+                @mouseout=${(e: Event) => {
+                  const btn = e.target as HTMLElement;
+                  if (!btn.hasAttribute('disabled')) {
+                    btn.style.background = 'black';
+                    btn.style.color = '#d4d4d4';
+                  }
+                }}
               >
                 ${this.isCreating ? 'creating...' : 'create'}
               </button>

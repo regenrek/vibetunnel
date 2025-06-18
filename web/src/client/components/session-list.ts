@@ -74,15 +74,30 @@ export class SessionList extends LitElement {
       : this.sessions;
 
     return html`
-      <div class="font-mono text-sm p-4">
+      <div class="font-mono text-sm p-4" style="background: black;">
         <!-- Controls -->
         ${!this.hideExited && this.sessions.filter((s) => s.status === 'exited').length > 0
           ? html`
               <div class="mb-4">
                 <button
-                  class="bg-vs-warning text-vs-bg hover:bg-vs-highlight font-mono px-4 py-2 border-none rounded transition-colors disabled:opacity-50"
+                  class="font-mono px-4 py-2 rounded transition-colors disabled:opacity-50"
+                  style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
                   @click=${this.handleCleanupExited}
                   ?disabled=${this.cleaningExited}
+                  @mouseover=${(e: Event) => {
+                    const btn = e.target as HTMLElement;
+                    if (!this.cleaningExited) {
+                      btn.style.background = '#d19a66';
+                      btn.style.color = 'black';
+                    }
+                  }}
+                  @mouseout=${(e: Event) => {
+                    const btn = e.target as HTMLElement;
+                    if (!this.cleaningExited) {
+                      btn.style.background = 'black';
+                      btn.style.color = '#d4d4d4';
+                    }
+                  }}
                 >
                   ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
                 </button>
