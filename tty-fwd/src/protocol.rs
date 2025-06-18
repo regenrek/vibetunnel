@@ -103,22 +103,22 @@ pub enum AsciinemaEventType {
 }
 
 impl AsciinemaEventType {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            AsciinemaEventType::Output => "o",
-            AsciinemaEventType::Input => "i",
-            AsciinemaEventType::Marker => "m",
-            AsciinemaEventType::Resize => "r",
+            Self::Output => "o",
+            Self::Input => "i",
+            Self::Marker => "m",
+            Self::Resize => "r",
         }
     }
 
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s {
-            "o" => Ok(AsciinemaEventType::Output),
-            "i" => Ok(AsciinemaEventType::Input),
-            "m" => Ok(AsciinemaEventType::Marker),
-            "r" => Ok(AsciinemaEventType::Resize),
-            _ => Err(format!("Unknown event type: {}", s)),
+            "o" => Ok(Self::Output),
+            "i" => Ok(Self::Input),
+            "m" => Ok(Self::Marker),
+            "r" => Ok(Self::Resize),
+            _ => Err(format!("Unknown event type: {s}")),
         }
     }
 }
@@ -174,8 +174,8 @@ impl<'de> serde::Deserialize<'de> for AsciinemaEvent {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-                let event_type = AsciinemaEventType::from_str(&event_type_str)
-                    .map_err(|e| de::Error::custom(e))?;
+                let event_type =
+                    AsciinemaEventType::from_str(&event_type_str).map_err(de::Error::custom)?;
 
                 Ok(AsciinemaEvent {
                     time,
@@ -377,7 +377,7 @@ impl StreamWriter {
             }
 
             // Simple two-character sequences: ESC letter
-            0x40..=0x5F | 0x60..=0x7E => Some(2),
+            0x40..=0x7E => Some(2),
 
             // Other escape sequences - assume two characters for now
             _ => Some(2),
@@ -448,16 +448,16 @@ impl serde::Serialize for StreamEvent {
         S: serde::Serializer,
     {
         match self {
-            StreamEvent::Header(header) => header.serialize(serializer),
-            StreamEvent::Terminal(event) => event.serialize(serializer),
-            StreamEvent::Error { message } => {
+            Self::Header(header) => header.serialize(serializer),
+            Self::Terminal(event) => event.serialize(serializer),
+            Self::Error { message } => {
                 let error_event = ErrorEvent {
                     event_type: "error".to_string(),
                     message: message.clone(),
                 };
                 error_event.serialize(serializer)
             }
-            StreamEvent::End => {
+            Self::End => {
                 let end_event = EndEvent {
                     event_type: "end".to_string(),
                 };
@@ -477,17 +477,17 @@ impl<'de> serde::Deserialize<'de> for StreamEvent {
         // Try to parse as header first (has version and width fields)
         if value.get("version").is_some() && value.get("width").is_some() {
             let header: AsciinemaHeader = serde_json::from_value(value)
-                .map_err(|e| de::Error::custom(format!("Failed to parse header: {}", e)))?;
-            return Ok(StreamEvent::Header(header));
+                .map_err(|e| de::Error::custom(format!("Failed to parse header: {e}")))?;
+            return Ok(Self::Header(header));
         }
 
         // Try to parse as an event array [timestamp, type, data]
         if let Some(arr) = value.as_array() {
             if arr.len() >= 3 {
                 let event: AsciinemaEvent = serde_json::from_value(value).map_err(|e| {
-                    de::Error::custom(format!("Failed to parse terminal event: {}", e))
+                    de::Error::custom(format!("Failed to parse terminal event: {e}"))
                 })?;
-                return Ok(StreamEvent::Terminal(event));
+                return Ok(Self::Terminal(event));
             }
         }
 
@@ -498,14 +498,14 @@ impl<'de> serde::Deserialize<'de> for StreamEvent {
                     "error" => {
                         let error_event: ErrorEvent =
                             serde_json::from_value(value).map_err(|e| {
-                                de::Error::custom(format!("Failed to parse error event: {}", e))
+                                de::Error::custom(format!("Failed to parse error event: {e}"))
                             })?;
-                        return Ok(StreamEvent::Error {
+                        return Ok(Self::Error {
                             message: error_event.message,
                         });
                     }
                     "end" => {
-                        return Ok(StreamEvent::End);
+                        return Ok(Self::End);
                     }
                     _ => {}
                 }
@@ -523,7 +523,7 @@ impl StreamEvent {
             return Err("Empty line".into());
         }
 
-        let event: StreamEvent = serde_json::from_str(line)?;
+        let event: Self = serde_json::from_str(line)?;
         Ok(event)
     }
 }
@@ -574,7 +574,6 @@ impl Iterator for StreamingIterator {
                         Ok(0) => {
                             // End of file, switch to tail mode
                             self.state = StreamingState::InitializingTail;
-                            continue;
                         }
                         Ok(_) => {
                             if let Ok(mut event) = StreamEvent::from_json_line(&line) {
@@ -585,12 +584,9 @@ impl Iterator for StreamingIterator {
                                 return Some(event);
                             }
                             // If parsing fails, continue to next line
-                            continue;
                         }
                         Err(e) => {
-                            self.state =
-                                StreamingState::Error(format!("Error reading file: {}", e));
-                            continue;
+                            self.state = StreamingState::Error(format!("Error reading file: {e}"));
                         }
                     }
                 }
@@ -606,19 +602,13 @@ impl Iterator for StreamingIterator {
                                     reader: BufReader::new(stdout),
                                     child,
                                 };
-                                continue;
-                            } else {
-                                self.state =
-                                    StreamingState::Error("Failed to get tail stdout".to_string());
-                                continue;
                             }
+                            self.state =
+                                StreamingState::Error("Failed to get tail stdout".to_string());
                         }
                         Err(e) => {
-                            self.state = StreamingState::Error(format!(
-                                "Failed to start tail command: {}",
-                                e
-                            ));
-                            continue;
+                            self.state =
+                                StreamingState::Error(format!("Failed to start tail command: {e}"));
                         }
                     }
                 }
@@ -655,18 +645,14 @@ impl Iterator for StreamingIterator {
                                     return Some(event);
                                 }
                                 Err(err) => {
-                                    self.state = StreamingState::Error(format!(
-                                        "Error parsing JSON: {}",
-                                        err
-                                    ));
-                                    continue;
+                                    self.state =
+                                        StreamingState::Error(format!("Error parsing JSON: {err}"));
                                 }
                             }
                         }
                         Err(e) => {
                             self.state =
-                                StreamingState::Error(format!("Error reading from tail: {}", e));
-                            continue;
+                                StreamingState::Error(format!("Error reading from tail: {e}"));
                         }
                     }
                 }

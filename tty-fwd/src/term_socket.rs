@@ -18,13 +18,13 @@ pub fn spawn_terminal_via_socket(command: &[String], working_dir: Option<&str>) 
     match spawn_via_socket_impl(command, working_dir) {
         Ok(session_id) => Ok(session_id),
         Err(socket_err) => {
-            eprintln!("Socket spawn failed ({}), falling back to PTY", socket_err);
+            eprintln!("Socket spawn failed ({socket_err}), falling back to PTY");
             spawn_via_pty(command, working_dir)
         }
     }
 }
 
-/// Spawn a terminal session by communicating with VibeTunnel via Unix socket
+/// Spawn a terminal session by communicating with `VibeTunnel` via Unix socket
 fn spawn_via_socket_impl(command: &[String], working_dir: Option<&str>) -> Result<String> {
     let session_id = Uuid::new_v4().to_string();
     let socket_path = "/tmp/vibetunnel-terminal.sock";
@@ -42,9 +42,10 @@ fn spawn_via_socket_impl(command: &[String], working_dir: Option<&str>) -> Resul
     };
 
     // Get the current tty-fwd binary path
-    let tty_fwd_path = env::current_exe()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "tty-fwd".to_string());
+    let tty_fwd_path = env::current_exe().map_or_else(
+        |_| "tty-fwd".to_string(),
+        |p| p.to_string_lossy().to_string(),
+    );
 
     // Pre-format the command with proper escaping
     // This reduces complexity in Swift and avoids double-escaping issues
@@ -101,10 +102,7 @@ fn spawn_via_socket_impl(command: &[String], working_dir: Option<&str>) -> Resul
 fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String> {
     let session_id = Uuid::new_v4().to_string();
 
-    eprintln!(
-        "PTY: spawn_via_pty called with command: {:?}, working_dir: {:?}",
-        command, working_dir
-    );
+    eprintln!("PTY: spawn_via_pty called with command: {command:?}, working_dir: {working_dir:?}");
 
     // Create PTY
     let pty_result = openpty(
@@ -150,7 +148,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 )
             });
 
-            let session_dir = format!("{}/{}", control_dir, session_id);
+            let session_dir = format!("{control_dir}/{session_id}");
             std::fs::create_dir_all(&session_dir)?;
 
             let expanded_working_dir = if let Some(dir) = working_dir {
@@ -190,14 +188,14 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 "term": "xterm-256color"
             });
             std::fs::write(
-                format!("{}/session.json", session_dir),
+                format!("{session_dir}/session.json"),
                 serde_json::to_string_pretty(&session_info)?,
             )?;
 
             // Start a background thread to handle PTY I/O
             let session_id_clone = session_id.clone();
             let command_clone = command.to_vec();
-            let working_dir_clone = working_dir.map(|s| s.to_string());
+            let working_dir_clone = working_dir.map(std::string::ToString::to_string);
             std::thread::spawn(move || {
                 if let Err(e) = handle_pty_session(
                     master_fd_dup,
@@ -205,7 +203,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     &command_clone,
                     working_dir_clone.as_deref(),
                 ) {
-                    eprintln!("PTY session error: {}", e);
+                    eprintln!("PTY session error: {e}");
                 }
                 // Clean up the duplicated fd when done
                 unsafe {
@@ -220,33 +218,33 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
             eprintln!("PTY Child: Starting child process");
 
             if let Err(e) = close(master_fd) {
-                eprintln!("PTY Child: Failed to close master_fd: {}", e);
+                eprintln!("PTY Child: Failed to close master_fd: {e}");
                 std::process::exit(1);
             }
             eprintln!("PTY Child: Closed master_fd");
 
             // Create new session
             if let Err(e) = setsid() {
-                eprintln!("PTY Child: Failed to setsid: {}", e);
+                eprintln!("PTY Child: Failed to setsid: {e}");
                 std::process::exit(1);
             }
             eprintln!("PTY Child: Created new session");
 
             // Set up stdin/stdout/stderr to use the slave PTY
             if let Err(e) = dup2(slave_fd, 0) {
-                eprintln!("PTY Child: Failed to dup2 stdin: {}", e);
+                eprintln!("PTY Child: Failed to dup2 stdin: {e}");
                 std::process::exit(1);
             }
             if let Err(e) = dup2(slave_fd, 1) {
-                eprintln!("PTY Child: Failed to dup2 stdout: {}", e);
+                eprintln!("PTY Child: Failed to dup2 stdout: {e}");
                 std::process::exit(1);
             }
             if let Err(e) = dup2(slave_fd, 2) {
-                eprintln!("PTY Child: Failed to dup2 stderr: {}", e);
+                eprintln!("PTY Child: Failed to dup2 stderr: {e}");
                 std::process::exit(1);
             }
             if let Err(e) = close(slave_fd) {
-                eprintln!("PTY Child: Failed to close slave_fd: {}", e);
+                eprintln!("PTY Child: Failed to close slave_fd: {e}");
                 std::process::exit(1);
             }
             eprintln!("PTY Child: Set up file descriptors");
@@ -265,18 +263,12 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     dir.to_string()
                 };
 
-                eprintln!(
-                    "PTY Child: Changing directory from '{}' to '{}'",
-                    dir, expanded_dir
-                );
+                eprintln!("PTY Child: Changing directory from '{dir}' to '{expanded_dir}'");
                 if let Err(e) = std::env::set_current_dir(&expanded_dir) {
-                    eprintln!(
-                        "PTY Child: Failed to change directory to {}: {}",
-                        expanded_dir, e
-                    );
+                    eprintln!("PTY Child: Failed to change directory to {expanded_dir}: {e}");
                     std::process::exit(1);
                 }
-                eprintln!("PTY Child: Changed directory to {}", expanded_dir);
+                eprintln!("PTY Child: Changed directory to {expanded_dir}");
             }
 
             // Execute the command
@@ -295,10 +287,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 command.first().unwrap()
             };
 
-            eprintln!(
-                "PTY: Executing command: {:?} with args: {:?}",
-                program, command
-            );
+            eprintln!("PTY: Executing command: {program:?} with args: {command:?}");
 
             let args: Vec<CString> = if command.is_empty() {
                 vec![CString::new(program)?]
@@ -310,10 +299,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     .map_err(|e| anyhow::anyhow!("Invalid command argument: {}", e))?
             };
 
-            eprintln!(
-                "PTY: About to execvp with program={:?}, args={:?}",
-                program, args
-            );
+            eprintln!("PTY: About to execvp with program={program:?}, args={args:?}");
 
             // Use execvp to execute the command
             match nix::unistd::execvp(&CString::new(program)?, &args) {
@@ -321,7 +307,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     eprintln!("PTY: execvp succeeded (this should never print)");
                 }
                 Err(e) => {
-                    eprintln!("PTY: execvp failed: {}", e);
+                    eprintln!("PTY: execvp failed: {e}");
                     std::process::exit(127); // Standard exit code for command not found
                 }
             }
@@ -350,11 +336,11 @@ fn handle_pty_session(
         )
     });
 
-    let session_dir = format!("{}/{}", control_dir, session_id);
+    let session_dir = format!("{control_dir}/{session_id}");
     // Session directory and session.json are already created by parent process
 
     // Create stdin FIFO
-    let stdin_path = format!("{}/stdin", session_dir);
+    let stdin_path = format!("{session_dir}/stdin");
     // Use libc directly to create FIFO to avoid nix version conflicts
     let stdin_path_c = CString::new(stdin_path.clone())?;
     unsafe {
@@ -362,7 +348,7 @@ fn handle_pty_session(
     }
 
     // Create output file
-    let output_path = format!("{}/stream-out", session_dir);
+    let output_path = format!("{session_dir}/stream-out");
     let output_file = OpenOptions::new()
         .create(true)
         .write(true)
@@ -374,10 +360,10 @@ fn handle_pty_session(
     // Start stdin handler thread
     let master_fd_dup2 = unsafe { libc::dup(master_fd) };
     if master_fd_dup2 != -1 {
-        let stdin_path_clone = stdin_path.clone();
+        let stdin_path_clone = stdin_path;
         std::thread::spawn(move || {
             if let Err(e) = handle_stdin_to_pty(master_fd_dup2, &stdin_path_clone) {
-                eprintln!("Stdin handler error: {}", e);
+                eprintln!("Stdin handler error: {e}");
             }
             // Clean up the duplicated fd when done
             unsafe {
@@ -393,7 +379,7 @@ fn handle_pty_session(
         "height": 24,
         "timestamp": jiff::Timestamp::now().as_second()
     });
-    writeln!(writer, "{}", header)?;
+    writeln!(writer, "{header}")?;
 
     // Read from PTY and write to file
     let mut buffer = [0u8; 8192];
@@ -403,7 +389,7 @@ fn handle_pty_session(
         let bytes_read = unsafe {
             libc::read(
                 master_fd,
-                buffer.as_mut_ptr() as *mut libc::c_void,
+                buffer.as_mut_ptr().cast::<libc::c_void>(),
                 buffer.len(),
             )
         };
@@ -411,7 +397,7 @@ fn handle_pty_session(
         match bytes_read {
             -1 => {
                 let errno = std::io::Error::last_os_error();
-                eprintln!("Error reading from PTY: {}", errno);
+                eprintln!("Error reading from PTY: {errno}");
                 break;
             }
             0 => {
@@ -435,7 +421,7 @@ fn handle_pty_session(
                     "o", // output event
                     String::from_utf8_lossy(data)
                 ]);
-                writeln!(writer, "{}", event)?;
+                writeln!(writer, "{event}")?;
                 writer.flush()?;
             }
         }
@@ -471,7 +457,7 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
             Ok(n) => {
                 // Write to PTY master using libc::write
                 let bytes_written =
-                    unsafe { libc::write(master_fd, buffer.as_ptr() as *const libc::c_void, n) };
+                    unsafe { libc::write(master_fd, buffer.as_ptr().cast::<libc::c_void>(), n) };
                 if bytes_written == -1 {
                     eprintln!("Error writing to PTY: {}", std::io::Error::last_os_error());
                     break;
@@ -483,7 +469,7 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
                 continue;
             }
             Err(e) => {
-                eprintln!("Error reading from stdin FIFO: {}", e);
+                eprintln!("Error reading from stdin FIFO: {e}");
                 break;
             }
         }

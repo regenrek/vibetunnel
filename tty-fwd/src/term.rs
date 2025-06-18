@@ -1,9 +1,9 @@
 use anyhow::Result;
 
-/// Spawns a terminal command by communicating with VibeTunnel via Unix domain socket.
+/// Spawns a terminal command by communicating with `VibeTunnel` via Unix domain socket.
 ///
 /// This approach uses a Unix domain socket at `/tmp/vibetunnel-terminal.sock` to
-/// communicate with the running VibeTunnel application, which handles the actual
+/// communicate with the running `VibeTunnel` application, which handles the actual
 /// terminal spawning.
 ///
 /// # Arguments

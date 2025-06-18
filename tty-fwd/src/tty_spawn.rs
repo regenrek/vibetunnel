@@ -157,9 +157,7 @@ impl TtySpawn {
 
     /// Spawns the application in the TTY.
     pub fn spawn(&mut self) -> Result<i32, Error> {
-        Ok(spawn(
-            self.options.take().expect("builder only works once"),
-        )?)
+        spawn(self.options.take().expect("builder only works once"))
     }
 
     const fn options_mut(&mut self) -> &mut SpawnOptions {

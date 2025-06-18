@@ -70,7 +70,7 @@ fn default_term_value() -> String {
     DEFAULT_TERM.to_string()
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
@@ -481,7 +481,7 @@ fn handle_create_session(
             None,
         ) {
             Ok(terminal_session_id) => {
-                println!("Terminal spawned with session ID: {}", terminal_session_id);
+                println!("Terminal spawned with session ID: {terminal_session_id}");
                 let response = ApiResponse {
                     success: Some(true),
                     message: Some("Terminal spawned successfully".to_string()),
@@ -687,8 +687,7 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
             };
 
             println!(
-                "Snapshot for {}: {} lines → {} lines ({:.1}% reduction)",
-                session_id, original_lines, optimized_lines, reduction
+                "Snapshot for {session_id}: {original_lines} lines → {optimized_lines} lines ({reduction:.1}% reduction)"
             );
 
             Response::builder()
@@ -819,7 +818,8 @@ fn optimize_snapshot_content(content: &str) -> String {
                 if array.len() >= 3 {
                     array[0] = serde_json::Value::Number(serde_json::Number::from(0));
                     result_lines.push(
-                        serde_json::to_string(&parsed).unwrap_or_else(|_| event_line.to_string()),
+                        serde_json::to_string(&parsed)
+                            .unwrap_or_else(|_| (*event_line).to_string()),
                     );
                 }
             }
@@ -1171,23 +1171,17 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
         ) {
             Ok(w) => w,
             Err(e) => {
-                println!("Failed to create session discovery watcher: {}", e);
+                println!("Failed to create session discovery watcher: {e}");
                 return;
             }
         };
 
         if let Err(e) = watcher.watch(&control_path_clone, RecursiveMode::NonRecursive) {
-            println!(
-                "Failed to watch control directory {:?}: {}",
-                control_path_clone, e
-            );
+            println!("Failed to watch control directory {control_path_clone:?}: {e}");
             return;
         }
 
-        println!(
-            "Session discovery thread started, watching {:?}",
-            control_path_clone
-        );
+        println!("Session discovery thread started, watching {control_path_clone:?}");
 
         // Also discover existing sessions at startup
         if let Ok(sessions) = sessions::list_sessions(&control_path_clone) {
@@ -1201,25 +1195,22 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
 
         // Watch for new directories being created
         while let Ok(event) = watcher_rx.recv() {
-            match event.kind {
-                EventKind::Create(_) => {
-                    for path in event.paths {
-                        if path.is_dir() {
-                            if let Some(session_id) = path.file_name().and_then(|n| n.to_str()) {
-                                // Check if this looks like a session directory (has session.json)
-                                let session_json_path = path.join("session.json");
-                                if session_json_path.exists() {
-                                    println!("New session directory detected: {}", session_id);
-                                    if discovery_sender.send(session_id.to_string()).is_err() {
-                                        println!("Session discovery channel closed");
-                                        return;
-                                    }
+            if let EventKind::Create(_) = event.kind {
+                for path in event.paths {
+                    if path.is_dir() {
+                        if let Some(session_id) = path.file_name().and_then(|n| n.to_str()) {
+                            // Check if this looks like a session directory (has session.json)
+                            let session_json_path = path.join("session.json");
+                            if session_json_path.exists() {
+                                println!("New session directory detected: {session_id}");
+                                if discovery_sender.send(session_id.to_string()).is_err() {
+                                    println!("Session discovery channel closed");
+                                    return;
                                 }
                             }
                         }
                     }
                 }
-                _ => {}
             }
         }
 
@@ -1244,20 +1235,19 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
             let sessions = match sessions::list_sessions(&control_path_clone2) {
                 Ok(sessions) => sessions,
                 Err(e) => {
-                    println!("Failed to list sessions: {}", e);
+                    println!("Failed to list sessions: {e}");
                     continue;
                 }
             };
 
-            let session_entry = match sessions.get(&session_id) {
-                Some(entry) => entry.clone(),
-                None => {
-                    println!("Session {} not found in session list", session_id);
-                    continue;
-                }
+            let session_entry = if let Some(entry) = sessions.get(&session_id) {
+                entry.clone()
+            } else {
+                println!("Session {session_id} not found in session list");
+                continue;
             };
 
-            println!("Starting stream thread for new session: {}", session_id);
+            println!("Starting stream thread for new session: {session_id}");
             active_sessions.insert(session_id.clone());
 
             // Spawn thread for this session
@@ -1269,7 +1259,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
                 loop {
                     let stream = StreamingIterator::new(stream_path.clone());
 
-                    println!("Starting stream for session {}", session_id_clone);
+                    println!("Starting stream for session {session_id_clone}");
 
                     // Process events from this session's stream
                     for event in stream {
@@ -1279,8 +1269,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
                             .is_err()
                         {
                             println!(
-                                "Channel closed, ending stream thread for session {}",
-                                session_id_clone
+                                "Channel closed, ending stream thread for session {session_id_clone}"
                             );
                             return;
                         }
@@ -1288,8 +1277,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
                         // If this is an End event, the stream is finished
                         if matches!(event, StreamEvent::End) {
                             println!(
-                                "Stream ended for session {}, waiting for file changes",
-                                session_id_clone
+                                "Stream ended for session {session_id_clone}, waiting for file changes"
                             );
                             break;
                         }
@@ -1308,8 +1296,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
                         Ok(w) => w,
                         Err(e) => {
                             println!(
-                                "Failed to create file watcher for session {}: {}",
-                                session_id_clone, e
+                                "Failed to create file watcher for session {session_id_clone}: {e}"
                             );
                             return;
                         }
@@ -1317,18 +1304,16 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
 
                     // Watch the stream file's parent directory
                     let stream_path_buf = std::path::PathBuf::from(&stream_path);
-                    let parent_dir = match stream_path_buf.parent() {
-                        Some(parent) => parent,
-                        None => {
-                            println!("Cannot determine parent directory for {}", stream_path);
-                            return;
-                        }
+                    let parent_dir = if let Some(parent) = stream_path_buf.parent() {
+                        parent
+                    } else {
+                        println!("Cannot determine parent directory for {stream_path}");
+                        return;
                     };
 
                     if let Err(e) = watcher.watch(parent_dir, RecursiveMode::NonRecursive) {
                         println!(
-                            "Failed to watch directory {:?} for session {}: {}",
-                            parent_dir, session_id_clone, e
+                            "Failed to watch directory {parent_dir:?} for session {session_id_clone}: {e}"
                         );
                         return;
                     }
@@ -1345,8 +1330,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
                                     for path in event.paths {
                                         if path.to_string_lossy() == stream_path {
                                             println!(
-                                                "Stream file recreated for session {}",
-                                                session_id_clone
+                                                "Stream file recreated for session {session_id_clone}"
                                             );
                                             file_recreated = true;
                                             break;
@@ -1369,8 +1353,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
 
                     if !file_recreated {
                         println!(
-                            "Timeout waiting for stream file recreation for session {}, ending thread",
-                            session_id_clone
+                            "Timeout waiting for stream file recreation for session {session_id_clone}, ending thread"
                         );
                         return;
                     }
@@ -1390,7 +1373,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
 
         // Wait for all session threads to finish
         for (session_id, handle) in session_handles {
-            println!("Waiting for session thread {} to finish", session_id);
+            println!("Waiting for session thread {session_id} to finish");
             let _ = handle.join();
         }
 
@@ -1412,7 +1395,7 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
         // Serialize the normal event
         if let Ok(event_json) = serde_json::to_string(&event) {
             // Create the prefixed format: session_id:serialized_normal_event
-            let prefixed_event = format!("{}:{}", session_id, event_json);
+            let prefixed_event = format!("{session_id}:{event_json}");
 
             // Send as SSE data
             if let Err(e) = sse_helper.write_event(&prefixed_event) {

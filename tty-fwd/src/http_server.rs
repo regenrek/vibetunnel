@@ -259,7 +259,7 @@ impl<'a> SseResponseHelper<'a> {
         &mut self,
         event: &str,
     ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let sse_data = format!("data: {}\n\n", event);
+        let sse_data = format!("data: {event}\n\n");
         self.request.respond_raw(sse_data.as_bytes())
     }
 }
