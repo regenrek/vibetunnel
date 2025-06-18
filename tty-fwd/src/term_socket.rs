@@ -103,7 +103,6 @@ fn spawn_via_socket_impl(command: &[String], working_dir: Option<&str>) -> Resul
 fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String> {
     let session_id = Uuid::new_v4().to_string();
 
-    eprintln!("PTY: spawn_via_pty called with command: {command:?}, working_dir: {working_dir:?}");
 
     // Create PTY
     let pty_result = openpty(
@@ -218,39 +217,29 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
         }
         ForkResult::Child => {
             // Child process - set up PTY and exec command
-            eprintln!("PTY Child: Starting child process");
 
             if let Err(e) = close(master_fd) {
-                eprintln!("PTY Child: Failed to close master_fd: {e}");
                 std::process::exit(1);
             }
-            eprintln!("PTY Child: Closed master_fd");
 
             // Create new session
             if let Err(e) = setsid() {
-                eprintln!("PTY Child: Failed to setsid: {e}");
                 std::process::exit(1);
             }
-            eprintln!("PTY Child: Created new session");
 
             // Set up stdin/stdout/stderr to use the slave PTY
             if let Err(e) = dup2(slave_fd, 0) {
-                eprintln!("PTY Child: Failed to dup2 stdin: {e}");
                 std::process::exit(1);
             }
             if let Err(e) = dup2(slave_fd, 1) {
-                eprintln!("PTY Child: Failed to dup2 stdout: {e}");
                 std::process::exit(1);
             }
             if let Err(e) = dup2(slave_fd, 2) {
-                eprintln!("PTY Child: Failed to dup2 stderr: {e}");
                 std::process::exit(1);
             }
             if let Err(e) = close(slave_fd) {
-                eprintln!("PTY Child: Failed to close slave_fd: {e}");
                 std::process::exit(1);
             }
-            eprintln!("PTY Child: Set up file descriptors");
 
             // Change working directory if specified
             if let Some(dir) = working_dir {
@@ -266,12 +255,9 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     dir.to_string()
                 };
 
-                eprintln!("PTY Child: Changing directory from '{dir}' to '{expanded_dir}'");
                 if let Err(e) = std::env::set_current_dir(&expanded_dir) {
-                    eprintln!("PTY Child: Failed to change directory to {expanded_dir}: {e}");
                     std::process::exit(1);
                 }
-                eprintln!("PTY Child: Changed directory to {expanded_dir}");
             }
 
             // Execute the command
@@ -290,7 +276,6 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 command.first().unwrap()
             };
 
-            eprintln!("PTY: Executing command: {program:?} with args: {command:?}");
 
             let args: Vec<CString> = if command.is_empty() {
                 vec![CString::new(program)?]
@@ -302,15 +287,12 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     .map_err(|e| anyhow::anyhow!("Invalid command argument: {}", e))?
             };
 
-            eprintln!("PTY: About to execvp with program={program:?}, args={args:?}");
 
             // Use execvp to execute the command
             match nix::unistd::execvp(&CString::new(program)?, &args) {
                 Ok(_) => {
-                    eprintln!("PTY: execvp succeeded (this should never print)");
                 }
                 Err(e) => {
-                    eprintln!("PTY: execvp failed: {e}");
                     std::process::exit(127); // Standard exit code for command not found
                 }
             }
