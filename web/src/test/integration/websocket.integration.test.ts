@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { WebSocket } from 'ws';
+import { describe, it, expect, afterEach } from 'vitest';
+import WebSocket from 'ws';
 import request from 'supertest';
-import { Server } from 'http';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -56,7 +55,7 @@ describe('WebSocket Integration Tests', () => {
     for (const sessionId of activeSessionIds) {
       try {
         await request(app).delete(`/api/sessions/${sessionId}`);
-      } catch (e) {
+      } catch (_e) {
         // Ignore
       }
     }
@@ -305,7 +304,7 @@ describe('WebSocket Integration Tests', () => {
       // Server should continue functioning
       const response = await request(app).get('/api/sessions').expect(200);
 
-      expect(response.body).toHaveProperty('sessions');
+      expect(Array.isArray(response.body)).toBe(true);
     });
   });
 

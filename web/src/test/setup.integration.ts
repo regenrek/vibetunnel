@@ -29,12 +29,12 @@ const cleanupTestDirectories = () => {
         const fullPath = path.join(tmpDir, entry);
         try {
           fs.rmSync(fullPath, { recursive: true, force: true });
-        } catch (e) {
+        } catch (_e) {
           // Ignore errors during cleanup
         }
       }
     });
-  } catch (e) {
+  } catch (_e) {
     // Ignore errors
   }
 };

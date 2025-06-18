@@ -7,8 +7,8 @@ const validateSessionId = (id: any): boolean => {
 
 const validateCommand = (command: any): boolean => {
   return (
-    Array.isArray(command) && 
-    command.length > 0 && 
+    Array.isArray(command) &&
+    command.length > 0 &&
     command.every((arg) => typeof arg === 'string' && arg.length > 0)
   );
 };

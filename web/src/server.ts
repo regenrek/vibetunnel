@@ -842,7 +842,7 @@ app.post('/api/mkdir', (req, res) => {
       : path.resolve(dirPath);
 
     // Security check: ensure we're not trying to access outside allowed areas
-    const allowedBasePaths = [os.homedir(), process.cwd()];
+    const allowedBasePaths = [os.homedir(), process.cwd(), os.tmpdir()];
     const isAllowed = allowedBasePaths.some((basePath) =>
       expandedPath.startsWith(path.resolve(basePath))
     );

@@ -193,7 +193,7 @@ describe('Critical VibeTunnel Functionality', () => {
   describe('WebSocket Communication', () => {
     it('should handle terminal resize events', () => {
       const resizeArgs = ['resize', 'session-123', '120', '40'];
-      const proc = mockSpawn('tty-fwd', resizeArgs);
+      mockSpawn('tty-fwd', resizeArgs);
 
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', resizeArgs);
     });

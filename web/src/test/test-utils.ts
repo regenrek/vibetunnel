@@ -57,13 +57,11 @@ export const mockWebSocketServer = () => {
 };
 
 // Custom type declarations for test matchers
-declare global {
-  namespace Vi {
-    interface Assertion<T = any> {
-      toBeValidSession(): T;
-    }
-    interface AsymmetricMatchersContaining {
-      toBeValidSession(): any;
-    }
+declare module 'vitest' {
+  interface Assertion<T = unknown> {
+    toBeValidSession(): T;
+  }
+  interface AsymmetricMatchersContaining {
+    toBeValidSession(): unknown;
   }
 }

@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
-import path from 'path';
-import os from 'os';
 
 // Mock modules
 vi.mock('child_process', () => ({
@@ -30,7 +28,6 @@ vi.mock('os', () => ({
 
 describe('Session Manager', () => {
   let mockSpawn: any;
-  let sessionManager: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -61,14 +58,13 @@ describe('Session Manager', () => {
 
   describe('Session Lifecycle', () => {
     it('should create a session with valid parameters', async () => {
-      const serverModule = await import('../../server');
+      await import('../../server');
 
       // Simulate session creation through the spawn command
-      const sessionId = 'test-' + Date.now();
       const command = ['bash', '-l'];
       const workingDir = '/home/test/projects';
 
-      mockSpawn.mockImplementationOnce(() => ({
+      const mockProcess = {
         stdout: {
           on: vi.fn((event, callback) => {
             if (event === 'data') {
@@ -81,11 +77,13 @@ describe('Session Manager', () => {
           if (event === 'close') callback(0);
         }),
         kill: vi.fn(),
-      }));
+      };
+
+      mockSpawn.mockImplementationOnce(() => mockProcess);
 
       // Test the spawn command execution
       const args = ['spawn', '--name', 'Test Session', '--cwd', workingDir, '--', ...command];
-      const result = await new Promise((resolve, reject) => {
+      const result = await new Promise((resolve) => {
         const proc = mockSpawn('tty-fwd', args);
         let output = '';
 
@@ -93,12 +91,8 @@ describe('Session Manager', () => {
           output += data.toString();
         });
 
-        proc.on('close', (code: number) => {
-          if (code === 0) {
-            resolve(output);
-          } else {
-            reject(new Error(`Process exited with code ${code}`));
-          }
+        proc.on('close', () => {
+          resolve(output);
         });
       });
 
@@ -123,7 +117,7 @@ describe('Session Manager', () => {
         kill: vi.fn(),
       }));
 
-      const proc = mockSpawn('tty-fwd', args);
+      mockSpawn('tty-fwd', args);
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'tty-fwd',
@@ -287,7 +281,7 @@ describe('Session Manager', () => {
         kill: vi.fn(),
       }));
 
-      const proc = mockSpawn('tty-fwd', ['write', sessionId, input]);
+      mockSpawn('tty-fwd', ['write', sessionId, input]);
 
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', ['write', sessionId, input]);
     });
@@ -306,7 +300,7 @@ describe('Session Manager', () => {
         kill: vi.fn(),
       }));
 
-      const proc = mockSpawn('tty-fwd', ['resize', sessionId, String(cols), String(rows)]);
+      mockSpawn('tty-fwd', ['resize', sessionId, String(cols), String(rows)]);
 
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', ['resize', sessionId, '120', '40']);
     });

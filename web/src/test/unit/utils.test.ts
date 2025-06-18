@@ -10,7 +10,7 @@ class UrlHighlighter {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
-    
+
     // Then detect and highlight URLs
     return escaped.replace(
       /(https?:\/\/[^\s]+)/g,
@@ -25,24 +25,24 @@ class CastConverter {
   private events: Array<[number, 'o', string]> = [];
   private title?: string;
   private env?: Record<string, string>;
-  
+
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
   }
-  
+
   addOutput(output: string, timestamp: number): void {
     this.events.push([timestamp, 'o', output]);
   }
-  
+
   setTitle(title: string): void {
     this.title = title;
   }
-  
+
   setEnvironment(env: Record<string, string>): void {
     this.env = env;
   }
-  
+
   getCast(): any {
     return {
       version: 2,
@@ -51,10 +51,10 @@ class CastConverter {
       timestamp: Math.floor(Date.now() / 1000),
       title: this.title,
       env: this.env || {},
-      events: this.events
+      events: this.events,
     };
   }
-  
+
   toJSON(): string {
     return JSON.stringify(this.getCast());
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -14,8 +14,8 @@ describe('Basic Integration Test', () => {
       try {
         fs.accessSync(ttyFwdPath, fs.constants.X_OK);
         expect(true).toBe(true);
-      } catch (e) {
-        expect(e).toBeUndefined();
+      } catch (_e) {
+        expect(_e).toBeUndefined();
       }
     });
 
