@@ -542,6 +542,7 @@ pub struct StreamingIterator {
     stream_path: String,
     start_time: SystemTime,
     state: StreamingState,
+    wait_start: Option<SystemTime>,
 }
 
 impl StreamingIterator {
@@ -556,6 +557,7 @@ impl StreamingIterator {
             stream_path,
             start_time: SystemTime::now(),
             state,
+            wait_start: None,
         }
     }
 }
@@ -589,6 +591,28 @@ impl Iterator for StreamingIterator {
                     }
                 }
                 StreamingState::InitializingTail => {
+                    // Check if the file exists, if not wait a bit and retry
+                    if !std::path::Path::new(&self.stream_path).exists() {
+                        // Initialize wait start time if not set
+                        if self.wait_start.is_none() {
+                            self.wait_start = Some(SystemTime::now());
+                        }
+                        
+                        // Check if we've been waiting too long (5 seconds timeout)
+                        if let Some(wait_start) = self.wait_start {
+                            if wait_start.elapsed().unwrap_or_default() > std::time::Duration::from_secs(5) {
+                                self.state = StreamingState::Error(
+                                    "Timeout waiting for stream file to be created".to_string()
+                                );
+                                return None;
+                            }
+                        }
+                        
+                        // File doesn't exist yet, wait 50ms and return None to retry later
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        return None;
+                    }
+
                     match Command::new("tail")
                         .args(["-f", &self.stream_path])
                         .stdout(Stdio::piped())
@@ -600,9 +624,10 @@ impl Iterator for StreamingIterator {
                                     reader: BufReader::new(stdout),
                                     child,
                                 };
+                            } else {
+                                self.state =
+                                    StreamingState::Error("Failed to get tail stdout".to_string());
                             }
-                            self.state =
-                                StreamingState::Error("Failed to get tail stdout".to_string());
                         }
                         Err(e) => {
                             self.state =

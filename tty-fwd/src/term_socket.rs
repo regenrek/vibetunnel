@@ -403,6 +403,12 @@ fn handle_pty_session(
             }
             0 => {
                 eprintln!("PTY closed (EOF), updating session status");
+                
+                // Send exit event to stream before updating session status
+                let exit_event = json!(["exit", 0, session_id]);
+                writeln!(writer, "{exit_event}")?;
+                writer.flush()?;
+                
                 // Update session status to exited
                 let session_json_path = format!("{session_dir}/session.json");
                 if let Ok(content) = std::fs::read_to_string(&session_json_path) {
