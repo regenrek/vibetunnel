@@ -210,9 +210,9 @@ export class CastConverter {
   }
 
   /**
-   * Dump entire cast content to terminal instantly as a single write operation.
-   * This is the fastest way to load cast content - builds one string and writes it all at once.
-   * Handles resize events by applying the final dimensions to the terminal.
+   * Dump entire cast content to terminal with batched writes for optimal performance.
+   * Groups output events into chunks to balance speed and buffer limits (~1MB per batch).
+   * Handles resize events by applying them between batches.
    *
    * @param terminal - DOM terminal instance with write() and setTerminalSize() methods
    * @param castContent - Raw cast file content
@@ -227,38 +227,59 @@ export class CastConverter {
   ): Promise<void> {
     const converted = this.convertCast(castContent);
 
-    // Track final terminal dimensions from resize events
-    let finalCols = converted.header?.width || 80;
-    let finalRows = converted.header?.height || 24;
+    // Get initial terminal dimensions from header
+    const initialCols = converted.header?.width || 80;
+    const initialRows = converted.header?.height || 24;
 
-    // Build up output string and track final resize dimensions
-    const outputChunks: string[] = [];
+    // Apply initial terminal size if we have resize capability
+    if (terminal.setTerminalSize) {
+      terminal.setTerminalSize(initialCols, initialRows);
+    }
 
+    // Batch size: ~1MB worth of data to stay well under buffer limits
+    const maxBatchSize = 1024 * 1024; // 1MB
+    let currentBatch = '';
+    let currentBatchSize = 0;
+
+    const flushBatch = () => {
+      if (currentBatch.length > 0) {
+        terminal.write(currentBatch, false); // Don't follow cursor during dump for performance
+        currentBatch = '';
+        currentBatchSize = 0;
+      }
+    };
+
+    // Process events, batching output and handling resizes immediately
     for (const event of converted.events) {
       if (event.type === 'o') {
-        // Output event - add to content
-        outputChunks.push(event.data);
+        // Output event - add to current batch
+        if (event.data) {
+          const dataSize = event.data.length;
+
+          // If adding this data would exceed batch size, flush current batch first
+          if (currentBatchSize + dataSize > maxBatchSize && currentBatch.length > 0) {
+            flushBatch();
+          }
+
+          currentBatch += event.data;
+          currentBatchSize += dataSize;
+        }
       } else if (event.type === 'r') {
-        // Resize event - track final dimensions
+        // Resize event - flush current batch first, then resize
+        flushBatch();
+
         const match = event.data.match(/^(\d+)x(\d+)$/);
-        if (match) {
-          finalCols = parseInt(match[1], 10);
-          finalRows = parseInt(match[2], 10);
+        if (match && terminal.setTerminalSize) {
+          const cols = parseInt(match[1], 10);
+          const rows = parseInt(match[2], 10);
+          terminal.setTerminalSize(cols, rows);
         }
       }
       // Ignore 'i' (input) events for dump
     }
 
-    // Apply final terminal size first if we have resize capability
-    if (terminal.setTerminalSize) {
-      terminal.setTerminalSize(finalCols, finalRows);
-    }
-
-    // Write all content at once as a single operation (fastest possible)
-    const allContent = outputChunks.join('');
-    if (allContent) {
-      terminal.write(allContent, false); // Don't follow cursor during dump for performance
-    }
+    // Flush any remaining data
+    flushBatch();
   }
 
   /**
