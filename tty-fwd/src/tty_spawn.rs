@@ -75,14 +75,23 @@ unsafe fn login_tty_compat(fd: i32) -> Result<(), Error> {
 
     // Make the tty our controlling terminal
     #[cfg(target_os = "linux")]
-    let tiocsctty = TIOCSCTTY;
-    #[cfg(not(target_os = "linux"))]
-    let tiocsctty = libc::TIOCSCTTY;
+    {
+        if libc::ioctl(fd, TIOCSCTTY as libc::c_ulong, 0) == -1 {
+            // Try without forcing
+            if libc::ioctl(fd, TIOCSCTTY as libc::c_ulong, 1) == -1 {
+                return Err(Error::msg("ioctl TIOCSCTTY failed"));
+            }
+        }
+    }
 
-    if libc::ioctl(fd, tiocsctty.try_into().unwrap_or(0x540E), 0) == -1 {
-        // Try without forcing
-        if libc::ioctl(fd, tiocsctty.try_into().unwrap_or(0x540E), 1) == -1 {
-            return Err(Error::msg("ioctl TIOCSCTTY failed"));
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Use the libc constant directly on non-Linux platforms
+        if libc::ioctl(fd, libc::TIOCSCTTY as libc::c_ulong, 0) == -1 {
+            // Try without forcing
+            if libc::ioctl(fd, libc::TIOCSCTTY as libc::c_ulong, 1) == -1 {
+                return Err(Error::msg("ioctl TIOCSCTTY failed"));
+            }
         }
     }
 
