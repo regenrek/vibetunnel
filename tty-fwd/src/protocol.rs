@@ -352,8 +352,8 @@ impl StreamWriter {
                 // Skip parameter and intermediate characters
                 while pos < buf.len() {
                     match buf[pos] {
-                        0x30..=0x3F => pos += 1,             // Parameter characters 0-9 : ; < = > ?
-                        0x20..=0x2F => pos += 1, // Intermediate characters (space) ! " # $ % & ' ( ) * + , - . /
+                        // Parameter characters 0-9 : ; < = > ? and Intermediate characters
+                        0x20..=0x3F => pos += 1,
                         0x40..=0x7E => return Some(pos + 1), // Final character @ A-Z [ \ ] ^ _ ` a-z { | } ~
                         _ => return Some(pos),               // Invalid sequence, stop here
                     }
@@ -377,8 +377,6 @@ impl StreamWriter {
             }
 
             // Simple two-character sequences: ESC letter
-            0x40..=0x7E => Some(2),
-
             // Other escape sequences - assume two characters for now
             _ => Some(2),
         }

@@ -681,7 +681,10 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
             let original_lines = content.lines().count();
             let optimized_lines = optimized_content.lines().count();
             let reduction = if original_lines > 0 {
-                (original_lines - optimized_lines) as f64 / original_lines as f64 * 100.0
+                #[allow(clippy::cast_precision_loss)]
+                {
+                    (original_lines - optimized_lines) as f64 / original_lines as f64 * 100.0
+                }
             } else {
                 0.0
             };
@@ -716,7 +719,7 @@ fn handle_session_snapshot(control_path: &Path, path: &str) -> Response<String> 
 }
 
 fn optimize_snapshot_content(content: &str) -> String {
-    let lines: Vec<&str> = content.trim().split('\n').collect();
+    let lines: Vec<&str> = content.lines().collect();
     let mut header_line: Option<&str> = None;
     let mut all_events: Vec<&str> = Vec::new();
 
@@ -1177,11 +1180,17 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
         };
 
         if let Err(e) = watcher.watch(&control_path_clone, RecursiveMode::NonRecursive) {
-            println!("Failed to watch control directory {control_path_clone:?}: {e}");
+            println!(
+                "Failed to watch control directory {}: {e}",
+                control_path_clone.display()
+            );
             return;
         }
 
-        println!("Session discovery thread started, watching {control_path_clone:?}");
+        println!(
+            "Session discovery thread started, watching {}",
+            control_path_clone.display()
+        );
 
         // Also discover existing sessions at startup
         if let Ok(sessions) = sessions::list_sessions(&control_path_clone) {
@@ -1313,7 +1322,8 @@ fn handle_multi_stream(control_path: &Path, req: &mut HttpRequest) {
 
                     if let Err(e) = watcher.watch(parent_dir, RecursiveMode::NonRecursive) {
                         println!(
-                            "Failed to watch directory {parent_dir:?} for session {session_id_clone}: {e}"
+                            "Failed to watch directory {} for session {session_id_clone}: {e}",
+                            parent_dir.display()
                         );
                         return;
                     }

@@ -11,8 +11,6 @@ use std::ffi::CString;
 use std::io::{Read, Write};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Spawn a terminal session with PTY fallback
@@ -157,11 +155,11 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
             let expanded_working_dir = if let Some(dir) = working_dir {
                 if dir == "~/" || dir == "~" {
                     std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
-                } else if dir.starts_with("~/") {
+                } else if let Some(stripped) = dir.strip_prefix("~/") {
                     format!(
                         "{}/{}",
                         std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
-                        &dir[2..]
+                        stripped
                     )
                 } else {
                     dir.to_string()
@@ -256,11 +254,11 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
             if let Some(dir) = working_dir {
                 let expanded_dir = if dir == "~/" || dir == "~" {
                     std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
-                } else if dir.starts_with("~/") {
+                } else if let Some(stripped) = dir.strip_prefix("~/") {
                     format!(
                         "{}/{}",
                         std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
-                        &dir[2..]
+                        stripped
                     )
                 } else {
                     dir.to_string()
@@ -406,7 +404,7 @@ fn handle_pty_session(
             0 => {
                 eprintln!("PTY closed (EOF), updating session status");
                 // Update session status to exited
-                let session_json_path = format!("{}/session.json", session_dir);
+                let session_json_path = format!("{session_dir}/session.json");
                 if let Ok(content) = std::fs::read_to_string(&session_json_path) {
                     if let Ok(mut session_info) =
                         serde_json::from_str::<serde_json::Value>(&content)
@@ -457,7 +455,6 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
             Ok(0) => {
                 // No data available, sleep briefly to avoid busy waiting
                 std::thread::sleep(std::time::Duration::from_millis(10));
-                continue;
             }
             Ok(n) => {
                 // Write to PTY master using libc::write
@@ -471,7 +468,6 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 // No data available, sleep briefly
                 std::thread::sleep(std::time::Duration::from_millis(10));
-                continue;
             }
             Err(e) => {
                 eprintln!("Error reading from stdin FIFO: {e}");
@@ -530,23 +526,16 @@ pub fn update_all_sessions_to_exited() -> Result<()> {
 }
 
 /// Setup signal handler to cleanup sessions on shutdown
-pub fn setup_shutdown_handler() -> Result<()> {
-    let shutdown = Arc::new(AtomicBool::new(false));
-    let shutdown_clone = shutdown.clone();
-
+pub fn setup_shutdown_handler() {
     std::thread::spawn(move || {
         let mut signals =
-            Signals::new(&[SIGTERM, SIGINT]).expect("Failed to create signals iterator");
+            Signals::new([SIGTERM, SIGINT]).expect("Failed to create signals iterator");
 
-        for sig in signals.forever() {
-            eprintln!("Received signal {:?}, updating session statuses...", sig);
+        if let Some(sig) = signals.forever().next() {
+            eprintln!("Received signal {sig:?}, updating session statuses...");
             if let Err(e) = update_all_sessions_to_exited() {
-                eprintln!("Failed to update session statuses: {}", e);
+                eprintln!("Failed to update session statuses: {e}");
             }
-            shutdown_clone.store(true, Ordering::Relaxed);
-            break;
         }
     });
-
-    Ok(())
 }
