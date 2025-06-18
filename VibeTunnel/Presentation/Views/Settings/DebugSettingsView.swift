@@ -541,7 +541,6 @@ private struct DeveloperToolsSection: View {
                         showServerConsole()
                     }
                     .buttonStyle(.bordered)
-                    .frame(width: 120)
                 }
                 Text("View real-time server logs from both Hummingbird and Rust servers")
                     .font(.caption)
@@ -556,7 +555,6 @@ private struct DeveloperToolsSection: View {
                         openConsole()
                     }
                     .buttonStyle(.bordered)
-                    .frame(width: 120)
                 }
                 Text("View all application logs in Console.app")
                     .font(.caption)
@@ -571,7 +569,6 @@ private struct DeveloperToolsSection: View {
                         showApplicationSupport()
                     }
                     .buttonStyle(.bordered)
-                    .frame(width: 120)
                 }
                 Text("Open the application support directory")
                     .font(.caption)
@@ -586,7 +583,6 @@ private struct DeveloperToolsSection: View {
                         AppDelegate.showWelcomeScreen()
                     }
                     .buttonStyle(.bordered)
-                    .frame(width: 120)
                 }
                 Text("Display the welcome screen again")
                     .font(.caption)
@@ -602,7 +598,6 @@ private struct DeveloperToolsSection: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
-                    .frame(width: 120)
                 }
                 Text("Remove all stored preferences and reset to defaults")
                     .font(.caption)
