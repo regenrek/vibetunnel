@@ -72,8 +72,7 @@ class ServerManager {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        monitoringTask?.cancel()
-        crashRecoveryTask?.cancel()
+        // Tasks will be cancelled when they are deallocated
     }
 
     private func setupLogStream() {
@@ -416,17 +415,17 @@ class ServerManager {
         let now = Date()
         if let lastCrash = lastCrashTime,
            now.timeIntervalSince(lastCrash) > 300 { // Reset count if more than 5 minutes since last crash
-            crashCount = 0
+            self.crashCount = 0
         }
         
-        crashCount += 1
+        self.crashCount += 1
         lastCrashTime = now
         
         // Log the crash
-        logger.error("Server crashed (crash #\(crashCount))")
+        logger.error("Server crashed (crash #\(self.crashCount))")
         logContinuation?.yield(ServerLogEntry(
             level: .error,
-            message: "Server crashed unexpectedly (crash #\(crashCount))",
+            message: "Server crashed unexpectedly (crash #\(self.crashCount))",
             source: serverMode
         ))
         
@@ -437,7 +436,7 @@ class ServerManager {
         // Calculate backoff delay based on crash count
         let baseDelay: Double = 2.0 // 2 seconds base delay
         let maxDelay: Double = 60.0 // Max 1 minute delay
-        let delay = min(baseDelay * pow(2.0, Double(crashCount - 1)), maxDelay)
+        let delay = min(baseDelay * pow(2.0, Double(self.crashCount - 1)), maxDelay)
         
         logger.info("Waiting \(delay) seconds before restart attempt...")
         logContinuation?.yield(ServerLogEntry(
@@ -476,8 +475,8 @@ class ServerManager {
     /// Manually trigger a server restart (for UI button)
     func manualRestart() async {
         // Reset crash count for manual restarts
-        crashCount = 0
-        lastCrashTime = nil
+        self.crashCount = 0
+        self.lastCrashTime = nil
         
         await restart()
     }

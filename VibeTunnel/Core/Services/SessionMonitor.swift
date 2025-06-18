@@ -24,27 +24,14 @@ class SessionMonitor {
     /// Contains detailed metadata about a tty-fwd session including its process information,
     /// status, and I/O stream paths.
     struct SessionInfo: Codable {
-        let cmdline: [String]
-        let cwd: String
-        let exitCode: Int?
-        let name: String
-        let pid: Int
-        let startedAt: String
+        let id: String
+        let command: String
+        let workingDir: String
         let status: String
-        let stdin: String
-        let streamOut: String
-
-        enum CodingKeys: String, CodingKey {
-            case cmdline
-            case cwd
-            case name
-            case pid
-            case status
-            case stdin
-            case exitCode = "exit_code"
-            case startedAt = "started_at"
-            case streamOut = "stream-out"
-        }
+        let exitCode: Int?
+        let startedAt: String
+        let lastModified: String
+        let pid: Int
 
         var isRunning: Bool {
             status == "running"
@@ -115,7 +102,7 @@ class SessionMonitor {
             }
 
             // Server is running, fetch sessions
-            guard let url = URL(string: "http://127.0.0.1:\(serverPort)/sessions") else {
+            guard let url = URL(string: "http://127.0.0.1:\(serverPort)/api/sessions") else {
                 self.lastError = "Invalid URL"
                 return
             }
@@ -129,12 +116,19 @@ class SessionMonitor {
                 return
             }
 
-            // Parse JSON response
-            let sessionsData = try JSONDecoder().decode([String: SessionInfo].self, from: data)
-            self.sessions = sessionsData
+            // Parse JSON response as an array
+            let sessionsArray = try JSONDecoder().decode([SessionInfo].self, from: data)
+            
+            // Convert array to dictionary using session id as key
+            var sessionsDict: [String: SessionInfo] = [:]
+            for session in sessionsArray {
+                sessionsDict[session.id] = session
+            }
+            
+            self.sessions = sessionsDict
 
             // Count only running sessions
-            self.sessionCount = sessionsData.values.count { $0.isRunning }
+            self.sessionCount = sessionsArray.filter { $0.isRunning }.count
             self.lastError = nil
         } catch {
             // Don't set error for connection issues when server is likely not running

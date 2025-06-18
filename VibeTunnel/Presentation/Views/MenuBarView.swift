@@ -264,7 +264,10 @@ struct SessionRowView: View {
     }
 
     private var sessionName: String {
-        let name = session.value.name.isEmpty ? session.value.cmdline.first ?? "Unknown" : session.value.name
+        // Extract the working directory name as the session name
+        let workingDir = session.value.workingDir
+        let name = (workingDir as NSString).lastPathComponent
+        
         // Truncate long session names
         if name.count > 35 {
             let prefix = String(name.prefix(20))
