@@ -1009,8 +1009,23 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
         return json_response(StatusCode::NOT_FOUND, &response);
     };
 
-    // If session has no PID, consider it already dead
+    // If session has no PID, consider it already dead but update status if needed
     if session_entry.session_info.pid.is_none() {
+        // Update session status to exited if not already
+        let session_path = control_path.join(&session_id);
+        let session_json_path = session_path.join("session.json");
+        
+        if let Ok(content) = std::fs::read_to_string(&session_json_path) {
+            if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
+                if session_info.get("status").and_then(|s| s.as_str()) != Some("exited") {
+                    session_info["status"] = serde_json::json!("exited");
+                    if let Ok(updated_content) = serde_json::to_string_pretty(&session_info) {
+                        let _ = std::fs::write(&session_json_path, updated_content);
+                    }
+                }
+            }
+        }
+        
         let response = ApiResponse {
             success: Some(true),
             message: Some("Session killed".to_string()),
@@ -1022,7 +1037,23 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
 
     // Try SIGKILL first, then SIGKILL if needed
     let (status, message) = match sessions::send_signal_to_session(control_path, &session_id, 9) {
-        Ok(()) => (StatusCode::OK, "Session killed (SIGKILL)"),
+        Ok(()) => {
+            // Update session status to exited after killing the process
+            let session_path = control_path.join(&session_id);
+            let session_json_path = session_path.join("session.json");
+            
+            if let Ok(content) = std::fs::read_to_string(&session_json_path) {
+                if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
+                    session_info["status"] = serde_json::json!("exited");
+                    session_info["exit_code"] = serde_json::json!(9); // SIGKILL exit code
+                    if let Ok(updated_content) = serde_json::to_string_pretty(&session_info) {
+                        let _ = std::fs::write(&session_json_path, updated_content);
+                    }
+                }
+            }
+            
+            (StatusCode::OK, "Session killed")
+        },
         Err(e) => {
             let response = ApiResponse {
                 success: None,

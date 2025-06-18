@@ -133,7 +133,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
 
     // Fork process
     match unsafe { fork() }? {
-        ForkResult::Parent { .. } => {
+        ForkResult::Parent { child } => {
             // Parent process - close slave fd
             close(slave_fd)?;
 
@@ -186,7 +186,8 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 "cwd": expanded_working_dir,
                 "status": "running",
                 "started_at": jiff::Timestamp::now(),
-                "term": "xterm-256color"
+                "term": "xterm-256color",
+                "pid": child.as_raw() as u32
             });
             std::fs::write(
                 format!("{session_dir}/session.json"),

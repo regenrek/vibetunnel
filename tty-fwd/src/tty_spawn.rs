@@ -447,6 +447,21 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
             opts.session_json_path.as_deref(),
         )?;
 
+        // Send exit event to stream before updating session status
+        if let Some(ref mut stream_writer) = stream_writer {
+            let session_id = opts.session_json_path
+                .as_ref()
+                .and_then(|p| p.file_stem())
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown");
+            let exit_event = AsciinemaEvent {
+                time: stream_writer.elapsed_time(),
+                event_type: AsciinemaEventType::Output,
+                data: serde_json::json!(["exit", exit_code, session_id]).to_string(),
+            };
+            let _ = stream_writer.write_event(exit_event);
+        }
+
         // Update session status to exited with exit code
         if let Some(ref session_json_path) = opts.session_json_path {
             let _ = update_session_status(session_json_path, None, "exited", Some(exit_code));
@@ -794,6 +809,20 @@ fn monitor_detached_session(
                 Err(err) => return Err(err.into()),
             }
         }
+    }
+
+    // Send exit event to stream before updating session status
+    if let Some(ref mut stream_writer) = stream_writer {
+        let session_id = session_json_path
+            .and_then(|p| p.file_stem())
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown");
+        let exit_event = AsciinemaEvent {
+            time: stream_writer.elapsed_time(),
+            event_type: AsciinemaEventType::Output,
+            data: serde_json::json!(["exit", 0, session_id]).to_string(),
+        };
+        let _ = stream_writer.write_event(exit_event);
     }
 
     // Update session status to exited
