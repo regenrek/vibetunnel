@@ -507,19 +507,14 @@ final class TerminalLauncher {
         let ttyFwd = ttyFwdPath ?? findTTYFwdBinary()
         
         // The command comes pre-formatted from Rust, just launch it
-        // This avoids double escaping issues
-        // Properly escape the directory path for shell
-        let escapedDir = expandedWorkingDir.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let fullCommand = "cd \"\(escapedDir)\" && \(command)"
-        
+        // Pass the working directory separately to avoid double-escaping issues
         // Get the preferred terminal or fallback
         let terminal = getValidTerminal()
         
-        // Launch with configuration
+        // Launch with configuration - let TerminalLaunchConfig handle the escaping
         let config = TerminalLaunchConfig(
-            command: fullCommand,
-            workingDirectory: nil,
+            command: command,
+            workingDirectory: expandedWorkingDir,
             terminal: terminal
         )
         try launchWithConfig(config)
