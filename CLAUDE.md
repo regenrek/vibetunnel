@@ -3,3 +3,4 @@
 - Never screenshot via puppeteer. always query the DOM to see what's what.
 - NEVER EVER USE SETTIMEOUT FOR ANYTHING IN THE FRONTEND UNLESS EXPLICITELY PERMITTED
 - npm run lint in web/ before commit and fix the issues.
+- Always fix import issues, always fix all lint issues, always typecheck and fix type issues even in unrelated code

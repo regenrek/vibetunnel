@@ -239,31 +239,25 @@ export class PtyService {
 
   /**
    * Kill a session
+   * Returns a promise that resolves when the process is actually terminated
    */
-  killSession(sessionId: string, signal: string | number = 'SIGTERM'): void {
+  async killSession(sessionId: string, signal: string | number = 'SIGTERM'): Promise<void> {
     if (this.ptyManager) {
-      return this.ptyManager.killSession(sessionId, signal);
+      return await this.ptyManager.killSession(sessionId, signal);
     } else {
       return this.killSessionTtyFwd(sessionId, signal);
     }
   }
 
   /**
-   * Kill session using tty-fwd binary
+   * Kill session using tty-fwd binary with proper escalation
    */
-  private killSessionTtyFwd(sessionId: string, signal: string | number): void {
+  private async killSessionTtyFwd(sessionId: string, signal: string | number): Promise<void> {
     const ttyFwdPath = this.findTtyFwdBinary();
-    const args = ['--control-path', this.config.controlPath, '--session', sessionId];
 
-    if (signal === 'SIGTERM' || signal === 15) {
-      args.push('--stop');
-    } else if (signal === 'SIGKILL' || signal === 9) {
-      args.push('--kill');
-    } else {
-      args.push('--signal', String(signal));
-    }
-
-    try {
+    // If signal is already SIGKILL, send it immediately
+    if (signal === 'SIGKILL' || signal === 9) {
+      const args = ['--control-path', this.config.controlPath, '--session', sessionId, '--kill'];
       const result = spawnSync(ttyFwdPath, args, {
         stdio: 'pipe',
         timeout: 5000,
@@ -272,6 +266,82 @@ export class PtyService {
       if (result.status !== 0) {
         throw new PtyError(`tty-fwd kill failed with code ${result.status}`);
       }
+      return;
+    }
+
+    // Get session info to find PID for monitoring
+    const session = this.getSession(sessionId);
+    if (!session || !session.pid) {
+      throw new PtyError(
+        `Session ${sessionId} not found or has no PID`,
+        'SESSION_NOT_FOUND',
+        sessionId
+      );
+    }
+
+    const pid = session.pid;
+    console.log(`Terminating session ${sessionId} (PID: ${pid}) with tty-fwd SIGTERM...`);
+
+    try {
+      // Send SIGTERM first via tty-fwd
+      const args = ['--control-path', this.config.controlPath, '--session', sessionId, '--stop'];
+      const result = spawnSync(ttyFwdPath, args, {
+        stdio: 'pipe',
+        timeout: 5000,
+      });
+
+      if (result.status !== 0) {
+        throw new PtyError(`tty-fwd stop failed with code ${result.status}`);
+      }
+
+      // Wait up to 3 seconds for graceful termination (check every 500ms)
+      const maxWaitTime = 3000;
+      const checkInterval = 500;
+      const maxChecks = maxWaitTime / checkInterval;
+
+      for (let i = 0; i < maxChecks; i++) {
+        // Wait for check interval
+        await new Promise((resolve) => setTimeout(resolve, checkInterval));
+
+        // Check if process is still alive
+        try {
+          process.kill(pid, 0); // Signal 0 just checks if process exists
+          // Process still exists, continue waiting
+          console.log(`Session ${sessionId} still alive after ${(i + 1) * checkInterval}ms...`);
+        } catch (_error) {
+          // Process no longer exists - it terminated gracefully
+          console.log(
+            `Session ${sessionId} terminated gracefully after ${(i + 1) * checkInterval}ms`
+          );
+          return;
+        }
+      }
+
+      // Process didn't terminate gracefully within 3 seconds, force kill
+      console.log(
+        `Session ${sessionId} didn't terminate gracefully, sending SIGKILL via tty-fwd...`
+      );
+      const killArgs = [
+        '--control-path',
+        this.config.controlPath,
+        '--session',
+        sessionId,
+        '--kill',
+      ];
+      const killResult = spawnSync(ttyFwdPath, killArgs, {
+        stdio: 'pipe',
+        timeout: 5000,
+      });
+
+      if (killResult.status !== 0) {
+        console.warn(
+          `tty-fwd SIGKILL failed with code ${killResult.status}, process may already be dead`
+        );
+      }
+
+      // Wait a bit more for SIGKILL to take effect
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      console.log(`Session ${sessionId} forcefully terminated with SIGKILL`);
     } catch (error) {
       throw new PtyError(
         `Failed to kill session via tty-fwd: ${error instanceof Error ? error.message : String(error)}`

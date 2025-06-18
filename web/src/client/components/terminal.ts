@@ -182,7 +182,6 @@ export class Terminal extends LitElement {
         allowTransparency: false,
         convertEol: true,
         drawBoldTextInBrightColors: true,
-        fontWeightBold: 'bold',
         minimumContrastRatio: 1,
         macOptionIsMeta: true,
         altClickMovesCursor: true,
@@ -193,13 +192,10 @@ export class Terminal extends LitElement {
           foreground: '#d4d4d4',
           cursor: '#00ff00',
           cursorAccent: '#1e1e1e',
-          selectionBackground: '#264f78',
-          selectionForeground: '#ffffff',
-          selectionInactiveBackground: '#3a3a3a',
           // Standard 16 colors (0-15) - using proper xterm colors
           black: '#000000',
           red: '#cd0000',
-          green: '#00cd00', 
+          green: '#00cd00',
           yellow: '#cdcd00',
           blue: '#0000ee',
           magenta: '#cd00cd',
@@ -304,23 +300,23 @@ export class Terminal extends LitElement {
       const containerHeight = this.container.clientHeight;
       const lineHeight = this.fontSize * 1.2;
       const charWidth = this.measureCharacterWidth();
-      
+
       const newCols = Math.max(20, Math.floor(containerWidth / charWidth));
       const newRows = Math.max(6, Math.floor(containerHeight / lineHeight));
-      
+
       // Update logical dimensions if they changed significantly
       const colsChanged = Math.abs(newCols - this.cols) > 3;
       const rowsChanged = Math.abs(newRows - this.rows) > 2;
-      
+
       if (colsChanged || rowsChanged) {
         this.cols = newCols;
         this.rows = newRows;
         this.actualRows = newRows;
-        
+
         // Resize the terminal to the new dimensions
         if (this.terminal) {
           this.terminal.resize(this.cols, this.rows);
-          
+
           // Dispatch resize event for backend synchronization
           this.dispatchEvent(
             new CustomEvent('terminal-resize', {
@@ -362,12 +358,12 @@ export class Terminal extends LitElement {
     // Only listen to window resize events to avoid pixel-level jitter
     // Use debounced handling to prevent resize spam
     let windowResizeTimeout: number | null = null;
-    
+
     window.addEventListener('resize', () => {
       if (windowResizeTimeout) {
         clearTimeout(windowResizeTimeout);
       }
-      windowResizeTimeout = setTimeout(() => {
+      windowResizeTimeout = window.setTimeout(() => {
         this.fitTerminal();
       }, 150); // Debounce window resize events
     });
@@ -807,7 +803,7 @@ export class Terminal extends LitElement {
       if (isUnderline) classes += ' underline';
       if (isDim) classes += ' dim';
       if (isStrikethrough) classes += ' strikethrough';
-      
+
       // Handle inverse colors
       if (isInverse) {
         // Swap foreground and background colors
@@ -821,7 +817,7 @@ export class Terminal extends LitElement {
           style += `background-color: ${tempFg};`;
         }
       }
-      
+
       // Handle invisible text
       if (isInvisible) {
         style += 'opacity: 0;';

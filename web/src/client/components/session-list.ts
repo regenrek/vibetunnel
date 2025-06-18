@@ -15,6 +15,8 @@ export interface Session {
   lastModified: string;
   pid?: number;
   waiting?: boolean;
+  width?: number;
+  height?: number;
 }
 
 @customElement('session-list')
@@ -39,6 +41,29 @@ export class SessionList extends LitElement {
   private handleSessionSelect(e: CustomEvent) {
     const session = e.detail as Session;
     window.location.search = `?session=${session.id}`;
+  }
+
+  private handleSessionKilled(e: CustomEvent) {
+    const { sessionId } = e.detail;
+    console.log(`Session ${sessionId} killed, updating session list...`);
+
+    // Immediately remove the session from the local state for instant UI feedback
+    this.sessions = this.sessions.filter((session) => session.id !== sessionId);
+
+    // Then trigger a refresh to get the latest server state
+    this.dispatchEvent(new CustomEvent('refresh'));
+  }
+
+  private handleSessionKillError(e: CustomEvent) {
+    const { sessionId, error } = e.detail;
+    console.error(`Failed to kill session ${sessionId}:`, error);
+
+    // Dispatch error event to parent for user notification
+    this.dispatchEvent(
+      new CustomEvent('error', {
+        detail: `Failed to kill session: ${error}`,
+      })
+    );
   }
 
   public async handleCleanupExited() {
@@ -91,7 +116,12 @@ export class SessionList extends LitElement {
                   filteredSessions,
                   (session) => session.id,
                   (session) => html`
-                    <session-card .session=${session} @session-select=${this.handleSessionSelect}>
+                    <session-card
+                      .session=${session}
+                      @session-select=${this.handleSessionSelect}
+                      @session-killed=${this.handleSessionKilled}
+                      @session-kill-error=${this.handleSessionKillError}
+                    >
                     </session-card>
                   `
                 )}

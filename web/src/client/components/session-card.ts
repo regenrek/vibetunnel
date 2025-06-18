@@ -15,6 +15,8 @@ export interface Session {
   lastModified: string;
   pid?: number;
   waiting?: boolean;
+  width?: number;
+  height?: number;
 }
 
 @customElement('session-card')
@@ -141,13 +143,40 @@ export class SessionCard extends LitElement {
       });
 
       if (!response.ok) {
-        console.error('Failed to kill session');
+        const errorData = await response.text();
+        console.error('Failed to kill session:', errorData);
+        throw new Error(`Kill failed: ${response.status}`);
       }
-      // Note: We don't stop the animation on success - let the session list refresh handle it
+
+      // Kill succeeded - dispatch event to notify parent components
+      this.dispatchEvent(
+        new CustomEvent('session-killed', {
+          detail: {
+            sessionId: this.session.id,
+            session: this.session,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+
+      console.log(`Session ${this.session.id} killed successfully`);
     } catch (error) {
       console.error('Error killing session:', error);
-      // Stop animation on error
+
+      // Show error to user (keep animation to indicate something went wrong)
+      this.dispatchEvent(
+        new CustomEvent('session-kill-error', {
+          detail: {
+            sessionId: this.session.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
     } finally {
+      // Stop animation in all cases
       this.stopKillingAnimation();
     }
   }

@@ -354,7 +354,21 @@ export class CastConverter {
         if (Array.isArray(data) && data.length >= 3) {
           const [_timestamp, type, eventData] = data;
 
-          if (type === 'o') {
+          if (_timestamp === 'exit') {
+            disconnect();
+
+            if (terminal.dispatchEvent) {
+              terminal.dispatchEvent(
+                new CustomEvent('session-exit', {
+                  detail: {
+                    exitCode: data[1],
+                    sessionId: data[2] || null,
+                  },
+                  bubbles: true,
+                })
+              );
+            }
+          } else if (type === 'o') {
             // Output event - add to batch buffer
             addToOutputBuffer(eventData);
           } else if (type === 'r') {
@@ -383,20 +397,6 @@ export class CastConverter {
             }
           } else if (type === 'i') {
             // Ignore 'i' (input) events - those are for sending to server, not displaying
-          } else if (_timestamp === 'exit') {
-            disconnect();
-
-            if (terminal.dispatchEvent) {
-              terminal.dispatchEvent(
-                new CustomEvent('session-exit', {
-                  detail: {
-                    exitCode: data[1],
-                    sessionId: data[2] || null,
-                  },
-                  bubbles: true,
-                })
-              );
-            }
           } else {
             console.error('Unknown stream message format:', data);
           }

@@ -365,7 +365,12 @@ export class SessionManager {
         // D = Uninterruptible sleep (usually IO)
         // T = Stopped (on a signal or being traced)
         // Z = Zombie (terminated but not reaped)
-        const isWaiting = stat.includes('S') || stat.includes('D') || stat.includes('T');
+
+        // For terminal sessions, only consider these as truly "waiting":
+        // D = Uninterruptible sleep (usually blocked on I/O)
+        // T = Stopped/traced (paused by signal)
+        // Note: 'S' state is normal for interactive shells waiting for input
+        const isWaiting = stat.includes('D') || stat.includes('T');
 
         return { isAlive, isWaiting };
       }

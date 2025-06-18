@@ -125,14 +125,23 @@ Lists all sessions with metadata.
 
 Gets specific session by ID.
 
-##### `killSession(sessionId: string, signal?: string | number): void`
+##### `killSession(sessionId: string, signal?: string | number): Promise<void>`
 
-Terminates a session.
+Terminates a session and waits for the process to actually be killed.
 
 **Parameters:**
 
 - `sessionId`: Session to terminate
 - `signal`: Signal to send (default: 'SIGTERM')
+
+**Returns:** Promise that resolves when the process is actually terminated
+
+**Process:**
+
+1. Sends SIGTERM initially
+2. Waits up to 3 seconds (checking every 500ms)
+3. Sends SIGKILL if process doesn't terminate gracefully
+4. Resolves when process is confirmed dead
 
 ##### `cleanupSession(sessionId: string): void`
 

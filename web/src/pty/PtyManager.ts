@@ -348,8 +348,9 @@ export class PtyManager {
 
   /**
    * Kill a session with proper SIGTERM -> SIGKILL escalation
+   * Returns a promise that resolves when the process is actually terminated
    */
-  killSession(sessionId: string, signal: string | number = 'SIGTERM'): void {
+  async killSession(sessionId: string, signal: string | number = 'SIGTERM'): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new PtyError(`Session ${sessionId} not found`, 'SESSION_NOT_FOUND', sessionId);
@@ -357,17 +358,17 @@ export class PtyManager {
 
     try {
       if (session.ptyProcess) {
-        // If signal is already SIGKILL, send it immediately
+        // If signal is already SIGKILL, send it immediately and wait briefly
         if (signal === 'SIGKILL' || signal === 9) {
           session.ptyProcess.kill('SIGKILL');
           this.sessions.delete(sessionId);
+          // Wait a bit for SIGKILL to take effect
+          await new Promise((resolve) => setTimeout(resolve, 100));
           return;
         }
 
-        // Start with SIGTERM and escalate if needed (don't await to keep method sync)
-        this.killSessionWithEscalation(sessionId, session).catch((error) => {
-          console.error(`Kill escalation failed for session ${sessionId}:`, error);
-        });
+        // Start with SIGTERM and escalate if needed
+        await this.killSessionWithEscalation(sessionId, session);
       } else {
         // No PTY process, just remove from sessions
         this.sessions.delete(sessionId);
@@ -468,9 +469,11 @@ export class PtyManager {
    * Cleanup a specific session
    */
   cleanupSession(sessionId: string): void {
-    // Kill active session if exists
+    // Kill active session if exists (fire-and-forget for cleanup)
     if (this.sessions.has(sessionId)) {
-      this.killSession(sessionId);
+      this.killSession(sessionId).catch((error) => {
+        console.error(`Error killing session ${sessionId} during cleanup:`, error);
+      });
     }
 
     // Remove from storage

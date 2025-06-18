@@ -207,7 +207,7 @@ export class SessionView extends LitElement {
     // Listen for terminal resize events to capture dimensions
     this.terminal.addEventListener(
       'terminal-resize',
-      this.handleTerminalResize.bind(this) as EventListener
+      this.handleTerminalResize.bind(this) as unknown as EventListener
     );
 
     // Wait a moment for freshly created sessions before connecting
@@ -306,10 +306,12 @@ export class SessionView extends LitElement {
       // and avoid syncing the default 80x24 dimensions
       const colsDiff = Math.abs(cols - (this.session.width || 120));
       const rowsDiff = Math.abs(rows - (this.session.height || 30));
-      
+
       if ((colsDiff > 5 || rowsDiff > 5) && !(cols === 80 && rows === 24)) {
-        console.log(`Syncing terminal dimensions: ${cols}x${rows} (was ${this.session.width}x${this.session.height})`);
-        
+        console.log(
+          `Syncing terminal dimensions: ${cols}x${rows} (was ${this.session.width}x${this.session.height})`
+        );
+
         try {
           const response = await fetch(`/api/sessions/${this.session.id}/resize`, {
             method: 'POST',
@@ -521,7 +523,7 @@ export class SessionView extends LitElement {
       clearTimeout(this.resizeTimeout);
     }
 
-    this.resizeTimeout = setTimeout(async () => {
+    this.resizeTimeout = window.setTimeout(async () => {
       // Only send resize request if dimensions actually changed
       if (cols === this.lastResizeWidth && rows === this.lastResizeHeight) {
         console.log(`Skipping redundant resize request: ${cols}x${rows}`);
@@ -531,8 +533,10 @@ export class SessionView extends LitElement {
       // Send resize request to backend if session is active
       if (this.session && this.session.status !== 'exited') {
         try {
-          console.log(`Sending resize request: ${cols}x${rows} (was ${this.lastResizeWidth}x${this.lastResizeHeight})`);
-          
+          console.log(
+            `Sending resize request: ${cols}x${rows} (was ${this.lastResizeWidth}x${this.lastResizeHeight})`
+          );
+
           const response = await fetch(`/api/sessions/${this.session.id}/resize`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -987,7 +991,7 @@ export class SessionView extends LitElement {
             </button>
             <div class="text-vs-text min-w-0 flex-1 overflow-hidden">
               <div
-                class="text-vs-accent text-xs sm:text-sm overflow-x-auto scrollbar-thin scrollbar-thumb-vs-border scrollbar-track-transparent whitespace-nowrap"
+                class="text-vs-accent text-xs sm:text-sm overflow-hidden text-ellipsis whitespace-nowrap"
                 title="${this.session.name || this.session.command}"
               >
                 ${this.session.name || this.session.command}

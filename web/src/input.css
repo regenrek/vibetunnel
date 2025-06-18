@@ -34,8 +34,8 @@
 /* Override Tailwind's font-mono to use Hack Nerd Font */
 .font-mono {
   font-family:
-    'Hack Nerd Font Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo,
-    monospace !important;
+    'Hack Nerd Font Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas,
+    'Liberation Mono', Menlo, monospace !important;
 }
 
 /* Mobile scroll and touch behavior fixes */
@@ -98,10 +98,13 @@ body {
 .xterm {
   padding: 0 !important;
   font-family:
-    'Hack Nerd Font Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo,
-    monospace !important;
+    'Hack Nerd Font Mono', 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Consolas,
+    'Liberation Mono', Menlo, monospace !important;
   font-variant-ligatures: none;
-  font-feature-settings: "liga" 0, "clig" 0, "calt" 0;
+  font-feature-settings:
+    'liga' 0,
+    'clig' 0,
+    'calt' 0;
   text-rendering: optimizeSpeed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -110,7 +113,7 @@ body {
 /* Terminal character specific styling */
 .terminal-char {
   font-variant-ligatures: none;
-  font-feature-settings: "liga" 0;
+  font-feature-settings: 'liga' 0;
   white-space: pre;
 }
 
@@ -145,8 +148,14 @@ body {
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0.3; }
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0.3;
+  }
 }
 
 .xterm .xterm-viewport {

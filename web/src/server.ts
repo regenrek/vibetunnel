@@ -1,9 +1,9 @@
 import express, { Response } from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import { PtyService, PtyError } from './pty/index.js';
 
@@ -168,7 +168,7 @@ app.delete('/api/sessions/:sessionId', async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    ptyService.killSession(sessionId, 'SIGTERM');
+    await ptyService.killSession(sessionId, 'SIGTERM');
     console.log(`Session ${sessionId} killed`);
 
     res.json({ success: true, message: 'Session killed' });
@@ -272,8 +272,15 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
             res.write(`data: ${line}\n\n`);
             headerSent = true;
           } else if (Array.isArray(parsed) && parsed.length >= 3) {
-            const instantEvent = [0, parsed[1], parsed[2]];
-            res.write(`data: ${JSON.stringify(instantEvent)}\n\n`);
+            // Check if this is an exit event (format: ['exit', exitCode, sessionId])
+            if (parsed[0] === 'exit') {
+              // Exit events should preserve their original format
+              res.write(`data: ${line}\n\n`);
+            } else {
+              // Regular asciinema events get timestamp set to 0 for existing content
+              const instantEvent = [0, parsed[1], parsed[2]];
+              res.write(`data: ${JSON.stringify(instantEvent)}\n\n`);
+            }
           }
         } catch (_e) {
           // Skip invalid lines
@@ -329,9 +336,16 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
               continue; // Skip duplicate headers
             }
             if (Array.isArray(parsed) && parsed.length >= 3) {
-              const currentTime = Date.now() / 1000;
-              const realTimeEvent = [currentTime - startTime, parsed[1], parsed[2]];
-              eventData = `data: ${JSON.stringify(realTimeEvent)}\n\n`;
+              // Check if this is an exit event (format: ['exit', exitCode, sessionId])
+              if (parsed[0] === 'exit') {
+                // Exit events should preserve their original format without timestamp modification
+                eventData = `data: ${JSON.stringify(parsed)}\n\n`;
+              } else {
+                // Regular asciinema events get relative timestamp
+                const currentTime = Date.now() / 1000;
+                const realTimeEvent = [currentTime - startTime, parsed[1], parsed[2]];
+                eventData = `data: ${JSON.stringify(realTimeEvent)}\n\n`;
+              }
             }
           } catch (_e) {
             // Handle non-JSON as raw output
@@ -602,6 +616,49 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
       res.status(500).json({ error: 'Failed to send input', details: error.message });
     } else {
       res.status(500).json({ error: 'Failed to send input' });
+    }
+  }
+});
+
+// Resize session terminal
+app.post('/api/sessions/:sessionId/resize', async (req, res) => {
+  const sessionId = req.params.sessionId;
+  const { width, height } = req.body;
+
+  if (typeof width !== 'number' || typeof height !== 'number') {
+    return res.status(400).json({ error: 'Width and height must be numbers' });
+  }
+
+  if (width < 1 || height < 1 || width > 1000 || height > 1000) {
+    return res.status(400).json({ error: 'Width and height must be between 1 and 1000' });
+  }
+
+  console.log(`Resizing session ${sessionId} to ${width}x${height}`);
+
+  try {
+    // Validate session exists
+    const session = ptyService.getSession(sessionId);
+    if (!session) {
+      console.error(`Session ${sessionId} not found for resize`);
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.status !== 'running') {
+      console.error(`Session ${sessionId} is not running (status: ${session.status})`);
+      return res.status(400).json({ error: 'Session is not running' });
+    }
+
+    // Resize the session
+    ptyService.resizeSession(sessionId, width, height);
+    console.log(`Successfully resized session ${sessionId} to ${width}x${height}`);
+
+    res.json({ success: true, width, height });
+  } catch (error) {
+    console.error('Error resizing session via PTY service:', error);
+    if (error instanceof PtyError) {
+      res.status(500).json({ error: 'Failed to resize session', details: error.message });
+    } else {
+      res.status(500).json({ error: 'Failed to resize session' });
     }
   }
 });
