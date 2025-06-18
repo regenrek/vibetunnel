@@ -35,7 +35,7 @@
     "@xterm/headless": "^5.5.0",
     "express": "^4.19.2",
     "lit": "^3.3.0",
-    "@lydell/node-pty": "1.1.0",
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.12.0",
     "signal-exit": "^4.1.0",
     "ws": "^8.18.2"
   },
