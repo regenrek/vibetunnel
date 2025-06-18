@@ -250,11 +250,20 @@ fn write_to_pipe_with_timeout(
 }
 
 pub fn is_pid_alive(pid: u32) -> bool {
-    let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
+    // On Linux, check /proc/{pid} for better performance
+    #[cfg(target_os = "linux")]
+    {
+        std::path::Path::new(&format!("/proc/{}", pid)).exists()
+    }
 
-    match output {
-        Ok(output) => output.status.success(),
-        Err(_) => false,
+    // On other platforms, use ps command
+    #[cfg(not(target_os = "linux"))]
+    {
+        let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
+        match output {
+            Ok(output) => output.status.success(),
+            Err(_) => false,
+        }
     }
 }
 

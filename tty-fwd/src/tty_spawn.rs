@@ -16,7 +16,18 @@ use crate::protocol::{
 use anyhow::Error;
 use jiff::Timestamp;
 use nix::errno::Errno;
-use nix::libc::{login_tty, O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
+#[cfg(any(
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+use nix::libc::login_tty;
+use nix::libc::{O_NONBLOCK, TIOCGWINSZ, TIOCSWINSZ, VEOF};
+
+// Define TIOCSCTTY for platforms where it's not exposed by libc
+#[cfg(target_os = "linux")]
+const TIOCSCTTY: u64 = 0x540E;
 use nix::pty::{openpty, Winsize};
 use nix::sys::select::{select, FdSet};
 use nix::sys::signal::{killpg, Signal};
@@ -31,6 +42,68 @@ use signal_hook::consts::SIGWINCH;
 use tempfile::NamedTempFile;
 
 pub const DEFAULT_TERM: &str = "xterm-256color";
+
+/// Cross-platform implementation of login_tty
+/// On systems with login_tty, use it directly. Otherwise, implement manually.
+#[cfg(any(
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+unsafe fn login_tty_compat(fd: i32) -> Result<(), Error> {
+    if login_tty(fd) == 0 {
+        Ok(())
+    } else {
+        Err(Error::msg("login_tty failed"))
+    }
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+)))]
+unsafe fn login_tty_compat(fd: i32) -> Result<(), Error> {
+    // Manual implementation of login_tty for Linux and other systems
+
+    // Create a new session
+    if libc::setsid() == -1 {
+        return Err(Error::msg("setsid failed"));
+    }
+
+    // Make the tty our controlling terminal
+    #[cfg(target_os = "linux")]
+    let tiocsctty = TIOCSCTTY;
+    #[cfg(not(target_os = "linux"))]
+    let tiocsctty = libc::TIOCSCTTY;
+    
+    if libc::ioctl(fd, tiocsctty.try_into().unwrap_or(0x540E), 0) == -1 {
+        // Try without forcing
+        if libc::ioctl(fd, tiocsctty.try_into().unwrap_or(0x540E), 1) == -1 {
+            return Err(Error::msg("ioctl TIOCSCTTY failed"));
+        }
+    }
+
+    // Duplicate the tty to stdin/stdout/stderr
+    if libc::dup2(fd, 0) == -1 {
+        return Err(Error::msg("dup2 stdin failed"));
+    }
+    if libc::dup2(fd, 1) == -1 {
+        return Err(Error::msg("dup2 stdout failed"));
+    }
+    if libc::dup2(fd, 2) == -1 {
+        return Err(Error::msg("dup2 stderr failed"));
+    }
+
+    // Close the original fd if it's not one of the standard descriptors
+    if fd > 2 {
+        libc::close(fd);
+    }
+
+    Ok(())
+}
 
 /// Creates environment variables for `AsciinemaHeader`
 fn create_env_vars(term: &str) -> std::collections::HashMap<String, String> {
@@ -523,7 +596,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
         }
     } else {
         unsafe {
-            login_tty(pty.slave.into_raw_fd());
+            login_tty_compat(pty.slave.into_raw_fd())?;
             // No stderr redirection since script_mode is always false
         }
     }
