@@ -484,7 +484,7 @@ fn handle_create_session(
                 println!("Terminal spawned with session ID: {terminal_session_id}");
                 let response = ApiResponse {
                     success: Some(true),
-                    message: Some("Terminal spawned successfully".to_string()),
+                    message: Some("Session created successfully".to_string()),
                     error: None,
                     session_id: Some(terminal_session_id),
                 };
