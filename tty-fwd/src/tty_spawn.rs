@@ -449,7 +449,8 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
 
         // Send exit event to stream before updating session status
         if let Some(ref mut stream_writer) = stream_writer {
-            let session_id = opts.session_json_path
+            let session_id = opts
+                .session_json_path
                 .as_ref()
                 .and_then(|p| p.file_stem())
                 .and_then(|s| s.to_str())

@@ -597,17 +597,19 @@ impl Iterator for StreamingIterator {
                         if self.wait_start.is_none() {
                             self.wait_start = Some(SystemTime::now());
                         }
-                        
+
                         // Check if we've been waiting too long (5 seconds timeout)
                         if let Some(wait_start) = self.wait_start {
-                            if wait_start.elapsed().unwrap_or_default() > std::time::Duration::from_secs(5) {
+                            if wait_start.elapsed().unwrap_or_default()
+                                > std::time::Duration::from_secs(5)
+                            {
                                 self.state = StreamingState::Error(
-                                    "Timeout waiting for stream file to be created".to_string()
+                                    "Timeout waiting for stream file to be created".to_string(),
                                 );
                                 return None;
                             }
                         }
-                        
+
                         // File doesn't exist yet, wait 50ms and return None to retry later
                         std::thread::sleep(std::time::Duration::from_millis(50));
                         return None;

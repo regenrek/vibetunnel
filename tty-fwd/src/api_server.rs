@@ -1014,7 +1014,7 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
         // Update session status to exited if not already
         let session_path = control_path.join(&session_id);
         let session_json_path = session_path.join("session.json");
-        
+
         if let Ok(content) = std::fs::read_to_string(&session_json_path) {
             if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
                 if session_info.get("status").and_then(|s| s.as_str()) != Some("exited") {
@@ -1025,7 +1025,7 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
                 }
             }
         }
-        
+
         let response = ApiResponse {
             success: Some(true),
             message: Some("Session killed".to_string()),
@@ -1041,7 +1041,7 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
             // Update session status to exited after killing the process
             let session_path = control_path.join(&session_id);
             let session_json_path = session_path.join("session.json");
-            
+
             if let Ok(content) = std::fs::read_to_string(&session_json_path) {
                 if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
                     session_info["status"] = serde_json::json!("exited");
@@ -1051,9 +1051,9 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
                     }
                 }
             }
-            
+
             (StatusCode::OK, "Session killed")
-        },
+        }
         Err(e) => {
             let response = ApiResponse {
                 success: None,
