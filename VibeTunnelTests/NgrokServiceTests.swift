@@ -5,7 +5,7 @@ import Foundation
 // MARK: - Mock Ngrok Service
 
 @MainActor
-final class MockNgrokService: NgrokService {
+final class MockNgrokService {
     // Test control properties
     var shouldFailStart = false
     var startError: Error?
@@ -14,18 +14,18 @@ final class MockNgrokService: NgrokService {
     var mockIsInstalled = true
     var processOutput: String?
     
-    // Override properties
-    override var authToken: String? {
+    // Properties
+    var authToken: String? {
         get { mockAuthToken }
         set { mockAuthToken = newValue }
     }
     
-    override var hasAuthToken: Bool {
+    var hasAuthToken: Bool {
         mockAuthToken != nil
     }
     
     // Mock the start method
-    override func start(port: Int) async throws -> String {
+    func start(port: Int) async throws -> String {
         if shouldFailStart {
             throw startError ?? NgrokError.tunnelCreationFailed("Mock failure")
         }
@@ -45,7 +45,6 @@ final class MockNgrokService: NgrokService {
 
 // MARK: - Mock Process for Ngrok
 
-@MainActor
 final class MockNgrokProcess: Process {
     var mockIsRunning = false
     var mockOutput: String?

@@ -35,14 +35,14 @@ final class MockProcess: Process {
 
 // MARK: - Mock Terminal Manager
 
-actor MockTerminalManager: TerminalManager {
+actor MockTerminalManager {
     var mockSessions: [UUID: TunnelSession] = [:]
     var mockProcesses: [UUID: MockProcess] = [:]
     var createSessionShouldFail = false
     var executeCommandShouldFail = false
     var executeCommandOutput = ("", "")
     
-    override func createSession(request: CreateSessionRequest) throws -> TunnelSession {
+    func createSession(request: CreateSessionRequest) throws -> TunnelSession {
         if createSessionShouldFail {
             throw TunnelError.invalidRequest
         }
@@ -57,7 +57,7 @@ actor MockTerminalManager: TerminalManager {
         return session
     }
     
-    override func executeCommand(sessionId: UUID, command: String) async throws -> (output: String, error: String) {
+    func executeCommand(sessionId: UUID, command: String) async throws -> (output: String, error: String) {
         if executeCommandShouldFail {
             throw TunnelError.commandExecutionFailed("Mock failure")
         }
@@ -69,15 +69,15 @@ actor MockTerminalManager: TerminalManager {
         return executeCommandOutput
     }
     
-    override func listSessions() -> [TunnelSession] {
+    func listSessions() -> [TunnelSession] {
         Array(mockSessions.values)
     }
     
-    override func getSession(id: UUID) -> TunnelSession? {
+    func getSession(id: UUID) -> TunnelSession? {
         mockSessions[id]
     }
     
-    override func closeSession(id: UUID) {
+    func closeSession(id: UUID) {
         mockProcesses[id]?.terminate()
         mockProcesses.removeValue(forKey: id)
         mockSessions.removeValue(forKey: id)

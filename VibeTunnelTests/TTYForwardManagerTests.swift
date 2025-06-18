@@ -4,8 +4,7 @@ import Foundation
 
 // MARK: - Mock Process for Testing
 
-@MainActor
-final class MockProcess: Process {
+final class MockTTYProcess: Process {
     // Override properties we need to control
     private var _executableURL: URL?
     override var executableURL: URL? {
@@ -86,17 +85,17 @@ final class MockProcess: Process {
 // MARK: - Mock TTYForwardManager for Testing
 
 @MainActor
-final class MockTTYForwardManager: TTYForwardManager {
+final class MockTTYForwardManager {
     var mockExecutableURL: URL?
     var mockExecutableExists = true
     var mockIsExecutable = true
     var processFactory: (() -> Process)?
     
-    override var ttyForwardExecutableURL: URL? {
+    var ttyForwardExecutableURL: URL? {
         mockExecutableURL
     }
     
-    override func createTTYForwardProcess(with arguments: [String]) -> Process? {
+    func createTTYForwardProcess(with arguments: [String]) -> Process? {
         guard mockExecutableURL != nil else { return nil }
         
         if let factory = processFactory {

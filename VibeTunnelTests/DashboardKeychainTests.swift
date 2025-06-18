@@ -6,23 +6,23 @@ import Security
 // MARK: - Mock DashboardKeychain for Testing
 
 @MainActor
-final class MockDashboardKeychain: DashboardKeychain {
+final class MockDashboardKeychain {
     // In-memory storage for testing
     private var storedPassword: String?
     var shouldFailOperations = false
     var operationDelay: Duration?
     
-    override func getPassword() -> String? {
+    func getPassword() -> String? {
         if shouldFailOperations { return nil }
         return storedPassword
     }
     
-    override func hasPassword() -> Bool {
+    func hasPassword() -> Bool {
         if shouldFailOperations { return false }
         return storedPassword != nil
     }
     
-    override func setPassword(_ password: String) -> Bool {
+    func setPassword(_ password: String) -> Bool {
         if shouldFailOperations { return false }
         if password.isEmpty { return false }
         
@@ -30,7 +30,7 @@ final class MockDashboardKeychain: DashboardKeychain {
         return true
     }
     
-    override func deletePassword() -> Bool {
+    func deletePassword() -> Bool {
         if shouldFailOperations { return false }
         storedPassword = nil
         return true

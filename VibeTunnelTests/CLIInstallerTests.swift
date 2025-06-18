@@ -6,7 +6,7 @@ import AppKit
 // MARK: - Mock CLI Installer
 
 @MainActor
-final class MockCLIInstaller: CLIInstaller {
+final class MockCLIInstaller {
     // Mock state
     var mockIsInstalled = false
     var mockInstallShouldFail = false
@@ -21,12 +21,17 @@ final class MockCLIInstaller: CLIInstaller {
     var showErrorCalled = false
     var lastErrorMessage: String?
     
-    override func checkInstallationStatus() {
+    // Add missing properties
+    var isInstalled = false
+    var isInstalling = false
+    var lastError: String?
+    
+    func checkInstallationStatus() {
         checkInstallationStatusCalled = true
         isInstalled = mockIsInstalled
     }
     
-    override func install() async {
+    func install() async {
         installCalled = true
         
         await MainActor.run {
@@ -45,7 +50,7 @@ final class MockCLIInstaller: CLIInstaller {
         }
     }
     
-    override func installCLITool() {
+    func installCLITool() {
         installCalled = true
         isInstalling = true
         
@@ -115,7 +120,7 @@ struct CLIInstallerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
     }
     
-    deinit {
+    func cleanup() {
         try? FileManager.default.removeItem(at: tempDirectory)
     }
     

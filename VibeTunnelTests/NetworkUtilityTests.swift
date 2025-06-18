@@ -5,6 +5,7 @@ import Network
 
 // MARK: - Mock Network Utility for Testing
 
+@MainActor
 enum MockNetworkUtility {
     static var mockLocalIP: String?
     static var mockAllIPs: [String] = []
