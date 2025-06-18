@@ -37,7 +37,6 @@ struct DebugSettingsView: View {
                     isServerRunning: isServerRunning,
                     serverPort: serverPort,
                     lastError: lastError,
-                    toggleServer: toggleServer,
                     serverModeString: $serverModeString,
                     serverManager: serverManager
                 )
@@ -106,27 +105,7 @@ struct DebugSettingsView: View {
 
     // MARK: - Private Methods
 
-    private func toggleServer(_ shouldStart: Bool) async {
-        lastError = nil
-
-        if shouldStart {
-            do {
-                try await serverMonitor.startServer()
-                // Restart heartbeat monitoring after starting server
-                startHeartbeatMonitoring()
-            } catch {
-                lastError = error.localizedDescription
-            }
-        } else {
-            do {
-                try await serverMonitor.stopServer()
-                // Clear health status immediately when stopping
-                isServerHealthy = false
-            } catch {
-                lastError = error.localizedDescription
-            }
-        }
-    }
+    // toggleServer function removed - server now runs continuously with auto-recovery
 
     private func testEndpoint(_ endpoint: APIEndpoint) {
         isTesting = true
@@ -273,7 +252,6 @@ private struct ServerSection: View {
     let isServerRunning: Bool
     let serverPort: Int
     let lastError: String?
-    let toggleServer: (Bool) async -> Void
     @Binding var serverModeString: String
     let serverManager: ServerManager
 
@@ -302,15 +280,15 @@ private struct ServerSection: View {
 
                     Spacer()
 
-                    Toggle("", isOn: Binding(
-                        get: { isServerRunning },
-                        set: { newValue in
+                    // Show restart button for Rust mode when server is not healthy
+                    if serverModeString == ServerMode.rust.rawValue && (!isServerRunning || !isServerHealthy) {
+                        Button("Restart") {
                             Task {
-                                await toggleServer(newValue)
+                                await serverManager.manualRestart()
                             }
                         }
-                    ))
-                    .toggleStyle(.switch)
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
 
                 if isServerRunning, let serverURL = URL(string: "http://127.0.0.1:\(serverPort)") {
