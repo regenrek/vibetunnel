@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Response } from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
@@ -347,7 +347,7 @@ app.post('/api/cleanup-exited', async (req, res) => {
 const activeStreams = new Map<
   string,
   {
-    clients: Set<WebSocket>;
+    clients: Set<Response>;
     tailProcess: ChildProcess;
     lastPosition: number;
   }

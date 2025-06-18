@@ -1,6 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { Terminal as XtermTerminal, IBufferLine, IBufferCell } from '@xterm/xterm';
+import { Terminal as XtermTerminal, IBufferLine, IBufferCell } from '@xterm/headless';
 import { UrlHighlighter } from '../utils/url-highlighter.js';
 
 @customElement('vibe-terminal')
@@ -177,10 +177,9 @@ export class Terminal extends LitElement {
       // Create regular terminal but don't call .open() to make it headless
       this.terminal = new XtermTerminal({
         cursorBlink: false,
-        fontSize: this.fontSize,
-        fontFamily: 'Fira Code, ui-monospace, SFMono-Regular, monospace',
         lineHeight: 1.2,
         scrollback: 10000,
+        allowProposedApi: true,
         theme: {
           background: '#1e1e1e',
           foreground: '#d4d4d4',

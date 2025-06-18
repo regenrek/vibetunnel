@@ -10,6 +10,7 @@ import './components/session-view.js';
 import './components/session-card.js';
 
 import type { Session } from './components/session-list.js';
+import type { SessionCard } from './components/session-card.js';
 
 @customElement('vibetunnel-app')
 export class VibeTunnelApp extends LitElement {
@@ -180,9 +181,9 @@ export class VibeTunnelApp extends LitElement {
 
   private async handleKillAll() {
     // Find all session cards and trigger their kill buttons
-    const sessionCards = this.querySelectorAll('session-card');
+    const sessionCards = this.querySelectorAll<SessionCard>('session-card');
 
-    sessionCards.forEach((card: Element) => {
+    sessionCards.forEach((card: SessionCard) => {
       // Check if this session is running
       if (card.session && card.session.status === 'running') {
         // Find all buttons within this card and look for the kill button
