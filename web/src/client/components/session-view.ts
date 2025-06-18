@@ -83,10 +83,10 @@ export class SessionView extends LitElement {
       this.startLoading();
     }
 
-    // Detect mobile device
-    this.isMobile =
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-      window.innerWidth <= 768;
+    // Detect mobile device - only show onscreen keyboard on actual mobile devices
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
 
     // Only add listeners if not already added
     if (!this.isMobile && !this.keyboardListenerAdded) {

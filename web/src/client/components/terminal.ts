@@ -20,6 +20,8 @@ export class Terminal extends LitElement {
 
   @state() private terminal: XtermTerminal | null = null;
   private _viewportY = 0; // Current scroll position in pixels
+  @state() private followCursorEnabled = true; // Whether to follow cursor on writes
+  private programmaticScroll = false; // Flag to prevent state updates during programmatic scrolling
 
   get viewportY() {
     return this._viewportY;
@@ -46,7 +48,7 @@ export class Terminal extends LitElement {
   // Operation queue for batching buffer modifications
   private operationQueue: (() => void | Promise<void>)[] = [];
 
-  private queueOperation(operation: () => void | Promise<void>) {
+  private queueRenderOperation(operation: () => void | Promise<void>) {
     this.operationQueue.push(operation);
 
     if (!this.renderPending) {
@@ -56,6 +58,10 @@ export class Terminal extends LitElement {
         this.renderPending = false;
       });
     }
+  }
+
+  private requestRenderBuffer() {
+    this.queueRenderOperation(() => {});
   }
 
   private async processOperationQueue() {
@@ -154,7 +160,6 @@ export class Terminal extends LitElement {
 
       this.terminal.resize(this.cols, this.rows);
       this.fitTerminal();
-      this.renderBuffer();
     }
   }
 
@@ -283,7 +288,7 @@ export class Terminal extends LitElement {
     }
 
     // Always trigger a render after fit changes
-    this.renderBuffer();
+    this.requestRenderBuffer();
     this.requestUpdate();
   }
 
@@ -296,14 +301,12 @@ export class Terminal extends LitElement {
       }
       this.resizeTimeout = setTimeout(() => {
         this.fitTerminal();
-        this.renderBuffer();
       }, 50);
     });
     this.resizeObserver.observe(this.container);
 
     window.addEventListener('resize', () => {
       this.fitTerminal();
-      this.renderBuffer();
     });
   }
 
@@ -490,14 +493,9 @@ export class Terminal extends LitElement {
     if (newViewportY !== this.viewportY) {
       this.viewportY = newViewportY;
 
-      // Use requestAnimationFrame to throttle rendering
-      if (!this.renderPending) {
-        this.renderPending = true;
-        requestAnimationFrame(() => {
-          this.renderBuffer();
-          this.renderPending = false;
-        });
-      }
+      // Update follow cursor state based on scroll position
+      this.updateFollowCursorState();
+      this.requestRenderBuffer();
     }
   }
 
@@ -536,6 +534,9 @@ export class Terminal extends LitElement {
         if (newViewportY !== this.viewportY) {
           this.viewportY = newViewportY;
           scrolled = true;
+
+          // Update follow cursor state for momentum scrolling too
+          this.updateFollowCursorState();
         } else {
           // Hit boundary, stop vertical momentum
           this.momentumVelocityY = 0;
@@ -565,7 +566,7 @@ export class Terminal extends LitElement {
 
       // Render if we scrolled
       if (scrolled) {
-        this.renderBuffer();
+        this.requestRenderBuffer();
       }
     } else {
       // Momentum finished
@@ -582,10 +583,10 @@ export class Terminal extends LitElement {
     const bufferLength = buffer.length;
     const lineHeight = this.fontSize * 1.2;
 
-    // Convert pixel scroll position to fractional line position
+    // Convert pixel scroll position to line position with integer pixel offset
     const startRowFloat = this.viewportY / lineHeight;
     const startRow = Math.floor(startRowFloat);
-    const pixelOffset = (startRowFloat - startRow) * lineHeight;
+    const pixelOffset = Math.floor((startRowFloat - startRow) * lineHeight);
 
     // Build complete innerHTML string
     let html = '';
@@ -633,9 +634,19 @@ export class Terminal extends LitElement {
     let currentClasses = '';
     let currentStyle = '';
 
+    const escapeHtml = (text: string): string => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
     const flushGroup = () => {
       if (currentChars) {
-        html += `<span class="${currentClasses}"${currentStyle ? ` style="${currentStyle}"` : ''}>${currentChars}</span>`;
+        const escapedChars = escapeHtml(currentChars);
+        html += `<span class="${currentClasses}"${currentStyle ? ` style="${currentStyle}"` : ''}>${escapedChars}</span>`;
         currentChars = '';
       }
     };
@@ -743,7 +754,7 @@ export class Terminal extends LitElement {
   public write(data: string, followCursor: boolean = true) {
     if (!this.terminal) return;
 
-    this.queueOperation(async () => {
+    this.queueRenderOperation(async () => {
       if (!this.terminal) return;
 
       // XTerm.write() is async, wait for it to complete
@@ -755,9 +766,16 @@ export class Terminal extends LitElement {
         }
       });
 
-      // Follow cursor if requested
-      if (followCursor) {
-        this.followCursor();
+      // Follow cursor: scroll to bottom if enabled
+      if (followCursor && this.followCursorEnabled) {
+        const buffer = this.terminal.buffer.active;
+        const lineHeight = this.fontSize * 1.2;
+        const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
+
+        // Set programmatic scroll flag and scroll to bottom
+        this.programmaticScroll = true;
+        this.viewportY = maxScrollPixels;
+        this.programmaticScroll = false;
       }
     });
   }
@@ -768,7 +786,7 @@ export class Terminal extends LitElement {
   public clear() {
     if (!this.terminal) return;
 
-    this.queueOperation(() => {
+    this.queueRenderOperation(() => {
       if (!this.terminal) return;
 
       this.terminal.clear();
@@ -787,7 +805,7 @@ export class Terminal extends LitElement {
 
     if (!this.terminal) return;
 
-    this.queueOperation(() => {
+    this.queueRenderOperation(() => {
       if (!this.terminal) return;
 
       this.terminal.resize(cols, rows);
@@ -804,17 +822,18 @@ export class Terminal extends LitElement {
   public scrollToBottom() {
     if (!this.terminal) return;
 
-    this.queueOperation(() => {
+    this.queueRenderOperation(() => {
       if (!this.terminal) return;
 
       const buffer = this.terminal.buffer.active;
       const lineHeight = this.fontSize * 1.2;
       // Use the same maxScrollPixels calculation as scrollViewportPixels
       const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
-      this.viewportY = maxScrollPixels;
 
-      // Force a render since scroll position changed
-      this.renderBuffer();
+      // Set programmatic scroll flag
+      this.programmaticScroll = true;
+      this.viewportY = maxScrollPixels;
+      this.programmaticScroll = false;
     });
   }
 
@@ -825,13 +844,17 @@ export class Terminal extends LitElement {
   public scrollToPosition(position: number) {
     if (!this.terminal) return;
 
-    this.queueOperation(() => {
+    this.queueRenderOperation(() => {
       if (!this.terminal) return;
 
       const buffer = this.terminal.buffer.active;
       const lineHeight = this.fontSize * 1.2;
       const maxScrollLines = Math.max(0, buffer.length - this.actualRows);
+
+      // Set programmatic scroll flag
+      this.programmaticScroll = true;
       this.viewportY = Math.max(0, Math.min(maxScrollLines, position)) * lineHeight;
+      this.programmaticScroll = false;
     });
   }
 
@@ -841,7 +864,7 @@ export class Terminal extends LitElement {
    * @param callback - Function to execute after render
    */
   public queueCallback(callback: () => void) {
-    this.queueOperation(callback);
+    this.queueRenderOperation(callback);
   }
 
   // === QUERY METHODS (Immediate) ===
@@ -919,6 +942,9 @@ export class Terminal extends LitElement {
     const viewportStartLine = Math.floor(this.viewportY / lineHeight);
     const viewportEndLine = viewportStartLine + this.actualRows - 1;
 
+    // Set programmatic scroll flag to prevent state updates
+    this.programmaticScroll = true;
+
     // If cursor is outside viewport, scroll to keep it visible
     if (cursorLine < viewportStartLine) {
       // Cursor is above viewport - scroll up
@@ -931,6 +957,9 @@ export class Terminal extends LitElement {
     // Ensure we don't scroll past the buffer
     const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
     this.viewportY = Math.min(this.viewportY, maxScrollPixels);
+
+    // Clear programmatic scroll flag
+    this.programmaticScroll = false;
   }
 
   /**
@@ -946,6 +975,26 @@ export class Terminal extends LitElement {
 
     // Consider "at bottom" if within one line height of the bottom
     return this.viewportY >= maxScrollPixels - lineHeight;
+  }
+
+  /**
+   * Update follow cursor state based on current scroll position.
+   * Disable follow cursor when user scrolls away from bottom.
+   * Re-enable when user scrolls back to bottom.
+   */
+  private updateFollowCursorState(): void {
+    // Don't update state during programmatic scrolling
+    if (this.programmaticScroll) return;
+
+    const wasAtBottom = this.isScrolledToBottom();
+
+    if (wasAtBottom && !this.followCursorEnabled) {
+      // User scrolled back to bottom - re-enable follow cursor
+      this.followCursorEnabled = true;
+    } else if (!wasAtBottom && this.followCursorEnabled) {
+      // User scrolled away from bottom - disable follow cursor
+      this.followCursorEnabled = false;
+    }
   }
 
   render() {

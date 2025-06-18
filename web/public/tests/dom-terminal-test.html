@@ -500,7 +500,7 @@
                         terminal.clear();
 
                         console.log('Fetching cast file');
-                        const response = await fetch('../test4.cast');
+                        const response = await fetch('../test5.cast');
                         if (!response.ok) {
                             throw new Error(`Failed to fetch cast file: ${response.status}`);
                         }
@@ -512,7 +512,7 @@
                         playCastBtn.textContent = '▶️ Playing...';
 
                         // Play the cast file with 2x speed for demo
-                        await CastConverter.playOnTerminal(terminal, castContent, 2.0);
+                        await CastConverter.dumpToTerminal(terminal, castContent, 2.0);
 
                         console.log('Cast playback completed');
 

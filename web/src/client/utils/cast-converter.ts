@@ -304,7 +304,33 @@ export class CastConverter {
   } {
     const eventSource = new EventSource(streamUrl);
 
+    // Batching variables for performance
+    let outputBuffer = '';
+    let batchTimeout: number | null = null;
+    const batchDelay = 16; // ~60fps for smooth streaming
+
+    const flushOutputBuffer = () => {
+      if (outputBuffer.length > 0) {
+        terminal.write(outputBuffer, true);
+        outputBuffer = '';
+      }
+      batchTimeout = null;
+    };
+
+    const addToOutputBuffer = (data: string) => {
+      outputBuffer += data;
+
+      // Schedule flush if not already scheduled
+      if (batchTimeout === null) {
+        batchTimeout = window.setTimeout(flushOutputBuffer, batchDelay);
+      }
+    };
+
     const disconnect = () => {
+      if (batchTimeout !== null) {
+        clearTimeout(batchTimeout);
+        flushOutputBuffer();
+      }
       if (eventSource.readyState !== EventSource.CLOSED) {
         eventSource.close();
       }
@@ -329,10 +355,16 @@ export class CastConverter {
           const [_timestamp, type, eventData] = data;
 
           if (type === 'o') {
-            // Output event - write to terminal
-            terminal.write(eventData, true); // Follow cursor for live streaming
+            // Output event - add to batch buffer
+            addToOutputBuffer(eventData);
           } else if (type === 'r') {
-            // Resize event - update terminal dimensions
+            // Resize event - flush buffer first, then resize
+            if (batchTimeout !== null) {
+              clearTimeout(batchTimeout);
+              flushOutputBuffer();
+            }
+
+            // Update terminal dimensions
             const match = eventData.match(/^(\d+)x(\d+)$/);
             if (match && terminal.setTerminalSize) {
               const cols = parseInt(match[1], 10);
