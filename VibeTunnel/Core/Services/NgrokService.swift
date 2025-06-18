@@ -6,7 +6,7 @@ import os
 ///
 /// Represents various failure modes when working with ngrok tunnels,
 /// from installation issues to runtime configuration problems.
-enum NgrokError: LocalizedError {
+enum NgrokError: LocalizedError, Equatable {
     case notInstalled
     case authTokenMissing
     case tunnelCreationFailed(String)
