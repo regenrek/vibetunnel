@@ -28,7 +28,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://vibetunnel.sh/appcast.xml</string>
+	<string>https://stats.store/api/v1/appcast/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=</string>
 	<key>SUScheduledCheckInterval</key>
