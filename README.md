@@ -42,7 +42,6 @@ VibeTunnel lives in your menu bar. Click the icon to start the server.
 ### 3. Use the `vt` Command
 
 Prefix any command with `vt` to make it accessible in your browser:
-
 ```bash
 # Monitor AI agents
 vt claude
