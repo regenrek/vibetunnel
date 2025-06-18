@@ -105,3 +105,6 @@ temp/
 
 # Terminal session data (don't commit user sessions)
 ~/.vibetunnel/
+
+# Lint output files
+lint_output.txt
