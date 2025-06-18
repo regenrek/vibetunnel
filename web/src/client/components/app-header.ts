@@ -32,8 +32,13 @@ export class AppHeader extends LitElement {
     }, 3000); // 3 seconds should be enough for most kill operations
   }
 
+  private handleCleanExited() {
+    this.dispatchEvent(new CustomEvent('clean-exited-sessions'));
+  }
+
   render() {
     const runningSessions = this.sessions.filter((session) => session.status === 'running');
+    const exitedSessions = this.sessions.filter((session) => session.status === 'exited');
 
     // Reset killing state if no more running sessions
     if (this.killingAll && runningSessions.length === 0) {
@@ -49,33 +54,61 @@ export class AppHeader extends LitElement {
             <vibe-logo></vibe-logo>
           </div>
 
-          <!-- Controls row: hide exited on left, buttons on right -->
+          <!-- Controls row: left buttons and right buttons -->
           <div class="flex items-center justify-between">
-            <button
-              class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-              style="background: black; color: #d4d4d4; border: 1px solid ${this.hideExited ? '#569cd6' : '#888'};"
-              @click=${() =>
-                this.dispatchEvent(
-                  new CustomEvent('hide-exited-change', {
-                    detail: !this.hideExited,
-                  })
-                )}
-              @mouseover=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                const borderColor = this.hideExited ? '#569cd6' : '#888';
-                btn.style.background = borderColor;
-                btn.style.color = 'black';
-              }}
-              @mouseout=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                btn.style.background = 'black';
-                btn.style.color = '#d4d4d4';
-              }}
-            >
-              ${this.hideExited ? 'SHOW ALL' : 'HIDE EXITED'}
-            </button>
-
             <div class="flex gap-1">
+              ${exitedSessions.length > 0
+                ? html`
+                    <button
+                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
+                      style="background: black; color: #d4d4d4; border: 1px solid ${this.hideExited
+                        ? '#23d18b'
+                        : '#888'};"
+                      @click=${() =>
+                        this.dispatchEvent(
+                          new CustomEvent('hide-exited-change', {
+                            detail: !this.hideExited,
+                          })
+                        )}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        const borderColor = this.hideExited ? '#23d18b' : '#888';
+                        btn.style.background = borderColor;
+                        btn.style.color = 'black';
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = 'black';
+                        btn.style.color = '#d4d4d4';
+                      }}
+                    >
+                      ${this.hideExited
+                        ? `SHOW EXITED (${exitedSessions.length})`
+                        : `HIDE EXITED (${exitedSessions.length})`}
+                    </button>
+                  `
+                : ''}
+              ${!this.hideExited && exitedSessions.length > 0
+                ? html`
+                    <button
+                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
+                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                      @click=${this.handleCleanExited}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = '#d19a66';
+                        btn.style.color = 'black';
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = 'black';
+                        btn.style.color = '#d4d4d4';
+                      }}
+                    >
+                      CLEAN EXITED
+                    </button>
+                  `
+                : ''}
               ${runningSessions.length > 0 && !this.killingAll
                 ? html`
                     <button
@@ -97,6 +130,9 @@ export class AppHeader extends LitElement {
                     </button>
                   `
                 : ''}
+            </div>
+
+            <div class="flex gap-1">
               <button
                 class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
                 style="background: black; color: #d4d4d4; border: 1px solid #569cd6;"
@@ -122,30 +158,59 @@ export class AppHeader extends LitElement {
         <div class="hidden sm:flex sm:items-center sm:justify-between">
           <vibe-logo></vibe-logo>
           <div class="flex items-center gap-3">
-            <button
-              class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-              style="background: black; color: #d4d4d4; border: 1px solid ${this.hideExited ? '#569cd6' : '#888'};"
-              @click=${() =>
-                this.dispatchEvent(
-                  new CustomEvent('hide-exited-change', {
-                    detail: !this.hideExited,
-                  })
-                )}
-              @mouseover=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                const borderColor = this.hideExited ? '#569cd6' : '#888';
-                btn.style.background = borderColor;
-                btn.style.color = 'black';
-              }}
-              @mouseout=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                btn.style.background = 'black';
-                btn.style.color = '#d4d4d4';
-              }}
-            >
-              ${this.hideExited ? 'SHOW ALL' : 'HIDE EXITED'}
-            </button>
+            ${exitedSessions.length > 0
+              ? html`
+                  <button
+                    class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
+                    style="background: black; color: #d4d4d4; border: 1px solid ${this.hideExited
+                      ? '#23d18b'
+                      : '#888'};"
+                    @click=${() =>
+                      this.dispatchEvent(
+                        new CustomEvent('hide-exited-change', {
+                          detail: !this.hideExited,
+                        })
+                      )}
+                    @mouseover=${(e: Event) => {
+                      const btn = e.target as HTMLElement;
+                      const borderColor = this.hideExited ? '#23d18b' : '#888';
+                      btn.style.background = borderColor;
+                      btn.style.color = 'black';
+                    }}
+                    @mouseout=${(e: Event) => {
+                      const btn = e.target as HTMLElement;
+                      btn.style.background = 'black';
+                      btn.style.color = '#d4d4d4';
+                    }}
+                  >
+                    ${this.hideExited
+                      ? `SHOW EXITED (${exitedSessions.length})`
+                      : `HIDE EXITED (${exitedSessions.length})`}
+                  </button>
+                `
+              : ''}
             <div class="flex gap-2">
+              ${!this.hideExited && this.sessions.filter((s) => s.status === 'exited').length > 0
+                ? html`
+                    <button
+                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
+                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                      @click=${this.handleCleanExited}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = '#d19a66';
+                        btn.style.color = 'black';
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = 'black';
+                        btn.style.color = '#d4d4d4';
+                      }}
+                    >
+                      CLEAN EXITED
+                    </button>
+                  `
+                : ''}
               ${runningSessions.length > 0 && !this.killingAll
                 ? html`
                     <button

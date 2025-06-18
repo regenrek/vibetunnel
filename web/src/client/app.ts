@@ -198,6 +198,14 @@ export class VibeTunnelApp extends LitElement {
     });
   }
 
+  private handleCleanExited() {
+    // Find the session list and call its cleanup method directly
+    const sessionList = this.querySelector('session-list') as any;
+    if (sessionList && sessionList.handleCleanupExited) {
+      sessionList.handleCleanupExited();
+    }
+  }
+
   // URL Routing methods
   private setupRouting() {
     // Handle browser back/forward navigation
@@ -303,6 +311,7 @@ export class VibeTunnelApp extends LitElement {
                 @create-session=${this.handleCreateSession}
                 @hide-exited-change=${this.handleHideExitedChange}
                 @kill-all-sessions=${this.handleKillAll}
+                @clean-exited-sessions=${this.handleCleanExited}
               ></app-header>
               <session-list
                 .sessions=${this.sessions}

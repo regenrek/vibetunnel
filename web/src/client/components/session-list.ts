@@ -41,7 +41,7 @@ export class SessionList extends LitElement {
     window.location.search = `?session=${session.id}`;
   }
 
-  private async handleCleanupExited() {
+  public async handleCleanupExited() {
     if (this.cleaningExited) return;
 
     this.cleaningExited = true;
@@ -75,35 +75,6 @@ export class SessionList extends LitElement {
 
     return html`
       <div class="font-mono text-sm p-4" style="background: black;">
-        <!-- Controls -->
-        ${!this.hideExited && this.sessions.filter((s) => s.status === 'exited').length > 0
-          ? html`
-              <div class="mb-4">
-                <button
-                  class="font-mono px-2 py-1 rounded transition-colors disabled:opacity-50 text-xs"
-                  style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
-                  @click=${this.handleCleanupExited}
-                  ?disabled=${this.cleaningExited}
-                  @mouseover=${(e: Event) => {
-                    const btn = e.target as HTMLElement;
-                    if (!this.cleaningExited) {
-                      btn.style.background = '#d19a66';
-                      btn.style.color = 'black';
-                    }
-                  }}
-                  @mouseout=${(e: Event) => {
-                    const btn = e.target as HTMLElement;
-                    if (!this.cleaningExited) {
-                      btn.style.background = 'black';
-                      btn.style.color = '#d4d4d4';
-                    }
-                  }}
-                >
-                  ${this.cleaningExited ? '[~] CLEANING...' : 'CLEAN EXITED'}
-                </button>
-              </div>
-            `
-          : ''}
         ${filteredSessions.length === 0
           ? html`
               <div class="text-vs-muted text-center py-8">

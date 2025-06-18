@@ -891,7 +891,9 @@ export class SessionView extends LitElement {
             </div>
             <button
               class="font-mono text-lg transition-colors flex-shrink-0"
-              style="background: transparent; color: ${this.terminalFitHorizontally ? '#569cd6' : '#d4d4d4'}; border: none; padding: 4px;"
+              style="background: transparent; color: ${this.terminalFitHorizontally
+                ? '#569cd6'
+                : '#d4d4d4'}; border: none; padding: 4px;"
               @click=${this.handleTerminalFitToggle}
               title="Toggle fit to width"
               @mouseover=${(e: Event) => {
@@ -903,7 +905,7 @@ export class SessionView extends LitElement {
                 btn.style.color = this.terminalFitHorizontally ? '#569cd6' : '#d4d4d4';
               }}
             >
-${this.terminalFitHorizontally 
+              ${this.terminalFitHorizontally
                 ? html`<span>←</span>&nbsp;<span>→</span>`
                 : html`<span>→</span>&nbsp;<span>←</span>`}
             </button>
@@ -1124,7 +1126,7 @@ ${this.terminalFitHorizontally
               >
                 <!-- Spacer to push content up above keyboard -->
                 <div class="flex-1"></div>
-                
+
                 <div
                   class="font-mono text-sm mx-4 mb-4 flex flex-col"
                   style="background: black; border: 1px solid #569cd6; border-radius: 8px; transform: translateY(-120px);"
