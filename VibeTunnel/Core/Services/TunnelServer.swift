@@ -96,6 +96,22 @@ struct StreamResponse: Codable {
     let streamPath: String
 }
 
+/// Actor to manage session streaming tasks safely
+private actor SessionTaskManager {
+    private var tasks: [String: Task<Void, Never>] = [:]
+    
+    func add(sessionId: String, task: Task<Void, Never>) {
+        tasks[sessionId] = task
+    }
+    
+    func cancelAll() {
+        for task in tasks.values {
+            task.cancel()
+        }
+        tasks.removeAll()
+    }
+}
+
 /// HTTP server that provides API endpoints for terminal session management.
 ///
 /// `TunnelServer` implements a Hummingbird-based HTTP server that bridges web clients
@@ -219,6 +235,10 @@ public final class TunnelServer {
                     return self.errorResponse(message: "Session ID required", status: .badRequest)
                 }
                 return await self.getSessionCast(sessionId: sessionId)
+            }
+
+            router.get("/api/sessions/multistream") { request, _ async -> Response in
+                await self.multiStreamSessions(request: request)
             }
 
             router.post("/api/cleanup-exited") { _, _ async -> Response in
@@ -734,125 +754,29 @@ public final class TunnelServer {
                     sessionRequest.workingDir ?? "~/",
                     fallback: FileManager.default.homeDirectoryForCurrentUser.path
                 )
-                _ = sessionRequest.command.joined(separator: " ")
+                let command = sessionRequest.command.joined(separator: " ")
 
-                // Connect to the terminal spawn service via Unix socket
-                let socketPath = "/tmp/vibetunnel-terminal.sock"
-                let socketFd = socket(AF_UNIX, SOCK_STREAM, 0)
-
-                guard socketFd >= 0 else {
-                    logger.error("Failed to create socket")
-                    return errorResponse(
-                        message: "Failed to create socket for terminal spawning",
-                        status: .internalServerError
-                    )
-                }
-
-                defer { close(socketFd) }
-
-                var addr = sockaddr_un()
-                addr.sun_family = sa_family_t(AF_UNIX)
-                socketPath.withCString { ptr in
-                    withUnsafeMutablePointer(to: &addr.sun_path.0) { dst in
-                        _ = strcpy(dst, ptr)
-                    }
-                }
-
-                let connectResult = withUnsafePointer(to: &addr) { ptr in
-                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                        connect(socketFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
-                    }
-                }
-
-                guard connectResult == 0 else {
-                    logger.error("Failed to connect to terminal spawn service: \(String(cString: strerror(errno)))")
-                    return errorResponse(message: "Terminal spawn service not available", status: .serviceUnavailable)
-                }
-
-                // Send the spawn request
-                struct SpawnRequest: Codable {
-                    let command: [String]
-                    let workingDir: String
-                    let sessionId: String
-                }
-
-                let spawnRequest = SpawnRequest(
-                    command: sessionRequest.command,
-                    workingDir: workingDir,
-                    sessionId: sessionId
-                )
-
+                // Call TerminalLauncher directly instead of using socket
                 do {
-                    let requestData = try JSONEncoder().encode(spawnRequest)
-                    let sendResult = send(
-                        socketFd,
-                        requestData.withUnsafeBytes { $0.baseAddress },
-                        requestData.count,
-                        0
-                    )
-
-                    guard sendResult == requestData.count else {
-                        throw NSError(
-                            domain: "TerminalSpawn",
-                            code: 1,
-                            userInfo: [NSLocalizedDescriptionKey: "Failed to send complete request"]
-                        )
-                    }
-
-                    // Read the response
-                    var responseBuffer = [UInt8](repeating: 0, count: 4_096)
-                    let bytesRead = recv(socketFd, &responseBuffer, responseBuffer.count, 0)
-
-                    guard bytesRead > 0 else {
-                        throw NSError(
-                            domain: "TerminalSpawn",
-                            code: 2,
-                            userInfo: [NSLocalizedDescriptionKey: "Failed to read response"]
-                        )
-                    }
-
-                    let responseData = Data(bytes: responseBuffer, count: bytesRead)
-
-                    struct SpawnResponse: Codable {
-                        let success: Bool
-                        let error: String?
-                        let sessionId: String?
-                    }
-
-                    let spawnResponse = try JSONDecoder().decode(SpawnResponse.self, from: responseData)
-
-                    if spawnResponse.success {
-                        logger.info("Terminal spawned successfully with session ID: \(sessionId)")
-
-                        struct CreateSessionResponse: Encodable {
-                            let sessionId: String
-                            let message: String
-                        }
-
-                        let response = CreateSessionResponse(
+                    try await MainActor.run {
+                        try TerminalLauncher.shared.launchOptimizedTerminalSession(
+                            workingDirectory: workingDir,
+                            command: command,
                             sessionId: sessionId,
-                            message: "Terminal spawned successfully"
-                        )
-
-                        let data = try JSONEncoder().encode(response)
-                        var buffer = ByteBuffer()
-                        buffer.writeData(data)
-
-                        return Response(
-                            status: .ok,
-                            headers: [.contentType: "application/json"],
-                            body: ResponseBody(byteBuffer: buffer)
-                        )
-                    } else {
-                        let errorMsg = spawnResponse.error ?? "Unknown error"
-                        logger.error("Failed to spawn terminal: \(errorMsg)")
-                        return errorResponse(
-                            message: "Failed to spawn terminal: \(errorMsg)",
-                            status: .internalServerError
+                            ttyFwdPath: nil  // Use bundled tty-fwd
                         )
                     }
+                    
+                    logger.info("Terminal spawned successfully with session ID: \(sessionId)")
+
+                    let response = SessionCreatedResponse(
+                        success: true,
+                        message: "Terminal spawned successfully",
+                        sessionId: sessionId
+                    )
+                    return jsonResponse(response)
                 } catch {
-                    logger.error("Failed to communicate with terminal spawn service: \(error)")
+                    logger.error("Failed to spawn terminal: \(error)")
                     return errorResponse(
                         message: "Failed to spawn terminal: \(error.localizedDescription)",
                         status: .internalServerError
@@ -948,10 +872,46 @@ public final class TunnelServer {
             }
 
             if session.pid > 0 {
-                kill(pid_t(session.pid), SIGKILL)
+                let pid = pid_t(session.pid)
+                
+                // First try SIGTERM for graceful shutdown
+                kill(pid, SIGTERM)
+                
+                // Wait up to 5 seconds for process to die
+                var processExited = false
+                for _ in 0..<50 {  // 50 * 100ms = 5 seconds
+                    try await Task.sleep(for: .milliseconds(100))
+                    
+                    // Check if process still exists (kill with signal 0)
+                    if kill(pid, 0) != 0 {
+                        processExited = true
+                        break
+                    }
+                }
+                
+                // If process didn't exit, force kill with SIGKILL
+                if !processExited {
+                    kill(pid, SIGKILL)
+                    
+                    // Wait a bit more for SIGKILL to take effect
+                    for _ in 0..<10 {  // 10 * 100ms = 1 second
+                        try await Task.sleep(for: .milliseconds(100))
+                        if kill(pid, 0) != 0 {
+                            processExited = true
+                            break
+                        }
+                    }
+                }
+                
+                let message = processExited 
+                    ? "Session killed successfully"
+                    : "Session kill signal sent but process may still be running"
+                
+                let response = SimpleResponse(success: processExited, message: message)
+                return jsonResponse(response)
             }
 
-            let response = SimpleResponse(success: true, message: "Session killed (SIGKILL)")
+            let response = SimpleResponse(success: true, message: "Session already exited")
             return jsonResponse(response)
         } catch {
             logger.error("Error killing session: \(error)")
@@ -1321,9 +1281,10 @@ public final class TunnelServer {
 
         do {
             let content = try String(contentsOfFile: streamOutPath, encoding: .utf8)
+            let optimizedContent = optimizeSnapshotContent(content)
 
             var buffer = ByteBuffer()
-            buffer.writeString(content)
+            buffer.writeString(optimizedContent)
 
             return Response(
                 status: .ok,
@@ -1334,6 +1295,49 @@ public final class TunnelServer {
             logger.error("Error reading session snapshot: \(error)")
             return errorResponse(message: "Failed to read session snapshot")
         }
+    }
+    
+    /// Optimizes snapshot content by finding the last clear screen command and returning
+    /// only the content after it, similar to the Rust implementation.
+    private func optimizeSnapshotContent(_ content: String) -> String {
+        guard !content.isEmpty else { return content }
+        
+        var lastClearPos: String.Index?
+        let lines = content.components(separatedBy: .newlines)
+        var optimizedLines: [String] = []
+        
+        // Process lines to find asciinema events
+        for line in lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmedLine.isEmpty else { continue }
+            
+            // Try to parse as JSON array (asciinema event format)
+            if let data = trimmedLine.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) as? [Any],
+               parsed.count >= 3,
+               let outputString = parsed[2] as? String {
+                
+                // Check for clear screen sequences
+                if outputString.contains("\u{001b}[H\u{001b}[2J") ||  // ESC[H ESC[2J
+                   outputString.contains("\u{001b}[2J") ||             // ESC[2J
+                   outputString.contains("\u{001b}[3J") ||             // ESC[3J
+                   outputString.contains("\u{001b}c") {                // ESC c
+                    // Found clear screen, mark this position
+                    lastClearPos = line.endIndex
+                    optimizedLines.removeAll()  // Clear accumulated lines
+                }
+            }
+            
+            optimizedLines.append(line)
+        }
+        
+        // If we found a clear screen, return only content after it
+        if lastClearPos != nil {
+            return optimizedLines.joined(separator: "\n")
+        }
+        
+        // No clear screen found, return original content
+        return content
     }
 
     private func getSessionCast(sessionId: String) async -> Response {
@@ -1670,5 +1674,176 @@ public final class TunnelServer {
         )
 
         return jsonResponse(response)
+    }
+
+    // MARK: - Multi-stream Sessions
+    
+    private func multiStreamSessions(request: Request) async -> Response {
+        logger.info("Starting multiplex streaming with dynamic session discovery")
+        
+        // Create SSE response headers
+        var headers = HTTPFields()
+        headers[.contentType] = "text/event-stream"
+        headers[.cacheControl] = "no-cache, no-store, must-revalidate"
+        headers[.connection] = "keep-alive"
+        if let xAccelBuffering = HTTPField.Name("X-Accel-Buffering") {
+            headers[xAccelBuffering] = "no"
+        }
+        if let accessControlAllowOrigin = HTTPField.Name("Access-Control-Allow-Origin") {
+            headers[accessControlAllowOrigin] = "*"
+        }
+        
+        // Create async sequence for streaming multiple sessions
+        let stream = AsyncStream<ByteBuffer> { continuation in
+            let task = Task {
+                await self.streamMultipleSessions(continuation: continuation)
+            }
+            
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+        
+        return Response(
+            status: .ok,
+            headers: headers,
+            body: ResponseBody(asyncSequence: stream)
+        )
+    }
+    
+    private func streamMultipleSessions(continuation: AsyncStream<ByteBuffer>.Continuation) async {
+        // Send initial connection message
+        var initialMessage = ByteBuffer()
+        initialMessage.writeString(": connected\n\n")
+        continuation.yield(initialMessage)
+        
+        // Track active sessions
+        var activeSessions = Set<String>()
+        let sessionTasks = SessionTaskManager()
+        
+        // Monitor for new sessions
+        let monitorTask = Task {
+            while !Task.isCancelled {
+                do {
+                    // List all sessions
+                    let sessionsOutput = try await executeTtyFwd(args: [
+                        "--control-path",
+                        ttyFwdControlDir,
+                        "--list-sessions"
+                    ])
+                    
+                    if let sessionData = sessionsOutput.data(using: .utf8),
+                       let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData) {
+                        
+                        // Start streaming for new sessions
+                        for (sessionId, _) in sessions {
+                            if !activeSessions.contains(sessionId) {
+                                activeSessions.insert(sessionId)
+                                logger.info("Starting stream for new session: \(sessionId)")
+                                
+                                // Create task for this session
+                                let task = Task {
+                                    await self.streamSessionForMultiplex(
+                                        sessionId: sessionId,
+                                        continuation: continuation
+                                    )
+                                }
+                                await sessionTasks.add(sessionId: sessionId, task: task)
+                            }
+                        }
+                        
+                        // Clean up completed sessions
+                        activeSessions = activeSessions.filter { sessions.keys.contains($0) }
+                    }
+                    
+                    // Check every second
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    if !Task.isCancelled {
+                        logger.error("Error monitoring sessions: \(error)")
+                    }
+                    break
+                }
+            }
+        }
+        
+        // Keep streaming until cancelled
+        await withTaskCancellationHandler {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(15))
+                    
+                    // Send heartbeat
+                    var heartbeat = ByteBuffer()
+                    heartbeat.writeString(": heartbeat\n\n")
+                    continuation.yield(heartbeat)
+                } catch {
+                    break
+                }
+            }
+        } onCancel: {
+            monitorTask.cancel()
+            
+            // Cancel all session tasks in a new task
+            Task {
+                await sessionTasks.cancelAll()
+            }
+        }
+        
+        continuation.finish()
+    }
+    
+    private func streamSessionForMultiplex(
+        sessionId: String,
+        continuation: AsyncStream<ByteBuffer>.Continuation
+    ) async {
+        let streamOutPath = URL(fileURLWithPath: ttyFwdControlDir)
+            .appendingPathComponent(sessionId)
+            .appendingPathComponent("stream-out").path
+        
+        guard FileManager.default.fileExists(atPath: streamOutPath) else {
+            return
+        }
+        
+        // Read and forward events from this session
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: streamOutPath))
+            defer { fileHandle.closeFile() }
+            
+            var buffer = ""
+            
+            while !Task.isCancelled {
+                let data = fileHandle.availableData
+                guard !data.isEmpty else {
+                    try await Task.sleep(for: .milliseconds(100))
+                    continue
+                }
+                
+                if let content = String(data: data, encoding: .utf8) {
+                    buffer += content
+                    let lines = buffer.components(separatedBy: .newlines)
+                    
+                    // Process complete lines
+                    for i in 0..<(lines.count - 1) {
+                        let line = lines[i]
+                        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+                        
+                        if !trimmedLine.isEmpty {
+                            // Create prefixed event: sessionId:event
+                            let prefixedEvent = "\(sessionId):\(trimmedLine)"
+                            
+                            var eventBuffer = ByteBuffer()
+                            eventBuffer.writeString("data: \(prefixedEvent)\n\n")
+                            continuation.yield(eventBuffer)
+                        }
+                    }
+                    
+                    // Keep incomplete line in buffer
+                    buffer = lines.last ?? ""
+                }
+            }
+        } catch {
+            logger.error("Error streaming session \(sessionId): \(error)")
+        }
     }
 }
