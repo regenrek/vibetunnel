@@ -829,7 +829,13 @@ private struct NgrokErrorView: View {
 
 private struct PermissionsSection: View {
     @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
-    @State private var hasAccessibilityPermission = false
+    @State private var accessibilityUpdateTrigger = 0
+    
+    private var hasAccessibilityPermission: Bool {
+        // This will cause a re-read whenever accessibilityUpdateTrigger changes
+        _ = accessibilityUpdateTrigger
+        return AccessibilityPermissionManager.shared.hasPermission()
+    }
     
     var body: some View {
         Section {
@@ -911,11 +917,10 @@ private struct PermissionsSection: View {
         }
         .task {
             _ = await appleScriptManager.checkPermission()
-            hasAccessibilityPermission = AccessibilityPermissionManager.shared.hasPermission()
         }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            // Check accessibility permission status periodically
-            hasAccessibilityPermission = AccessibilityPermissionManager.shared.hasPermission()
+            // Force a re-render to check accessibility permission
+            accessibilityUpdateTrigger += 1
         }
     }
 }
