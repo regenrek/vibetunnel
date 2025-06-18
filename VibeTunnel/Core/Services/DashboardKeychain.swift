@@ -20,30 +20,33 @@ final class DashboardKeychain {
     /// Get the dashboard password from keychain
     func getPassword() -> String? {
         #if DEBUG
-        // In debug builds, skip keychain access to avoid authorization dialogs
-        logger.info("Debug mode: Skipping keychain password retrieval. Password will only persist during current app session.")
-        return nil
-        #else
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let password = String(data: data, encoding: .utf8)
-        else {
-            logger.debug("No password found in keychain")
+            // In debug builds, skip keychain access to avoid authorization dialogs
+            logger
+                .info(
+                    "Debug mode: Skipping keychain password retrieval. Password will only persist during current app session."
+                )
             return nil
-        }
+        #else
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecReturnData as String: true
+            ]
 
-        logger.debug("Password retrieved from keychain")
-        return password
+            var result: AnyObject?
+            let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+            guard status == errSecSuccess,
+                  let data = result as? Data,
+                  let password = String(data: data, encoding: .utf8)
+            else {
+                logger.debug("No password found in keychain")
+                return nil
+            }
+
+            logger.debug("Password retrieved from keychain")
+            return password
         #endif
     }
 
@@ -98,13 +101,16 @@ final class DashboardKeychain {
 
         let success = status == errSecSuccess
         logger.info("Password \(success ? "saved to" : "failed to save to") keychain")
-        
+
         #if DEBUG
-        if success {
-            logger.info("Debug mode: Password saved to keychain but will not persist across app restarts. The password will only be available during this session to avoid keychain authorization dialogs during development.")
-        }
+            if success {
+                logger
+                    .info(
+                        "Debug mode: Password saved to keychain but will not persist across app restarts. The password will only be available during this session to avoid keychain authorization dialogs during development."
+                    )
+            }
         #endif
-        
+
         return success
     }
 

@@ -1,5 +1,5 @@
-import SwiftUI
 import Combine
+import SwiftUI
 
 /// General settings tab for basic app preferences
 struct GeneralSettingsView: View {
@@ -130,13 +130,13 @@ struct GeneralSettingsView: View {
 private struct PermissionsSection: View {
     @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
     @State private var accessibilityUpdateTrigger = 0
-    
+
     private var hasAccessibilityPermission: Bool {
         // This will cause a re-read whenever accessibilityUpdateTrigger changes
         _ = accessibilityUpdateTrigger
         return AccessibilityPermissionManager.shared.hasPermission()
     }
-    
+
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 16) {
@@ -149,9 +149,9 @@ private struct PermissionsSection: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     Spacer()
-                    
+
                     if appleScriptManager.hasPermission {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
@@ -171,9 +171,9 @@ private struct PermissionsSection: View {
                         .controlSize(.small)
                     }
                 }
-                
+
                 Divider()
-                
+
                 // Accessibility permission
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -183,9 +183,9 @@ private struct PermissionsSection: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     Spacer()
-                    
+
                     if hasAccessibilityPermission {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
@@ -210,10 +210,12 @@ private struct PermissionsSection: View {
             Text("Permissions")
                 .font(.headline)
         } footer: {
-            Text("Terminal automation is required for all terminals. Accessibility is only needed for terminals that simulate keyboard input.")
-                .font(.caption)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
+            Text(
+                "Terminal automation is required for all terminals. Accessibility is only needed for terminals that simulate keyboard input."
+            )
+            .font(.caption)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
         .task {
             _ = await appleScriptManager.checkPermission()

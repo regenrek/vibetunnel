@@ -165,7 +165,7 @@ final class RustServer: ServerProtocol {
         // Build command to run tty-fwd through login shell
         // Use bind address from ServerManager to control server accessibility
         let bindAddress = ServerManager.shared.bindAddress
-        
+
         var ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(bindAddress):\(port)"
 
         // Add password flag if password protection is enabled

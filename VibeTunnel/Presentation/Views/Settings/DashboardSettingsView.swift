@@ -20,7 +20,7 @@ struct DashboardSettingsView: View {
     @State private var showPasswordFields = false
     @State private var passwordError: String?
     @State private var passwordSaved = false
-    
+
     @StateObject private var permissionManager = AppleScriptPermissionManager.shared
 
     @State private var ngrokAuthToken = ""
@@ -822,4 +822,3 @@ private struct NgrokErrorView: View {
         }
     }
 }
-

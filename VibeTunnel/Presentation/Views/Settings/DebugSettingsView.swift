@@ -323,9 +323,9 @@ private struct ServerSection: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-                
+
                 Divider()
-                
+
                 // Server Mode Configuration
                 HStack {
                     Text("Server Mode")
@@ -369,10 +369,12 @@ private struct ServerSection: View {
             Text("HTTP Server")
                 .font(.headline)
         } footer: {
-            Text("The HTTP server provides REST API endpoints for terminal session management. Choose between the built-in Swift Hummingbird server or the Rust tty-fwd binary.")
-                .font(.caption)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
+            Text(
+                "The HTTP server provides REST API endpoints for terminal session management. Choose between the built-in Swift Hummingbird server or the Rust tty-fwd binary."
+            )
+            .font(.caption)
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
     }
 }
@@ -609,4 +611,3 @@ private struct DeveloperToolsSection: View {
         }
     }
 }
-

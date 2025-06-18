@@ -1,5 +1,5 @@
-import Foundation
 @preconcurrency import AppKit
+import Foundation
 import OSLog
 
 /// Sendable wrapper for NSAppleEventDescriptor
@@ -18,12 +18,12 @@ final class AppleScriptExecutor {
         subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel",
         category: "AppleScriptExecutor"
     )
-    
+
     /// Shared instance for app-wide AppleScript execution
     static let shared = AppleScriptExecutor()
-    
+
     private init() {}
-    
+
     /// Executes an AppleScript synchronously with proper error handling.
     ///
     /// This method runs on the main thread and is suitable for use in
@@ -40,41 +40,41 @@ final class AppleScriptExecutor {
         if Thread.isMainThread {
             // Add a small delay to avoid crashes from SwiftUI actions
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
-            
+
             var error: NSDictionary?
             guard let scriptObject = NSAppleScript(source: script) else {
                 logger.error("Failed to create NSAppleScript object")
                 throw AppleScriptError.scriptCreationFailed
             }
-            
+
             let result = scriptObject.executeAndReturnError(&error)
-            
-            if let error = error {
+
+            if let error {
                 let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
                 let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
-                
+
                 logger.error("AppleScript execution failed: \(errorMessage) (code: \(errorNumber ?? -1))")
-                
+
                 throw AppleScriptError.executionFailed(
                     message: errorMessage,
                     errorCode: errorNumber
                 )
             }
-            
+
             logger.debug("AppleScript executed successfully")
             return result
         } else {
             // If on background thread, dispatch to main and wait
             var result: Result<NSAppleEventDescriptor?, Error>?
-            
+
             DispatchQueue.main.sync {
                 do {
-                    result = .success(try execute(script, timeout: timeout))
+                    result = try .success(execute(script, timeout: timeout))
                 } catch {
                     result = .failure(error)
                 }
             }
-            
+
             switch result! {
             case .success(let value):
                 return value
@@ -83,7 +83,7 @@ final class AppleScriptExecutor {
             }
         }
     }
-    
+
     /// Executes an AppleScript asynchronously.
     ///
     /// This method ensures AppleScript runs on the main thread with proper
@@ -95,40 +95,40 @@ final class AppleScriptExecutor {
     /// - Returns: The result of the AppleScript execution, if any
     func executeAsync(_ script: String, timeout: TimeInterval = 5.0) async throws -> NSAppleEventDescriptor? {
         let timeoutDuration = min(timeout, 30.0)
-        
+
         // Use a class with NSLock to ensure thread-safe access
         final class ContinuationWrapper: @unchecked Sendable {
             private let lock = NSLock()
             private var hasResumed = false
             private let continuation: CheckedContinuation<SendableDescriptor, Error>
-            
+
             init(continuation: CheckedContinuation<SendableDescriptor, Error>) {
                 self.continuation = continuation
             }
-            
+
             func resume(throwing error: Error) {
                 lock.lock()
                 defer { lock.unlock() }
-                
+
                 guard !hasResumed else { return }
                 hasResumed = true
                 continuation.resume(throwing: error)
             }
-            
+
             func resume(returning value: NSAppleEventDescriptor?) {
                 lock.lock()
                 defer { lock.unlock() }
-                
+
                 guard !hasResumed else { return }
                 hasResumed = true
                 continuation.resume(returning: SendableDescriptor(descriptor: value))
             }
         }
-        
+
         return try await withTaskCancellationHandler {
             let sendableResult: SendableDescriptor = try await withCheckedThrowingContinuation { continuation in
                 let wrapper = ContinuationWrapper(continuation: continuation)
-                
+
                 Task { @MainActor in
                     // Small delay to ensure we're not in a SwiftUI action context
                     do {
@@ -137,20 +137,20 @@ final class AppleScriptExecutor {
                         wrapper.resume(throwing: error)
                         return
                     }
-                    
+
                     var error: NSDictionary?
                     guard let scriptObject = NSAppleScript(source: script) else {
                         logger.error("Failed to create NSAppleScript object")
                         wrapper.resume(throwing: AppleScriptError.scriptCreationFailed)
                         return
                     }
-                    
+
                     let result = scriptObject.executeAndReturnError(&error)
-                    
-                    if let error = error {
+
+                    if let error {
                         let errorMessage = error["NSAppleScriptErrorMessage"] as? String ?? "Unknown error"
                         let errorNumber = error["NSAppleScriptErrorNumber"] as? Int
-                        
+
                         logger.error("AppleScript execution failed:")
                         logger.error("  Error code: \(errorNumber ?? -1)")
                         logger.error("  Error message: \(errorMessage)")
@@ -160,7 +160,7 @@ final class AppleScriptExecutor {
                         if let errorBriefMessage = error["NSAppleScriptErrorBriefMessage"] as? String {
                             logger.error("  Brief message: \(errorBriefMessage)")
                         }
-                        
+
                         wrapper.resume(throwing: AppleScriptError.executionFailed(
                             message: errorMessage,
                             errorCode: errorNumber
@@ -170,7 +170,7 @@ final class AppleScriptExecutor {
                         wrapper.resume(returning: result)
                     }
                 }
-                
+
                 // Set up timeout
                 Task {
                     do {
@@ -187,7 +187,7 @@ final class AppleScriptExecutor {
             // Handle cancellation if needed
         }
     }
-    
+
     /// Checks if AppleScript permission is granted by executing a simple test script.
     ///
     /// - Returns: true if permission is granted, false otherwise
@@ -197,7 +197,7 @@ final class AppleScriptExecutor {
                 return name of first process whose frontmost is true
             end tell
         """
-        
+
         do {
             _ = try await executeAsync(testScript)
             return true
@@ -221,24 +221,24 @@ enum AppleScriptError: LocalizedError {
     case executionFailed(message: String, errorCode: Int?)
     case permissionDenied
     case timeout
-    
+
     var errorDescription: String? {
         switch self {
         case .scriptCreationFailed:
-            return "Failed to create AppleScript object"
+            "Failed to create AppleScript object"
         case .executionFailed(let message, let errorCode):
             if let code = errorCode {
-                return "AppleScript error \(code): \(message)"
+                "AppleScript error \(code): \(message)"
             } else {
-                return "AppleScript error: \(message)"
+                "AppleScript error: \(message)"
             }
         case .permissionDenied:
-            return "AppleScript permission denied. Please grant permission in System Settings."
+            "AppleScript permission denied. Please grant permission in System Settings."
         case .timeout:
-            return "AppleScript execution timed out"
+            "AppleScript execution timed out"
         }
     }
-    
+
     var failureReason: String? {
         switch self {
         case .permissionDenied:
@@ -246,13 +246,13 @@ enum AppleScriptError: LocalizedError {
         case .executionFailed(_, let errorCode):
             if let code = errorCode {
                 switch code {
-                case -1743:
+                case -1_743:
                     return "User permission is required to control other applications."
-                case -1728:
+                case -1_728:
                     return "The application is not running or cannot be controlled."
-                case -1708:
+                case -1_708:
                     return "The event was not handled by the target application."
-                case -2741:
+                case -2_741:
                     return "AppleScript syntax error - check for unescaped quotes or invalid identifiers."
                 default:
                     return nil
@@ -263,25 +263,25 @@ enum AppleScriptError: LocalizedError {
             return nil
         }
     }
-    
+
     /// Checks if this error represents a permission denial
     var isPermissionError: Bool {
         switch self {
         case .permissionDenied:
-            return true
+            true
         case .executionFailed(_, let errorCode):
-            return errorCode == -1743
+            errorCode == -1_743
         default:
-            return false
+            false
         }
     }
-    
+
     /// Converts this error to a TerminalLauncherError if appropriate
     func toTerminalLauncherError() -> TerminalLauncherError {
         if isPermissionError {
             return .appleScriptPermissionDenied
         }
-        
+
         switch self {
         case .executionFailed(let message, let errorCode):
             return .appleScriptExecutionFailed(message, errorCode: errorCode)

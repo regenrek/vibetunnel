@@ -3,15 +3,15 @@ import SwiftUI
 /// Welcome onboarding view for first-time users.
 ///
 /// Presents a multi-page onboarding experience that introduces VibeTunnel's features,
-/// guides through CLI installation, requests AppleScript permissions, and explains 
-/// dashboard security best practices. The view tracks completion state to ensure 
+/// guides through CLI installation, requests AppleScript permissions, and explains
+/// dashboard security best practices. The view tracks completion state to ensure
 /// it's only shown once.
 struct WelcomeView: View {
     @State private var currentPage = 0
     @Environment(\.dismiss)
     private var dismiss
-    @AppStorage("hasSeenWelcome")
-    private var hasSeenWelcome = false
+    @AppStorage(AppConstants.UserDefaultsKeys.welcomeVersion)
+    private var welcomeVersion = 0
     @State private var cliInstaller = CLIInstaller()
     @StateObject private var permissionManager = AppleScriptPermissionManager.shared
 
@@ -107,7 +107,7 @@ struct WelcomeView: View {
             }
         } else {
             // Finish action - open Settings
-            hasSeenWelcome = true
+            welcomeVersion = AppConstants.currentWelcomeVersion
             dismiss()
             SettingsOpener.openSettings()
         }
@@ -246,7 +246,7 @@ private struct VTCommandPageView: View {
 private struct RequestPermissionsPageView: View {
     @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
     @State private var hasAccessibilityPermission = false
-    
+
     var body: some View {
         VStack(spacing: 30) {
             // App icon
@@ -254,12 +254,12 @@ private struct RequestPermissionsPageView: View {
                 .resizable()
                 .frame(width: 156, height: 156)
                 .shadow(radius: 10)
-            
+
             VStack(spacing: 16) {
                 Text("Request Permissions")
                     .font(.largeTitle)
                     .fontWeight(.semibold)
-                
+
                 Text(
                     "VibeTunnel needs AppleScript automation to launch and manage terminal sessions\nand accessibility to send commands to certain terminals."
                 )
@@ -268,7 +268,7 @@ private struct RequestPermissionsPageView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 480)
                 .fixedSize(horizontal: false, vertical: true)
-                
+
                 // Permissions buttons
                 VStack(spacing: 16) {
                     // Automation permission
@@ -290,7 +290,7 @@ private struct RequestPermissionsPageView: View {
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                     }
-                    
+
                     // Accessibility permission
                     if hasAccessibilityPermission {
                         HStack {

@@ -9,7 +9,7 @@ struct VibeTunnelApp: App {
     var appDelegate
     @State private var sessionMonitor = SessionMonitor.shared
     @State private var serverMonitor = ServerMonitor.shared
-    
+
     init() {
         // No special initialization needed
     }
@@ -103,9 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
 
-        // Show welcome screen on first launch
-        let hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
-        if !hasSeenWelcome && !isRunningInTests && !isRunningInPreview {
+        // Show welcome screen when version changes
+        let storedWelcomeVersion = UserDefaults.standard.integer(forKey: AppConstants.UserDefaultsKeys.welcomeVersion)
+        
+        // Show welcome if version is different from current
+        if storedWelcomeVersion < AppConstants.currentWelcomeVersion && !isRunningInTests && !isRunningInPreview {
             showWelcomeScreen()
         }
 
@@ -122,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Start the terminal spawn service
         TerminalSpawnService.shared.start()
-        
+
         // Initialize and start HTTP server using ServerManager
         Task {
             do {
@@ -217,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stop session monitoring
         sessionMonitor.stopMonitoring()
-        
+
         // Stop terminal spawn service
         TerminalSpawnService.shared.stop()
 

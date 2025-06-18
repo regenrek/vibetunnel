@@ -1,8 +1,8 @@
 import AppKit
 import Foundation
 import Observation
-import SwiftUI
 import os.log
+import SwiftUI
 
 /// Service responsible for creating symlinks to command line tools with sudo authentication.
 ///
@@ -38,12 +38,12 @@ final class CLIInstaller {
     func checkInstallationStatus() {
         let targetPath = "/usr/local/bin/vt"
         let installed = FileManager.default.fileExists(atPath: targetPath)
-        
+
         // Animate the state change for smooth UI transitions
         withAnimation(.easeInOut(duration: 0.3)) {
             isInstalled = installed
         }
-        
+
         logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled)")
     }
 

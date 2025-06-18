@@ -19,23 +19,23 @@ enum SettingsOpener {
     static func openSettings() {
         // Store the current dock visibility preference
         let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
-        
+
         // Temporarily show dock icon to ensure settings window can be brought to front
         if !showInDock {
             NSApp.setActivationPolicy(.regular)
         }
-        
+
         // Simple activation and window opening
         Task { @MainActor in
             // Small delay to ensure dock icon is visible
             try? await Task.sleep(for: .milliseconds(50))
-            
+
             // Activate the app
             NSApp.activate(ignoringOtherApps: true)
-            
+
             // Always use notification approach since we have dock icon visible
             NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
-            
+
             // we center twice to reduce jump but also be more resilient against slow systems
             try? await Task.sleep(for: .milliseconds(20))
             if let settingsWindow = findSettingsWindow() {
@@ -45,40 +45,40 @@ enum SettingsOpener {
 
             // Wait for window to appear
             try? await Task.sleep(for: .milliseconds(200))
-            
+
             // Find and bring settings window to front
             if let settingsWindow = findSettingsWindow() {
                 // Center the window
                 WindowCenteringHelper.centerOnActiveScreen(settingsWindow)
-                
+
                 // Ensure window is visible and in front
                 settingsWindow.makeKeyAndOrderFront(nil)
                 settingsWindow.orderFrontRegardless()
-                
+
                 // Temporarily raise window level to ensure it's on top
                 settingsWindow.level = .floating
-                
+
                 // Reset level after a short delay
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(100))
                     settingsWindow.level = .normal
                 }
             }
-            
+
             // Set up observer to apply dock visibility preference when settings window closes
             setupDockVisibilityRestoration()
         }
     }
-    
+
     // MARK: - Dock Visibility Restoration
-    
+
     private static func setupDockVisibilityRestoration() {
         // Remove any existing observer
         if let observer = windowObserver {
             NotificationCenter.default.removeObserver(observer)
             windowObserver = nil
         }
-        
+
         // Set up observer for window closing
         windowObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
@@ -86,16 +86,18 @@ enum SettingsOpener {
             queue: .main
         ) { [weak windowObserver] notification in
             guard let window = notification.object as? NSWindow else { return }
-            
+
             Task { @MainActor in
-                guard window.title.contains("Settings") || window.identifier?.rawValue.contains(settingsWindowIdentifier) == true else {
+                guard window.title.contains("Settings") || window.identifier?.rawValue
+                    .contains(settingsWindowIdentifier) == true
+                else {
                     return
                 }
-                
+
                 // Window is closing, apply the current dock visibility preference
                 let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
                 NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
-                
+
                 // Clean up observer
                 if let observer = windowObserver {
                     NotificationCenter.default.removeObserver(observer)
@@ -104,39 +106,40 @@ enum SettingsOpener {
             }
         }
     }
-    
+
     /// Finds the settings window using multiple detection methods
     static func findSettingsWindow() -> NSWindow? {
         // Try multiple methods to find the window
-        return NSApp.windows.first { window in
+        NSApp.windows.first { window in
             // Check by identifier
             if window.identifier?.rawValue == settingsWindowIdentifier {
                 return true
             }
-            
+
             // Check by title
             if window.isVisible && window.styleMask.contains(.titled) &&
-               (window.title.localizedCaseInsensitiveContains("settings") ||
-                window.title.localizedCaseInsensitiveContains("preferences")) {
+                (window.title.localizedCaseInsensitiveContains("settings") ||
+                    window.title.localizedCaseInsensitiveContains("preferences")
+                )
+            {
                 return true
             }
-            
+
             // Check by content view controller type
             if let contentVC = window.contentViewController,
-               String(describing: type(of: contentVC)).contains("Settings") {
+               String(describing: type(of: contentVC)).contains("Settings")
+            {
                 return true
             }
-            
+
             return false
         }
     }
 
-
-
     /// Opens the Settings window and navigates to a specific tab
     static func openSettingsTab(_ tab: SettingsTab) {
         openSettings()
-        
+
         Task {
             // Then switch to the specific tab
             NotificationCenter.default.post(
@@ -153,7 +156,7 @@ enum SettingsOpener {
 /// This is a workaround for FB10184971.
 struct HiddenWindowView: View {
     @Environment(\.openSettings) private var openSettings
-    
+
     var body: some View {
         Color.clear
             .frame(width: 1, height: 1)
@@ -168,4 +171,3 @@ struct HiddenWindowView: View {
 extension Notification.Name {
     static let openSettingsRequest = Notification.Name("openSettingsRequest")
 }
-
