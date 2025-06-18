@@ -25,10 +25,16 @@ pub struct SessionInfo {
     pub started_at: Option<Timestamp>,
     #[serde(default = "get_default_term")]
     pub term: String,
+    #[serde(default = "get_default_spawn_type")]
+    pub spawn_type: String,
 }
 
 fn get_default_term() -> String {
     DEFAULT_TERM.to_string()
+}
+
+fn get_default_spawn_type() -> String {
+    "socket".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

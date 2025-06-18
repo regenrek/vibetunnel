@@ -187,7 +187,8 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 "status": "running",
                 "started_at": jiff::Timestamp::now(),
                 "term": "xterm-256color",
-                "pid": child.as_raw() as u32
+                "pid": child.as_raw() as u32,
+                "spawn_type": "pty"
             });
             std::fs::write(
                 format!("{session_dir}/session.json"),
@@ -363,8 +364,9 @@ fn handle_pty_session(
     let master_fd_dup2 = unsafe { libc::dup(master_fd) };
     if master_fd_dup2 != -1 {
         let stdin_path_clone = stdin_path;
+        let session_id_clone = session_id.to_string();
         std::thread::spawn(move || {
-            if let Err(e) = handle_stdin_to_pty(master_fd_dup2, &stdin_path_clone) {
+            if let Err(e) = handle_stdin_to_pty(master_fd_dup2, &stdin_path_clone, &session_id_clone) {
                 eprintln!("Stdin handler error: {e}");
             }
             // Clean up the duplicated fd when done
@@ -441,7 +443,7 @@ fn handle_pty_session(
 }
 
 /// Handle stdin FIFO -> PTY master forwarding
-fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
+fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str, session_id: &str) -> Result<()> {
     use nix::fcntl::OFlag;
     use std::fs::OpenOptions;
     use std::os::unix::fs::OpenOptionsExt;
@@ -464,7 +466,30 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
             Ok(n) => {
-                // Write to PTY master using libc::write
+                // Check for Ctrl+C and send SIGINT directly for responsiveness
+                if n == 1 && buffer[0] == 0x03 {
+                    // Ctrl+C detected - send SIGINT to process group for immediate response
+                    let session_json_path = format!("{}/{}/session.json", 
+                        env::var("TTY_FWD_CONTROL_DIR").unwrap_or_else(|_| {
+                            format!("{}/.vibetunnel/control", env::var("HOME").unwrap_or_default())
+                        }), 
+                        session_id);
+                    
+                    if let Ok(content) = std::fs::read_to_string(&session_json_path) {
+                        if let Ok(session_info) = serde_json::from_str::<serde_json::Value>(&content) {
+                            if let Some(pid) = session_info.get("pid").and_then(|p| p.as_u64()) {
+                                // Send SIGINT to the process group for immediate response
+                                unsafe {
+                                    libc::kill(-(pid as i32), libc::SIGINT);
+                                }
+                                eprintln!("Sent SIGINT to process group {}", pid);
+                            }
+                        }
+                    }
+                    // Still write Ctrl+C through PTY for terminal consistency
+                }
+                
+                // Write to PTY master using libc::write (blocking)
                 let bytes_written =
                     unsafe { libc::write(master_fd, buffer.as_ptr().cast::<libc::c_void>(), n) };
                 if bytes_written == -1 {

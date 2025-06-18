@@ -250,20 +250,42 @@ fn write_to_pipe_with_timeout(
 }
 
 pub fn is_pid_alive(pid: u32) -> bool {
-    // On Linux, check /proc/{pid} for better performance
-    #[cfg(target_os = "linux")]
-    {
-        std::path::Path::new(&format!("/proc/{pid}")).exists()
-    }
+    let output = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "stat="])
+        .output();
 
-    // On other platforms, use ps command
-    #[cfg(not(target_os = "linux"))]
-    {
-        let output = Command::new("ps").arg("-p").arg(pid.to_string()).output();
-        match output {
-            Ok(output) => output.status.success(),
-            Err(_) => false,
+    match output {
+        Ok(output) => {
+            if !output.status.success() {
+                // Process doesn't exist
+                false
+            } else {
+                // Check if it's a zombie process (status starts with 'Z')
+                let stat = String::from_utf8_lossy(&output.stdout);
+                let stat = stat.trim();
+                !stat.starts_with('Z')
+            }
         }
+        Err(_) => false,
+    }
+}
+
+/// Attempt to reap zombie children
+pub fn reap_zombies() {
+    use std::ptr;
+    use libc::{waitpid, WNOHANG, WUNTRACED};
+    
+    loop {
+        // Try to reap any zombie children
+        let result = unsafe { waitpid(-1, ptr::null_mut(), WNOHANG | WUNTRACED) };
+        
+        if result <= 0 {
+            // No more children to reap or error occurred
+            break;
+        }
+        
+        // Successfully reaped a zombie child
+        eprintln!("Reaped zombie child with PID: {}", result);
     }
 }
 

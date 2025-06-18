@@ -275,6 +275,7 @@ pub fn create_session_info(
         exit_code: None,
         started_at: Some(Timestamp::now()),
         term,
+        spawn_type: "socket".to_string(),
     };
 
     let session_info_str = serde_json::to_string(&session_info)?;

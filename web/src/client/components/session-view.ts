@@ -237,38 +237,38 @@ export class SessionView extends LitElement {
 
     // Use CastConverter to connect terminal to stream with reconnection tracking
     const connection = CastConverter.connectToStream(this.terminal, streamUrl);
-    
+
     // Wrap the connection to track reconnections
     const originalEventSource = connection.eventSource;
     let lastErrorTime = 0;
     const reconnectThreshold = 3; // Max reconnects before giving up
     const reconnectWindow = 5000; // 5 second window
-    
+
     const handleError = () => {
       const now = Date.now();
-      
+
       // Reset counter if enough time has passed since last error
       if (now - lastErrorTime > reconnectWindow) {
         this.reconnectCount = 0;
       }
-      
+
       this.reconnectCount++;
       lastErrorTime = now;
-      
+
       console.log(`Stream error #${this.reconnectCount} for session ${this.session?.id}`);
-      
+
       // If we've had too many reconnects, mark session as exited
       if (this.reconnectCount >= reconnectThreshold) {
         console.log(`Session ${this.session?.id} marked as exited due to excessive reconnections`);
-        
+
         if (this.session && this.session.status !== 'exited') {
           this.session = { ...this.session, status: 'exited' };
           this.requestUpdate();
-          
+
           // Disconnect the stream and load final snapshot
           connection.disconnect();
           this.streamConnection = null;
-          
+
           // Load final snapshot
           requestAnimationFrame(() => {
             this.loadSessionSnapshot();
@@ -276,10 +276,10 @@ export class SessionView extends LitElement {
         }
       }
     };
-    
+
     // Override the error handler
     originalEventSource.addEventListener('error', handleError);
-    
+
     this.streamConnection = connection;
   }
 
