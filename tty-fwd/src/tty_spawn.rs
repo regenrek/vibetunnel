@@ -595,10 +595,24 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
         }
 
         // Redirect stdin, stdout, stderr to the pty slave
+        use std::os::fd::{FromRawFd, OwnedFd, AsFd};
         let slave_fd = pty.slave.as_raw_fd();
-        dup2(slave_fd, 0).expect("Failed to dup2 stdin");
-        dup2(slave_fd, 1).expect("Failed to dup2 stdout");
-        dup2(slave_fd, 2).expect("Failed to dup2 stderr");
+        
+        // Create OwnedFd for slave and standard file descriptors
+        let slave_owned_fd = unsafe { OwnedFd::from_raw_fd(slave_fd) };
+        let mut stdin_fd = unsafe { OwnedFd::from_raw_fd(0) };
+        let mut stdout_fd = unsafe { OwnedFd::from_raw_fd(1) };
+        let mut stderr_fd = unsafe { OwnedFd::from_raw_fd(2) };
+        
+        dup2(&slave_owned_fd, &mut stdin_fd).expect("Failed to dup2 stdin");
+        dup2(&slave_owned_fd, &mut stdout_fd).expect("Failed to dup2 stdout");
+        dup2(&slave_owned_fd, &mut stderr_fd).expect("Failed to dup2 stderr");
+        
+        // Forget the OwnedFd instances to prevent them from being closed
+        std::mem::forget(stdin_fd);
+        std::mem::forget(stdout_fd);
+        std::mem::forget(stderr_fd);
+        std::mem::forget(slave_owned_fd);
 
         // Close the original slave fd if it's not one of the standard fds
         if slave_fd > 2 {
@@ -695,7 +709,7 @@ fn communication_loop(
                 // use read() here so that we can handle EAGAIN/EINTR
                 // without this we might receive resource temporary unavailable
                 // see https://github.com/mitsuhiko/teetty/issues/3
-                match read(f.as_raw_fd(), &mut buf) {
+                match read(f, &mut buf) {
                     Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
                     Err(err) => return Err(err.into()),
                     Ok(n) => {
@@ -706,7 +720,7 @@ fn communication_loop(
         }
         if let Some(ref fd) = stderr {
             if read_fds.contains(fd.as_fd()) {
-                match read(fd.as_raw_fd(), &mut buf) {
+                match read(fd, &mut buf) {
                     Ok(0) | Err(_) => {}
                     Ok(n) => {
                         forward_and_log(io::stderr().as_fd(), &mut None, &buf[..n], flush)?;
@@ -715,7 +729,7 @@ fn communication_loop(
             }
         }
         if read_fds.contains(master.as_fd()) {
-            match read(master.as_raw_fd(), &mut buf) {
+            match read(&master, &mut buf) {
                 // on linux a closed tty raises EIO
                 Ok(0) | Err(Errno::EIO) => {
                     done = true;
@@ -860,7 +874,7 @@ fn monitor_detached_session(
 
         if let Some(ref f) = stdin_file {
             if read_fds.contains(f.as_fd()) {
-                match read(f.as_raw_fd(), &mut buf) {
+                match read(f, &mut buf) {
                     Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
                     Err(err) => return Err(err.into()),
                     Ok(n) => {
@@ -871,7 +885,7 @@ fn monitor_detached_session(
         }
 
         if read_fds.contains(master.as_fd()) {
-            match read(master.as_raw_fd(), &mut buf) {
+            match read(&master, &mut buf) {
                 // on linux a closed tty raises EIO
                 Ok(0) | Err(Errno::EIO) => {
                     done = true;
