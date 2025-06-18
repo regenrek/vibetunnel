@@ -573,9 +573,9 @@ export class Terminal extends LitElement {
         this.animateMomentum();
       });
 
-      // Render if we scrolled
+      // Render if we scrolled - use direct call during momentum to avoid RAF conflicts
       if (scrolled) {
-        this.requestRenderBuffer();
+        this.renderBuffer();
       }
     } else {
       // Momentum finished
