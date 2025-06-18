@@ -80,7 +80,7 @@ export class SessionList extends LitElement {
           ? html`
               <div class="mb-4">
                 <button
-                  class="font-mono px-4 py-2 rounded transition-colors disabled:opacity-50"
+                  class="font-mono px-2 py-1 rounded transition-colors disabled:opacity-50 text-xs"
                   style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
                   @click=${this.handleCleanupExited}
                   ?disabled=${this.cleaningExited}
