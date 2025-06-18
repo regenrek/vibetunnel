@@ -47,7 +47,9 @@ struct MenuBarView: View {
                 Menu {
                     // Show Tutorial
                     Button(action: {
-                        AppDelegate.showWelcomeScreen()
+                        #if !SWIFT_PACKAGE
+                            AppDelegate.showWelcomeScreen()
+                        #endif
                     }, label: {
                         HStack {
                             Image(systemName: "book")
@@ -267,7 +269,7 @@ struct SessionRowView: View {
         // Extract the working directory name as the session name
         let workingDir = session.value.workingDir
         let name = (workingDir as NSString).lastPathComponent
-        
+
         // Truncate long session names
         if name.count > 35 {
             let prefix = String(name.prefix(20))

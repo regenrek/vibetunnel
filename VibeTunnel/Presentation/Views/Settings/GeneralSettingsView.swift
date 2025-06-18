@@ -57,7 +57,7 @@ struct GeneralSettingsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Check for Updates")
-                            Text("Check for new versions of VibeTunnel")
+                            Text("Check for new versions of VibeTunnel.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -145,7 +145,7 @@ private struct PermissionsSection: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Terminal Automation")
                             .font(.body)
-                        Text("Required to launch and control terminal applications")
+                        Text("Required to launch and control terminal applications.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -179,7 +179,7 @@ private struct PermissionsSection: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Accessibility")
                             .font(.body)
-                        Text("Required for terminals that need keystroke input (Ghostty, Warp, Hyper)")
+                        Text("Required to enter terminal startup commands.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -210,12 +210,22 @@ private struct PermissionsSection: View {
             Text("Permissions")
                 .font(.headline)
         } footer: {
-            Text(
-                "Automation is required to spawn new Terminal windows. Accessibility is used to enter text."
-            )
-            .font(.caption)
-            .frame(maxWidth: .infinity)
-            .multilineTextAlignment(.center)
+            if appleScriptManager.hasPermission && hasAccessibilityPermission {
+                Text(
+                    "All permissions granted. New sessions will spawn new terminal windows."
+                )
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.green)
+            } else {
+                Text(
+                    "Terminals can be controlled without permissions, however new sessions won't load."
+                )
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+            }
         }
         .task {
             _ = await appleScriptManager.checkPermission()

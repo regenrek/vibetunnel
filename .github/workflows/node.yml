@@ -3,6 +3,11 @@ name: Node.js CI
 on:
   workflow_call:
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   lint:
     name: Lint TypeScript/JavaScript Code
@@ -24,16 +29,67 @@ jobs:
       run: npm ci
       
     - name: Check formatting with Prettier
+      id: prettier
       working-directory: web
-      run: npm run format:check
+      continue-on-error: true
+      run: |
+        npm run format:check 2>&1 | tee prettier-output.txt
+        echo "result=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
       
     - name: Run ESLint
+      id: eslint
       working-directory: web
-      run: npm run lint
+      continue-on-error: true
+      run: |
+        npm run lint 2>&1 | tee eslint-output.txt
+        echo "result=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        
+    - name: Read Prettier Output
+      if: always()
+      id: prettier-output
+      working-directory: web
+      run: |
+        if [ -f prettier-output.txt ]; then
+          echo 'content<<EOF' >> $GITHUB_OUTPUT
+          cat prettier-output.txt >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+        else
+          echo "content=No output" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Read ESLint Output
+      if: always()
+      id: eslint-output
+      working-directory: web
+      run: |
+        if [ -f eslint-output.txt ]; then
+          echo 'content<<EOF' >> $GITHUB_OUTPUT
+          cat eslint-output.txt >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+        else
+          echo "content=No output" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Report Prettier Results
+      if: always()
+      uses: ./.github/actions/lint-reporter
+      with:
+        title: 'Node.js Prettier Formatting'
+        lint-result: ${{ steps.prettier.outputs.result == '0' && 'success' || 'failure' }}
+        lint-output: ${{ steps.prettier-output.outputs.content }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Report ESLint Results
+      if: always()
+      uses: ./.github/actions/lint-reporter
+      with:
+        title: 'Node.js ESLint'
+        lint-result: ${{ steps.eslint.outputs.result == '0' && 'success' || 'failure' }}
+        lint-output: ${{ steps.eslint-output.outputs.content }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-test:
     name: Build and Test
-    needs: lint
     runs-on: blacksmith-4vcpu-ubuntu-2404
     
     steps:
@@ -51,14 +107,25 @@ jobs:
       working-directory: web
       run: npm ci
       
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Cache Rust dependencies
+      uses: useblacksmith/rust-cache@v3
+      with:
+        workspaces: tty-fwd
+        
+    - name: Build tty-fwd binary
+      working-directory: tty-fwd
+      run: cargo build --release
+      
     - name: Build frontend and backend
       working-directory: web
       run: npm run build
       
     - name: Run tests
       working-directory: web
-      run: npm test -- --passWithNoTests
-      # Added --passWithNoTests since there are no test files yet
+      run: npm test
       
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -70,7 +137,6 @@ jobs:
 
   type-check:
     name: TypeScript Type Checking
-    needs: lint
     runs-on: blacksmith-4vcpu-ubuntu-2404
     
     steps:

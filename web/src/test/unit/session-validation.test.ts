@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
 // Session validation utilities that should be in the actual code
-const validateSessionId = (id: any): boolean => {
+const validateSessionId = (id: unknown): boolean => {
   return typeof id === 'string' && /^[a-f0-9-]+$/.test(id);
 };
 
-const validateCommand = (command: any): boolean => {
+const validateCommand = (command: unknown): boolean => {
   return (
     Array.isArray(command) &&
     command.length > 0 &&
@@ -13,7 +13,7 @@ const validateCommand = (command: any): boolean => {
   );
 };
 
-const validateWorkingDir = (dir: any): boolean => {
+const validateWorkingDir = (dir: unknown): boolean => {
   return typeof dir === 'string' && dir.length > 0 && !dir.includes('\0');
 };
 
@@ -22,13 +22,13 @@ const sanitizePath = (path: string): string => {
   return path.replace(/\0/g, '').normalize();
 };
 
-const isValidSessionName = (name: any): boolean => {
+const isValidSessionName = (name: unknown): boolean => {
   return (
     typeof name === 'string' &&
     name.length > 0 &&
     name.length <= 255 &&
     // eslint-disable-next-line no-control-regex
-    !/[<>:"|?*\u0000-\u001f]/.test(name)
+    !/[<>:"|?*\x00-\x1f]/.test(name)
   );
 };
 
@@ -182,7 +182,7 @@ describe('Session Validation', () => {
   });
 
   describe('Environment Variable Validation', () => {
-    const isValidEnvVar = (env: any): boolean => {
+    const isValidEnvVar = (env: unknown): boolean => {
       if (typeof env !== 'object' || env === null) return false;
 
       for (const [key, value] of Object.entries(env)) {

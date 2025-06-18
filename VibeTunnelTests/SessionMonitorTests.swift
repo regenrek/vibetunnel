@@ -137,7 +137,7 @@ struct SessionMonitorTests {
     
     @Test("Detecting stale sessions")
     func testStaleSessionDetection() async throws {
-        let monitor = SessionMonitor.shared
+        _ = SessionMonitor.shared
         
         // This test documents expected behavior for detecting stale sessions
         // In real implementation, stale sessions would be those that haven't
@@ -209,7 +209,7 @@ struct SessionMonitorTests {
         monitor.mockSessionCount = 1
         
         // Refresh
-        await await monitor.fetchSessions()
+        await monitor.fetchSessions()
         
         #expect(monitor.fetchSessionsCalled)
         #expect(monitor.sessionCount == 1)
@@ -363,13 +363,19 @@ struct SessionMonitorTests {
     func testConcurrentUpdates() async throws {
         let monitor = MockSessionMonitor()
         
+        // Create sessions outside the task group
+        let sessions = (0..<5).map { i in
+            createTestSession(id: "concurrent-\(i)")
+        }
+        
         await withTaskGroup(of: Void.self) { group in
             // Multiple concurrent fetches
-            for i in 0..<5 {
-                group.addTask { @MainActor in
-                    let session = self.createTestSession(id: "concurrent-\(i)")
-                    monitor.mockSessions[session.id] = session
-                    monitor.mockSessionCount = monitor.mockSessions.values.count { $0.isRunning }
+            for session in sessions {
+                group.addTask {
+                    await MainActor.run {
+                        monitor.mockSessions[session.id] = session
+                        monitor.mockSessionCount = monitor.mockSessions.values.count { $0.isRunning }
+                    }
                     await monitor.fetchSessions()
                 }
             }

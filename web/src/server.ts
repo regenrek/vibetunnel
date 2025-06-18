@@ -1,4 +1,5 @@
-import express, { Response } from 'express';
+import express from 'express';
+import type { Response } from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as path from 'path';

@@ -69,6 +69,13 @@ struct AdvancedSettingsView: View {
                 } header: {
                     Text("Integration")
                         .font(.headline)
+                } footer: {
+                    Text(
+                        "Prefix any terminal command with 'vt' to enable remote control."
+                    )
+                    .font(.caption)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
                 }
 
                 // Advanced section
@@ -156,7 +163,7 @@ private struct TerminalPreferenceSection: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                 }
-                Text("Select which terminal application to use when creating new sessions")
+                Text("Select which application to use when creating new sessions")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

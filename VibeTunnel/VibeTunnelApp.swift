@@ -81,7 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let processInfo = ProcessInfo.processInfo
-        let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil
+        let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+            processInfo.environment["XCTestBundlePath"] != nil ||
+            processInfo.environment["XCTestSessionIdentifier"] != nil ||
+            processInfo.arguments.contains("-XCTest") ||
+            NSClassFromString("XCTestCase") != nil
         let isRunningInPreview = processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
         let isRunningInDebug = processInfo.environment["DYLD_INSERT_LIBRARIES"]?
             .contains("libMainThreadChecker.dylib") ?? false
@@ -99,9 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize Sparkle updater manager
         sparkleUpdaterManager = SparkleUpdaterManager.shared
 
-        // Configure activation policy based on settings (default to menu bar only)
-        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
-        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
+        // Initialize dock icon visibility through DockIconManager
+        DockIconManager.shared.updateDockVisibility()
 
         // Show welcome screen when version changes
         let storedWelcomeVersion = UserDefaults.standard.integer(forKey: AppConstants.UserDefaultsKeys.welcomeVersion)
@@ -109,6 +112,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Show welcome if version is different from current
         if storedWelcomeVersion < AppConstants.currentWelcomeVersion && !isRunningInTests && !isRunningInPreview {
             showWelcomeScreen()
+        }
+
+        // Skip all service initialization during tests
+        if isRunningInTests {
+            logger.info("Running in test mode - skipping service initialization")
+            return
         }
 
         // Verify preferred terminal is still available
@@ -160,6 +169,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleSingleInstanceCheck() {
+        // Extra safety check - should never be called during tests
+        let processInfo = ProcessInfo.processInfo
+        let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+            processInfo.environment["XCTestBundlePath"] != nil ||
+            processInfo.environment["XCTestSessionIdentifier"] != nil ||
+            processInfo.arguments.contains("-XCTest") ||
+            NSClassFromString("XCTestCase") != nil
+
+        if isRunningInTests {
+            logger.info("Skipping single instance check - running in tests")
+            return
+        }
+
         let runningApps = NSRunningApplication
             .runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
 
@@ -217,6 +239,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        let processInfo = ProcessInfo.processInfo
+        let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+            processInfo.environment["XCTestBundlePath"] != nil ||
+            processInfo.environment["XCTestSessionIdentifier"] != nil ||
+            processInfo.arguments.contains("-XCTest") ||
+            NSClassFromString("XCTestCase") != nil
+        let isRunningInPreview = processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        let isRunningInDebug = processInfo.environment["DYLD_INSERT_LIBRARIES"]?
+            .contains("libMainThreadChecker.dylib") ?? false
+
+        // Skip cleanup during tests
+        if isRunningInTests {
+            logger.info("Running in test mode - skipping termination cleanup")
+            return
+        }
+
         // Stop session monitoring
         sessionMonitor.stopMonitoring()
 
@@ -229,12 +267,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Remove distributed notification observer
-        let processInfo = ProcessInfo.processInfo
-        let isRunningInTests = processInfo.environment["XCTestConfigurationFilePath"] != nil
-        let isRunningInPreview = processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-        let isRunningInDebug = processInfo.environment["DYLD_INSERT_LIBRARIES"]?
-            .contains("libMainThreadChecker.dylib") ?? false
-
         if !isRunningInPreview, !isRunningInTests, !isRunningInDebug {
             DistributedNotificationCenter.default().removeObserver(
                 self,

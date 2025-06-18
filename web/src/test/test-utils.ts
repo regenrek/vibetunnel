@@ -55,13 +55,3 @@ export const mockWebSocketServer = () => {
     handleUpgrade: vi.fn(),
   };
 };
-
-// Custom type declarations for test matchers
-declare module 'vitest' {
-  interface Assertion<T = any> {
-    toBeValidSession(): T;
-  }
-  interface AsymmetricMatchersContaining {
-    toBeValidSession(): any;
-  }
-}

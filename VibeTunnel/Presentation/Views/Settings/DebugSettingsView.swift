@@ -253,41 +253,41 @@ private struct ServerSection: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
-                // Server Mode Configuration
-                HStack {
-                    Text("Server Mode")
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
-                        set: { newMode in
-                            serverModeString = newMode.rawValue
-                            Task {
-                                await serverManager.switchMode(to: newMode)
-                            }
-                        }
-                    )) {
-                        ForEach(ServerMode.allCases, id: \.self) { mode in
-                            VStack(alignment: .leading) {
-                                Text(mode.displayName)
-                                Text(mode.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .tag(mode)
+                // Server Information
+                VStack(alignment: .leading, spacing: 8) {
+                    LabeledContent("Status") {
+                        HStack {
+                            Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
+                                isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill"
+                            )
+                            .foregroundStyle(isServerHealthy ? .green :
+                                isServerRunning ? .orange : .secondary
+                            )
+                            Text(isServerHealthy ? "Healthy" :
+                                isServerRunning ? "Unhealthy" : "Stopped"
+                            )
                         }
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(serverManager.isSwitching)
-                }
 
-                if serverManager.isSwitching {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Switching server mode...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    LabeledContent("Port") {
+                        Text("\(serverPort)")
+                    }
+
+                    LabeledContent("Bind Address") {
+                        Text(serverManager.bindAddress)
+                            .font(.system(.body, design: .monospaced))
+                    }
+
+                    LabeledContent("Base URL") {
+                        let baseAddress = serverManager.bindAddress == "0.0.0.0" ? "127.0.0.1" : serverManager
+                            .bindAddress
+                        if let serverURL = URL(string: "http://\(baseAddress):\(serverPort)") {
+                            Link("http://\(baseAddress):\(serverPort)", destination: serverURL)
+                                .font(.system(.body, design: .monospaced))
+                        } else {
+                            Text("http://\(baseAddress):\(serverPort)")
+                                .font(.system(.body, design: .monospaced))
+                        }
                     }
                 }
 
@@ -334,34 +334,46 @@ private struct ServerSection: View {
 
                 Divider()
 
-                // Server Information
-                VStack(alignment: .leading, spacing: 8) {
-                    LabeledContent("Status") {
-                        HStack {
-                            Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
-                                isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill"
-                            )
-                            .foregroundStyle(isServerHealthy ? .green :
-                                isServerRunning ? .orange : .secondary
-                            )
-                            Text(isServerHealthy ? "Healthy" :
-                                isServerRunning ? "Unhealthy" : "Stopped"
-                            )
+                // Server Mode Configuration
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Server Mode")
+                        Text("Choose between the built-in Swift Hummingbird server or the Rust binary")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Picker("", selection: Binding(
+                        get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
+                        set: { newMode in
+                            serverModeString = newMode.rawValue
+                            Task {
+                                await serverManager.switchMode(to: newMode)
+                            }
+                        }
+                    )) {
+                        ForEach(ServerMode.allCases, id: \.self) { mode in
+                            VStack(alignment: .leading) {
+                                Text(mode.displayName)
+                                Text(mode.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .tag(mode)
                         }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .disabled(serverManager.isSwitching)
+                }
 
-                    LabeledContent("Port") {
-                        Text("\(serverPort)")
-                    }
-
-                    LabeledContent("Base URL") {
-                        if let serverURL = URL(string: "http://127.0.0.1:\(serverPort)") {
-                            Link("http://127.0.0.1:\(serverPort)", destination: serverURL)
-                                .font(.system(.body, design: .monospaced))
-                        } else {
-                            Text("http://127.0.0.1:\(serverPort)")
-                                .font(.system(.body, design: .monospaced))
-                        }
+                if serverManager.isSwitching {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Switching server mode...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -369,13 +381,6 @@ private struct ServerSection: View {
         } header: {
             Text("HTTP Server")
                 .font(.headline)
-        } footer: {
-            Text(
-                "The HTTP server provides REST API endpoints for terminal session management. Choose between the built-in Swift Hummingbird server or the Rust tty-fwd binary."
-            )
-            .font(.caption)
-            .frame(maxWidth: .infinity)
-            .multilineTextAlignment(.center)
         }
     }
 }
@@ -499,7 +504,7 @@ private struct DeveloperToolsSection: View {
                     }
                     .buttonStyle(.bordered)
                 }
-                Text("View real-time server logs from both Hummingbird and Rust servers")
+                Text("View real-time server logs from both Hummingbird and Rust servers.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -513,7 +518,7 @@ private struct DeveloperToolsSection: View {
                     }
                     .buttonStyle(.bordered)
                 }
-                Text("View all application logs in Console.app")
+                Text("View all application logs in Console.app.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -527,7 +532,7 @@ private struct DeveloperToolsSection: View {
                     }
                     .buttonStyle(.bordered)
                 }
-                Text("Open the application support directory")
+                Text("Open the application support directory.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -537,11 +542,13 @@ private struct DeveloperToolsSection: View {
                     Text("Welcome Screen")
                     Spacer()
                     Button("Show Welcome") {
-                        AppDelegate.showWelcomeScreen()
+                        #if !SWIFT_PACKAGE
+                            AppDelegate.showWelcomeScreen()
+                        #endif
                     }
                     .buttonStyle(.bordered)
                 }
-                Text("Display the welcome screen again")
+                Text("Display the welcome screen again.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -556,7 +563,7 @@ private struct DeveloperToolsSection: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
                 }
-                Text("Remove all stored preferences and reset to defaults")
+                Text("Remove all stored preferences and reset to defaults.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

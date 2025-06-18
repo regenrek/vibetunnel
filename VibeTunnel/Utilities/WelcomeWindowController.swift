@@ -7,8 +7,10 @@ import SwiftUI
 /// including window configuration, positioning, and notification-based showing.
 /// Configured as a floating panel with transparent titlebar for modern appearance.
 @MainActor
-final class WelcomeWindowController: NSWindowController {
+final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
     static let shared = WelcomeWindowController()
+
+    private var windowObserver: NSObjectProtocol?
 
     private init() {
         let welcomeView = WelcomeView()
@@ -27,6 +29,9 @@ final class WelcomeWindowController: NSWindowController {
 
         super.init(window: window)
 
+        // Set self as window delegate
+        window.delegate = self
+
         // Listen for notification to show welcome screen
         NotificationCenter.default.addObserver(
             self,
@@ -44,18 +49,40 @@ final class WelcomeWindowController: NSWindowController {
     func show() {
         guard let window else { return }
 
+        // Check if dock icon is currently hidden
+        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
+
+        // Temporarily show dock icon if it's hidden
+        // This is necessary for proper window activation
+        if !showInDock {
+            NSApp.setActivationPolicy(.regular)
+        }
+
         // Center window on the active screen (screen with mouse cursor)
         WindowCenteringHelper.centerOnActiveScreen(window)
 
+        // Ensure window is visible and in front
         window.makeKeyAndOrderFront(nil)
-        // Use normal activation without forcing to front
-        NSApp.activate(ignoringOtherApps: false)
+        window.orderFrontRegardless()
+        
+        // Force activation to bring window to front
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Temporarily raise window level to ensure it's on top
+        window.level = .floating
+        
+        // Reset level after a short delay
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            window.level = .normal
+        }
     }
 
     @objc
     private func handleShowWelcomeNotification() {
         show()
     }
+
 }
 
 // MARK: - Notification Extension
