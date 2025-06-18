@@ -260,4 +260,122 @@ export class CastConverter {
       terminal.write(allContent, false); // Don't follow cursor during dump for performance
     }
   }
+
+  /**
+   * Connect terminal to a streaming URL using Server-Sent Events (SSE).
+   * Handles real-time terminal output, input, and resize events from the stream.
+   * Returns connection object for cleanup and management.
+   *
+   * @param terminal - DOM terminal instance with write() and setTerminalSize() methods
+   * @param streamUrl - URL endpoint for the SSE stream (e.g., /api/sessions/123/stream)
+   * @returns Connection object with EventSource and cleanup methods
+   */
+  static connectToStream(
+    terminal: {
+      write: (data: string, followCursor?: boolean) => void;
+      setTerminalSize?: (cols: number, rows: number) => void;
+      dispatchEvent?: (event: CustomEvent) => void;
+    },
+    streamUrl: string
+  ): {
+    eventSource: EventSource;
+    disconnect: () => void;
+  } {
+    const eventSource = new EventSource(streamUrl);
+
+    const disconnect = () => {
+      if (eventSource.readyState !== EventSource.CLOSED) {
+        eventSource.close();
+      }
+    };
+
+    // Handle incoming messages from the stream
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        // Check if this is a header message with terminal dimensions
+        if (data.version && data.width && data.height) {
+          // Header message - set initial terminal size
+          if (terminal.setTerminalSize) {
+            terminal.setTerminalSize(data.width, data.height);
+          }
+          return;
+        }
+
+        // Check if this is a cast event array [timestamp, type, data]
+        if (Array.isArray(data) && data.length >= 3) {
+          const [_timestamp, type, eventData] = data;
+
+          if (type === 'o') {
+            // Output event - write to terminal
+            terminal.write(eventData, true); // Follow cursor for live streaming
+          } else if (type === 'r') {
+            // Resize event - update terminal dimensions
+            const match = eventData.match(/^(\d+)x(\d+)$/);
+            if (match && terminal.setTerminalSize) {
+              const cols = parseInt(match[1], 10);
+              const rows = parseInt(match[2], 10);
+              terminal.setTerminalSize(cols, rows);
+
+              // Dispatch resize event if terminal supports it
+              if (terminal.dispatchEvent) {
+                terminal.dispatchEvent(
+                  new CustomEvent('terminal-resize', {
+                    detail: { cols, rows },
+                    bubbles: true,
+                  })
+                );
+              }
+            }
+          }
+          // Ignore 'i' (input) events - those are for sending to server, not displaying
+          return;
+        }
+
+        // Check for special exit event [exitType, exitCode, sessionId]
+        if (Array.isArray(data) && data.length >= 2 && data[0] === 'exit') {
+          // Session exit event - close connection and notify
+          disconnect();
+
+          if (terminal.dispatchEvent) {
+            terminal.dispatchEvent(
+              new CustomEvent('session-exit', {
+                detail: {
+                  exitCode: data[1],
+                  sessionId: data[2] || null,
+                },
+                bubbles: true,
+              })
+            );
+          }
+          return;
+        }
+
+        // Unknown message format
+        console.warn('Unknown stream message format:', data);
+      } catch (error) {
+        console.error('Failed to parse stream message:', event.data, error);
+      }
+    };
+
+    // Handle connection errors
+    eventSource.onerror = (error) => {
+      console.error('Stream connection error:', error);
+
+      if (eventSource.readyState === EventSource.CLOSED) {
+        console.log('Stream connection closed');
+      }
+    };
+
+    // Handle connection open
+    eventSource.onopen = () => {
+      console.log('Stream connection established to:', streamUrl);
+    };
+
+    return {
+      eventSource,
+      disconnect,
+    };
+  }
 }
