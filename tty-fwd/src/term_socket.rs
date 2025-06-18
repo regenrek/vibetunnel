@@ -464,7 +464,9 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str, session_id: &str) -> 
                         if let Ok(session_info) =
                             serde_json::from_str::<serde_json::Value>(&content)
                         {
-                            if let Some(pid) = session_info.get("pid").and_then(serde_json::Value::as_u64) {
+                            if let Some(pid) =
+                                session_info.get("pid").and_then(serde_json::Value::as_u64)
+                            {
                                 // Send SIGINT to the process group for immediate response
                                 unsafe {
                                     libc::kill(-(pid as i32), libc::SIGINT);
