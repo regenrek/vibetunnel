@@ -29,13 +29,11 @@ export class SessionCard extends LitElement {
   @state() private killing = false;
   @state() private killingFrame = 0;
 
-  private refreshInterval: number | null = null;
   private killingInterval: number | null = null;
 
   firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
     this.setupTerminal();
-    this.startRefresh();
   }
 
   updated(changedProperties: PropertyValues) {
@@ -52,9 +50,6 @@ export class SessionCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
     if (this.killingInterval) {
       clearInterval(this.killingInterval);
     }
@@ -115,15 +110,6 @@ export class SessionCard extends LitElement {
     } catch (error) {
       console.error('Failed to load session snapshot:', error);
     }
-  }
-
-  private startRefresh() {
-    this.refreshInterval = window.setInterval(async () => {
-      if (this.terminal) {
-        const url = `/api/sessions/${this.session.id}/snapshot`;
-        await this.loadSnapshot(url);
-      }
-    }, 10000); // Refresh every 10 seconds
   }
 
   private handleCardClick() {
