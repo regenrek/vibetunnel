@@ -500,7 +500,7 @@
                         terminal.clear();
 
                         console.log('Fetching cast file');
-                        const response = await fetch('../test5.cast');
+                        const response = await fetch('../test.cast');
                         if (!response.ok) {
                             throw new Error(`Failed to fetch cast file: ${response.status}`);
                         }
