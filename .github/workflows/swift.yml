@@ -1,11 +1,7 @@
 name: Swift CI
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+  workflow_call:
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_16.3.app/Contents/Developer
