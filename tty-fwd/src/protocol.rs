@@ -1097,8 +1097,8 @@ mod tests {
         assert_eq!(writer.find_escape_sequence_end(b"\x1b[?25h"), Some(6));
 
         // Test OSC sequence detection
-        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Title\x07"), Some(11));
-        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Title\x1b\\"), Some(12));
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Title\x07"), Some(10));
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Title\x1b\\"), Some(11));
 
         // Test incomplete sequences
         assert_eq!(writer.find_escape_sequence_end(b"\x1b"), None);

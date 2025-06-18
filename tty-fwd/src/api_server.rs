@@ -1673,7 +1673,6 @@ fn handle_mkdir(req: &crate::http_server::HttpRequest) -> Response<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::HeaderMap;
     use tempfile::TempDir;
 
 
