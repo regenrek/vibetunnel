@@ -38,13 +38,7 @@ struct DebugSettingsView: View {
                     serverPort: serverPort,
                     lastError: lastError,
                     serverModeString: $serverModeString,
-                    serverManager: serverManager
-                )
-
-                ServerInformationSection(
-                    isServerHealthy: isServerHealthy,
-                    isServerRunning: isServerRunning,
-                    serverPort: serverPort,
+                    serverManager: serverManager,
                     getCurrentServerMode: getCurrentServerMode
                 )
 
@@ -254,6 +248,7 @@ private struct ServerSection: View {
     let lastError: String?
     @Binding var serverModeString: String
     let serverManager: ServerManager
+    let getCurrentServerMode: () -> String
 
     var body: some View {
         Section {
@@ -291,15 +286,43 @@ private struct ServerSection: View {
                     }
                 }
 
-                if isServerRunning, let serverURL = URL(string: "http://127.0.0.1:\(serverPort)") {
-                    Link("Open in Browser", destination: serverURL)
-                        .font(.caption)
-                }
-
                 if let lastError {
                     Text(lastError)
                         .font(.caption)
                         .foregroundStyle(.red)
+                }
+
+                Divider()
+
+                // Server Information
+                VStack(alignment: .leading, spacing: 8) {
+                    LabeledContent("Status") {
+                        HStack {
+                            Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
+                                isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill"
+                            )
+                            .foregroundStyle(isServerHealthy ? .green :
+                                isServerRunning ? .orange : .secondary
+                            )
+                            Text(isServerHealthy ? "Healthy" :
+                                isServerRunning ? "Unhealthy" : "Stopped"
+                            )
+                        }
+                    }
+
+                    LabeledContent("Port") {
+                        Text("\(serverPort)")
+                    }
+
+                    LabeledContent("Base URL") {
+                        if let serverURL = URL(string: "http://127.0.0.1:\(serverPort)") {
+                            Link("http://127.0.0.1:\(serverPort)", destination: serverURL)
+                                .font(.system(.body, design: .monospaced))
+                        } else {
+                            Text("http://127.0.0.1:\(serverPort)")
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    }
                 }
 
                 Divider()
@@ -353,52 +376,6 @@ private struct ServerSection: View {
             .font(.caption)
             .frame(maxWidth: .infinity)
             .multilineTextAlignment(.center)
-        }
-    }
-}
-
-// MARK: - Server Information Section
-
-private struct ServerInformationSection: View {
-    let isServerHealthy: Bool
-    let isServerRunning: Bool
-    let serverPort: Int
-    let getCurrentServerMode: () -> String
-
-    var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Status") {
-                    HStack {
-                        Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
-                            isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill"
-                        )
-                        .foregroundStyle(isServerHealthy ? .green :
-                            isServerRunning ? .orange : .secondary
-                        )
-                        Text(isServerHealthy ? "Healthy" :
-                            isServerRunning ? "Unhealthy" : "Stopped"
-                        )
-                    }
-                }
-
-                LabeledContent("Port") {
-                    Text("\(serverPort)")
-                }
-
-                LabeledContent("Base URL") {
-                    Text("http://127.0.0.1:\(serverPort)")
-                        .font(.system(.body, design: .monospaced))
-                }
-
-                LabeledContent("Mode") {
-                    Text(getCurrentServerMode())
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } header: {
-            Text("Server Information")
-                .font(.headline)
         }
     }
 }
