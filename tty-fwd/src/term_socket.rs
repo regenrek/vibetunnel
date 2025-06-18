@@ -5,7 +5,7 @@ use serde_json::json;
 use std::env;
 use std::ffi::CString;
 use std::io::{Read, Write};
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
 use uuid::Uuid;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -336,8 +336,8 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
 fn handle_pty_session(
     master_fd: RawFd,
     session_id: &str,
-    command: &[String],
-    working_dir: Option<&str>,
+    _command: &[String],
+    _working_dir: Option<&str>,
 ) -> Result<()> {
     use std::fs::OpenOptions;
     use std::io::BufWriter;
