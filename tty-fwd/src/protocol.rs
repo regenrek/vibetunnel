@@ -398,6 +398,16 @@ impl StreamWriter {
         Ok(())
     }
 
+    pub fn write_raw_json(&mut self, json_value: &serde_json::Value) -> Result<(), Error> {
+        use std::io::Write;
+
+        let json_string = serde_json::to_string(json_value)?;
+        writeln!(self.file, "{json_string}")?;
+        self.file.flush()?;
+
+        Ok(())
+    }
+
     pub fn elapsed_time(&self) -> f64 {
         self.start_time.elapsed().as_secs_f64()
     }
@@ -427,6 +437,7 @@ impl NotificationWriter {
 pub enum StreamEvent {
     Header(AsciinemaHeader),
     Terminal(AsciinemaEvent),
+    Exit { exit_code: i32, session_id: String },
     Error { message: String },
     End,
 }
@@ -454,6 +465,14 @@ impl serde::Serialize for StreamEvent {
         match self {
             Self::Header(header) => header.serialize(serializer),
             Self::Terminal(event) => event.serialize(serializer),
+            Self::Exit { exit_code, session_id } => {
+                use serde::ser::SerializeTuple;
+                let mut tuple = serializer.serialize_tuple(3)?;
+                tuple.serialize_element("exit")?;
+                tuple.serialize_element(exit_code)?;
+                tuple.serialize_element(session_id)?;
+                tuple.end()
+            }
             Self::Error { message } => {
                 let error_event = ErrorEvent {
                     event_type: "error".to_string(),
@@ -488,6 +507,15 @@ impl<'de> serde::Deserialize<'de> for StreamEvent {
         // Try to parse as an event array [timestamp, type, data]
         if let Some(arr) = value.as_array() {
             if arr.len() >= 3 {
+                // Check for exit event: ["exit", exit_code, session_id]
+                if let Some(first) = arr[0].as_str() {
+                    if first == "exit" {
+                        let exit_code = arr[1].as_i64().unwrap_or(0) as i32;
+                        let session_id = arr[2].as_str().unwrap_or("unknown").to_string();
+                        return Ok(Self::Exit { exit_code, session_id });
+                    }
+                }
+                
                 let event: AsciinemaEvent = serde_json::from_value(value).map_err(|e| {
                     de::Error::custom(format!("Failed to parse terminal event: {e}"))
                 })?;

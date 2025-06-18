@@ -538,12 +538,8 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
                 .and_then(|p| p.file_stem())
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown");
-            let exit_event = AsciinemaEvent {
-                time: stream_writer.elapsed_time(),
-                event_type: AsciinemaEventType::Output,
-                data: serde_json::json!(["exit", exit_code, session_id]).to_string(),
-            };
-            let _ = stream_writer.write_event(exit_event);
+            let exit_event = serde_json::json!(["exit", exit_code, session_id]);
+            let _ = stream_writer.write_raw_json(&exit_event);
         }
 
         // Update session status to exited with exit code
@@ -915,12 +911,8 @@ fn monitor_detached_session(
             .and_then(|p| p.file_stem())
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
-        let exit_event = AsciinemaEvent {
-            time: stream_writer.elapsed_time(),
-            event_type: AsciinemaEventType::Output,
-            data: serde_json::json!(["exit", 0, session_id]).to_string(),
-        };
-        let _ = stream_writer.write_event(exit_event);
+        let exit_event = serde_json::json!(["exit", 0, session_id]);
+        let _ = stream_writer.write_raw_json(&exit_event);
     }
 
     // Update session status to exited

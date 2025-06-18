@@ -405,7 +405,7 @@ fn handle_pty_session(
                 eprintln!("PTY closed (EOF), updating session status");
 
                 // Send exit event to stream before updating session status
-                let exit_event = json!(["exit", 0, session_id]);
+                let exit_event = json!(["exit", "0", session_id]);
                 writeln!(writer, "{exit_event}")?;
                 writer.flush()?;
 
