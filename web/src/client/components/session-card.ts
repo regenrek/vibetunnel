@@ -142,13 +142,12 @@ export class SessionCard extends LitElement {
 
       if (!response.ok) {
         console.error('Failed to kill session');
-        // Stop animation on error
-        this.stopKillingAnimation();
       }
       // Note: We don't stop the animation on success - let the session list refresh handle it
     } catch (error) {
       console.error('Error killing session:', error);
       // Stop animation on error
+    } finally {
       this.stopKillingAnimation();
     }
   }
