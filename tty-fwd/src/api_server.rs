@@ -1047,14 +1047,17 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
                 if let Ok(session_info) = serde_json::from_str::<serde_json::Value>(&content) {
                     if let Some(pid) = session_info.get("pid").and_then(serde_json::Value::as_u64) {
                         // Wait for the process to actually die
-                        for _ in 0..30 { // 30 * 100ms = 3 seconds max
+                        for _ in 0..30 {
+                            // 30 * 100ms = 3 seconds max
                             // Only reap zombies for PTY sessions
-                            if let Some(spawn_type) = session_info.get("spawn_type").and_then(|s| s.as_str()) {
+                            if let Some(spawn_type) =
+                                session_info.get("spawn_type").and_then(|s| s.as_str())
+                            {
                                 if spawn_type == "pty" {
                                     sessions::reap_zombies();
                                 }
                             }
-                            
+
                             if !sessions::is_pid_alive(pid as u32) {
                                 process_died = true;
                                 break;

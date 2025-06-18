@@ -256,14 +256,14 @@ pub fn is_pid_alive(pid: u32) -> bool {
 
     match output {
         Ok(output) => {
-            if !output.status.success() {
-                // Process doesn't exist
-                false
-            } else {
+            if output.status.success() {
                 // Check if it's a zombie process (status starts with 'Z')
                 let stat = String::from_utf8_lossy(&output.stdout);
                 let stat = stat.trim();
                 !stat.starts_with('Z')
+            } else {
+                // Process doesn't exist
+                false
             }
         }
         Err(_) => false,
@@ -272,20 +272,20 @@ pub fn is_pid_alive(pid: u32) -> bool {
 
 /// Attempt to reap zombie children
 pub fn reap_zombies() {
-    use std::ptr;
     use libc::{waitpid, WNOHANG, WUNTRACED};
-    
+    use std::ptr;
+
     loop {
         // Try to reap any zombie children
         let result = unsafe { waitpid(-1, ptr::null_mut(), WNOHANG | WUNTRACED) };
-        
+
         if result <= 0 {
             // No more children to reap or error occurred
             break;
         }
-        
+
         // Successfully reaped a zombie child
-        eprintln!("Reaped zombie child with PID: {}", result);
+        eprintln!("Reaped zombie child with PID: {result}");
     }
 }
 

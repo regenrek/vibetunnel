@@ -103,7 +103,6 @@ fn spawn_via_socket_impl(command: &[String], working_dir: Option<&str>) -> Resul
 fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String> {
     let session_id = Uuid::new_v4().to_string();
 
-
     // Create PTY
     let pty_result = openpty(
         &Winsize {
@@ -218,26 +217,26 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
         ForkResult::Child => {
             // Child process - set up PTY and exec command
 
-            if let Err(e) = close(master_fd) {
+            if let Err(_e) = close(master_fd) {
                 std::process::exit(1);
             }
 
             // Create new session
-            if let Err(e) = setsid() {
+            if let Err(_e) = setsid() {
                 std::process::exit(1);
             }
 
             // Set up stdin/stdout/stderr to use the slave PTY
-            if let Err(e) = dup2(slave_fd, 0) {
+            if let Err(_e) = dup2(slave_fd, 0) {
                 std::process::exit(1);
             }
-            if let Err(e) = dup2(slave_fd, 1) {
+            if let Err(_e) = dup2(slave_fd, 1) {
                 std::process::exit(1);
             }
-            if let Err(e) = dup2(slave_fd, 2) {
+            if let Err(_e) = dup2(slave_fd, 2) {
                 std::process::exit(1);
             }
-            if let Err(e) = close(slave_fd) {
+            if let Err(_e) = close(slave_fd) {
                 std::process::exit(1);
             }
 
@@ -255,7 +254,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     dir.to_string()
                 };
 
-                if let Err(e) = std::env::set_current_dir(&expanded_dir) {
+                if let Err(_e) = std::env::set_current_dir(&expanded_dir) {
                     std::process::exit(1);
                 }
             }
@@ -276,7 +275,6 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                 command.first().unwrap()
             };
 
-
             let args: Vec<CString> = if command.is_empty() {
                 vec![CString::new(program)?]
             } else {
@@ -287,12 +285,10 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
                     .map_err(|e| anyhow::anyhow!("Invalid command argument: {}", e))?
             };
 
-
             // Use execvp to execute the command
             match nix::unistd::execvp(&CString::new(program)?, &args) {
-                Ok(_) => {
-                }
-                Err(e) => {
+                Ok(_) => {}
+                Err(_e) => {
                     std::process::exit(127); // Standard exit code for command not found
                 }
             }
@@ -348,7 +344,9 @@ fn handle_pty_session(
         let stdin_path_clone = stdin_path;
         let session_id_clone = session_id.to_string();
         std::thread::spawn(move || {
-            if let Err(e) = handle_stdin_to_pty(master_fd_dup2, &stdin_path_clone, &session_id_clone) {
+            if let Err(e) =
+                handle_stdin_to_pty(master_fd_dup2, &stdin_path_clone, &session_id_clone)
+            {
                 eprintln!("Stdin handler error: {e}");
             }
             // Clean up the duplicated fd when done
@@ -451,26 +449,33 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str, session_id: &str) -> 
                 // Check for Ctrl+C and send SIGINT directly for responsiveness
                 if n == 1 && buffer[0] == 0x03 {
                     // Ctrl+C detected - send SIGINT to process group for immediate response
-                    let session_json_path = format!("{}/{}/session.json", 
+                    let session_json_path = format!(
+                        "{}/{}/session.json",
                         env::var("TTY_FWD_CONTROL_DIR").unwrap_or_else(|_| {
-                            format!("{}/.vibetunnel/control", env::var("HOME").unwrap_or_default())
-                        }), 
-                        session_id);
-                    
+                            format!(
+                                "{}/.vibetunnel/control",
+                                env::var("HOME").unwrap_or_default()
+                            )
+                        }),
+                        session_id
+                    );
+
                     if let Ok(content) = std::fs::read_to_string(&session_json_path) {
-                        if let Ok(session_info) = serde_json::from_str::<serde_json::Value>(&content) {
-                            if let Some(pid) = session_info.get("pid").and_then(|p| p.as_u64()) {
+                        if let Ok(session_info) =
+                            serde_json::from_str::<serde_json::Value>(&content)
+                        {
+                            if let Some(pid) = session_info.get("pid").and_then(serde_json::Value::as_u64) {
                                 // Send SIGINT to the process group for immediate response
                                 unsafe {
                                     libc::kill(-(pid as i32), libc::SIGINT);
                                 }
-                                eprintln!("Sent SIGINT to process group {}", pid);
+                                eprintln!("Sent SIGINT to process group {pid}");
                             }
                         }
                     }
                     // Still write Ctrl+C through PTY for terminal consistency
                 }
-                
+
                 // Write to PTY master using libc::write (blocking)
                 let bytes_written =
                     unsafe { libc::write(master_fd, buffer.as_ptr().cast::<libc::c_void>(), n) };
