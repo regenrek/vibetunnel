@@ -253,7 +253,7 @@ pub fn is_pid_alive(pid: u32) -> bool {
     // On Linux, check /proc/{pid} for better performance
     #[cfg(target_os = "linux")]
     {
-        std::path::Path::new(&format!("/proc/{}", pid)).exists()
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
     }
 
     // On other platforms, use ps command

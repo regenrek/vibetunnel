@@ -769,7 +769,7 @@ fn forward_winsize(
             let event = AsciinemaEvent {
                 time,
                 event_type: AsciinemaEventType::Resize,
-                data: format!("{}x{}", winsize.ws_col, winsize.ws_row),
+                data: format!("{col}x{row}", col = winsize.ws_col, row = winsize.ws_row),
             };
             writer.write_event(event)?;
         }
