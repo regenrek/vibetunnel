@@ -190,34 +190,36 @@ describe('Server Integration Tests', () => {
   });
 
   describe('WebSocket Connection', () => {
-    it('should accept WebSocket connections', (done) => {
+    it('should accept WebSocket connections', async () => {
       const ws = new WebSocket(`ws://localhost:${port}?hotReload=true`);
 
-      ws.on('open', () => {
-        expect(ws.readyState).toBe(WebSocket.OPEN);
-        ws.close();
-      });
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => {
+          expect(ws.readyState).toBe(WebSocket.OPEN);
+          ws.close();
+        });
 
-      ws.on('close', () => {
-        done();
-      });
+        ws.on('close', () => {
+          resolve();
+        });
 
-      ws.on('error', (err) => {
-        done(err);
+        ws.on('error', reject);
       });
     });
 
-    it('should reject non-hot-reload connections', (done) => {
+    it('should reject non-hot-reload connections', async () => {
       const ws = new WebSocket(`ws://localhost:${port}`);
 
-      ws.on('close', (code, reason) => {
-        expect(code).toBe(1008);
-        expect(reason.toString()).toContain('Only hot reload connections supported');
-        done();
-      });
+      await new Promise<void>((resolve) => {
+        ws.on('close', (code, reason) => {
+          expect(code).toBe(1008);
+          expect(reason.toString()).toContain('Only hot reload connections supported');
+          resolve();
+        });
 
-      ws.on('error', () => {
-        // Expected to error
+        ws.on('error', () => {
+          // Expected to error
+        });
       });
     });
   });

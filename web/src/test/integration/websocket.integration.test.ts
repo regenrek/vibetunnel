@@ -80,29 +80,33 @@ describe('WebSocket Integration Tests', () => {
   });
 
   describe('Hot Reload WebSocket', () => {
-    it('should accept hot reload connections', (done) => {
+    it('should accept hot reload connections', async () => {
       const ws = new WebSocket(`${wsUrl}?hotReload=true`);
 
-      ws.on('open', () => {
-        expect(ws.readyState).toBe(WebSocket.OPEN);
-        ws.close();
-        done();
-      });
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => {
+          expect(ws.readyState).toBe(WebSocket.OPEN);
+          ws.close();
+          resolve();
+        });
 
-      ws.on('error', done);
+        ws.on('error', reject);
+      });
     });
 
-    it('should reject non-hot-reload connections', (done) => {
+    it('should reject non-hot-reload connections', async () => {
       const ws = new WebSocket(wsUrl);
 
-      ws.on('close', (code, reason) => {
-        expect(code).toBe(1008);
-        expect(reason.toString()).toContain('Only hot reload connections supported');
-        done();
-      });
+      await new Promise<void>((resolve) => {
+        ws.on('close', (code, reason) => {
+          expect(code).toBe(1008);
+          expect(reason.toString()).toContain('Only hot reload connections supported');
+          resolve();
+        });
 
-      ws.on('error', () => {
-        // Expected
+        ws.on('error', () => {
+          // Expected
+        });
       });
     });
 
@@ -268,22 +272,24 @@ describe('WebSocket Integration Tests', () => {
   });
 
   describe('WebSocket Error Handling', () => {
-    it('should handle malformed messages gracefully', (done) => {
+    it('should handle malformed messages gracefully', async () => {
       const ws = new WebSocket(`${wsUrl}?hotReload=true`);
 
-      ws.on('open', () => {
-        // Send invalid JSON
-        ws.send('invalid json {');
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => {
+          // Send invalid JSON
+          ws.send('invalid json {');
 
-        // Should not crash the server
-        setTimeout(() => {
-          expect(ws.readyState).toBe(WebSocket.OPEN);
-          ws.close();
-          done();
-        }, 100);
+          // Should not crash the server
+          setTimeout(() => {
+            expect(ws.readyState).toBe(WebSocket.OPEN);
+            ws.close();
+            resolve();
+          }, 100);
+        });
+
+        ws.on('error', reject);
       });
-
-      ws.on('error', done);
     });
 
     it('should handle connection drops', async () => {

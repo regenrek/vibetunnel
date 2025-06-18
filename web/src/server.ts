@@ -121,6 +121,7 @@ function resolvePath(inputPath: string, fallback?: string): string {
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Hot reload functionality for development

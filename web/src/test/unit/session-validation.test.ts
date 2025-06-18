@@ -7,7 +7,9 @@ const validateSessionId = (id: any): boolean => {
 
 const validateCommand = (command: any): boolean => {
   return (
-    Array.isArray(command) && command.length > 0 && command.every((arg) => typeof arg === 'string')
+    Array.isArray(command) && 
+    command.length > 0 && 
+    command.every((arg) => typeof arg === 'string' && arg.length > 0)
   );
 };
 
@@ -33,9 +35,9 @@ describe('Session Validation', () => {
   describe('validateSessionId', () => {
     it('should accept valid session IDs', () => {
       const validIds = [
-        'abc123',
+        'abc123def456',
         '123e4567-e89b-12d3-a456-426614174000',
-        'session-1234',
+        'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
         'a1b2c3d4',
       ];
 
