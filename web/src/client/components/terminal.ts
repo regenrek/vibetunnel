@@ -26,7 +26,6 @@ export class Terminal extends LitElement {
   }
 
   set viewportY(value: number) {
-    console.log(`viewportY set to ${value}, was ${this._viewportY}. Stack:`, new Error().stack);
     this._viewportY = value;
   }
   @state() private actualRows = 24; // Rows that fit in viewport
@@ -161,7 +160,6 @@ export class Terminal extends LitElement {
 
   private async setupTerminal() {
     try {
-      console.log('Creating terminal for headless use...');
       // Create regular terminal but don't call .open() to make it headless
       this.terminal = new XtermTerminal({
         cursorBlink: false,
@@ -184,13 +182,8 @@ export class Terminal extends LitElement {
         },
       });
 
-      console.log('Terminal created successfully (no DOM attachment)');
-      console.log('Terminal object:', this.terminal);
-      console.log('Buffer available:', !!this.terminal.buffer);
-
       // Set terminal size - don't call .open() to keep it headless
       this.terminal.resize(this.cols, this.rows);
-      console.log('Terminal resized to:', this.cols, 'x', this.rows);
     } catch (error) {
       console.error('Failed to create terminal:', error);
       throw error;
@@ -268,9 +261,6 @@ export class Terminal extends LitElement {
       const containerHeight = this.container.clientHeight;
       const lineHeight = this.fontSize * 1.2;
       const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
-      console.log(
-        `fitTerminal: containerHeight=${containerHeight}, lineHeight=${lineHeight}, actualRows=${newActualRows} (was ${this.actualRows})`
-      );
 
       this.actualRows = newActualRows;
     }
@@ -283,17 +273,11 @@ export class Terminal extends LitElement {
 
       if (wasAtBottom) {
         // If we were at bottom, stay at bottom with new constraints
-        console.log(
-          `Staying at bottom: setting viewportY from ${this.viewportY} to ${maxScrollPixels}`
-        );
         this.viewportY = maxScrollPixels;
       } else {
         // Convert the scroll position from old lineHeight to new lineHeight
         const newViewportY = currentScrollLines * newLineHeight;
         const clampedY = Math.max(0, Math.min(maxScrollPixels, newViewportY));
-        console.log(
-          `Recalculating scroll: old=${this.viewportY} (${currentScrollLines} lines @ ${oldLineHeight}px) -> new=${clampedY} (${currentScrollLines} lines @ ${newLineHeight}px), max=${maxScrollPixels}`
-        );
         this.viewportY = clampedY;
       }
     }
@@ -307,17 +291,10 @@ export class Terminal extends LitElement {
     if (!this.container) return;
 
     this.resizeObserver = new ResizeObserver(() => {
-      console.log(
-        `ResizeObserver triggered - container size:`,
-        this.container?.clientWidth,
-        'x',
-        this.container?.clientHeight
-      );
       if (this.resizeTimeout) {
         clearTimeout(this.resizeTimeout);
       }
       this.resizeTimeout = setTimeout(() => {
-        console.log(`ResizeObserver calling fitTerminal and renderBuffer`);
         this.fitTerminal();
         this.renderBuffer();
       }, 50);
@@ -509,10 +486,6 @@ export class Terminal extends LitElement {
 
     const newViewportY = Math.max(0, Math.min(maxScrollPixels, this.viewportY + deltaPixels));
 
-    console.log(
-      `scrollViewportPixels: deltaPixels=${deltaPixels}, oldY=${this.viewportY}, newY=${newViewportY}, maxScroll=${maxScrollPixels}, bufferLen=${buffer.length}, actualRows=${this.actualRows}`
-    );
-
     // Only render if we actually moved
     if (newViewportY !== this.viewportY) {
       this.viewportY = newViewportY;
@@ -532,10 +505,6 @@ export class Terminal extends LitElement {
     // Store momentum velocities
     this.momentumVelocityY = velocityY * 16; // Convert from pixels/ms to pixels/frame (assuming 60fps)
     this.momentumVelocityX = velocityX * 16;
-
-    console.log(
-      `Starting momentum: velocityY=${this.momentumVelocityY}, velocityX=${this.momentumVelocityX}`
-    );
 
     // Cancel any existing momentum
     if (this.momentumAnimation) {
@@ -600,7 +569,6 @@ export class Terminal extends LitElement {
       }
     } else {
       // Momentum finished
-      console.log('Momentum finished');
       this.momentumAnimation = null;
       this.momentumVelocityY = 0;
       this.momentumVelocityX = 0;
@@ -609,10 +577,6 @@ export class Terminal extends LitElement {
 
   private renderBuffer() {
     if (!this.terminal || !this.container) return;
-
-    console.log(`RENDER CALLED! Stack trace:`, new Error().stack);
-
-    const renderStart = performance.now();
 
     const buffer = this.terminal.buffer.active;
     const bufferLength = buffer.length;
@@ -623,10 +587,6 @@ export class Terminal extends LitElement {
     const startRow = Math.floor(startRowFloat);
     const pixelOffset = (startRowFloat - startRow) * lineHeight;
 
-    console.log(
-      `render: viewportY=${this.viewportY}, lineHeight=${lineHeight}, startRowFloat=${startRowFloat}, startRow=${startRow}, pixelOffset=${pixelOffset}`
-    );
-
     // Build complete innerHTML string
     let html = '';
     const cell = buffer.getNullCell();
@@ -636,7 +596,6 @@ export class Terminal extends LitElement {
     const cursorY = this.terminal.buffer.active.cursorY + this.terminal.buffer.active.viewportY;
 
     // Render exactly actualRows
-    console.log(`Rendering ${this.actualRows} rows, starting from row ${startRow}`);
     for (let i = 0; i < this.actualRows; i++) {
       const row = startRow + i;
 
@@ -666,10 +625,6 @@ export class Terminal extends LitElement {
 
     // Process links after rendering
     UrlHighlighter.processLinks(this.container);
-    const renderEnd = performance.now();
-    const totalTime = renderEnd - renderStart;
-
-    console.log(`Render: ${totalTime.toFixed(1)}ms`);
   }
 
   private renderLine(line: IBufferLine, cell: IBufferCell, cursorCol: number = -1): string {
@@ -709,14 +664,38 @@ export class Terminal extends LitElement {
 
       // Get foreground color
       const fg = cell.getFgColor();
-      if (fg !== undefined && typeof fg === 'number' && fg >= 0) {
-        style += `color: var(--terminal-color-${fg});`;
+      if (fg !== undefined) {
+        if (typeof fg === 'number' && fg >= 0 && fg <= 255) {
+          // Standard palette color (0-255)
+          style += `color: var(--terminal-color-${fg});`;
+        } else if (typeof fg === 'number' && fg > 255) {
+          // 24-bit RGB color - convert to CSS hex
+          const r = (fg >> 16) & 0xff;
+          const g = (fg >> 8) & 0xff;
+          const b = fg & 0xff;
+          style += `color: rgb(${r}, ${g}, ${b});`;
+        } else if (typeof fg === 'object' && fg.css) {
+          // RGB color object with CSS representation
+          style += `color: ${fg.css};`;
+        }
       }
 
       // Get background color
       const bg = cell.getBgColor();
-      if (bg !== undefined && typeof bg === 'number' && bg >= 0) {
-        style += `background-color: var(--terminal-color-${bg});`;
+      if (bg !== undefined) {
+        if (typeof bg === 'number' && bg >= 0 && bg <= 255) {
+          // Standard palette color (0-255)
+          style += `background-color: var(--terminal-color-${bg});`;
+        } else if (typeof bg === 'number' && bg > 255) {
+          // 24-bit RGB color - convert to CSS hex
+          const r = (bg >> 16) & 0xff;
+          const g = (bg >> 8) & 0xff;
+          const b = bg & 0xff;
+          style += `background-color: rgb(${r}, ${g}, ${b});`;
+        } else if (typeof bg === 'object' && bg.css) {
+          // RGB color object with CSS representation
+          style += `background-color: ${bg.css};`;
+        }
       }
 
       // Override background for cursor
@@ -765,8 +744,9 @@ export class Terminal extends LitElement {
   /**
    * Write data to the terminal buffer.
    * @param data - String data to write (supports ANSI escape sequences)
+   * @param followCursor - If true, automatically scroll to keep cursor visible (default: true)
    */
-  public write(data: string) {
+  public write(data: string, followCursor: boolean = true) {
     if (!this.terminal) return;
 
     this.queueOperation(async () => {
@@ -780,6 +760,11 @@ export class Terminal extends LitElement {
           resolve();
         }
       });
+
+      // Follow cursor if requested
+      if (followCursor) {
+        this.followCursor();
+      }
     });
   }
 
@@ -825,23 +810,13 @@ export class Terminal extends LitElement {
   public scrollToBottom() {
     if (!this.terminal) return;
 
-    console.log(`scrollToBottom called! Stack:`, new Error().stack);
-
     this.queueOperation(() => {
-      console.log(`scrollToBottom operation executing, actualRows=${this.actualRows}`);
       if (!this.terminal) return;
 
       const buffer = this.terminal.buffer.active;
       const lineHeight = this.fontSize * 1.2;
       // Use the same maxScrollPixels calculation as scrollViewportPixels
       const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
-      console.log(
-        `scrollToBottom DETAILED: buffer.length=${buffer.length}, actualRows=${this.actualRows}, lineHeight=${lineHeight}, fontSize=${this.fontSize}`
-      );
-      console.log(
-        `scrollToBottom calculation: (${buffer.length} - ${this.actualRows}) * ${lineHeight} = ${maxScrollPixels}`
-      );
-      console.log(`scrollToBottom setting viewportY to ${maxScrollPixels}`);
       this.viewportY = maxScrollPixels;
 
       // Force a render since scroll position changed
@@ -930,6 +905,38 @@ export class Terminal extends LitElement {
     if (!this.terminal) return 0;
     const buffer = this.terminal.buffer.active;
     return Math.max(0, buffer.length - this.actualRows);
+  }
+
+  /**
+   * Scroll the viewport to follow the cursor position.
+   * This ensures the cursor stays visible during text input or playback.
+   */
+  private followCursor() {
+    if (!this.terminal) return;
+
+    const buffer = this.terminal.buffer.active;
+    const cursorY = buffer.cursorY + buffer.viewportY; // Absolute cursor position in buffer
+    const lineHeight = this.fontSize * 1.2;
+
+    // Calculate what line the cursor is on
+    const cursorLine = cursorY;
+
+    // Calculate current viewport range in lines
+    const viewportStartLine = Math.floor(this.viewportY / lineHeight);
+    const viewportEndLine = viewportStartLine + this.actualRows - 1;
+
+    // If cursor is outside viewport, scroll to keep it visible
+    if (cursorLine < viewportStartLine) {
+      // Cursor is above viewport - scroll up
+      this.viewportY = cursorLine * lineHeight;
+    } else if (cursorLine > viewportEndLine) {
+      // Cursor is below viewport - scroll down to show cursor at bottom of viewport
+      this.viewportY = Math.max(0, (cursorLine - this.actualRows + 1) * lineHeight);
+    }
+
+    // Ensure we don't scroll past the buffer
+    const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
+    this.viewportY = Math.min(this.viewportY, maxScrollPixels);
   }
 
   /**

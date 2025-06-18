@@ -115,6 +115,7 @@
         </div>
         <div style="padding: 8px; display: flex; gap: 8px; justify-content: center;">
             <button id="fit-toggle-btn" class="size-btn">📐 Horizontal Fit: OFF</button>
+            <button id="play-cast-btn" class="size-btn">🎬 Play Cast File</button>
         </div>
         <div style="padding: 4px; text-align: center; color: #ccc; font-size: 10px;">
             Try text selection, scrolling (wheel/touch), different viewport sizes, and horizontal fitting
@@ -138,6 +139,8 @@
     <script type="module" src="../bundle/terminal.js"></script>
 
     <script type="module">
+        import { CastConverter } from '../bundle/terminal.js';
+
         console.log('DOM Terminal Test Page Loaded');
         console.log('XTerm available:', typeof Terminal !== 'undefined');
 
@@ -152,8 +155,8 @@
         let terminal = document.getElementById('main-terminal');
         setupSizeControls();
         setupFitToggle();
+        setupPlayCast();
         generateMockData();
-        terminal.write("Hello world");
 
         function generateMockData() {
             if (!terminal) return;
@@ -416,7 +419,7 @@
 
             // Only write first 10 lines
             terminal.write(content);
-            
+
             // Scroll to bottom after all content is written
             terminal.queueCallback(() => {
                 terminal.scrollToBottom();
@@ -477,6 +480,60 @@
             }
 
             console.log('Fit toggle setup complete - button will toggle horizontal fitting mode');
+        }
+
+        function setupPlayCast() {
+            const playCastBtn = document.getElementById('play-cast-btn');
+
+            if (playCastBtn && terminal) {
+                playCastBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    try {
+                        // Update button to show loading state
+                        const originalText = playCastBtn.textContent;
+                        playCastBtn.textContent = '⏳ Loading Cast...';
+                        playCastBtn.disabled = true;
+
+                        // Clear terminal and fetch cast file
+                        terminal.clear();
+
+                        console.log('Fetching cast file');
+                        const response = await fetch('../test4.cast');
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch cast file: ${response.status}`);
+                        }
+
+                        const castContent = await response.text();
+                        console.log('Cast file loaded, size:', castContent.length);
+
+                        // Update button to show playing state
+                        playCastBtn.textContent = '▶️ Playing...';
+
+                        // Play the cast file with 2x speed for demo
+                        await CastConverter.playOnTerminal(terminal, castContent, 2.0);
+
+                        console.log('Cast playback completed');
+
+                        // Restore button
+                        playCastBtn.textContent = originalText;
+                        playCastBtn.disabled = false;
+
+                    } catch (error) {
+                        console.error('Error playing cast file:', error);
+
+                        // Show error and restore button
+                        playCastBtn.textContent = '❌ Error';
+                        setTimeout(() => {
+                            playCastBtn.textContent = '🎬 Play Cast File';
+                            playCastBtn.disabled = false;
+                        }, 2000);
+                    }
+                });
+            }
+
+            console.log('Play cast setup complete - button will play ../stream-out cast file');
         }
     </script>
 </body>
