@@ -40,6 +40,9 @@ export class Terminal extends LitElement {
   private scrollAccumulator = 0;
   private touchScrollAccumulator = 0;
   private isTouchActive = false;
+  private momentumVelocityY = 0;
+  private momentumVelocityX = 0;
+  private momentumAnimation: number | null = null;
 
   // Operation queue for batching buffer modifications
   private operationQueue: (() => void | Promise<void>)[] = [];
@@ -79,6 +82,12 @@ export class Terminal extends LitElement {
   }
 
   private cleanup() {
+    // Stop momentum animation
+    if (this.momentumAnimation) {
+      cancelAnimationFrame(this.momentumAnimation);
+      this.momentumAnimation = null;
+    }
+
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -345,19 +354,29 @@ export class Terminal extends LitElement {
       { passive: false }
     );
 
-    // Simple 1:1 touch scrolling
+    // Touch scrolling with momentum
     let isScrolling = false;
     let lastY = 0;
     let lastX = 0;
+    let touchHistory: Array<{ y: number; x: number; time: number }> = [];
 
     const handlePointerDown = (e: PointerEvent) => {
       // Only handle touch pointers, not mouse
       if (e.pointerType !== 'touch' || !e.isPrimary) return;
 
+      // Stop any existing momentum
+      if (this.momentumAnimation) {
+        cancelAnimationFrame(this.momentumAnimation);
+        this.momentumAnimation = null;
+      }
+
       this.isTouchActive = true;
       isScrolling = false;
       lastY = e.clientY;
       lastX = e.clientX;
+
+      // Initialize touch tracking
+      touchHistory = [{ y: e.clientY, x: e.clientX, time: performance.now() }];
 
       // Capture the pointer so we continue to receive events even if DOM rebuilds
       this.container?.setPointerCapture(e.pointerId);
@@ -372,6 +391,13 @@ export class Terminal extends LitElement {
       const deltaY = lastY - currentY; // Positive = scroll down, negative = scroll up
       const deltaX = lastX - currentX; // Positive = scroll right, negative = scroll left
 
+      // Track touch history for velocity calculation (keep last 5 points)
+      const now = performance.now();
+      touchHistory.push({ y: currentY, x: currentX, time: now });
+      if (touchHistory.length > 5) {
+        touchHistory.shift();
+      }
+
       // Start scrolling if we've moved more than a few pixels
       if (!isScrolling && (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5)) {
         isScrolling = true;
@@ -381,7 +407,6 @@ export class Terminal extends LitElement {
 
       // Vertical scrolling (our custom pixel-based)
       if (Math.abs(deltaY) > 0) {
-        console.log(`Touch scroll: deltaY=${deltaY}, currentViewportY=${this.viewportY}`);
         this.scrollViewportPixels(deltaY);
         lastY = currentY;
       }
@@ -398,6 +423,27 @@ export class Terminal extends LitElement {
       if (e.pointerType !== 'touch') return;
 
       this.isTouchActive = false;
+
+      // Calculate momentum if we were scrolling
+      if (isScrolling && touchHistory.length >= 2) {
+        const now = performance.now();
+        const recent = touchHistory[touchHistory.length - 1];
+        const older = touchHistory[touchHistory.length - 2];
+
+        const timeDiff = now - older.time;
+        const distanceY = recent.y - older.y;
+        const distanceX = recent.x - older.x;
+
+        // Calculate velocity in pixels per millisecond
+        const velocityY = timeDiff > 0 ? -distanceY / timeDiff : 0; // Negative for scroll direction
+        const velocityX = timeDiff > 0 ? -distanceX / timeDiff : 0;
+
+        // Start momentum if velocity is above threshold
+        const minVelocity = 0.3; // pixels per ms
+        if (Math.abs(velocityY) > minVelocity || Math.abs(velocityX) > minVelocity) {
+          this.startMomentum(velocityY, velocityX);
+        }
+      }
 
       // Release pointer capture
       this.container?.releasePointerCapture(e.pointerId);
@@ -453,6 +499,85 @@ export class Terminal extends LitElement {
           this.renderPending = false;
         });
       }
+    }
+  }
+
+  private startMomentum(velocityY: number, velocityX: number) {
+    // Store momentum velocities
+    this.momentumVelocityY = velocityY * 16; // Convert from pixels/ms to pixels/frame (assuming 60fps)
+    this.momentumVelocityX = velocityX * 16;
+
+    console.log(
+      `Starting momentum: velocityY=${this.momentumVelocityY}, velocityX=${this.momentumVelocityX}`
+    );
+
+    // Cancel any existing momentum
+    if (this.momentumAnimation) {
+      cancelAnimationFrame(this.momentumAnimation);
+    }
+
+    // Start momentum animation
+    this.animateMomentum();
+  }
+
+  private animateMomentum() {
+    const minVelocity = 0.1; // Stop when velocity gets very small
+    const decayFactor = 0.92; // Exponential decay per frame
+
+    // Apply current velocity to scroll position
+    const deltaY = this.momentumVelocityY;
+    const deltaX = this.momentumVelocityX;
+
+    let scrolled = false;
+
+    // Apply vertical momentum
+    if (Math.abs(deltaY) > minVelocity) {
+      const buffer = this.terminal?.buffer.active;
+      if (buffer) {
+        const lineHeight = this.fontSize * 1.2;
+        const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
+        const newViewportY = Math.max(0, Math.min(maxScrollPixels, this.viewportY + deltaY));
+
+        if (newViewportY !== this.viewportY) {
+          this.viewportY = newViewportY;
+          scrolled = true;
+        } else {
+          // Hit boundary, stop vertical momentum
+          this.momentumVelocityY = 0;
+        }
+      }
+    }
+
+    // Apply horizontal momentum (only if not in horizontal fit mode)
+    if (Math.abs(deltaX) > minVelocity && !this.fitHorizontally && this.container) {
+      const newScrollLeft = this.container.scrollLeft + deltaX;
+      this.container.scrollLeft = newScrollLeft;
+      scrolled = true;
+    }
+
+    // Decay velocities
+    this.momentumVelocityY *= decayFactor;
+    this.momentumVelocityX *= decayFactor;
+
+    // Continue animation if velocities are still significant
+    if (
+      Math.abs(this.momentumVelocityY) > minVelocity ||
+      Math.abs(this.momentumVelocityX) > minVelocity
+    ) {
+      this.momentumAnimation = requestAnimationFrame(() => {
+        this.animateMomentum();
+      });
+
+      // Render if we scrolled
+      if (scrolled) {
+        this.renderBuffer();
+      }
+    } else {
+      // Momentum finished
+      console.log('Momentum finished');
+      this.momentumAnimation = null;
+      this.momentumVelocityY = 0;
+      this.momentumVelocityX = 0;
     }
   }
 
