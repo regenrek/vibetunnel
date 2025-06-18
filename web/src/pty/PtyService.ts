@@ -75,7 +75,7 @@ export class PtyService {
     // Auto-detection
     try {
       // Check if node-pty is available and working
-      require('node-pty');
+      require('@lydell/node-pty');
 
       // Check if we have write access to control directory
       const controlPath = this.config.controlPath;

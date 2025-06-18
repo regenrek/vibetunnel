@@ -5,7 +5,7 @@
  * using the node-pty library while maintaining compatibility with tty-fwd.
  */
 
-import * as pty from 'node-pty';
+import * as pty from '@lydell/node-pty';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs';
