@@ -146,9 +146,7 @@ private struct TerminalPreferenceSection: View {
                         ForEach(Terminal.installed, id: \.rawValue) { terminal in
                             HStack {
                                 if let icon = terminal.appIcon {
-                                    Image(nsImage: icon)
-                                        .resizable()
-                                        .frame(width: 16, height: 16)
+                                    Image(nsImage: icon.resized(to: NSSize(width: 16, height: 16)))
                                 }
                                 Text(terminal.displayName)
                             }
