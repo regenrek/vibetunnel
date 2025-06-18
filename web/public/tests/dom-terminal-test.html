@@ -152,9 +152,7 @@
         setupSizeControls();
         setupFitToggle();
         generateMockData();
-        terminal.queueCallback(() => {
         terminal.write("Hello world");
-        });
 
         function generateMockData() {
             if (!terminal) return;
@@ -416,13 +414,13 @@
             content += '\x1b[37m╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\x1b[0m\r\n';
 
             // Only write first 10 lines
-            const lines = content.split('\r\n');
-            const firstTenLines = lines.slice(0, 50).join('\r\n');
-            terminal.write(firstTenLines);
+            terminal.write(content);
 
             // Scroll to bottom after content is written
-            terminal.scrollToBottom();
-            console.log('Mock data generation completed!');
+            terminal.queueCallback(() => {
+                terminal.scrollToBottom();
+                console.log('Mock data generation completed!');
+            });
         }
 
         function setupSizeControls() {

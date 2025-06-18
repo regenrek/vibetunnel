@@ -460,7 +460,7 @@ export class Terminal extends LitElement {
 
     // Get cursor position
     const cursorX = this.terminal.buffer.active.cursorX;
-    const cursorY = this.terminal.buffer.active.cursorY;
+    const cursorY = this.terminal.buffer.active.cursorY + this.terminal.buffer.active.viewportY;
 
     for (let i = 0; i < this.actualRows; i++) {
       const row = startRow + i;
@@ -479,11 +479,7 @@ export class Terminal extends LitElement {
       // Check if cursor is on this line (relative to viewport)
       // Cursor Y is relative to terminal size, but we're rendering with actualRows
       // Need to offset cursor position by the difference
-      const adjustedCursorY = cursorY + (this.actualRows - this.rows);
-      const isCursorLine =
-        row === adjustedCursorY &&
-        adjustedCursorY >= startRow &&
-        adjustedCursorY < startRow + this.actualRows;
+      const isCursorLine = row === cursorY;
       const lineContent = this.renderLine(line, cell, isCursorLine ? cursorX : -1);
       html += `<div class="terminal-line">${lineContent || ''}</div>`;
     }
@@ -661,6 +657,11 @@ export class Terminal extends LitElement {
     if (!this.terminal) return;
 
     this.queueOperation(() => {
+      // Don't scroll if terminal isn't properly fitted yet
+      if (this.actualRows <= 1) {
+        return;
+      }
+
       const buffer = this.terminal!.buffer.active;
       const maxScroll = Math.max(0, buffer.length - this.actualRows);
       this.viewportY = maxScroll;
