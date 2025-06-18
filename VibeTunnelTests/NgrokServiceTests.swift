@@ -261,8 +261,17 @@ struct NgrokServiceTests {
         service.shouldFailStart = true
         service.startError = NgrokError.networkError("Connection lost")
         
-        await #expect(throws: NgrokError.networkError) {
+        do {
             _ = try await service.start(port: 4020)
+            Issue.record("Expected network error to be thrown")
+        } catch let error as NgrokError {
+            if case .networkError = error {
+                // Expected error
+            } else {
+                Issue.record("Unexpected error type: \(error)")
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
         
         // Recovery
@@ -278,8 +287,17 @@ struct NgrokServiceTests {
         service.startError = NgrokError.networkError("Operation timed out")
         service.shouldFailStart = true
         
-        await #expect(throws: NgrokError.networkError) {
+        do {
             _ = try await service.start(port: 4020)
+            Issue.record("Expected network error to be thrown")
+        } catch let error as NgrokError {
+            if case .networkError = error {
+                // Expected error
+            } else {
+                Issue.record("Unexpected error type: \(error)")
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
     

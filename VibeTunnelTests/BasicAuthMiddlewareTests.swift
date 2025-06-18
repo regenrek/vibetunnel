@@ -8,13 +8,7 @@ import NIOCore
 
 // MARK: - Mock Request Context
 
-struct MockRequestContext: RequestContext {
-    var coreContext: CoreRequestContext
-    
-    init(allocator: ByteBufferAllocator = ByteBufferAllocator(), logger: Logger = Logger(label: "test")) {
-        self.coreContext = CoreRequestContext(allocator: allocator, logger: logger)
-    }
-}
+typealias MockRequestContext = BasicRequestContext
 
 // MARK: - Test Helpers
 
@@ -44,7 +38,7 @@ struct BasicAuthMiddlewareTests {
                 path: path,
                 headerFields: headers
             ),
-            body: RequestBody(byteBuffer: ByteBuffer())
+            body: RequestBody(buffer: ByteBuffer())
         )
     }
     
@@ -118,7 +112,7 @@ struct BasicAuthMiddlewareTests {
         )
         
         #expect(response.status == .unauthorized)
-        #expect(response.headers[.wwwAuthenticate]?.contains("Basic realm=") == true)
+        #expect(response.headers[HTTPField.Name("WWW-Authenticate")!]?.contains("Basic realm=") == true)
     }
     
     @Test("Missing authorization header")
@@ -130,7 +124,7 @@ struct BasicAuthMiddlewareTests {
         let response = try await middleware.handle(request, context: context, next: createNextHandler())
         
         #expect(response.status == .unauthorized)
-        #expect(response.headers[.wwwAuthenticate] == "Basic realm=\"VibeTunnel Dashboard\"")
+        #expect(response.headers[HTTPField.Name("WWW-Authenticate")!] == "Basic realm=\"VibeTunnel Dashboard\"")
     }
     
     @Test("Invalid authorization header format", arguments: [
@@ -237,7 +231,7 @@ struct BasicAuthMiddlewareTests {
         let response = try await middleware.handle(request, context: context, next: createNextHandler())
         
         #expect(response.status == .unauthorized)
-        #expect(response.headers[.wwwAuthenticate] == "Basic realm=\"\(customRealm)\"")
+        #expect(response.headers[HTTPField.Name("WWW-Authenticate")!] == "Basic realm=\"\(customRealm)\"")
     }
     
     // MARK: - Rate Limiting Tests

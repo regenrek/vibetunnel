@@ -90,6 +90,14 @@ actor MockTerminalManager {
         executeCommandShouldFail = false
         executeCommandOutput = ("", "")
     }
+    
+    func setCreateSessionShouldFail(_ value: Bool) {
+        createSessionShouldFail = value
+    }
+    
+    func setExecuteCommandOutput(_ value: (String, String)) {
+        executeCommandOutput = value
+    }
 }
 
 // MARK: - Terminal Manager Tests
@@ -174,7 +182,7 @@ struct TerminalManagerTests {
     func testSessionCreationFailure() async throws {
         let manager = MockTerminalManager()
         await manager.reset()
-        manager.createSessionShouldFail = true
+        await manager.setCreateSessionShouldFail(true)
         
         await #expect(throws: TunnelError.invalidRequest) {
             _ = try await manager.createSession(request: CreateSessionRequest())
@@ -198,7 +206,7 @@ struct TerminalManagerTests {
         let session = try await manager.createSession(request: CreateSessionRequest())
         
         // Set expected output
-        manager.executeCommandOutput = ("Command output\n", "")
+        await manager.setExecuteCommandOutput(("Command output\n", ""))
         
         // Execute command
         let (output, error) = try await manager.executeCommand(
@@ -215,7 +223,7 @@ struct TerminalManagerTests {
         let manager = MockTerminalManager()
         
         let session = try await manager.createSession(request: CreateSessionRequest())
-        manager.executeCommandOutput = ("", "Command not found\n")
+        await manager.setExecuteCommandOutput(("", "Command not found\n"))
         
         let (output, error) = try await manager.executeCommand(
             sessionId: session.id,
@@ -366,7 +374,7 @@ struct TerminalManagerTests {
         
         // Create a session
         let session = try await manager.createSession(request: CreateSessionRequest())
-        manager.executeCommandOutput = ("OK\n", "")
+        await manager.setExecuteCommandOutput(("OK\n", ""))
         
         // Execute multiple commands concurrently
         let results = await withTaskGroup(of: Result<String, Error>.self) { group in
@@ -434,7 +442,7 @@ struct TerminalManagerTests {
         #expect(retrieved?.isActive == true)
         
         // 3. Execute commands
-        manager.executeCommandOutput = ("test output\n", "")
+        await manager.setExecuteCommandOutput(("test output\n", ""))
         let (output1, _) = try await manager.executeCommand(
             sessionId: session.id,
             command: "echo test"

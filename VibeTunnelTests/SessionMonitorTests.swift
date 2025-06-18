@@ -5,18 +5,18 @@ import Foundation
 // MARK: - Mock URLSession for Testing
 
 @MainActor
-final class MockURLSession: URLSession {
+final class MockURLSession {
     var responses: [URL: (Data, URLResponse)] = [:]
     var errors: [URL: Error] = [:]
     var requestDelay: Duration?
     var requestCount = 0
     
-    override func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         requestCount += 1
         
         // Simulate delay if configured
         if let delay = requestDelay {
-            try await Task.sleep(for: delay)
+            try await Task.sleep(nanoseconds: UInt64(delay.components.seconds * 1_000_000_000))
         }
         
         guard let url = request.url else {
@@ -47,17 +47,28 @@ final class MockURLSession: URLSession {
 // MARK: - Mock Session Monitor
 
 @MainActor
-final class MockSessionMonitor: SessionMonitor {
-    var mockSessions: [String: SessionInfo] = [:]
+final class MockSessionMonitor {
+    var mockSessions: [String: SessionMonitor.SessionInfo] = [:]
     var mockSessionCount = 0
     var mockLastError: String?
     var fetchSessionsCalled = false
     
-    override func fetchSessions() async {
+    var sessions: [String: SessionMonitor.SessionInfo] {
+        mockSessions
+    }
+    
+    var sessionCount: Int {
+        mockSessionCount
+    }
+    
+    var lastError: String? {
+        mockLastError
+    }
+    
+    init() {}
+    
+    func fetchSessions() async {
         fetchSessionsCalled = true
-        self.sessions = mockSessions
-        self.sessionCount = mockSessionCount
-        self.lastError = mockLastError
     }
     
     func reset() {
@@ -81,15 +92,14 @@ struct SessionMonitorTests {
         exitCode: Int? = nil
     ) -> SessionMonitor.SessionInfo {
         SessionMonitor.SessionInfo(
-            cmdline: ["/bin/bash"],
-            cwd: "/Users/test",
-            exitCode: exitCode,
-            name: id,
-            pid: Int.random(in: 1000...9999),
-            startedAt: ISO8601DateFormatter().string(from: Date()),
+            id: id,
+            command: "/bin/bash",
+            workingDir: "/Users/test",
             status: status,
-            stdin: "/tmp/\(id)/stdin",
-            streamOut: "/tmp/\(id)/stdout"
+            exitCode: exitCode,
+            startedAt: ISO8601DateFormatter().string(from: Date()),
+            lastModified: ISO8601DateFormatter().string(from: Date()),
+            pid: Int.random(in: 1000...9999)
         )
     }
     
@@ -125,7 +135,7 @@ struct SessionMonitorTests {
         #expect(monitor.sessions["session-3"]?.isRunning == false)
     }
     
-    @Test("Detecting stale sessions", .timeLimit(.seconds(5)))
+    @Test("Detecting stale sessions")
     func testStaleSessionDetection() async throws {
         let monitor = SessionMonitor.shared
         
@@ -145,7 +155,7 @@ struct SessionMonitorTests {
         let monitor = MockSessionMonitor()
         
         let session = createTestSession(status: "running")
-        monitor.mockSessions = [session.name: session]
+        monitor.mockSessions = [session.id: session]
         monitor.mockSessionCount = 1
         
         await monitor.fetchSessions()
@@ -154,17 +164,17 @@ struct SessionMonitorTests {
         
         // Simulate session timeout
         let timedOutSession = createTestSession(
-            id: session.name,
+            id: session.id,
             status: "exited",
             exitCode: 124 // Common timeout exit code
         )
-        monitor.mockSessions = [session.name: timedOutSession]
+        monitor.mockSessions = [session.id: timedOutSession]
         monitor.mockSessionCount = 0
         
         await monitor.fetchSessions()
         
         #expect(monitor.sessionCount == 0)
-        #expect(monitor.sessions[session.name]?.exitCode == 124)
+        #expect(monitor.sessions[session.id]?.exitCode == 124)
     }
     
     // MARK: - Session Lifecycle Tests
@@ -195,11 +205,11 @@ struct SessionMonitorTests {
         
         // Set up a session
         let session = createTestSession()
-        monitor.mockSessions = [session.name: session]
+        monitor.mockSessions = [session.id: session]
         monitor.mockSessionCount = 1
         
         // Refresh
-        await monitor.refreshNow()
+        await await monitor.fetchSessions()
         
         #expect(monitor.fetchSessionsCalled)
         #expect(monitor.sessionCount == 1)
@@ -213,11 +223,16 @@ struct SessionMonitorTests {
         
         // When server is not running, sessions should be empty
         // This test assumes server might not be running during tests
-        await monitor.fetchSessions()
+        monitor.startMonitoring()
+        
+        // Wait a bit for initial fetch
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
         
         // Should gracefully handle server not being available
         #expect(monitor.sessions.isEmpty || monitor.sessions.count >= 0)
         #expect(monitor.lastError == nil || monitor.lastError?.isEmpty == false)
+        
+        monitor.stopMonitoring()
     }
     
     @Test("Handle invalid session data")
@@ -242,15 +257,15 @@ struct SessionMonitorTests {
             status: "running"
         )
         
-        #expect(session.name == "test-session")
+        #expect(session.id == "test-session")
         #expect(session.status == "running")
         #expect(session.isRunning)
         #expect(session.exitCode == nil)
-        #expect(session.cmdline == ["/bin/bash"])
-        #expect(session.cwd == "/Users/test")
+        #expect(session.command == "/bin/bash")
+        #expect(session.workingDir == "/Users/test")
         #expect(session.pid > 0)
-        #expect(!session.stdin.isEmpty)
-        #expect(!session.streamOut.isEmpty)
+        #expect(!session.startedAt.isEmpty)
+        #expect(!session.lastModified.isEmpty)
     }
     
     @Test("Session JSON encoding/decoding")
@@ -265,7 +280,7 @@ struct SessionMonitorTests {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode(SessionMonitor.SessionInfo.self, from: data)
         
-        #expect(decoded.name == session.name)
+        #expect(decoded.id == session.id)
         #expect(decoded.status == session.status)
         #expect(decoded.pid == session.pid)
         #expect(decoded.exitCode == session.exitCode)
@@ -286,7 +301,7 @@ struct SessionMonitorTests {
                 id: "session-\(i)",
                 status: i % 3 == 0 ? "exited" : "running"
             )
-            sessions[session.name] = session
+            sessions[session.id] = session
         }
         
         monitor.mockSessions = sessions
@@ -351,9 +366,9 @@ struct SessionMonitorTests {
         await withTaskGroup(of: Void.self) { group in
             // Multiple concurrent fetches
             for i in 0..<5 {
-                group.addTask {
+                group.addTask { @MainActor in
                     let session = self.createTestSession(id: "concurrent-\(i)")
-                    monitor.mockSessions[session.name] = session
+                    monitor.mockSessions[session.id] = session
                     monitor.mockSessionCount = monitor.mockSessions.values.count { $0.isRunning }
                     await monitor.fetchSessions()
                 }
@@ -381,8 +396,8 @@ struct SessionMonitorTests {
         let session1 = createTestSession(id: "cycle-1", status: "running")
         let session2 = createTestSession(id: "cycle-2", status: "running")
         monitor.mockSessions = [
-            session1.name: session1,
-            session2.name: session2
+            session1.id: session1,
+            session2.id: session2
         ]
         monitor.mockSessionCount = 2
         
@@ -391,7 +406,7 @@ struct SessionMonitorTests {
         
         // 3. One session exits
         let exitedSession = createTestSession(id: "cycle-1", status: "exited", exitCode: 0)
-        monitor.mockSessions[session1.name] = exitedSession
+        monitor.mockSessions[session1.id] = exitedSession
         monitor.mockSessionCount = 1
         
         await monitor.fetchSessions()

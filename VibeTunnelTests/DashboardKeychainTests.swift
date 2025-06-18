@@ -262,14 +262,15 @@ struct DashboardKeychainTests {
         await withTaskGroup(of: Bool.self) { group in
             // Multiple writes
             for i in 0..<5 {
-                group.addTask {
+                group.addTask { @MainActor in
                     keychain.setPassword("password-\(i)")
+                    return true
                 }
             }
             
             // Multiple reads
             for _ in 0..<5 {
-                group.addTask {
+                group.addTask { @MainActor in
                     _ = keychain.getPassword()
                     return keychain.hasPassword()
                 }

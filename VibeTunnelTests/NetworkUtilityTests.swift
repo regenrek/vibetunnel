@@ -142,6 +142,7 @@ struct NetworkUtilityTests {
     // MARK: - Edge Cases Tests
     
     @Test("Handle no network interfaces")
+    @MainActor
     func testNoNetworkInterfaces() throws {
         // In a real scenario where no interfaces are available
         // the functions should return nil/empty array gracefully
@@ -155,6 +156,7 @@ struct NetworkUtilityTests {
     }
     
     @Test("Multiple network interfaces")
+    @MainActor
     func testMultipleInterfaces() throws {
         // When multiple interfaces exist, we should get all of them
         MockNetworkUtility.mockAllIPs = [
@@ -262,6 +264,7 @@ struct NetworkUtilityTests {
     // MARK: - Mock Tests
     
     @Test("Mock network utility behavior")
+    @MainActor
     func testMockUtility() throws {
         // Set up mock
         MockNetworkUtility.mockLocalIP = "192.168.1.100"

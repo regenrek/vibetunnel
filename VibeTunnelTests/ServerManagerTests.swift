@@ -21,9 +21,9 @@ final class MockServer: ServerProtocol {
     
     init(serverType: ServerMode = .rust) {
         self.serverType = serverType
-        self.logStream = AsyncStream { continuation in
-            self.logContinuation = continuation
-        }
+        let (stream, continuation) = AsyncStream<ServerLogEntry>.makeStream()
+        self.logStream = stream
+        self.logContinuation = continuation
     }
     
     func start() async throws {
@@ -362,7 +362,7 @@ struct ServerManagerTests {
         await manager.start()
         
         // Give time for cleanup request
-        try await Task.sleep(for: .seconds(1))
+        try await Task.sleep(nanoseconds: 1_000_000_000)
         
         // In a real test, we'd verify the cleanup endpoint was called
         // For now, we just verify the server started successfully

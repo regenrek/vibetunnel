@@ -105,7 +105,25 @@ final class MockTTYForwardManager {
             return process
         }
         
-        return super.createTTYForwardProcess(with: arguments)
+        // Create a default process if no factory provided
+        let process = Process()
+        process.executableURL = mockExecutableURL
+        process.arguments = arguments
+        return process
+    }
+    
+    func executeTTYForward(with arguments: [String], completion: @escaping (Result<Process, Error>) -> Void) {
+        guard let executableURL = mockExecutableURL else {
+            completion(.failure(TTYForwardError.executableNotFound))
+            return
+        }
+        
+        guard let process = createTTYForwardProcess(with: arguments) else {
+            completion(.failure(TTYForwardError.executableNotFound))
+            return
+        }
+        
+        completion(.success(process))
     }
 }
 
@@ -223,7 +241,7 @@ struct TTYForwardManagerTests {
     @Test("Process termination handling")
     func testProcessTermination() async throws {
         let expectation = Expectation()
-        let mockProcess = MockProcess()
+        let mockProcess = MockTTYProcess()
         mockProcess.simulatedTerminationStatus = 0
         
         // Set up mock manager
@@ -251,7 +269,7 @@ struct TTYForwardManagerTests {
     @Test("Process failure handling")
     func testProcessFailure() async throws {
         let expectation = Expectation()
-        let mockProcess = MockProcess()
+        let mockProcess = MockTTYProcess()
         mockProcess.simulatedTerminationStatus = 1
         mockProcess.simulatedError = "Error: Failed to create session"
         
@@ -290,7 +308,7 @@ struct TTYForwardManagerTests {
         
         await withTaskGroup(of: Process?.self) { group in
             for i in 0..<sessionCount {
-                group.addTask {
+                group.addTask { @MainActor in
                     let sessionName = "concurrent-\(i)-\(UUID().uuidString)"
                     let arguments = [
                         "--session-name", sessionName,
@@ -325,13 +343,15 @@ struct TTYForwardManagerTests {
     
     @Test("Session cleanup on disconnect")
     func testSessionCleanup() async throws {
-        let mockProcess = MockProcess()
+        let mockProcess = MockTTYProcess()
         mockProcess.simulatedTerminationStatus = 0
         
         // Verify process can be terminated
         let expectation = Expectation()
         mockProcess.terminationHandler = { _ in
-            expectation.fulfill()
+            Task { @MainActor in
+                expectation.fulfill()
+            }
         }
         
         // Start the process
@@ -350,7 +370,7 @@ struct TTYForwardManagerTests {
     
     @Test("Capture session ID from stdout")
     func testCaptureSessionId() async throws {
-        let mockProcess = MockProcess()
+        let mockProcess = MockTTYProcess()
         let sessionId = UUID().uuidString
         mockProcess.simulatedOutput = sessionId
         
@@ -370,7 +390,7 @@ struct TTYForwardManagerTests {
     
     @Test("Handle stderr output")
     func testStderrCapture() async throws {
-        let mockProcess = MockProcess()
+        let mockProcess = MockTTYProcess()
         let errorMessage = "Error: Port already in use"
         mockProcess.simulatedError = errorMessage
         mockProcess.simulatedTerminationStatus = 1
@@ -400,29 +420,21 @@ enum TestError: Error {
 
 @MainActor
 final class Expectation {
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var fulfilled = false
     
     func fulfill() {
-        continuation?.resume()
-        continuation = nil
+        fulfilled = true
     }
     
     func fulfillment(timeout: Duration) async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                await withCheckedContinuation { continuation in
-                    self.continuation = continuation
-                }
+        let deadline = Date().addingTimeInterval(TimeInterval(timeout.components.seconds))
+        
+        while Date() < deadline {
+            if fulfilled {
+                return
             }
             
-            group.addTask {
-                try? await Task.sleep(for: timeout)
-                self.continuation?.resume()
-                self.continuation = nil
-            }
-            
-            await group.next()
-            group.cancelAll()
+            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
         }
     }
 }
