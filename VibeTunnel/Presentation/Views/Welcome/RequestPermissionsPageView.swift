@@ -22,13 +22,13 @@ import SwiftUI
 struct RequestPermissionsPageView: View {
     @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
     @State private var accessibilityUpdateTrigger = 0
-    
+
     private var hasAccessibilityPermission: Bool {
         // This will cause a re-read whenever accessibilityUpdateTrigger changes
         _ = accessibilityUpdateTrigger
         return AccessibilityPermissionManager.shared.hasPermission()
     }
-    
+
     var body: some View {
         VStack(spacing: 30) {
             // App icon
@@ -36,12 +36,12 @@ struct RequestPermissionsPageView: View {
                 .resizable()
                 .frame(width: 156, height: 156)
                 .shadow(radius: 10)
-            
+
             VStack(spacing: 16) {
                 Text("Request Permissions")
                     .font(.largeTitle)
                     .fontWeight(.semibold)
-                
+
                 Text(
                     "VibeTunnel needs AppleScript to start new terminal sessions\nand accessibility to send commands."
                 )
@@ -50,7 +50,7 @@ struct RequestPermissionsPageView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 480)
                 .fixedSize(horizontal: false, vertical: true)
-                
+
                 // Permissions buttons
                 VStack(spacing: 16) {
                     // Automation permission
@@ -72,7 +72,7 @@ struct RequestPermissionsPageView: View {
                         .controlSize(.regular)
                         .frame(width: 250, height: 32)
                     }
-                    
+
                     // Accessibility permission
                     if hasAccessibilityPermission {
                         HStack {

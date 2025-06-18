@@ -677,7 +677,9 @@ export class SessionView extends LitElement {
   private handleTerminalFitToggle() {
     this.terminalFitHorizontally = !this.terminalFitHorizontally;
     // Find the terminal component and call its handleFitToggle method
-    const terminal = this.querySelector('vibe-terminal') as any;
+    const terminal = this.querySelector('vibe-terminal') as HTMLElement & {
+      handleFitToggle?: () => void;
+    };
     if (terminal && terminal.handleFitToggle) {
       // Use the terminal's own toggle method which handles scroll position correctly
       terminal.handleFitToggle();

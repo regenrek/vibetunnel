@@ -327,7 +327,9 @@ final class TerminalLauncher {
         // Find all terminals that are currently running
         var runningTerminals: [Terminal] = []
 
-        for terminal in Terminal.allCases where runningApps.contains(where: { $0.bundleIdentifier == terminal.bundleIdentifier }) {
+        for terminal in Terminal.allCases
+            where runningApps.contains(where: { $0.bundleIdentifier == terminal.bundleIdentifier })
+        {
             runningTerminals.append(terminal)
             logger.debug("Detected running terminal: \(terminal.rawValue)")
         }

@@ -13,12 +13,13 @@ import SwiftUI
 /// - Test button to verify terminal automation works
 /// - Error handling for permission issues
 struct SelectTerminalPageView: View {
-    @AppStorage("preferredTerminal") private var preferredTerminal = Terminal.terminal.rawValue
+    @AppStorage("preferredTerminal")
+    private var preferredTerminal = Terminal.terminal.rawValue
     private let terminalLauncher = TerminalLauncher.shared
     @State private var showingError = false
     @State private var errorTitle = ""
     @State private var errorMessage = ""
-    
+
     var body: some View {
         VStack(spacing: 30) {
             // App icon
@@ -26,19 +27,19 @@ struct SelectTerminalPageView: View {
                 .resizable()
                 .frame(width: 156, height: 156)
                 .shadow(radius: 10)
-            
+
             VStack(spacing: 16) {
                 Text("Select Terminal")
                     .font(.largeTitle)
                     .fontWeight(.semibold)
-                
+
                 Text("VibeTunnel can spawn new sessions and open a terminal for you.\nThis will require permissions.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 480)
                     .fixedSize(horizontal: false, vertical: true)
-                
+
                 // Terminal selector and test button
                 VStack(spacing: 16) {
                     // Terminal picker
@@ -56,7 +57,7 @@ struct SelectTerminalPageView: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                     .frame(width: 200)
-                    
+
                     // Test terminal button
                     Button("Test Terminal Permission") {
                         testTerminal()
@@ -69,10 +70,12 @@ struct SelectTerminalPageView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .alert(errorTitle, isPresented: $showingError) {
-            Button("OK") { }
+            Button("OK") {}
             if errorTitle == "Permission Denied" {
                 Button("Open System Settings") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                    if let url =
+                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+                    {
                         NSWorkspace.shared.open(url)
                     }
                 }
@@ -81,39 +84,48 @@ struct SelectTerminalPageView: View {
             Text(errorMessage)
         }
     }
-    
-    private func testTerminal() {
+
+    func testTerminal() {
         Task {
             do {
-                try terminalLauncher.launchCommand("echo 'VibeTunnel Terminal Test: Success! You can now use VibeTunnel with your terminal.'")
+                try terminalLauncher
+                    .launchCommand(
+                        "echo 'VibeTunnel Terminal Test: Success! You can now use VibeTunnel with your terminal.'"
+                    )
             } catch {
                 // Handle errors
                 if let terminalError = error as? TerminalLauncherError {
                     switch terminalError {
                     case .appleScriptPermissionDenied:
                         errorTitle = "Permission Denied"
-                        errorMessage = "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
+                        errorMessage =
+                            "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
                     case .accessibilityPermissionDenied:
                         errorTitle = "Accessibility Permission Required"
-                        errorMessage = "VibeTunnel needs Accessibility permission to send keystrokes to \(Terminal(rawValue: preferredTerminal)?.displayName ?? "terminal").\n\nPlease grant permission in System Settings > Privacy & Security > Accessibility."
+                        errorMessage =
+                            "VibeTunnel needs Accessibility permission to send keystrokes to \(Terminal(rawValue: preferredTerminal)?.displayName ?? "terminal").\n\nPlease grant permission in System Settings > Privacy & Security > Accessibility."
                     case .terminalNotFound:
                         errorTitle = "Terminal Not Found"
-                        errorMessage = "The selected terminal application could not be found. Please select a different terminal."
+                        errorMessage =
+                            "The selected terminal application could not be found. Please select a different terminal."
                     case .appleScriptExecutionFailed(let details, let errorCode):
                         if let code = errorCode {
                             switch code {
                             case -1_743:
                                 errorTitle = "Permission Denied"
-                                errorMessage = "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
+                                errorMessage =
+                                    "VibeTunnel needs permission to control terminal applications.\n\nPlease grant Automation permission in System Settings > Privacy & Security > Automation."
                             case -1_728:
                                 errorTitle = "Terminal Not Available"
-                                errorMessage = "The terminal application is not running or cannot be controlled.\n\nDetails: \(details)"
+                                errorMessage =
+                                    "The terminal application is not running or cannot be controlled.\n\nDetails: \(details)"
                             case -1_708:
                                 errorTitle = "Terminal Communication Error"
                                 errorMessage = "The terminal did not respond to the command.\n\nDetails: \(details)"
-                            case -25211:
+                            case -25_211:
                                 errorTitle = "Accessibility Permission Required"
-                                errorMessage = "System Events requires Accessibility permission to send keystrokes.\n\nPlease grant permission in System Settings > Privacy & Security > Accessibility."
+                                errorMessage =
+                                    "System Events requires Accessibility permission to send keystrokes.\n\nPlease grant permission in System Settings > Privacy & Security > Accessibility."
                             default:
                                 errorTitle = "Terminal Launch Failed"
                                 errorMessage = "AppleScript error \(code): \(details)"
@@ -130,7 +142,7 @@ struct SelectTerminalPageView: View {
                     errorTitle = "Terminal Launch Failed"
                     errorMessage = error.localizedDescription
                 }
-                
+
                 showingError = true
             }
         }

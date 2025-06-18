@@ -31,15 +31,13 @@ let package = Package(
             exclude: [
                 "Info.plist",
                 "VibeTunnel.entitlements",
-                "Local.xcconfig",
                 "Local.xcconfig.template",
                 "Shared.xcconfig",
                 "version.xcconfig",
                 "sparkle-public-ed-key.txt",
                 "Resources",
                 "Assets.xcassets",
-                "AppIcon.icon",
-                ".DS_Store"
+                "AppIcon.icon"
             ]
         ),
         .testTarget(

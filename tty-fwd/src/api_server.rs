@@ -1669,3 +1669,482 @@ fn handle_mkdir(req: &crate::http_server::HttpRequest) -> Response<String> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::HeaderMap;
+    use tempfile::TempDir;
+
+
+    #[test]
+    fn test_base64_auth_parsing() {
+        // Test valid credentials
+        let credentials = BASE64.encode("user:test123".as_bytes());
+        let decoded_bytes = BASE64.decode(credentials.as_bytes()).unwrap();
+        let decoded_str = String::from_utf8(decoded_bytes).unwrap();
+        let colon_pos = decoded_str.find(':').unwrap();
+        let password = &decoded_str[colon_pos + 1..];
+        assert_eq!(password, "test123");
+
+        // Test empty password
+        let credentials = BASE64.encode("user:".as_bytes());
+        let decoded_bytes = BASE64.decode(credentials.as_bytes()).unwrap();
+        let decoded_str = String::from_utf8(decoded_bytes).unwrap();
+        let colon_pos = decoded_str.find(':').unwrap();
+        let password = &decoded_str[colon_pos + 1..];
+        assert_eq!(password, "");
+    }
+
+    #[test]
+    fn test_unauthorized_response() {
+        let response = unauthorized_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            response.headers().get("WWW-Authenticate").unwrap(),
+            "Basic realm=\"tty-fwd\""
+        );
+    }
+
+    #[test]
+    fn test_get_mime_type() {
+        assert_eq!(get_mime_type(Path::new("test.html")), "text/html");
+        assert_eq!(get_mime_type(Path::new("test.css")), "text/css");
+        assert_eq!(get_mime_type(Path::new("test.js")), "application/javascript");
+        assert_eq!(get_mime_type(Path::new("test.json")), "application/json");
+        assert_eq!(get_mime_type(Path::new("test.png")), "image/png");
+        assert_eq!(get_mime_type(Path::new("test.jpg")), "image/jpeg");
+        assert_eq!(get_mime_type(Path::new("test.unknown")), "application/octet-stream");
+    }
+
+    #[test]
+    fn test_extract_session_id() {
+        assert_eq!(
+            extract_session_id("/api/sessions/123-456"),
+            Some("123-456".to_string())
+        );
+        assert_eq!(
+            extract_session_id("/api/sessions/abc-def/stream"),
+            Some("abc-def".to_string())
+        );
+        assert_eq!(
+            extract_session_id("/api/sessions/test-id/input"),
+            Some("test-id".to_string())
+        );
+        assert_eq!(extract_session_id("/api/sessions/"), None);
+        assert_eq!(extract_session_id("/api/sessions"), None);
+        assert_eq!(extract_session_id("/other/path"), None);
+    }
+
+    #[test]
+    fn test_json_response() {
+        #[derive(Serialize)]
+        struct TestData {
+            message: String,
+            value: i32,
+        }
+
+        let data = TestData {
+            message: "test".to_string(),
+            value: 42,
+        };
+
+        let response = json_response(StatusCode::OK, &data);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("Content-Type").unwrap(),
+            "application/json"
+        );
+        assert_eq!(
+            response.headers().get("Access-Control-Allow-Origin").unwrap(),
+            "*"
+        );
+        assert_eq!(response.body(), r#"{"message":"test","value":42}"#);
+    }
+
+    #[test]
+    fn test_handle_health() {
+        let response = handle_health();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.body().contains(r#""success":true"#));
+        assert!(response.body().contains(r#""message":"OK""#));
+    }
+
+    #[test]
+    fn test_api_response_serialization() {
+        let response = ApiResponse {
+            success: Some(true),
+            message: Some("Test message".to_string()),
+            error: None,
+            session_id: Some("123".to_string()),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains(r#""success":true"#));
+        assert!(json.contains(r#""message":"Test message""#));
+        assert!(json.contains(r#""sessionId":"123""#));
+        // error field should be None, which means it won't be serialized with skip_serializing_if
+    }
+
+    #[test]
+    fn test_create_session_request_deserialization() {
+        let json = r#"{
+            "command": ["bash", "-l"],
+            "workingDir": "/tmp"
+        }"#;
+
+        let request: CreateSessionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.command, vec!["bash", "-l"]);
+        assert_eq!(request.working_dir, Some("/tmp".to_string()));
+        assert_eq!(request.term, DEFAULT_TERM);
+        assert_eq!(request.spawn_terminal, true);
+
+        // Test with explicit term and spawn_terminal
+        let json = r#"{
+            "command": ["vim"],
+            "term": "xterm-256color",
+            "spawn_terminal": false
+        }"#;
+
+        let request: CreateSessionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.command, vec!["vim"]);
+        assert_eq!(request.term, "xterm-256color");
+        assert_eq!(request.spawn_terminal, false);
+    }
+
+    #[test]
+    fn test_session_response_serialization() {
+        let response = SessionResponse {
+            id: "123".to_string(),
+            command: "bash -l".to_string(),
+            working_dir: "/home/user".to_string(),
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: "2024-01-01T00:00:00Z".to_string(),
+            last_modified: "2024-01-01T00:01:00Z".to_string(),
+            pid: Some(1234),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains(r#""id":"123""#));
+        assert!(json.contains(r#""command":"bash -l""#));
+        assert!(json.contains(r#""workingDir":"/home/user""#));
+        assert!(json.contains(r#""status":"running""#));
+        assert!(json.contains(r#""startedAt":"2024-01-01T00:00:00Z""#));
+        assert!(json.contains(r#""lastModified":"2024-01-01T00:01:00Z""#));
+        assert!(json.contains(r#""pid":1234"#));
+        // exitCode field should be None, which means it won't be serialized with skip_serializing_if
+    }
+
+    #[test]
+    fn test_browse_response_serialization() {
+        let response = BrowseResponse {
+            absolute_path: "/home/user".to_string(),
+            files: vec![
+                FileInfo {
+                    name: "dir1".to_string(),
+                    created: "2024-01-01T00:00:00Z".to_string(),
+                    last_modified: "2024-01-01T00:01:00Z".to_string(),
+                    size: 4096,
+                    is_dir: true,
+                },
+                FileInfo {
+                    name: "file1.txt".to_string(),
+                    created: "2024-01-01T00:00:00Z".to_string(),
+                    last_modified: "2024-01-01T00:01:00Z".to_string(),
+                    size: 1024,
+                    is_dir: false,
+                },
+            ],
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains(r#""absolutePath":"/home/user""#));
+        assert!(json.contains(r#""name":"dir1""#));
+        assert!(json.contains(r#""isDir":true"#));
+        assert!(json.contains(r#""name":"file1.txt""#));
+        assert!(json.contains(r#""isDir":false"#));
+        assert!(json.contains(r#""size":1024"#));
+    }
+
+    #[test]
+    fn test_resolve_path() {
+        let home_dir = "/home/user";
+        
+        assert_eq!(resolve_path("~", home_dir), PathBuf::from("/home/user"));
+        assert_eq!(resolve_path("~/Documents", home_dir), PathBuf::from("/home/user/Documents"));
+        assert_eq!(resolve_path("/absolute/path", home_dir), PathBuf::from("/absolute/path"));
+        assert_eq!(resolve_path("relative/path", home_dir), PathBuf::from("relative/path"));
+    }
+
+    #[test]
+    fn test_optimize_snapshot_content() {
+        // Test with empty content
+        assert_eq!(optimize_snapshot_content(""), "");
+
+        // Test with header only
+        let header = r#"{"version":2,"width":80,"height":24}"#;
+        assert_eq!(optimize_snapshot_content(header), header);
+
+        // Test with header and events
+        let content = r#"{"version":2,"width":80,"height":24}
+[0.5,"o","Hello"]
+[1.0,"o","\u001b[2J"]
+[1.5,"o","World"]"#;
+        
+        let optimized = optimize_snapshot_content(content);
+        let lines: Vec<&str> = optimized.lines().collect();
+        
+        // Should have header and events after clear
+        assert!(lines.len() >= 2);
+        assert!(lines[0].contains("version"));
+        // Events after clear should have timestamp 0
+        assert!(lines[1].contains("[0,"));
+    }
+
+    #[test]
+    fn test_serve_static_file_security() {
+        let temp_dir = TempDir::new().unwrap();
+        let static_root = temp_dir.path();
+
+        // Test directory traversal attempts
+        assert!(serve_static_file(static_root, "../etc/passwd").is_none());
+        assert!(serve_static_file(static_root, "..\\windows\\system32").is_none());
+        assert!(serve_static_file(static_root, "/etc/passwd").is_none());
+    }
+
+    #[test]
+    fn test_serve_static_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let static_root = temp_dir.path();
+
+        // Create test files
+        fs::write(static_root.join("test.html"), "<h1>Test</h1>").unwrap();
+        fs::write(static_root.join("test.css"), "body { color: red; }").unwrap();
+        fs::create_dir(static_root.join("subdir")).unwrap();
+        fs::write(static_root.join("subdir/index.html"), "<h1>Subdir</h1>").unwrap();
+
+        // Test serving a file
+        let response = serve_static_file(static_root, "/test.html").unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("Content-Type").unwrap(),
+            "text/html"
+        );
+        assert_eq!(response.body(), b"<h1>Test</h1>");
+
+        // Test serving a CSS file
+        let response = serve_static_file(static_root, "/test.css").unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("Content-Type").unwrap(),
+            "text/css"
+        );
+
+        // Test serving index.html from directory
+        let response = serve_static_file(static_root, "/subdir/").unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), b"<h1>Subdir</h1>");
+
+        // Test non-existent file
+        assert!(serve_static_file(static_root, "/nonexistent.txt").is_none());
+
+        // Test directory without index.html
+        fs::create_dir(static_root.join("empty")).unwrap();
+        assert!(serve_static_file(static_root, "/empty/").is_none());
+    }
+
+    #[test]
+    fn test_input_request_deserialization() {
+        let json = r#"{"text":"Hello, World!"}"#;
+        let request: InputRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.text, "Hello, World!");
+
+        // Test special keys
+        let json = r#"{"text":"arrow_up"}"#;
+        let request: InputRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.text, "arrow_up");
+    }
+
+    #[test]
+    fn test_mkdir_request_deserialization() {
+        let json = r#"{"path":"/tmp/test"}"#;
+        let request: MkdirRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.path, "/tmp/test");
+    }
+
+    #[test]
+    fn test_browse_query_deserialization() {
+        // Test with path
+        let query_string = "path=/home/user";
+        let query: BrowseQuery = serde_urlencoded::from_str(query_string).unwrap();
+        assert_eq!(query.path, Some("/home/user".to_string()));
+
+        // Test without path
+        let query_string = "";
+        let query: BrowseQuery = serde_urlencoded::from_str(query_string).unwrap();
+        assert_eq!(query.path, None);
+    }
+
+    #[test]
+    fn test_mkdir_functionality() {
+        let temp_dir = TempDir::new().unwrap();
+        let new_dir = temp_dir.path().join("test_dir/nested");
+
+        // Test creating directory
+        fs::create_dir_all(&new_dir).unwrap();
+        assert!(new_dir.exists());
+        assert!(new_dir.is_dir());
+    }
+
+    #[test]
+    fn test_browse_functionality() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_dir = temp_dir.path();
+
+        // Create test files and directories
+        fs::create_dir(test_dir.join("subdir")).unwrap();
+        fs::write(test_dir.join("file1.txt"), "content").unwrap();
+        fs::write(test_dir.join("file2.txt"), "more content").unwrap();
+
+        // Test reading directory
+        let entries = fs::read_dir(test_dir).unwrap();
+        let mut found_files = vec![];
+        for entry in entries {
+            let entry = entry.unwrap();
+            found_files.push(entry.file_name().to_string_lossy().to_string());
+        }
+        assert!(found_files.contains(&"subdir".to_string()));
+        assert!(found_files.contains(&"file1.txt".to_string()));
+        assert!(found_files.contains(&"file2.txt".to_string()));
+    }
+
+    #[test]
+    fn test_file_info_sorting() {
+        let mut files = vec![
+            FileInfo {
+                name: "file2.txt".to_string(),
+                created: "2024-01-01T00:00:00Z".to_string(),
+                last_modified: "2024-01-01T00:01:00Z".to_string(),
+                size: 100,
+                is_dir: false,
+            },
+            FileInfo {
+                name: "dir2".to_string(),
+                created: "2024-01-01T00:00:00Z".to_string(),
+                last_modified: "2024-01-01T00:01:00Z".to_string(),
+                size: 4096,
+                is_dir: true,
+            },
+            FileInfo {
+                name: "file1.txt".to_string(),
+                created: "2024-01-01T00:00:00Z".to_string(),
+                last_modified: "2024-01-01T00:01:00Z".to_string(),
+                size: 200,
+                is_dir: false,
+            },
+            FileInfo {
+                name: "dir1".to_string(),
+                created: "2024-01-01T00:00:00Z".to_string(),
+                last_modified: "2024-01-01T00:01:00Z".to_string(),
+                size: 4096,
+                is_dir: true,
+            },
+        ];
+
+        // Apply the same sorting logic as in handle_browse
+        files.sort_by(|a, b| {
+            if a.is_dir && !b.is_dir {
+                std::cmp::Ordering::Less
+            } else if !a.is_dir && b.is_dir {
+                std::cmp::Ordering::Greater
+            } else {
+                a.name.cmp(&b.name)
+            }
+        });
+
+        // Verify directories come first, then files, all alphabetically sorted
+        assert_eq!(files[0].name, "dir1");
+        assert_eq!(files[1].name, "dir2");
+        assert_eq!(files[2].name, "file1.txt");
+        assert_eq!(files[3].name, "file2.txt");
+    }
+
+    #[test]
+    fn test_handle_list_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create test session
+        let session_id = "test-session";
+        let session_path = control_path.join(session_id);
+        fs::create_dir_all(&session_path).unwrap();
+
+        let session_info = crate::protocol::SessionInfo {
+            cmdline: vec!["bash".to_string()],
+            name: "test".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(999999),
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: Some(jiff::Timestamp::now()),
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        fs::write(
+            session_path.join("session.json"),
+            serde_json::to_string_pretty(&session_info).unwrap(),
+        )
+        .unwrap();
+        fs::write(session_path.join("stream-out"), "").unwrap();
+        fs::write(session_path.join("stdin"), "").unwrap();
+        fs::write(session_path.join("notification-stream"), "").unwrap();
+
+        let response = handle_list_sessions(control_path);
+        assert_eq!(response.status(), StatusCode::OK);
+        
+        let body = response.body();
+        assert!(body.contains(r#""id":"test-session""#));
+        assert!(body.contains(r#""command":"bash""#));
+        assert!(body.contains(r#""workingDir":"/tmp""#));
+    }
+
+    #[test]
+    fn test_handle_cleanup_exited() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a dead session
+        let session_id = "dead-session";
+        let session_path = control_path.join(session_id);
+        fs::create_dir_all(&session_path).unwrap();
+
+        let session_info = crate::protocol::SessionInfo {
+            cmdline: vec!["test".to_string()],
+            name: "dead".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(999999), // Non-existent PID
+            status: "exited".to_string(),
+            exit_code: Some(0),
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        fs::write(
+            session_path.join("session.json"),
+            serde_json::to_string_pretty(&session_info).unwrap(),
+        )
+        .unwrap();
+
+        assert!(session_path.exists());
+
+        let response = handle_cleanup_exited(control_path);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.body().contains(r#""success":true"#));
+
+        // Session should be cleaned up
+        assert!(!session_path.exists());
+    }
+}

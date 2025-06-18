@@ -709,3 +709,403 @@ impl Drop for StreamingIterator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_session_info_serialization() {
+        let session = SessionInfo {
+            cmdline: vec!["bash".to_string(), "-l".to_string()],
+            name: "test-session".to_string(),
+            cwd: "/home/user".to_string(),
+            pid: Some(1234),
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: Some(Timestamp::now()),
+            term: "xterm-256color".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        let json = serde_json::to_string(&session).unwrap();
+        let deserialized: SessionInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(session.cmdline, deserialized.cmdline);
+        assert_eq!(session.name, deserialized.name);
+        assert_eq!(session.cwd, deserialized.cwd);
+        assert_eq!(session.pid, deserialized.pid);
+        assert_eq!(session.status, deserialized.status);
+        assert_eq!(session.term, deserialized.term);
+        assert_eq!(session.spawn_type, deserialized.spawn_type);
+    }
+
+    #[test]
+    fn test_session_info_defaults() {
+        let json = r#"{
+            "cmdline": ["bash"],
+            "name": "test",
+            "cwd": "/tmp",
+            "status": "running"
+        }"#;
+
+        let session: SessionInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(session.term, DEFAULT_TERM);
+        assert_eq!(session.spawn_type, "socket");
+    }
+
+    #[test]
+    fn test_asciinema_header_serialization() {
+        let header = AsciinemaHeader {
+            version: 2,
+            width: 120,
+            height: 40,
+            timestamp: Some(1234567890),
+            duration: Some(123.45),
+            command: Some("bash -l".to_string()),
+            title: Some("Test Recording".to_string()),
+            env: Some(HashMap::from([
+                ("SHELL".to_string(), "/bin/bash".to_string()),
+                ("TERM".to_string(), "xterm-256color".to_string()),
+            ])),
+            theme: Some(AsciinemaTheme {
+                fg: Some("#ffffff".to_string()),
+                bg: Some("#000000".to_string()),
+                palette: Some("solarized".to_string()),
+            }),
+        };
+
+        let json = serde_json::to_string(&header).unwrap();
+        let deserialized: AsciinemaHeader = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(header.version, deserialized.version);
+        assert_eq!(header.width, deserialized.width);
+        assert_eq!(header.height, deserialized.height);
+        assert_eq!(header.timestamp, deserialized.timestamp);
+        assert_eq!(header.duration, deserialized.duration);
+        assert_eq!(header.command, deserialized.command);
+        assert_eq!(header.title, deserialized.title);
+        assert_eq!(header.env, deserialized.env);
+    }
+
+    #[test]
+    fn test_asciinema_header_defaults() {
+        let header = AsciinemaHeader::default();
+        assert_eq!(header.version, 2);
+        assert_eq!(header.width, 80);
+        assert_eq!(header.height, 24);
+        assert!(header.timestamp.is_none());
+        assert!(header.duration.is_none());
+        assert!(header.command.is_none());
+        assert!(header.title.is_none());
+        assert!(header.env.is_none());
+        assert!(header.theme.is_none());
+    }
+
+    #[test]
+    fn test_asciinema_event_type_conversions() {
+        assert_eq!(AsciinemaEventType::Output.as_str(), "o");
+        assert_eq!(AsciinemaEventType::Input.as_str(), "i");
+        assert_eq!(AsciinemaEventType::Marker.as_str(), "m");
+        assert_eq!(AsciinemaEventType::Resize.as_str(), "r");
+
+        assert!(matches!(AsciinemaEventType::from_str("o"), Ok(AsciinemaEventType::Output)));
+        assert!(matches!(AsciinemaEventType::from_str("i"), Ok(AsciinemaEventType::Input)));
+        assert!(matches!(AsciinemaEventType::from_str("m"), Ok(AsciinemaEventType::Marker)));
+        assert!(matches!(AsciinemaEventType::from_str("r"), Ok(AsciinemaEventType::Resize)));
+        assert!(AsciinemaEventType::from_str("x").is_err());
+    }
+
+    #[test]
+    fn test_asciinema_event_serialization() {
+        let event = AsciinemaEvent {
+            time: 1.234,
+            event_type: AsciinemaEventType::Output,
+            data: "Hello, World!\n".to_string(),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert_eq!(json, r#"[1.234,"o","Hello, World!\n"]"#);
+
+        let deserialized: AsciinemaEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event.time, deserialized.time);
+        assert!(matches!(deserialized.event_type, AsciinemaEventType::Output));
+        assert_eq!(event.data, deserialized.data);
+    }
+
+    #[test]
+    fn test_notification_event_serialization() {
+        let event = NotificationEvent {
+            timestamp: Timestamp::now(),
+            event: "window_resize".to_string(),
+            data: serde_json::json!({
+                "width": 120,
+                "height": 40
+            }),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        let deserialized: NotificationEvent = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(event.event, deserialized.event);
+        assert_eq!(event.data, deserialized.data);
+    }
+
+    #[test]
+    fn test_stream_event_header_serialization() {
+        let header = AsciinemaHeader::default();
+        let event = StreamEvent::Header(header.clone());
+
+        let json = serde_json::to_string(&event).unwrap();
+        let deserialized: StreamEvent = serde_json::from_str(&json).unwrap();
+
+        if let StreamEvent::Header(h) = deserialized {
+            assert_eq!(h.version, header.version);
+            assert_eq!(h.width, header.width);
+            assert_eq!(h.height, header.height);
+        } else {
+            panic!("Expected Header variant");
+        }
+    }
+
+    #[test]
+    fn test_stream_event_terminal_serialization() {
+        let terminal_event = AsciinemaEvent {
+            time: 2.5,
+            event_type: AsciinemaEventType::Input,
+            data: "test input".to_string(),
+        };
+        let event = StreamEvent::Terminal(terminal_event.clone());
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert_eq!(json, r#"[2.5,"i","test input"]"#);
+
+        let deserialized: StreamEvent = serde_json::from_str(&json).unwrap();
+        if let StreamEvent::Terminal(e) = deserialized {
+            assert_eq!(e.time, terminal_event.time);
+            assert!(matches!(e.event_type, AsciinemaEventType::Input));
+            assert_eq!(e.data, terminal_event.data);
+        } else {
+            panic!("Expected Terminal variant");
+        }
+    }
+
+    #[test]
+    fn test_stream_event_error_serialization() {
+        let event = StreamEvent::Error {
+            message: "Test error".to_string(),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert_eq!(json, r#"{"type":"error","message":"Test error"}"#);
+
+        let deserialized: StreamEvent = serde_json::from_str(&json).unwrap();
+        if let StreamEvent::Error { message } = deserialized {
+            assert_eq!(message, "Test error");
+        } else {
+            panic!("Expected Error variant");
+        }
+    }
+
+    #[test]
+    fn test_stream_event_end_serialization() {
+        let event = StreamEvent::End;
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert_eq!(json, r#"{"type":"end"}"#);
+
+        let deserialized: StreamEvent = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, StreamEvent::End));
+    }
+
+    #[test]
+    fn test_stream_event_from_json_line() {
+        // Test header
+        let header_line = r#"{"version":2,"width":80,"height":24}"#;
+        let event = StreamEvent::from_json_line(header_line).unwrap();
+        assert!(matches!(event, StreamEvent::Header(_)));
+
+        // Test terminal event
+        let terminal_line = r#"[1.5,"o","output data"]"#;
+        let event = StreamEvent::from_json_line(terminal_line).unwrap();
+        assert!(matches!(event, StreamEvent::Terminal(_)));
+
+        // Test error event
+        let error_line = r#"{"type":"error","message":"Something went wrong"}"#;
+        let event = StreamEvent::from_json_line(error_line).unwrap();
+        assert!(matches!(event, StreamEvent::Error { .. }));
+
+        // Test end event
+        let end_line = r#"{"type":"end"}"#;
+        let event = StreamEvent::from_json_line(end_line).unwrap();
+        assert!(matches!(event, StreamEvent::End));
+
+        // Test empty line
+        assert!(StreamEvent::from_json_line("").is_err());
+        assert!(StreamEvent::from_json_line("  \n").is_err());
+    }
+
+    #[test]
+    fn test_stream_writer_basic() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let header = AsciinemaHeader::default();
+        let mut writer = StreamWriter::new(file.reopen().unwrap(), header).unwrap();
+
+        // Write some output
+        writer.write_output(b"Hello, World!\n").unwrap();
+
+        // Read back and verify
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+
+        assert_eq!(lines.len(), 2);
+        // First line should be header
+        assert!(lines[0].contains("\"version\":2"));
+        // Second line should be event
+        assert!(lines[1].contains("Hello, World!"));
+    }
+
+    #[test]
+    fn test_stream_writer_utf8_handling() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let header = AsciinemaHeader::default();
+        let mut writer = StreamWriter::new(file.reopen().unwrap(), header).unwrap();
+
+        // Test complete UTF-8 sequence
+        writer.write_output("Hello 世界!".as_bytes()).unwrap();
+
+        // Test incomplete UTF-8 sequence (split multi-byte character)
+        let utf8_bytes = "世界".as_bytes();
+        writer.write_output(&utf8_bytes[..2]).unwrap(); // Partial first character
+        writer.write_output(&utf8_bytes[2..]).unwrap(); // Complete it
+
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Should have header + 3 events
+        assert!(lines.len() >= 2);
+        assert!(lines[1].contains("Hello 世界!"));
+    }
+
+    #[test]
+    fn test_stream_writer_escape_sequences() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let header = AsciinemaHeader::default();
+        let mut writer = StreamWriter::new(file.reopen().unwrap(), header).unwrap();
+
+        // Test ANSI color escape sequence
+        writer.write_output(b"\x1b[31mRed Text\x1b[0m").unwrap();
+
+        // Test cursor movement
+        writer.write_output(b"\x1b[2J\x1b[H").unwrap();
+
+        // Test OSC sequence
+        writer.write_output(b"\x1b]0;Terminal Title\x07").unwrap();
+
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Verify escape sequences are preserved
+        assert!(lines[1].contains("\\u001b[31mRed Text\\u001b[0m"));
+        assert!(lines[2].contains("\\u001b[2J\\u001b[H"));
+        assert!(lines[3].contains("\\u001b]0;Terminal Title"));
+    }
+
+    #[test]
+    fn test_stream_writer_incomplete_escape_sequence() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let header = AsciinemaHeader::default();
+        let mut writer = StreamWriter::new(file.reopen().unwrap(), header).unwrap();
+
+        // Send incomplete escape sequence
+        writer.write_output(b"\x1b[").unwrap();
+        // Complete it in next write
+        writer.write_output(b"31mColored\x1b[0m").unwrap();
+
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Should properly handle the split escape sequence
+        assert!(lines.len() >= 2);
+    }
+
+    #[test]
+    fn test_notification_writer() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut writer = NotificationWriter::new(file.reopen().unwrap());
+
+        let event = NotificationEvent {
+            timestamp: Timestamp::now(),
+            event: "test_event".to_string(),
+            data: serde_json::json!({
+                "key": "value",
+                "number": 42
+            }),
+        };
+
+        writer.write_notification(event.clone()).unwrap();
+
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content).unwrap();
+
+        let deserialized: NotificationEvent = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(deserialized.event, event.event);
+        assert_eq!(deserialized.data, event.data);
+    }
+
+    #[test]
+    fn test_session_list_entry_serialization() {
+        let entry = SessionListEntry {
+            session_info: SessionInfo {
+                cmdline: vec!["test".to_string()],
+                name: "test-session".to_string(),
+                cwd: "/tmp".to_string(),
+                pid: Some(9999),
+                status: "running".to_string(),
+                exit_code: None,
+                started_at: None,
+                term: "xterm".to_string(),
+                spawn_type: "pty".to_string(),
+            },
+            stream_out: "/tmp/stream.out".to_string(),
+            stdin: "/tmp/stdin".to_string(),
+            notification_stream: "/tmp/notifications".to_string(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        let deserialized: SessionListEntry = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(entry.session_info.name, deserialized.session_info.name);
+        assert_eq!(entry.stream_out, deserialized.stream_out);
+        assert_eq!(entry.stdin, deserialized.stdin);
+        assert_eq!(entry.notification_stream, deserialized.notification_stream);
+    }
+
+    #[test]
+    fn test_escape_sequence_detection() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let header = AsciinemaHeader::default();
+        let writer = StreamWriter::new(file.reopen().unwrap(), header).unwrap();
+
+        // Test CSI sequence detection
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b[31m"), Some(5));
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b[2;3H"), Some(6));
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b[?25h"), Some(6));
+
+        // Test OSC sequence detection
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Title\x07"), Some(11));
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Title\x1b\\"), Some(12));
+
+        // Test incomplete sequences
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b"), None);
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b["), None);
+        assert_eq!(writer.find_escape_sequence_end(b"\x1b]0;Incomplete"), None);
+
+        // Test non-escape sequences
+        assert_eq!(writer.find_escape_sequence_end(b"normal text"), None);
+    }
+}

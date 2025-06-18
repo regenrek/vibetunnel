@@ -917,7 +917,13 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-server.listen(PORT, () => {
-  console.log(`VibeTunnel New Server running on http://localhost:${PORT}`);
-  console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
-});
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, () => {
+    console.log(`VibeTunnel New Server running on http://localhost:${PORT}`);
+    console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
+  });
+}
+
+// Export for testing
+export { app, server, wss };

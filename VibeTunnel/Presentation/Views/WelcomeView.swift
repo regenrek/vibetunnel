@@ -74,11 +74,11 @@ struct WelcomeView: View {
                 // Page indicators
                 HStack(spacing: 8) {
                     ForEach(0..<6) { index in
-                        Button(action: {
+                        Button {
                             withAnimation {
                                 currentPage = index
                             }
-                        }) {
+                        } label: {
                             Circle()
                                 .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
                                 .frame(width: 8, height: 8)

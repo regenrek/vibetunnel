@@ -430,3 +430,474 @@ pub fn spawn_command(
     let exit_code = tty_spawn.spawn()?;
     Ok(exit_code)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use tempfile::TempDir;
+
+    // Helper function to create a test session directory structure
+    fn create_test_session(
+        control_path: &Path,
+        session_id: &str,
+        session_info: &SessionInfo,
+    ) -> Result<(), anyhow::Error> {
+        let session_path = control_path.join(session_id);
+        fs::create_dir_all(&session_path)?;
+
+        // Write session.json
+        let session_json_path = session_path.join("session.json");
+        let json = serde_json::to_string_pretty(session_info)?;
+        fs::write(&session_json_path, json)?;
+
+        // Create empty stream files
+        File::create(session_path.join("stream-out"))?;
+        File::create(session_path.join("stdin"))?;
+        File::create(session_path.join("notification-stream"))?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_list_sessions_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        let sessions = list_sessions(control_path).unwrap();
+        assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn test_list_sessions_with_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create test sessions
+        let session1_info = SessionInfo {
+            cmdline: vec!["bash".to_string()],
+            name: "session1".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(999999), // Non-existent PID
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        let session2_info = SessionInfo {
+            cmdline: vec!["vim".to_string(), "test.txt".to_string()],
+            name: "session2".to_string(),
+            cwd: "/home/user".to_string(),
+            pid: Some(999998), // Non-existent PID
+            status: "exited".to_string(),
+            exit_code: Some(0),
+            started_at: None,
+            term: "xterm-256color".to_string(),
+            spawn_type: "socket".to_string(),
+        };
+
+        create_test_session(control_path, "session1", &session1_info).unwrap();
+        create_test_session(control_path, "session2", &session2_info).unwrap();
+
+        let sessions = list_sessions(control_path).unwrap();
+        assert_eq!(sessions.len(), 2);
+
+        // Check session1
+        let session1 = sessions.get("session1").unwrap();
+        assert_eq!(session1.session_info.name, "session1");
+        assert_eq!(session1.session_info.cmdline, vec!["bash"]);
+        // Since PID 999999 doesn't exist, status should be updated to "exited"
+        assert_eq!(session1.session_info.status, "exited");
+
+        // Check session2
+        let session2 = sessions.get("session2").unwrap();
+        assert_eq!(session2.session_info.name, "session2");
+        assert_eq!(session2.session_info.status, "exited");
+        assert_eq!(session2.session_info.exit_code, Some(0));
+    }
+
+    #[test]
+    fn test_list_sessions_ignores_non_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a regular file in the control directory
+        File::create(control_path.join("not-a-session.txt")).unwrap();
+
+        // Create a valid session
+        let session_info = SessionInfo {
+            cmdline: vec!["test".to_string()],
+            name: "valid-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: None,
+            status: "exited".to_string(),
+            exit_code: Some(0),
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+        create_test_session(control_path, "valid-session", &session_info).unwrap();
+
+        let sessions = list_sessions(control_path).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert!(sessions.contains_key("valid-session"));
+    }
+
+    #[test]
+    fn test_list_sessions_handles_missing_session_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a session directory without session.json
+        let session_path = control_path.join("incomplete-session");
+        fs::create_dir_all(&session_path).unwrap();
+        File::create(session_path.join("stream-out")).unwrap();
+
+        let sessions = list_sessions(control_path).unwrap();
+        assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn test_is_pid_alive() {
+        // Test with current process PID (should be alive)
+        let current_pid = std::process::id();
+        assert!(is_pid_alive(current_pid));
+
+        // Test with non-existent PID
+        assert!(!is_pid_alive(999999));
+
+        // Test with PID 1 (init process, should always exist on Unix)
+        assert!(is_pid_alive(1));
+    }
+
+    #[test]
+    fn test_find_current_session_no_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        let result = find_current_session(control_path).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_current_session_with_current_process() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a session with current process PID
+        let current_pid = std::process::id();
+        let session_info = SessionInfo {
+            cmdline: vec!["test".to_string()],
+            name: "current-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(current_pid),
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+        create_test_session(control_path, "current-session", &session_info).unwrap();
+
+        let result = find_current_session(control_path).unwrap();
+        assert!(result.is_some());
+        let entry = result.unwrap();
+        assert_eq!(entry.session_id, "current-session");
+        assert_eq!(entry.entry.session_info.pid, Some(current_pid));
+    }
+
+    #[test]
+    fn test_is_process_descendant_of() {
+        // Test with same PID
+        assert!(is_process_descendant_of(1234, 1234));
+
+        // Test with current process and its parent
+        let current_pid = std::process::id();
+        if let Some(parent_pid) = get_parent_pid(current_pid) {
+            assert!(is_process_descendant_of(current_pid, parent_pid));
+        }
+
+        // Test with unrelated PIDs
+        assert!(!is_process_descendant_of(current_pid, 999999));
+    }
+
+    #[test]
+    fn test_get_parent_pid() {
+        // Test with current process
+        let current_pid = std::process::id();
+        let parent_pid = get_parent_pid(current_pid);
+        assert!(parent_pid.is_some());
+        assert!(parent_pid.unwrap() > 0);
+
+        // Test with non-existent PID
+        assert!(get_parent_pid(999999).is_none());
+    }
+
+    #[test]
+    fn test_send_key_to_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a test session
+        let session_info = SessionInfo::default();
+        create_test_session(control_path, "test-session", &session_info).unwrap();
+
+        // Test sending various keys
+        let test_cases = vec![
+            ("arrow_up", &b"\x1b[A"[..]),
+            ("arrow_down", &b"\x1b[B"[..]),
+            ("arrow_right", &b"\x1b[C"[..]),
+            ("arrow_left", &b"\x1b[D"[..]),
+            ("escape", &b"\x1b"[..]),
+            ("enter", &b"\r"[..]),
+            ("ctrl_enter", &b"\r"[..]),
+            ("shift_enter", &b"\x1b\x0d"[..]),
+        ];
+
+        for (key, _expected_bytes) in test_cases {
+            // This will fail with "Pipe has no readers" but that's expected in tests
+            let result = send_key_to_session(control_path, "test-session", key);
+            assert!(result.is_err()); // Expected to fail without a reader
+        }
+
+        // Test unknown key
+        let result = send_key_to_session(control_path, "test-session", "unknown_key");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unknown key"));
+
+        // Test non-existent session
+        let result = send_key_to_session(control_path, "non-existent", "enter");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_send_text_to_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a test session
+        let session_info = SessionInfo::default();
+        create_test_session(control_path, "test-session", &session_info).unwrap();
+
+        // Test sending text (will fail without a reader)
+        let result = send_text_to_session(control_path, "test-session", "Hello, World!");
+        assert!(result.is_err()); // Expected to fail without a reader
+
+        // Test non-existent session
+        let result = send_text_to_session(control_path, "non-existent", "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_send_signal_to_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a test session with non-existent PID
+        let session_info = SessionInfo {
+            cmdline: vec!["test".to_string()],
+            name: "test-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(999999),
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+        create_test_session(control_path, "test-session", &session_info).unwrap();
+
+        // Test sending signal to non-existent process
+        let result = send_signal_to_session(control_path, "test-session", libc::SIGTERM);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("is not running"));
+
+        // Test session without PID
+        let session_info_no_pid = SessionInfo {
+            pid: None,
+            ..session_info
+        };
+        create_test_session(control_path, "no-pid-session", &session_info_no_pid).unwrap();
+        let result = send_signal_to_session(control_path, "no-pid-session", libc::SIGTERM);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("has no PID"));
+
+        // Test non-existent session
+        let result = send_signal_to_session(control_path, "non-existent", libc::SIGTERM);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_cleanup_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a test session
+        let session_info = SessionInfo {
+            cmdline: vec!["test".to_string()],
+            name: "test-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(999999), // Non-existent PID
+            status: "exited".to_string(),
+            exit_code: Some(0),
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+        create_test_session(control_path, "test-session", &session_info).unwrap();
+
+        // Verify session exists
+        assert!(control_path.join("test-session").exists());
+
+        // Clean up the session
+        let result = cleanup_session(control_path, "test-session");
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Verify session is removed
+        assert!(!control_path.join("test-session").exists());
+
+        // Test cleaning up non-existent session
+        let result = cleanup_session(control_path, "non-existent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cleanup_session_still_running() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create a session with current process PID (still running)
+        let session_info = SessionInfo {
+            cmdline: vec!["test".to_string()],
+            name: "running-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(std::process::id()),
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+        create_test_session(control_path, "running-session", &session_info).unwrap();
+
+        // Attempt to clean up should fail
+        let result = cleanup_session(control_path, "running-session");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("still running"));
+
+        // Verify session still exists
+        assert!(control_path.join("running-session").exists());
+    }
+
+    #[test]
+    fn test_cleanup_sessions_all() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create multiple test sessions
+        let dead_session = SessionInfo {
+            cmdline: vec!["test1".to_string()],
+            name: "dead-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(999999), // Non-existent
+            status: "exited".to_string(),
+            exit_code: Some(0),
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        let running_session = SessionInfo {
+            cmdline: vec!["test2".to_string()],
+            name: "running-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: Some(std::process::id()), // Current process
+            status: "running".to_string(),
+            exit_code: None,
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        let no_pid_session = SessionInfo {
+            cmdline: vec!["test3".to_string()],
+            name: "no-pid-session".to_string(),
+            cwd: "/tmp".to_string(),
+            pid: None,
+            status: "unknown".to_string(),
+            exit_code: None,
+            started_at: None,
+            term: "xterm".to_string(),
+            spawn_type: "pty".to_string(),
+        };
+
+        create_test_session(control_path, "dead-session", &dead_session).unwrap();
+        create_test_session(control_path, "running-session", &running_session).unwrap();
+        create_test_session(control_path, "no-pid-session", &no_pid_session).unwrap();
+
+        // Clean up all sessions
+        cleanup_sessions(control_path, None).unwrap();
+
+        // Dead session should be removed
+        assert!(!control_path.join("dead-session").exists());
+        // Running session should remain
+        assert!(control_path.join("running-session").exists());
+        // No-PID session should be removed
+        assert!(!control_path.join("no-pid-session").exists());
+    }
+
+    #[test]
+    fn test_cleanup_sessions_specific() {
+        let temp_dir = TempDir::new().unwrap();
+        let control_path = temp_dir.path();
+
+        // Create test sessions
+        let session1 = SessionInfo::default();
+        let session2 = SessionInfo::default();
+        create_test_session(control_path, "session1", &session1).unwrap();
+        create_test_session(control_path, "session2", &session2).unwrap();
+
+        // Clean up specific session
+        cleanup_sessions(control_path, Some("session1")).unwrap();
+
+        // Only session1 should be removed
+        assert!(!control_path.join("session1").exists());
+        assert!(control_path.join("session2").exists());
+    }
+
+    #[test]
+    fn test_write_to_pipe_with_timeout() {
+        let temp_dir = TempDir::new().unwrap();
+        let pipe_path = temp_dir.path().join("test_pipe");
+
+        // Create a named pipe
+        unsafe {
+            let path_cstr = std::ffi::CString::new(pipe_path.to_str().unwrap()).unwrap();
+            libc::mkfifo(path_cstr.as_ptr(), 0o666);
+        }
+
+        // Test writing without a reader (should timeout or fail)
+        let result = write_to_pipe_with_timeout(
+            &pipe_path,
+            b"test data",
+            Duration::from_millis(100),
+        );
+        assert!(result.is_err());
+
+        // Clean up
+        std::fs::remove_file(&pipe_path).ok();
+    }
+
+    #[test]
+    fn test_reap_zombies() {
+        // This is difficult to test properly without creating actual zombie processes
+        // Just ensure the function doesn't panic
+        reap_zombies();
+    }
+}

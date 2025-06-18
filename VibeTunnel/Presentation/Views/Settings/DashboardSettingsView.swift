@@ -179,7 +179,7 @@ struct DashboardSettingsView: View {
 
             // Wait for server to be fully ready before restarting session monitor
             try? await Task.sleep(for: .seconds(1))
-            
+
             // Restart session monitoring with new port
             SessionMonitor.shared.stopMonitoring()
             SessionMonitor.shared.startMonitoring()
@@ -195,7 +195,7 @@ struct DashboardSettingsView: View {
 
             // Wait for server to be fully ready before restarting session monitor
             try? await Task.sleep(for: .seconds(1))
-            
+
             // Restart session monitoring
             SessionMonitor.shared.stopMonitoring()
             SessionMonitor.shared.startMonitoring()
