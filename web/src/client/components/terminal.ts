@@ -333,36 +333,49 @@ export class Terminal extends LitElement {
   private setupScrolling() {
     if (!this.container) return;
 
-    // Handle wheel events with pixel-based scrolling
+    // Handle wheel events with pixel-based scrolling (both vertical and horizontal)
     this.container.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
 
         const lineHeight = this.fontSize * 1.2;
-        let deltaPixels = 0;
+        let deltaPixelsY = 0;
+        let deltaPixelsX = 0;
 
-        // Convert wheel delta to pixels based on deltaMode
+        // Convert wheel deltas to pixels based on deltaMode
         switch (e.deltaMode) {
           case WheelEvent.DOM_DELTA_PIXEL:
             // Already in pixels
-            deltaPixels = e.deltaY;
+            deltaPixelsY = e.deltaY;
+            deltaPixelsX = e.deltaX;
             break;
           case WheelEvent.DOM_DELTA_LINE:
             // Convert lines to pixels
-            deltaPixels = e.deltaY * lineHeight;
+            deltaPixelsY = e.deltaY * lineHeight;
+            deltaPixelsX = e.deltaX * lineHeight;
             break;
           case WheelEvent.DOM_DELTA_PAGE:
             // Convert pages to pixels (assume page = viewport height)
-            deltaPixels = e.deltaY * (this.actualRows * lineHeight);
+            deltaPixelsY = e.deltaY * (this.actualRows * lineHeight);
+            deltaPixelsX = e.deltaX * (this.actualRows * lineHeight);
             break;
         }
 
         // Apply scaling for comfortable scrolling speed
         const scrollScale = 0.5;
-        deltaPixels *= scrollScale;
+        deltaPixelsY *= scrollScale;
+        deltaPixelsX *= scrollScale;
 
-        this.scrollViewportPixels(deltaPixels);
+        // Apply vertical scrolling (our custom pixel-based)
+        if (Math.abs(deltaPixelsY) > 0) {
+          this.scrollViewportPixels(deltaPixelsY);
+        }
+
+        // Apply horizontal scrolling (native browser scrollLeft) - only if not in horizontal fit mode
+        if (Math.abs(deltaPixelsX) > 0 && !this.fitHorizontally) {
+          this.container.scrollLeft += deltaPixelsX;
+        }
       },
       { passive: false }
     );
