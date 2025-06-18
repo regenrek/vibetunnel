@@ -1041,13 +1041,14 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
             // Wait up to 3 seconds for the process to actually die
             let session_path = control_path.join(&session_id);
             let session_json_path = session_path.join("session.json");
-            
+
             let mut process_died = false;
             if let Ok(content) = std::fs::read_to_string(&session_json_path) {
                 if let Ok(session_info) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(pid) = session_info.get("pid").and_then(|p| p.as_u64()) {
+                    if let Some(pid) = session_info.get("pid").and_then(serde_json::Value::as_u64) {
                         // Wait for the process to actually die
-                        for _ in 0..30 { // 30 * 100ms = 3 seconds max
+                        for _ in 0..30 {
+                            // 30 * 100ms = 3 seconds max
                             if !sessions::is_pid_alive(pid as u32) {
                                 process_died = true;
                                 break;
@@ -1057,7 +1058,7 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
                     }
                 }
             }
-            
+
             // Update session status to exited after confirming kill
             if let Ok(content) = std::fs::read_to_string(&session_json_path) {
                 if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
@@ -1068,13 +1069,16 @@ fn handle_session_kill(control_path: &Path, path: &str) -> Response<String> {
                     }
                 }
             }
-            
+
             if process_died {
                 (StatusCode::OK, "Session killed")
             } else {
-                (StatusCode::OK, "Session kill signal sent (process may still be terminating)")
+                (
+                    StatusCode::OK,
+                    "Session kill signal sent (process may still be terminating)",
+                )
             }
-        },
+        }
         Err(e) => {
             let response = ApiResponse {
                 success: None,

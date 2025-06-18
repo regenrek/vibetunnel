@@ -43,8 +43,8 @@ use tempfile::NamedTempFile;
 
 pub const DEFAULT_TERM: &str = "xterm-256color";
 
-/// Cross-platform implementation of login_tty
-/// On systems with login_tty, use it directly. Otherwise, implement manually.
+/// Cross-platform implementation of `login_tty`
+/// On systems with `login_tty`, use it directly. Otherwise, implement manually.
 #[cfg(any(
     target_os = "macos",
     target_os = "freebsd",
@@ -78,7 +78,7 @@ unsafe fn login_tty_compat(fd: i32) -> Result<(), Error> {
     let tiocsctty = TIOCSCTTY;
     #[cfg(not(target_os = "linux"))]
     let tiocsctty = libc::TIOCSCTTY;
-    
+
     if libc::ioctl(fd, tiocsctty.try_into().unwrap_or(0x540E), 0) == -1 {
         // Try without forcing
         if libc::ioctl(fd, tiocsctty.try_into().unwrap_or(0x540E), 1) == -1 {
