@@ -83,13 +83,15 @@
         main {
             flex: 1;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* Ensure the terminal element takes full height of its container */
+        /* Ensure the terminal element takes available height minus spacer */
         vibe-terminal {
             display: block;
             width: 100%;
-            height: 100%;
+            flex: 1;
             box-sizing: border-box;
             font-family: 'Fira Code', monospace;
         }
@@ -128,6 +130,7 @@
             rows="40"
             show-controls="false">
         </vibe-terminal>
+        <div style="height: 20px;"></div>
     </main>
 
     <!-- Load XTerm.js -->

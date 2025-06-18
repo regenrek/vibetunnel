@@ -31,6 +31,7 @@ export class Terminal extends LitElement {
   private scrollAccumulator = 0;
   private touchScrollAccumulator = 0;
   private isTouchActive = false;
+  private momentumAnimationId: number | null = null;
 
   // Operation queue for batching buffer modifications
   private operationQueue: (() => void)[] = [];
@@ -60,9 +61,6 @@ export class Terminal extends LitElement {
     }
 
     const queueEnd = performance.now();
-    console.log(
-      `Processed ${operationCount} operations in ${(queueEnd - queueStart).toFixed(2)}ms`
-    );
 
     // Render once after all operations are complete
     this.renderBuffer();
@@ -305,6 +303,12 @@ export class Terminal extends LitElement {
       // Only handle touch pointers, not mouse
       if (e.pointerType !== 'touch' || !e.isPrimary) return;
 
+      // Cancel any existing momentum scroll when new touch starts
+      if (this.momentumAnimationId) {
+        cancelAnimationFrame(this.momentumAnimationId);
+        this.momentumAnimationId = null;
+      }
+
       this.isTouchActive = true;
       isScrolling = false;
       pointerStartY = e.clientY;
@@ -365,6 +369,11 @@ export class Terminal extends LitElement {
 
       // Add momentum scrolling if needed (only after touch scrolling)
       if (isScrolling && Math.abs(velocity) > 0.5) {
+        // Cancel any existing momentum scroll before starting new one
+        if (this.momentumAnimationId) {
+          cancelAnimationFrame(this.momentumAnimationId);
+          this.momentumAnimationId = null;
+        }
         this.startMomentumScroll(velocity);
       }
     };
@@ -387,18 +396,21 @@ export class Terminal extends LitElement {
   }
 
   private startMomentumScroll(initialVelocity: number) {
-    let velocity = initialVelocity * 0.8; // Scale down initial velocity for smoother feel
+    let velocity = initialVelocity * 1.2; // Amplify initial velocity for better flick response
     let accumulatedScroll = 0;
     let frameCount = 0;
 
     const animate = () => {
       // Stop when velocity becomes very small
-      if (Math.abs(velocity) < 0.001) return;
+      if (Math.abs(velocity) < 0.001) {
+        this.momentumAnimationId = null;
+        return;
+      }
 
       frameCount++;
 
-      // macOS-like deceleration curve - more natural feel
-      const friction = frameCount < 10 ? 0.98 : frameCount < 30 ? 0.96 : 0.92;
+      // More responsive deceleration curve for better flick feel
+      const friction = frameCount < 15 ? 0.985 : frameCount < 45 ? 0.97 : 0.94;
 
       // Convert velocity (pixels/ms) to pixels per frame
       const pixelsPerFrame = velocity * 16; // 16ms frame time
@@ -416,10 +428,10 @@ export class Terminal extends LitElement {
 
       // Apply friction
       velocity *= friction;
-      requestAnimationFrame(animate);
+      this.momentumAnimationId = requestAnimationFrame(animate);
     };
 
-    requestAnimationFrame(animate);
+    this.momentumAnimationId = requestAnimationFrame(animate);
   }
 
   private scrollViewport(deltaLines: number) {
@@ -507,9 +519,6 @@ export class Terminal extends LitElement {
     const domUpdateTime = domUpdateEnd - domUpdateStart;
     const linkProcessTime = linkProcessEnd - linkProcessStart;
 
-    console.log(
-      `Render performance: ${totalTime.toFixed(2)}ms total (buffer: ${bufferPrepTime.toFixed(2)}ms, DOM: ${domUpdateTime.toFixed(2)}ms, links: ${linkProcessTime.toFixed(2)}ms) - ${this.actualRows} rows`
-    );
   }
 
   private renderLine(line: IBufferLine, cell: IBufferCell, cursorCol: number = -1): string {
@@ -616,9 +625,6 @@ export class Terminal extends LitElement {
       this.terminal.write(data, () => {
         const writeEnd = performance.now();
 
-        console.log(
-          `XTerm write took: ${(writeEnd - writeStart).toFixed(2)}ms for ${data.length} chars`
-        );
       });
     });
   }
