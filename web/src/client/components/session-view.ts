@@ -1,7 +1,9 @@
 import { LitElement, PropertyValues, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Session } from './session-list.js';
-import { Renderer } from '../renderer.js';
+import './terminal.js';
+import type { Terminal } from './terminal.js';
+import { CastConverter } from '../utils/cast-converter.js';
 
 @customElement('session-view')
 export class SessionView extends LitElement {
@@ -12,7 +14,9 @@ export class SessionView extends LitElement {
 
   @property({ type: Object }) session: Session | null = null;
   @state() private connected = false;
-  @state() private renderer: Renderer | null = null;
+  @state() private terminal: Terminal | null = null;
+  @state() private streamConnection: { eventSource: EventSource; disconnect: () => void } | null =
+    null;
   @state() private showMobileInput = false;
   @state() private mobileInputText = '';
   @state() private isMobile = false;
@@ -118,18 +122,21 @@ export class SessionView extends LitElement {
     // Stop loading animation
     this.stopLoading();
 
-    // Cleanup renderer if it exists
-    if (this.renderer) {
-      this.renderer.dispose();
-      this.renderer = null;
+    // Cleanup stream connection if it exists
+    if (this.streamConnection) {
+      this.streamConnection.disconnect();
+      this.streamConnection = null;
     }
+
+    // Terminal cleanup is handled by the component itself
+    this.terminal = null;
   }
 
   firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
     if (this.session) {
       this.stopLoading();
-      this.createInteractiveTerminal();
+      this.setupTerminal();
     }
   }
 
@@ -139,7 +146,15 @@ export class SessionView extends LitElement {
     // Stop loading and create terminal when session becomes available
     if (changedProperties.has('session') && this.session && this.loading) {
       this.stopLoading();
-      this.createInteractiveTerminal();
+      this.setupTerminal();
+    }
+
+    // Initialize terminal after first render when terminal element exists
+    if (!this.terminal && this.session && !this.loading) {
+      const terminalElement = this.querySelector('vibe-terminal') as Terminal;
+      if (terminalElement) {
+        this.initializeTerminal();
+      }
     }
 
     // Adjust terminal height for mobile buttons after render
@@ -150,25 +165,34 @@ export class SessionView extends LitElement {
     }
   }
 
-  private createInteractiveTerminal() {
-    if (!this.session) return;
+  private setupTerminal() {
+    // Terminal element will be created in render()
+    // We'll initialize it in updated() after first render
+  }
 
-    // Look for existing interactive terminal div or create one
-    let terminalElement = this.querySelector('#interactive-terminal') as HTMLElement;
-    if (!terminalElement) {
-      // Create the interactive terminal div inside the container
-      const container = this.querySelector('#terminal-container') as HTMLElement;
-      if (!container) return;
+  private async initializeTerminal() {
+    const terminalElement = this.querySelector('vibe-terminal') as Terminal;
+    if (!terminalElement || !this.session) return;
 
-      terminalElement = document.createElement('div');
-      terminalElement.id = 'interactive-terminal';
-      terminalElement.className = 'w-full h-full';
-      terminalElement.style.cssText = 'max-width: 100%; height: 100%;';
-      container.appendChild(terminalElement);
-    }
+    this.terminal = terminalElement;
 
-    // Create renderer once and connect to current session
-    this.renderer = new Renderer(terminalElement);
+    // Configure terminal for interactive session
+    this.terminal.cols = 80;
+    this.terminal.rows = 24;
+    this.terminal.fontSize = 14;
+    this.terminal.fitHorizontally = false; // Allow natural terminal sizing
+
+    // Listen for session exit events
+    this.terminal.addEventListener(
+      'session-exit',
+      this.handleSessionExit.bind(this) as EventListener
+    );
+
+    // Listen for terminal resize events to capture dimensions
+    this.terminal.addEventListener(
+      'terminal-resize',
+      this.handleTerminalResize.bind(this) as EventListener
+    );
 
     // Wait a moment for freshly created sessions before connecting
     const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
@@ -180,23 +204,26 @@ export class SessionView extends LitElement {
     }
 
     setTimeout(() => {
-      if (this.renderer && this.session) {
+      if (this.terminal && this.session) {
         this.stopLoading(); // Stop loading before connecting
-        this.renderer.connectToStream(this.session.id);
+        this.connectToStream();
       }
     }, delay);
+  }
 
-    // Listen for session exit events
-    terminalElement.addEventListener(
-      'session-exit',
-      this.handleSessionExit.bind(this) as EventListener
-    );
+  private connectToStream() {
+    if (!this.terminal || !this.session) return;
 
-    // Listen for terminal resize events to capture dimensions
-    terminalElement.addEventListener(
-      'terminal-resize',
-      this.handleTerminalResize.bind(this) as EventListener
-    );
+    // Clean up existing connection
+    if (this.streamConnection) {
+      this.streamConnection.disconnect();
+      this.streamConnection = null;
+    }
+
+    const streamUrl = `/api/sessions/${this.session.id}/stream`;
+
+    // Use CastConverter to connect terminal to stream
+    this.streamConnection = CastConverter.connectToStream(this.terminal, streamUrl);
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
@@ -330,10 +357,41 @@ export class SessionView extends LitElement {
       this.session = { ...this.session, status: 'exited' };
       this.requestUpdate();
 
-      // Switch to snapshot mode
+      // Switch to snapshot mode - disconnect stream and load final snapshot
+      if (this.streamConnection) {
+        this.streamConnection.disconnect();
+        this.streamConnection = null;
+      }
+
+      // Load final snapshot of the session
       requestAnimationFrame(() => {
-        this.createInteractiveTerminal();
+        this.loadSessionSnapshot();
       });
+    }
+  }
+
+  private async loadSessionSnapshot() {
+    if (!this.terminal || !this.session) return;
+
+    try {
+      const url = `/api/sessions/${this.session.id}/snapshot`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch snapshot: ${response.status}`);
+
+      const castContent = await response.text();
+
+      // Clear terminal and load snapshot
+      this.terminal.clear();
+      await CastConverter.dumpToTerminal(this.terminal, castContent);
+
+      // Scroll to bottom after loading
+      this.terminal.queueCallback(() => {
+        if (this.terminal) {
+          this.terminal.scrollToBottom();
+        }
+      });
+    } catch (error) {
+      console.error('Failed to load session snapshot:', error);
     }
   }
 
@@ -365,11 +423,13 @@ export class SessionView extends LitElement {
     } else {
       // Clean up viewport listener when closing overlay
       const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
-      if (
-        textarea &&
-        (textarea as HTMLTextAreaElement & { _viewportCleanup?: () => void })._viewportCleanup
-      ) {
-        (textarea as HTMLTextAreaElement & { _viewportCleanup?: () => void })._viewportCleanup();
+      if (textarea) {
+        const textareaWithCleanup = textarea as HTMLTextAreaElement & {
+          _viewportCleanup?: () => void;
+        };
+        if (textareaWithCleanup._viewportCleanup) {
+          textareaWithCleanup._viewportCleanup();
+        }
       }
     }
   }
@@ -579,14 +639,15 @@ export class SessionView extends LitElement {
   }
 
   private async handleCopy() {
-    if (!this.renderer) return;
+    if (!this.terminal) return;
 
     try {
-      // Get the terminal instance from the renderer
-      const terminal = this.renderer.getTerminal();
+      // Get selected text from terminal by querying the DOM
+      const terminalElement = this.querySelector('vibe-terminal');
+      if (!terminalElement) return;
 
-      // Get the selected text from the terminal
-      const selectedText = terminal.getSelection();
+      const selection = window.getSelection();
+      const selectedText = selection?.toString() || '';
 
       if (selectedText) {
         // Write the selected text to clipboard
@@ -602,27 +663,25 @@ export class SessionView extends LitElement {
       console.error('Failed to copy to clipboard:', error);
       // Fallback: try to use the older document.execCommand method
       try {
-        if (this.renderer) {
-          const terminal = this.renderer.getTerminal();
-          const selectedText = terminal.getSelection();
+        const selection = window.getSelection();
+        const selectedText = selection?.toString() || '';
 
-          if (selectedText) {
-            const textArea = document.createElement('textarea');
-            textArea.value = selectedText;
-            textArea.style.position = 'fixed';
-            textArea.style.opacity = '0';
-            document.body.appendChild(textArea);
-            textArea.select();
+        if (selectedText) {
+          const textArea = document.createElement('textarea');
+          textArea.value = selectedText;
+          textArea.style.position = 'fixed';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.select();
 
-            if (document.execCommand('copy')) {
-              console.log(
-                'Text copied to clipboard (fallback):',
-                selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '')
-              );
-            }
-
-            document.body.removeChild(textArea);
+          if (document.execCommand('copy')) {
+            console.log(
+              'Text copied to clipboard (fallback):',
+              selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '')
+            );
           }
+
+          document.body.removeChild(textArea);
         }
       } catch (fallbackError) {
         console.error('Fallback copy method also failed:', fallbackError);
@@ -752,7 +811,7 @@ export class SessionView extends LitElement {
             ? html`
                 <!-- Loading overlay -->
                 <div
-                  class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center"
+                  class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-10"
                 >
                   <div class="text-vs-text font-mono text-center">
                     <div class="text-2xl mb-2">${this.getLoadingText()}</div>
@@ -761,6 +820,15 @@ export class SessionView extends LitElement {
                 </div>
               `
             : ''}
+          <!-- Terminal Component -->
+          <vibe-terminal
+            .sessionId=${this.session?.id || ''}
+            .cols=${80}
+            .rows=${24}
+            .fontSize=${14}
+            .fitHorizontally=${false}
+            class="w-full h-full"
+          ></vibe-terminal>
         </div>
 
         <!-- Mobile Input Controls -->
