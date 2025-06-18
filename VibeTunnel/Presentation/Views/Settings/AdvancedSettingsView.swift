@@ -6,6 +6,8 @@ struct AdvancedSettingsView: View {
     private var debugMode = false
     @AppStorage("cleanupOnStartup")
     private var cleanupOnStartup = true
+    @AppStorage("showInDock")
+    private var showInDock = false
     @State private var cliInstaller = CLIInstaller()
 
     var body: some View {
@@ -70,13 +72,21 @@ struct AdvancedSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                } header: {
-                    Text("Advanced")
-                        .font(.headline)
-                }
-
-                // Debug section
-                Section {
+                    
+                    // Show in Dock
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Show in Dock", isOn: showInDockBinding)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Show VibeTunnel icon in the Dock.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("The dock icon is always displayed when the Settings dialog is visible.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    // Debug mode toggle
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Debug mode", isOn: $debugMode)
                         Text("Enable additional logging and debugging features.")
@@ -84,7 +94,7 @@ struct AdvancedSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Debug")
+                    Text("Advanced")
                         .font(.headline)
                 }
             }
@@ -95,6 +105,17 @@ struct AdvancedSettingsView: View {
         .onAppear {
             cliInstaller.checkInstallationStatus()
         }
+    }
+    
+    private var showInDockBinding: Binding<Bool> {
+        Binding(
+            get: { showInDock },
+            set: { newValue in
+                showInDock = newValue
+                // Don't change activation policy while settings window is open
+                // The change will be applied when the settings window closes
+            }
+        )
     }
 }
 

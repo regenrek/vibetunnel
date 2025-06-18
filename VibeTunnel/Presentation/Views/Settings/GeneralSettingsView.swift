@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// General settings tab for basic app preferences
 struct GeneralSettingsView: View {
@@ -6,8 +7,6 @@ struct GeneralSettingsView: View {
     private var autostart = false
     @AppStorage("showNotifications")
     private var showNotifications = true
-    @AppStorage("showInDock")
-    private var showInDock = false
     @AppStorage("updateChannel")
     private var updateChannelRaw = UpdateChannel.stable.rawValue
 
@@ -76,23 +75,8 @@ struct GeneralSettingsView: View {
                         .font(.headline)
                 }
 
-                Section {
-                    // Show in Dock
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Show in Dock", isOn: showInDockBinding)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Show VibeTunnel icon in the Dock.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("The dock icon is always displayed when the Settings dialog is visible.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("Appearance")
-                        .font(.headline)
-                }
+                // Permissions Section
+                PermissionsSection()
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -110,17 +94,6 @@ struct GeneralSettingsView: View {
             set: { newValue in
                 autostart = newValue
                 startupManager.setLaunchAtLogin(enabled: newValue)
-            }
-        )
-    }
-
-    private var showInDockBinding: Binding<Bool> {
-        Binding(
-            get: { showInDock },
-            set: { newValue in
-                showInDock = newValue
-                // Don't change activation policy while settings window is open
-                // The change will be applied when the settings window closes
             }
         )
     }
@@ -148,6 +121,106 @@ struct GeneralSettingsView: View {
         Task {
             try? await Task.sleep(for: .seconds(2))
             isCheckingForUpdates = false
+        }
+    }
+}
+
+// MARK: - Permissions Section
+
+private struct PermissionsSection: View {
+    @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
+    @State private var accessibilityUpdateTrigger = 0
+    
+    private var hasAccessibilityPermission: Bool {
+        // This will cause a re-read whenever accessibilityUpdateTrigger changes
+        _ = accessibilityUpdateTrigger
+        return AccessibilityPermissionManager.shared.hasPermission()
+    }
+    
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 16) {
+                // Automation permission
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Terminal Automation")
+                            .font(.body)
+                        Text("Required to launch and control terminal applications")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    if appleScriptManager.hasPermission {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Granted")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 2)
+                        .frame(height: 22) // Match small button height
+                    } else {
+                        Button("Grant Permission") {
+                            appleScriptManager.requestPermission()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                
+                Divider()
+                
+                // Accessibility permission
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Accessibility")
+                            .font(.body)
+                        Text("Required for terminals that need keystroke input (Ghostty, Warp, Hyper)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    if hasAccessibilityPermission {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Granted")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 2)
+                        .frame(height: 22) // Match small button height
+                    } else {
+                        Button("Grant Permission") {
+                            AccessibilityPermissionManager.shared.requestPermission()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+        } header: {
+            Text("Permissions")
+                .font(.headline)
+        } footer: {
+            Text("Terminal automation is required for all terminals. Accessibility is only needed for terminals that simulate keyboard input.")
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+        }
+        .task {
+            _ = await appleScriptManager.checkPermission()
+        }
+        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+            // Force a re-render to check accessibility permission
+            accessibilityUpdateTrigger += 1
         }
     }
 }

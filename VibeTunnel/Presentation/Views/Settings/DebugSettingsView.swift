@@ -32,15 +32,12 @@ struct DebugSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                HTTPServerSection(
+                ServerSection(
                     isServerHealthy: isServerHealthy,
                     isServerRunning: isServerRunning,
                     serverPort: serverPort,
                     lastError: lastError,
-                    toggleServer: toggleServer
-                )
-
-                ServerConfigurationSection(
+                    toggleServer: toggleServer,
                     serverModeString: $serverModeString,
                     serverManager: serverManager
                 )
@@ -269,18 +266,21 @@ struct DebugSettingsView: View {
     }
 }
 
-// MARK: - HTTP Server Section
+// MARK: - Server Section
 
-private struct HTTPServerSection: View {
+private struct ServerSection: View {
     let isServerHealthy: Bool
     let isServerRunning: Bool
     let serverPort: Int
     let lastError: String?
     let toggleServer: (Bool) async -> Void
+    @Binding var serverModeString: String
+    let serverManager: ServerManager
 
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
+                // Server Status
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -323,29 +323,10 @@ private struct HTTPServerSection: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-            }
-            .padding(.vertical, 4)
-        } header: {
-            Text("HTTP Server")
-                .font(.headline)
-        } footer: {
-            Text("The HTTP server provides REST API endpoints for terminal session management.")
-                .font(.caption)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
-        }
-    }
-}
-
-// MARK: - Server Configuration Section
-
-private struct ServerConfigurationSection: View {
-    @Binding var serverModeString: String
-    let serverManager: ServerManager
-
-    var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
+                
+                Divider()
+                
+                // Server Mode Configuration
                 HStack {
                     Text("Server Mode")
                     Spacer()
@@ -383,11 +364,12 @@ private struct ServerConfigurationSection: View {
                     }
                 }
             }
+            .padding(.vertical, 4)
         } header: {
-            Text("Server Configuration")
+            Text("HTTP Server")
                 .font(.headline)
         } footer: {
-            Text("Choose between the built-in Swift Hummingbird server or the Rust tty-fwd binary.")
+            Text("The HTTP server provides REST API endpoints for terminal session management. Choose between the built-in Swift Hummingbird server or the Rust tty-fwd binary.")
                 .font(.caption)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
@@ -559,6 +541,7 @@ private struct DeveloperToolsSection: View {
                         showServerConsole()
                     }
                     .buttonStyle(.bordered)
+                    .frame(width: 120)
                 }
                 Text("View real-time server logs from both Hummingbird and Rust servers")
                     .font(.caption)
@@ -573,6 +556,7 @@ private struct DeveloperToolsSection: View {
                         openConsole()
                     }
                     .buttonStyle(.bordered)
+                    .frame(width: 120)
                 }
                 Text("View all application logs in Console.app")
                     .font(.caption)
@@ -587,6 +571,7 @@ private struct DeveloperToolsSection: View {
                         showApplicationSupport()
                     }
                     .buttonStyle(.bordered)
+                    .frame(width: 120)
                 }
                 Text("Open the application support directory")
                     .font(.caption)
@@ -601,6 +586,7 @@ private struct DeveloperToolsSection: View {
                         AppDelegate.showWelcomeScreen()
                     }
                     .buttonStyle(.bordered)
+                    .frame(width: 120)
                 }
                 Text("Display the welcome screen again")
                     .font(.caption)
@@ -616,6 +602,7 @@ private struct DeveloperToolsSection: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                    .frame(width: 120)
                 }
                 Text("Remove all stored preferences and reset to defaults")
                     .font(.caption)
