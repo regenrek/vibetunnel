@@ -381,32 +381,26 @@ export class CastConverter {
                 );
               }
             }
+          } else if (type === 'i') {
+            // Ignore 'i' (input) events - those are for sending to server, not displaying
+          } else if (_timestamp === 'exit') {
+            disconnect();
+
+            if (terminal.dispatchEvent) {
+              terminal.dispatchEvent(
+                new CustomEvent('session-exit', {
+                  detail: {
+                    exitCode: data[1],
+                    sessionId: data[2] || null,
+                  },
+                  bubbles: true,
+                })
+              );
+            }
+          } else {
+            console.error('Unknown stream message format:', data);
           }
-          // Ignore 'i' (input) events - those are for sending to server, not displaying
-          return;
         }
-
-        // Check for special exit event [exitType, exitCode, sessionId]
-        if (Array.isArray(data) && data.length >= 2 && data[0] === 'exit') {
-          // Session exit event - close connection and notify
-          disconnect();
-
-          if (terminal.dispatchEvent) {
-            terminal.dispatchEvent(
-              new CustomEvent('session-exit', {
-                detail: {
-                  exitCode: data[1],
-                  sessionId: data[2] || null,
-                },
-                bubbles: true,
-              })
-            );
-          }
-          return;
-        }
-
-        // Unknown message format
-        console.warn('Unknown stream message format:', data);
       } catch (error) {
         console.error('Failed to parse stream message:', event.data, error);
       }

@@ -437,11 +437,6 @@ export class SessionView extends LitElement {
         this.streamConnection.disconnect();
         this.streamConnection = null;
       }
-
-      // Load final snapshot of the session
-      requestAnimationFrame(() => {
-        this.loadSessionSnapshot();
-      });
     }
   }
 
