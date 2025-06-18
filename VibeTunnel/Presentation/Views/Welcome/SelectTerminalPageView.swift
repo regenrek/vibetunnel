@@ -56,8 +56,8 @@ struct SelectTerminalPageView: View {
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
-                    .frame(width: 200)
-
+                    .frame(width: 168)
+                    
                     // Test terminal button
                     Button("Test Terminal Permission") {
                         testTerminal()
