@@ -553,7 +553,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
   res.on('finish', cleanup);
 });
 
-// Get session snapshot (cast with adjusted timestamps for immediate playback)
+// Get session snapshot (optimized cast with only content after last clear)
 app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
   const sessionId = req.params.sessionId;
   const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
@@ -567,9 +567,9 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
     const lines = content.trim().split('\n');
 
     let header = null;
-    const events = [];
-    let startTime = null;
+    const allEvents = [];
 
+    // Parse all lines first
     for (const line of lines) {
       if (line.trim()) {
         try {
@@ -581,15 +581,59 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
           }
           // Event line [timestamp, type, data]
           else if (Array.isArray(parsed) && parsed.length >= 3) {
-            if (startTime === null) {
-              startTime = parsed[0];
-            }
-            events.push([0, parsed[1], parsed[2]]);
+            allEvents.push(parsed);
           }
         } catch (_e) {
           // Skip invalid lines
         }
       }
+    }
+
+    // Find the last clear command (usually "\x1b[2J\x1b[3J\x1b[H" or similar)
+    let lastClearIndex = -1;
+    let lastResizeBeforeClear = null;
+
+    for (let i = allEvents.length - 1; i >= 0; i--) {
+      const event = allEvents[i];
+      if (event[1] === 'o' && event[2]) {
+        // Look for clear screen escape sequences
+        const data = event[2];
+        if (
+          data.includes('\x1b[2J') || // Clear entire screen
+          data.includes('\x1b[H\x1b[2J') || // Home cursor + clear screen
+          data.includes('\x1b[3J') || // Clear scrollback
+          data.includes('\x1bc') // Full reset
+        ) {
+          lastClearIndex = i;
+          break;
+        }
+      }
+    }
+
+    // Find the last resize event before the clear (if any)
+    if (lastClearIndex > 0) {
+      for (let i = lastClearIndex - 1; i >= 0; i--) {
+        const event = allEvents[i];
+        if (event[1] === 'r') {
+          lastResizeBeforeClear = event;
+          break;
+        }
+      }
+    }
+
+    // Build optimized event list
+    const optimizedEvents = [];
+
+    // Include last resize before clear if found
+    if (lastResizeBeforeClear) {
+      optimizedEvents.push([0, lastResizeBeforeClear[1], lastResizeBeforeClear[2]]);
+    }
+
+    // Include events after the last clear (or all events if no clear found)
+    const startIndex = lastClearIndex >= 0 ? lastClearIndex : 0;
+    for (let i = startIndex; i < allEvents.length; i++) {
+      const event = allEvents[i];
+      optimizedEvents.push([0, event[1], event[2]]);
     }
 
     // Build the complete cast
@@ -610,10 +654,19 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
       );
     }
 
-    // Add all events
-    events.forEach((event) => {
+    // Add optimized events
+    optimizedEvents.forEach((event) => {
       cast.push(JSON.stringify(event));
     });
+
+    const originalSize = allEvents.length;
+    const optimizedSize = optimizedEvents.length;
+    const reduction =
+      originalSize > 0 ? (((originalSize - optimizedSize) / originalSize) * 100).toFixed(1) : '0';
+
+    console.log(
+      `Snapshot for ${sessionId}: ${originalSize} events → ${optimizedSize} events (${reduction}% reduction)`
+    );
 
     res.setHeader('Content-Type', 'text/plain');
     res.send(cast.join('\n'));
