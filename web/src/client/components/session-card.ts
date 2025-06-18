@@ -1,6 +1,7 @@
 import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { Renderer } from '../renderer.js';
+import './terminal.js';
+import type { Terminal } from './terminal.js';
 
 export interface Session {
   id: string;
@@ -23,7 +24,7 @@ export class SessionCard extends LitElement {
   }
 
   @property({ type: Object }) session!: Session;
-  @state() private renderer: Renderer | null = null;
+  @state() private terminal: Terminal | null = null;
   @state() private killing = false;
   @state() private killingFrame = 0;
 
@@ -32,8 +33,20 @@ export class SessionCard extends LitElement {
 
   firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
-    this.createRenderer();
+    this.setupTerminal();
     this.startRefresh();
+  }
+
+  updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+
+    // Initialize terminal after first render when terminal element exists
+    if (!this.terminal && !this.killing) {
+      const terminalElement = this.querySelector('vibe-terminal') as Terminal;
+      if (terminalElement) {
+        this.initializeTerminal();
+      }
+    }
   }
 
   disconnectedCallback() {
@@ -44,54 +57,84 @@ export class SessionCard extends LitElement {
     if (this.killingInterval) {
       clearInterval(this.killingInterval);
     }
-    if (this.renderer) {
-      this.renderer.dispose();
-      this.renderer = null;
-    }
+    // Terminal cleanup is handled by the component itself
+    this.terminal = null;
   }
 
-  private createRenderer() {
-    const playerElement = this.querySelector('#player') as HTMLElement;
-    if (!playerElement) return;
+  private setupTerminal() {
+    // Terminal element will be created in render()
+    // We'll initialize it in updated() after first render
+  }
 
-    // Create single renderer for this card
-    this.renderer = new Renderer(playerElement, 80, 24, 10000, 4);
+  private async initializeTerminal() {
+    const terminalElement = this.querySelector('vibe-terminal') as Terminal;
+    if (!terminalElement) return;
 
-    // Always use snapshot endpoint for cards
+    this.terminal = terminalElement;
+
+    // Configure terminal for card display
+    this.terminal.cols = 80;
+    this.terminal.rows = 24;
+    this.terminal.fontSize = 10; // Smaller font for card display
+    this.terminal.fitHorizontally = true; // Fit to card width
+
+    // Load snapshot data
     const url = `/api/sessions/${this.session.id}/snapshot`;
 
     // Wait a moment for freshly created sessions before connecting
     const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
     const delay = sessionAge < 5000 ? 2000 : 0; // 2 second delay if session is less than 5 seconds old
 
-    setTimeout(() => {
-      if (this.renderer) {
-        this.renderer.loadFromUrl(url, false); // false = not a stream, use snapshot
-        // Disable pointer events so clicks pass through to the card
-        this.renderer.setPointerEventsEnabled(false);
-        // Force fit after loading to ensure proper scaling in card
-        setTimeout(() => {
-          if (this.renderer) {
-            this.renderer.fit();
-          }
-        }, 100);
-      }
+    setTimeout(async () => {
+      await this.loadSnapshot(url);
     }, delay);
   }
 
-  private startRefresh() {
-    this.refreshInterval = window.setInterval(() => {
-      if (this.renderer) {
-        const url = `/api/sessions/${this.session.id}/snapshot`;
-        this.renderer.loadFromUrl(url, false);
-        // Ensure pointer events stay disabled after refresh
-        this.renderer.setPointerEventsEnabled(false);
-        // Force fit after refresh to maintain proper scaling
-        setTimeout(() => {
-          if (this.renderer) {
-            this.renderer.fit();
+  private async loadSnapshot(url: string) {
+    if (!this.terminal) return;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch snapshot: ${response.status}`);
+
+      const castContent = await response.text();
+
+      // Clear terminal and write snapshot data
+      this.terminal.clear();
+
+      // Parse cast file and write content
+      const lines = castContent.trim().split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const event = JSON.parse(line);
+            if (event.length >= 3 && event[1] === 'o') {
+              // Output event: [timestamp, 'o', data]
+              this.terminal.write(event[2], false); // Don't follow cursor for snapshot
+            }
+          } catch (_e) {
+            // Skip invalid lines
+            continue;
           }
-        }, 100);
+        }
+      }
+
+      // Scroll to bottom after loading
+      this.terminal.queueCallback(() => {
+        if (this.terminal) {
+          this.terminal.scrollToBottom();
+        }
+      });
+    } catch (error) {
+      console.error('Failed to load session snapshot:', error);
+    }
+  }
+
+  private startRefresh() {
+    this.refreshInterval = window.setInterval(async () => {
+      if (this.terminal) {
+        const url = `/api/sessions/${this.session.id}/snapshot`;
+        await this.loadSnapshot(url);
       }
     }, 10000); // Refresh every 10 seconds
   }
@@ -212,7 +255,7 @@ export class SessionCard extends LitElement {
             : ''}
         </div>
 
-        <!-- XTerm renderer (main content) -->
+        <!-- Terminal display (main content) -->
         <div class="session-preview bg-black overflow-hidden" style="aspect-ratio: 640/480;">
           ${this.killing
             ? html`
@@ -223,7 +266,17 @@ export class SessionCard extends LitElement {
                   </div>
                 </div>
               `
-            : html` <div id="player" class="w-full h-full"></div> `}
+            : html`
+                <vibe-terminal
+                  .sessionId=${this.session.id}
+                  .cols=${80}
+                  .rows=${24}
+                  .fontSize=${10}
+                  .fitHorizontally=${true}
+                  class="w-full h-full"
+                  style="pointer-events: none;"
+                ></vibe-terminal>
+              `}
         </div>
 
         <!-- Compact Footer -->
