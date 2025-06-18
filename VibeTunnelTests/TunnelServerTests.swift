@@ -65,9 +65,10 @@ struct TunnelServerTests {
     // MARK: - Error Response Tests
     
     @Test("Error responses are properly formatted JSON")
+    @MainActor
     func testErrorResponseFormat() async throws {
         // Test that all error responses follow consistent JSON format
-        let server = TunnelServer(port: 0) // Use port 0 for testing
+        let _ = TunnelServer(port: 0) // Use port 0 for testing
         
         // Test various error response methods
         let errorCases = [
@@ -76,7 +77,7 @@ struct TunnelServerTests {
             ("Internal error", HTTPResponse.Status.internalServerError)
         ]
         
-        for (message, status) in errorCases {
+        for (_, status) in errorCases {
             // Note: errorResponse is private, so we can't test directly
             // In a real test, we'd make HTTP requests to trigger these errors
             #expect(status.code >= 400)
@@ -100,7 +101,7 @@ struct TunnelServerTests {
         #expect(true) // Placeholder - would need running server
     }
     
-    @Test(.tags(.regression), "Session ID mismatch bug does not regress")
+    @Test("Session ID mismatch bug does not regress", .tags(.regression))
     func testSessionIdMismatchRegression() async throws {
         // Regression test for the bug where Swift server returned
         // its own session name instead of tty-fwd's UUID
@@ -114,10 +115,9 @@ struct TunnelServerTests {
     }
 }
 
-// MARK: - Test Tags
+// MARK: - Additional Test Tags
 
 extension Tag {
-    @Tag static var regression: Self
     @Tag static var sessionManagement: Self
     @Tag static var apiEndpoints: Self
 }

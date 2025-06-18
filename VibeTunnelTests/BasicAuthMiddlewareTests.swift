@@ -3,7 +3,6 @@ import Foundation
 import HTTPTypes
 import Hummingbird
 import HummingbirdCore
-import HummingbirdTesting
 import NIOCore
 @testable import VibeTunnel
 

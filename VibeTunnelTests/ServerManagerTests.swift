@@ -2,15 +2,6 @@ import Testing
 import Foundation
 @testable import VibeTunnel
 
-// MARK: - Test Tags
-
-extension Tag {
-    @Tag static var critical: Self
-    @Tag static var networking: Self
-    @Tag static var concurrency: Self
-    @Tag static var reliability: Self
-}
-
 // MARK: - Mock Server Implementation
 
 @MainActor

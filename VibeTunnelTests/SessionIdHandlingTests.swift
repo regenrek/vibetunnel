@@ -148,7 +148,7 @@ struct SessionIdHandlingTests {
 
 // MARK: - Regression Test for Specific Bug
 
-@Test(.bug("Session ID mismatch causing 404 on input endpoint"))
+@Test(.bug("https://github.com/example/issues/123"))
 func testSessionIdMismatchBugFixed() async throws {
     // This test documents the specific bug that was fixed:
     // 1. Swift server generated: "session_1234567890_abc123"
