@@ -595,7 +595,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
         }
 
         // Redirect stdin, stdout, stderr to the pty slave
-        use std::os::fd::{FromRawFd, OwnedFd, AsFd};
+        use std::os::fd::{FromRawFd, OwnedFd};
         let slave_fd = pty.slave.as_raw_fd();
         
         // Create OwnedFd for slave and standard file descriptors
@@ -688,7 +688,7 @@ fn communication_loop(
         }
 
         if read_fds.contains(stdin.as_fd()) {
-            match read(stdin.as_raw_fd(), &mut buf) {
+            match read(&stdin, &mut buf) {
                 Ok(0) => {
                     send_eof_sequence(master.as_fd());
                     read_stdin = false;

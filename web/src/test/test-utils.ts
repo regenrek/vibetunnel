@@ -41,13 +41,13 @@ export const closeTestServer = async (server: Server): Promise<void> => {
 };
 
 export const waitForWebSocket = (ms: number = 100): Promise<void> => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 export const mockWebSocketServer = () => {
   const clients = new Set();
   const broadcast = vi.fn();
-  
+
   return {
     clients,
     broadcast,

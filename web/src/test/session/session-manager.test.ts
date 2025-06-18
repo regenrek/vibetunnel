@@ -35,7 +35,7 @@ describe('Session Manager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSpawn = vi.mocked(spawn);
-    
+
     // Default mock for tty-fwd
     const mockTtyFwdProcess = {
       stdout: {
@@ -51,7 +51,7 @@ describe('Session Manager', () => {
       }),
       kill: vi.fn(),
     };
-    
+
     mockSpawn.mockReturnValue(mockTtyFwdProcess);
   });
 
@@ -62,12 +62,12 @@ describe('Session Manager', () => {
   describe('Session Lifecycle', () => {
     it('should create a session with valid parameters', async () => {
       const serverModule = await import('../../server');
-      
+
       // Simulate session creation through the spawn command
       const sessionId = 'test-' + Date.now();
       const command = ['bash', '-l'];
       const workingDir = '/home/test/projects';
-      
+
       mockSpawn.mockImplementationOnce(() => ({
         stdout: {
           on: vi.fn((event, callback) => {
@@ -82,17 +82,17 @@ describe('Session Manager', () => {
         }),
         kill: vi.fn(),
       }));
-      
+
       // Test the spawn command execution
       const args = ['spawn', '--name', 'Test Session', '--cwd', workingDir, '--', ...command];
       const result = await new Promise((resolve, reject) => {
         const proc = mockSpawn('tty-fwd', args);
         let output = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
           output += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           if (code === 0) {
             resolve(output);
@@ -101,7 +101,7 @@ describe('Session Manager', () => {
           }
         });
       });
-      
+
       expect(result).toBe('Session created successfully');
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', args);
     });
@@ -109,11 +109,11 @@ describe('Session Manager', () => {
     it('should handle session with environment variables', async () => {
       const env = { NODE_ENV: 'test', CUSTOM_VAR: 'value' };
       const command = ['node', 'app.js'];
-      
+
       // Test environment variable passing
       const envArgs = Object.entries(env).flatMap(([key, value]) => ['--env', `${key}=${value}`]);
       const args = ['spawn', ...envArgs, '--', ...command];
-      
+
       mockSpawn.mockImplementationOnce(() => ({
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
@@ -122,13 +122,13 @@ describe('Session Manager', () => {
         }),
         kill: vi.fn(),
       }));
-      
+
       const proc = mockSpawn('tty-fwd', args);
-      
-      expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', expect.arrayContaining([
-        '--env', 'NODE_ENV=test',
-        '--env', 'CUSTOM_VAR=value',
-      ]));
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'tty-fwd',
+        expect.arrayContaining(['--env', 'NODE_ENV=test', '--env', 'CUSTOM_VAR=value'])
+      );
     });
 
     it('should list all active sessions', async () => {
@@ -178,11 +178,11 @@ describe('Session Manager', () => {
       const result = await new Promise((resolve, reject) => {
         const proc = mockSpawn('tty-fwd', ['list']);
         let output = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
           output += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           if (code === 0) {
             resolve(JSON.parse(output));
@@ -198,7 +198,7 @@ describe('Session Manager', () => {
 
     it('should terminate a running session', async () => {
       const sessionId = 'session-to-terminate';
-      
+
       mockSpawn.mockImplementationOnce(() => ({
         stdout: {
           on: vi.fn((event, callback) => {
@@ -217,11 +217,11 @@ describe('Session Manager', () => {
       const result = await new Promise((resolve, reject) => {
         const proc = mockSpawn('tty-fwd', ['terminate', sessionId]);
         let output = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
           output += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           if (code === 0) {
             resolve(output);
@@ -254,11 +254,11 @@ describe('Session Manager', () => {
       const result = await new Promise((resolve, reject) => {
         const proc = mockSpawn('tty-fwd', ['clean']);
         let output = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
           output += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           if (code === 0) {
             resolve(output);
@@ -277,7 +277,7 @@ describe('Session Manager', () => {
     it('should write input to a session', async () => {
       const sessionId = 'interactive-session';
       const input = 'echo "Hello, World!"\n';
-      
+
       mockSpawn.mockImplementationOnce(() => ({
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
@@ -288,7 +288,7 @@ describe('Session Manager', () => {
       }));
 
       const proc = mockSpawn('tty-fwd', ['write', sessionId, input]);
-      
+
       expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', ['write', sessionId, input]);
     });
 
@@ -296,7 +296,7 @@ describe('Session Manager', () => {
       const sessionId = 'resize-session';
       const cols = 120;
       const rows = 40;
-      
+
       mockSpawn.mockImplementationOnce(() => ({
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
@@ -307,13 +307,8 @@ describe('Session Manager', () => {
       }));
 
       const proc = mockSpawn('tty-fwd', ['resize', sessionId, String(cols), String(rows)]);
-      
-      expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', [
-        'resize',
-        sessionId,
-        '120',
-        '40',
-      ]);
+
+      expect(mockSpawn).toHaveBeenCalledWith('tty-fwd', ['resize', sessionId, '120', '40']);
     });
 
     it('should get terminal snapshot', async () => {
@@ -329,7 +324,7 @@ describe('Session Manager', () => {
         cols: 80,
         rows: 24,
       };
-      
+
       mockSpawn.mockImplementationOnce(() => ({
         stdout: {
           on: vi.fn((event, callback) => {
@@ -348,11 +343,11 @@ describe('Session Manager', () => {
       const result = await new Promise((resolve, reject) => {
         const proc = mockSpawn('tty-fwd', ['snapshot', sessionId]);
         let output = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
           output += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           if (code === 0) {
             resolve(JSON.parse(output));
@@ -373,13 +368,13 @@ describe('Session Manager', () => {
       mockStreamProcess.stdout = new EventEmitter();
       mockStreamProcess.stderr = new EventEmitter();
       mockStreamProcess.kill = vi.fn();
-      
+
       mockSpawn.mockImplementationOnce(() => mockStreamProcess);
 
       // Start streaming
       const streamData: string[] = [];
       const proc = mockSpawn('tty-fwd', ['stream', sessionId]);
-      
+
       proc.stdout.on('data', (data: Buffer) => {
         streamData.push(data.toString());
       });
@@ -414,11 +409,11 @@ describe('Session Manager', () => {
       const result = await new Promise((resolve) => {
         const proc = mockSpawn('tty-fwd', ['spawn', '--', 'invalid-command']);
         let error = '';
-        
+
         proc.stderr.on('data', (data: Buffer) => {
           error += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           resolve({ code, error });
         });
@@ -435,11 +430,11 @@ describe('Session Manager', () => {
         on: vi.fn(),
         kill: vi.fn(),
       };
-      
+
       mockSpawn.mockImplementationOnce(() => mockSlowProcess);
 
       const proc = mockSpawn('tty-fwd', ['list']);
-      
+
       // Simulate timeout
       const timeoutId = setTimeout(() => {
         proc.kill('SIGTERM');
@@ -468,11 +463,11 @@ describe('Session Manager', () => {
       const result = await new Promise((resolve) => {
         const proc = mockSpawn('tty-fwd', ['terminate', 'non-existent-session']);
         let error = '';
-        
+
         proc.stderr.on('data', (data: Buffer) => {
           error += data.toString();
         });
-        
+
         proc.on('close', (code: number) => {
           resolve({ code, error });
         });

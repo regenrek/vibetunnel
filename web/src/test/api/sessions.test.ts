@@ -33,14 +33,14 @@ describe('Sessions API', () => {
   beforeEach(() => {
     // Clear all mocks
     vi.clearAllMocks();
-    
+
     // Set up mock spawn
     mockSpawn = vi.mocked(spawn);
-    
+
     // Create a fresh app instance for each test
     app = express();
     app.use(express.json());
-    
+
     // Mock tty-fwd execution
     const mockTtyFwdProcess = {
       stdout: {
@@ -61,7 +61,7 @@ describe('Sessions API', () => {
       }),
       kill: vi.fn(),
     };
-    
+
     mockSpawn.mockReturnValue(mockTtyFwdProcess);
   });
 
@@ -75,9 +75,7 @@ describe('Sessions API', () => {
       const serverModule = await import('../../server');
       const app = serverModule.app;
 
-      const response = await request(app)
-        .get('/api/sessions')
-        .expect(200);
+      const response = await request(app).get('/api/sessions').expect(200);
 
       expect(response.body).toEqual({ sessions: [] });
     });
@@ -117,9 +115,7 @@ describe('Sessions API', () => {
       const serverModule = await import('../../server');
       const app = serverModule.app;
 
-      const response = await request(app)
-        .get('/api/sessions')
-        .expect(200);
+      const response = await request(app).get('/api/sessions').expect(200);
 
       expect(response.body.sessions).toHaveLength(1);
       expect(response.body.sessions[0]).toMatchObject({
@@ -148,7 +144,7 @@ describe('Sessions API', () => {
 
       expect(response.body).toHaveProperty('sessionId');
       expect(response.body.sessionId).toMatch(/^[a-f0-9-]+$/);
-      
+
       // Verify tty-fwd was called with correct arguments
       expect(mockSpawn).toHaveBeenCalledWith(
         expect.any(String), // TTY_FWD_PATH
@@ -191,12 +187,10 @@ describe('Sessions API', () => {
       const serverModule = await import('../../server');
       const app = serverModule.app;
 
-      const response = await request(app)
-        .delete('/api/sessions/test-session-123')
-        .expect(200);
+      const response = await request(app).delete('/api/sessions/test-session-123').expect(200);
 
       expect(response.body.message).toBe('Session terminated');
-      
+
       // Verify tty-fwd was called with terminate command
       expect(mockSpawn).toHaveBeenCalledWith(
         expect.any(String),
@@ -218,9 +212,7 @@ describe('Sessions API', () => {
       const serverModule = await import('../../server');
       const app = serverModule.app;
 
-      const response = await request(app)
-        .delete('/api/sessions/non-existent')
-        .expect(500);
+      const response = await request(app).delete('/api/sessions/non-existent').expect(500);
 
       expect(response.body.error).toContain('Failed to terminate session');
     });
@@ -231,17 +223,12 @@ describe('Sessions API', () => {
       const serverModule = await import('../../server');
       const app = serverModule.app;
 
-      const response = await request(app)
-        .post('/api/cleanup-exited')
-        .expect(200);
+      const response = await request(app).post('/api/cleanup-exited').expect(200);
 
       expect(response.body.message).toBe('Cleanup initiated');
-      
+
       // Verify tty-fwd was called with cleanup command
-      expect(mockSpawn).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.arrayContaining(['clean'])
-      );
+      expect(mockSpawn).toHaveBeenCalledWith(expect.any(String), expect.arrayContaining(['clean']));
     });
   });
 
@@ -292,7 +279,7 @@ describe('Sessions API', () => {
         .expect(200);
 
       expect(response.body.message).toBe('Input sent');
-      
+
       // Verify tty-fwd was called with write command
       expect(mockSpawn).toHaveBeenCalledWith(
         expect.any(String),

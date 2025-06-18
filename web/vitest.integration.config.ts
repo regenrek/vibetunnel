@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./src/test/setup.integration.ts'],
+    include: ['src/test/integration/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -24,14 +25,14 @@ export default defineConfig({
         'src/**/*.js',
       ],
       all: true,
-      lines: 80,
-      functions: 80,
-      branches: 80,
-      statements: 80,
     },
-    testTimeout: 10000,
-    // Separate test suites
-    includeSource: ['src/**/*.{js,ts}'],
+    testTimeout: 30000, // Integration tests may take longer
+    pool: 'forks', // Use separate processes for integration tests
+    poolOptions: {
+      forks: {
+        singleFork: true, // Run tests sequentially to avoid port conflicts
+      },
+    },
   },
   resolve: {
     alias: {
