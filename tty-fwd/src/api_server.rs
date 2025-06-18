@@ -258,7 +258,6 @@ pub fn start_server(
     control_path: PathBuf,
     static_path: Option<String>,
     password: Option<String>,
-    vibetunnel_path: Option<String>,
 ) -> Result<()> {
     fs::create_dir_all(&control_path)?;
 
@@ -280,7 +279,6 @@ pub fn start_server(
         let control_path = control_path.clone();
         let static_path = static_path.clone();
         let auth_password = auth_password.clone();
-        let vibetunnel_path = vibetunnel_path.clone();
 
         thread::spawn(move || {
             let mut req = match req {
@@ -330,7 +328,7 @@ pub fn start_server(
                 (&Method::GET, "/api/health") => handle_health(),
                 (&Method::GET, "/api/sessions") => handle_list_sessions(&control_path),
                 (&Method::POST, "/api/sessions") => {
-                    handle_create_session(&control_path, &req, vibetunnel_path.as_deref())
+                    handle_create_session(&control_path, &req)
                 }
                 (&Method::POST, "/api/cleanup-exited") => handle_cleanup_exited(&control_path),
                 (&Method::POST, "/api/mkdir") => handle_mkdir(&req),
@@ -450,7 +448,6 @@ fn handle_list_sessions(control_path: &Path) -> Response<String> {
 fn handle_create_session(
     control_path: &Path,
     req: &crate::http_server::HttpRequest,
-    vibetunnel_path: Option<&str>,
 ) -> Response<String> {
     // Read the request body
     let body_bytes = req.body();
@@ -483,7 +480,7 @@ fn handle_create_session(
         match crate::term::spawn_terminal_command(
             &create_request.command,
             create_request.working_dir.as_deref(),
-            vibetunnel_path,
+            None,
         ) {
             Ok(terminal_session_id) => {
                 println!("Terminal spawned with session ID: {}", terminal_session_id);

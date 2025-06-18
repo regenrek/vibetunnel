@@ -166,10 +166,7 @@ final class RustServer: ServerProtocol {
         // Use bind address from ServerManager to control server accessibility
         let bindAddress = ServerManager.shared.bindAddress
         
-        // Get the VibeTunnel executable path
-        let vibeTunnelPath = Bundle.main.executablePath ?? ""
-        
-        var ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --vibetunnel-path \"\(vibeTunnelPath)\" --serve \(bindAddress):\(port)"
+        var ttyFwdCommand = "\"\(binaryPath)\" --static-path \"\(staticPath)\" --serve \(bindAddress):\(port)"
 
         // Add password flag if password protection is enabled
         // Only check if password exists, don't retrieve it yet

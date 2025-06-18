@@ -252,6 +252,8 @@ enum AppleScriptError: LocalizedError {
                     return "The application is not running or cannot be controlled."
                 case -1708:
                     return "The event was not handled by the target application."
+                case -2741:
+                    return "AppleScript syntax error - check for unescaped quotes or invalid identifiers."
                 default:
                     return nil
                 }

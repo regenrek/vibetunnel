@@ -19,6 +19,7 @@ export class VibeTunnelApp extends LitElement {
   }
 
   @state() private errorMessage = '';
+  @state() private successMessage = '';
   @state() private sessions: Session[] = [];
   @state() private loading = false;
   @state() private currentView: 'list' | 'session' = 'list';
@@ -53,8 +54,20 @@ export class VibeTunnelApp extends LitElement {
     }, 5000);
   }
 
+  private showSuccess(message: string) {
+    this.successMessage = message;
+    // Clear success after 5 seconds
+    setTimeout(() => {
+      this.successMessage = '';
+    }, 5000);
+  }
+
   private clearError() {
     this.errorMessage = '';
+  }
+
+  private clearSuccess() {
+    this.successMessage = '';
   }
 
   private async loadSessions() {
@@ -86,6 +99,7 @@ export class VibeTunnelApp extends LitElement {
 
   private async handleSessionCreated(e: CustomEvent) {
     const sessionId = e.detail.sessionId;
+    const message = e.detail.message;
 
     if (!sessionId) {
       this.showError('Session created but ID not found in response');
@@ -93,6 +107,13 @@ export class VibeTunnelApp extends LitElement {
     }
 
     this.showCreateModal = false;
+
+    // Check if this was a terminal spawn (not a web session)
+    if (message && message.includes('Terminal spawned successfully')) {
+      // Don't try to switch to the session - it's running in a terminal window
+      this.showSuccess('Terminal window opened successfully');
+      return;
+    }
 
     // Wait for session to appear in the list and then switch to it
     await this.waitForSessionAndSwitch(sessionId);
@@ -245,6 +266,18 @@ export class VibeTunnelApp extends LitElement {
               <div class="bg-vs-warning text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
                 ${this.errorMessage}
                 <button @click=${this.clearError} class="ml-2 text-vs-bg hover:text-vs-muted">
+                  ✕
+                </button>
+              </div>
+            </div>
+          `
+        : ''}
+      ${this.successMessage
+        ? html`
+            <div class="fixed top-4 right-4 z-50">
+              <div class="bg-vs-link text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
+                ${this.successMessage}
+                <button @click=${this.clearSuccess} class="ml-2 text-vs-bg hover:text-vs-muted">
                   ✕
                 </button>
               </div>

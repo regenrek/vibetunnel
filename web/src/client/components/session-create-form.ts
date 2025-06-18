@@ -6,6 +6,7 @@ export interface SessionCreateData {
   command: string[];
   workingDir: string;
   name?: string;
+  spawn_terminal?: boolean;
 }
 
 @customElement('session-create-form')
@@ -130,6 +131,7 @@ export class SessionCreateForm extends LitElement {
     const sessionData: SessionCreateData = {
       command: this.parseCommand(this.command.trim()),
       workingDir: this.workingDir.trim(),
+      spawn_terminal: true,
     };
 
     // Add session name if provided

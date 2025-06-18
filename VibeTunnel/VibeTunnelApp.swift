@@ -11,69 +11,7 @@ struct VibeTunnelApp: App {
     @State private var serverMonitor = ServerMonitor.shared
     
     init() {
-        // Check if launched with spawn-terminal command
-        let args = CommandLine.arguments
-        if args.count >= 3 && args[1] == "spawn-terminal" {
-            handleSpawnTerminalCommand(args[2])
-            exit(0)
-        }
-    }
-    
-    private func handleSpawnTerminalCommand(_ jsonString: String) {
-        guard let data = jsonString.data(using: .utf8) else {
-            print("Error: Invalid JSON string encoding")
-            exit(1)
-        }
-        
-        struct SpawnTerminalParams: Codable {
-            let command: [String]
-            let workingDir: String
-            let sessionId: String
-        }
-        
-        do {
-            let params = try JSONDecoder().decode(SpawnTerminalParams.self, from: data)
-            
-            // Initialize the app environment minimally for CLI usage
-            NSApplication.shared.setActivationPolicy(.accessory)
-            
-            // Use async approach with run loop to handle CLI invocation
-            let semaphore = DispatchSemaphore(value: 0)
-            var launchError: Error?
-            
-            DispatchQueue.main.async {
-                do {
-                    try TerminalLauncher.shared.launchTerminalSession(
-                        workingDirectory: params.workingDir,
-                        command: params.command.joined(separator: " "),
-                        sessionId: params.sessionId
-                    )
-                    print("Terminal spawned successfully for session: \(params.sessionId)")
-                } catch {
-                    launchError = error
-                    print("Error spawning terminal: \(error)")
-                }
-                semaphore.signal()
-            }
-            
-            // Wait for completion with timeout
-            let timeout = DispatchTime.now() + .seconds(5)
-            let result = semaphore.wait(timeout: timeout)
-            
-            if result == .timedOut {
-                print("Warning: Terminal spawn operation timed out")
-                exit(0) // Still exit successfully as the terminal may have been spawned
-            }
-            
-            if launchError != nil {
-                exit(1)
-            } else {
-                exit(0) // Exit successfully after spawning terminal
-            }
-        } catch {
-            print("Error parsing spawn-terminal parameters: \(error)")
-            exit(1)
-        }
+        // No special initialization needed
     }
 
     var body: some Scene {
@@ -182,6 +120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // Start the terminal spawn service
+        TerminalSpawnService.shared.start()
+        
         // Initialize and start HTTP server using ServerManager
         Task {
             do {
@@ -276,6 +217,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Stop session monitoring
         sessionMonitor.stopMonitoring()
+        
+        // Stop terminal spawn service
+        TerminalSpawnService.shared.stop()
 
         // Stop HTTP server
         Task {

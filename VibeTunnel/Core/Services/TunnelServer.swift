@@ -716,12 +716,123 @@ public final class TunnelServer {
                 let command: [String]
                 let workingDir: String?
                 let term: String?
+                let spawn_terminal: Bool?
             }
 
             let sessionRequest = try JSONDecoder().decode(CreateSessionRequest.self, from: requestData)
 
             if sessionRequest.command.isEmpty {
                 return errorResponse(message: "Command array is required and cannot be empty", status: .badRequest)
+            }
+            
+            // Handle terminal spawning if requested
+            if sessionRequest.spawn_terminal ?? false {
+                logger.info("Spawn terminal requested for command: \(sessionRequest.command.joined(separator: " "))")
+                
+                let sessionId = UUID().uuidString
+                let workingDir = resolvePath(sessionRequest.workingDir ?? "~/", fallback: FileManager.default.homeDirectoryForCurrentUser.path)
+                _ = sessionRequest.command.joined(separator: " ")
+                
+                // Connect to the terminal spawn service via Unix socket
+                let socketPath = "/tmp/vibetunnel-terminal.sock"
+                let socketFd = socket(AF_UNIX, SOCK_STREAM, 0)
+                
+                guard socketFd >= 0 else {
+                    logger.error("Failed to create socket")
+                    return errorResponse(message: "Failed to create socket for terminal spawning", status: .internalServerError)
+                }
+                
+                defer { close(socketFd) }
+                
+                var addr = sockaddr_un()
+                addr.sun_family = sa_family_t(AF_UNIX)
+                socketPath.withCString { ptr in
+                    withUnsafeMutablePointer(to: &addr.sun_path.0) { dst in
+                        _ = strcpy(dst, ptr)
+                    }
+                }
+                
+                let connectResult = withUnsafePointer(to: &addr) { ptr in
+                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                        connect(socketFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+                    }
+                }
+                
+                guard connectResult == 0 else {
+                    logger.error("Failed to connect to terminal spawn service: \(String(cString: strerror(errno)))")
+                    return errorResponse(message: "Terminal spawn service not available", status: .serviceUnavailable)
+                }
+                
+                // Send the spawn request
+                struct SpawnRequest: Codable {
+                    let command: [String]
+                    let workingDir: String
+                    let sessionId: String
+                }
+                
+                let spawnRequest = SpawnRequest(
+                    command: sessionRequest.command,
+                    workingDir: workingDir,
+                    sessionId: sessionId
+                )
+                
+                do {
+                    let requestData = try JSONEncoder().encode(spawnRequest)
+                    let sendResult = send(socketFd, requestData.withUnsafeBytes { $0.baseAddress }, requestData.count, 0)
+                    
+                    guard sendResult == requestData.count else {
+                        throw NSError(domain: "TerminalSpawn", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to send complete request"])
+                    }
+                    
+                    // Read the response
+                    var responseBuffer = [UInt8](repeating: 0, count: 4096)
+                    let bytesRead = recv(socketFd, &responseBuffer, responseBuffer.count, 0)
+                    
+                    guard bytesRead > 0 else {
+                        throw NSError(domain: "TerminalSpawn", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to read response"])
+                    }
+                    
+                    let responseData = Data(bytes: responseBuffer, count: bytesRead)
+                    
+                    struct SpawnResponse: Codable {
+                        let success: Bool
+                        let error: String?
+                        let sessionId: String?
+                    }
+                    
+                    let spawnResponse = try JSONDecoder().decode(SpawnResponse.self, from: responseData)
+                    
+                    if spawnResponse.success {
+                        logger.info("Terminal spawned successfully with session ID: \(sessionId)")
+                        
+                        struct CreateSessionResponse: Encodable {
+                            let sessionId: String
+                            let message: String
+                        }
+                        
+                        let response = CreateSessionResponse(
+                            sessionId: sessionId,
+                            message: "Terminal spawned successfully"
+                        )
+                        
+                        let data = try JSONEncoder().encode(response)
+                        var buffer = ByteBuffer()
+                        buffer.writeData(data)
+                        
+                        return Response(
+                            status: .ok,
+                            headers: [.contentType: "application/json"],
+                            body: ResponseBody(byteBuffer: buffer)
+                        )
+                    } else {
+                        let errorMsg = spawnResponse.error ?? "Unknown error"
+                        logger.error("Failed to spawn terminal: \(errorMsg)")
+                        return errorResponse(message: "Failed to spawn terminal: \(errorMsg)", status: .internalServerError)
+                    }
+                } catch {
+                    logger.error("Failed to communicate with terminal spawn service: \(error)")
+                    return errorResponse(message: "Failed to spawn terminal: \(error.localizedDescription)", status: .internalServerError)
+                }
             }
 
             let sessionName = "session_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(9))"

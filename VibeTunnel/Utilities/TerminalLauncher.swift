@@ -31,11 +31,11 @@ struct TerminalLaunchConfig {
     }
     
     var keystrokeEscapedCommand: String {
-        // For keystroke commands, we need to escape quotes differently
+        // For keystroke commands, we need to escape backslashes and quotes
+        // AppleScript keystroke requires double-escaping for quotes
         fullCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\\\\\"")
-            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
 
@@ -44,18 +44,21 @@ enum TerminalLaunchMethod {
     case appleScript(script: String)
     case processWithArgs(args: [String])
     case processWithTyping(delaySeconds: Double = 0.5)
+    case urlScheme(url: String)
 }
 
 /// Supported terminal applications.
 ///
 /// Represents terminal emulators that VibeTunnel can launch
 /// with commands, including detection of installed terminals.
+///
+/// Note: Tabby is not included as it shows a startup screen
+/// which makes it difficult to support automated command execution.
 enum Terminal: String, CaseIterable {
     case terminal = "Terminal"
     case iTerm2 = "iTerm2"
     case ghostty = "Ghostty"
     case warp = "Warp"
-    case tabby = "Tabby"
     case alacritty = "Alacritty"
     case hyper = "Hyper"
     case wezterm = "WezTerm"
@@ -70,8 +73,6 @@ enum Terminal: String, CaseIterable {
             "com.mitchellh.ghostty"
         case .warp:
             "dev.warp.Warp-Stable"
-        case .tabby:
-            "org.tabby"
         case .alacritty:
             "org.alacritty"
         case .hyper:
@@ -91,7 +92,6 @@ enum Terminal: String, CaseIterable {
         case .alacritty: return 70   // Popular among power users
         case .wezterm: return 60     // Less common but powerful
         case .hyper: return 50       // Less popular Electron-based
-        case .tabby: return 40       // Least popular
         }
     }
 
@@ -117,15 +117,51 @@ enum Terminal: String, CaseIterable {
         allCases.filter(\.isInstalled)
     }
     
-    /// Generate AppleScript for terminals that use keyboard input
-    func keystrokeAppleScript(for config: TerminalLaunchConfig) -> String {
-        """
+    /// Generate unified AppleScript for all terminals
+    func unifiedAppleScript(for config: TerminalLaunchConfig) -> String {
+        // Terminal.app supports 'do script' which handles complex commands better
+        if self == .terminal {
+            return """
+            tell application "Terminal"
+                activate
+                do script "\(config.appleScriptEscapedCommand)"
+            end tell
+            """
+        }
+        
+        // Warp has issues with key code 36 (Enter), so we use a special approach
+        if self == .warp {
+            return """
+            tell application "\(processName)"
+                activate
+                tell application "System Events"
+                    keystroke "n" using {command down}
+                end tell
+                delay 3
+                tell application "System Events"
+                    -- Warp needs special handling for command execution
+                    -- First, type the command
+                    keystroke "\(config.keystrokeEscapedCommand)"
+                    delay 0.1
+                    -- Try multiple approaches to execute the command
+                    -- Option 1: Ctrl+J (line feed)
+                    keystroke "j" using {control down}
+                    delay 0.1
+                    -- Option 2: If that didn't work, try regular Enter
+                    key code 36
+                end tell
+            end tell
+            """
+        }
+        
+        // Standard approach for other terminals
+        return """
         tell application "\(processName)"
             activate
             tell application "System Events"
                 keystroke "n" using {command down}
             end tell
-            delay 0.2
+            delay 3
             tell application "System Events"
                 keystroke "\(config.keystrokeEscapedCommand)"
                 key code 36
@@ -135,72 +171,36 @@ enum Terminal: String, CaseIterable {
     }
     
     /// Determine the launch method for this terminal
+    /// The idea is that we optimize this later to use sth faster than AppleScript if available
     func launchMethod(for config: TerminalLaunchConfig) -> TerminalLaunchMethod {
         switch self {
         case .terminal:
-            // Terminal.app has very limited CLI support, must use AppleScript
-            return .appleScript(script: """
-                tell application "Terminal"
-                    activate
-                    tell application "System Events"
-                        keystroke "n" using {command down}
-                    end tell
-                    delay 0.1
-                    do script "\(config.escapedCommand)" in front window
-                end tell
-                """)
+            // Use unified AppleScript approach for consistency
+            return .appleScript(script: unifiedAppleScript(for: config))
             
         case .iTerm2:
-            // iTerm2 supports URL schemes for command execution
-            if let encoded = config.fullCommand.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                // Use iTerm2's URL scheme instead of AppleScript
-                // Note: URL must be opened with 'open' command, not as an argument
-                let urlString = "iterm2://profile=default?cmd=\(encoded)"
-                return .processWithArgs(args: [urlString])
-            } else {
-                // Fallback to AppleScript if encoding fails
-                return .appleScript(script: """
-                    tell application "iTerm"
-                        activate
-                        create window with default profile
-                        tell current session of current window
-                            write text "\(config.escapedCommand)"
-                        end tell
-                    end tell
-                    """)
-            }
+            // Use unified AppleScript approach for consistency
+            return .appleScript(script: unifiedAppleScript(for: config))
             
         case .ghostty:
-            // Ghostty requires AppleScript for command execution
-            return .appleScript(script: keystrokeAppleScript(for: config))
+            // Use unified AppleScript approach
+            return .appleScript(script: unifiedAppleScript(for: config))
             
         case .alacritty:
-            var args = ["--args", "-e", config.command]
-            if let workingDirectory = config.workingDirectory {
-                args = ["--args", "--working-directory", workingDirectory, "-e", config.command]
-            }
-            return .processWithArgs(args: args)
+            // Use unified AppleScript approach for consistency
+            return .appleScript(script: unifiedAppleScript(for: config))
             
         case .warp:
-            // Warp requires AppleScript for command execution
-            return .appleScript(script: keystrokeAppleScript(for: config))
+            // Use unified AppleScript approach
+            return .appleScript(script: unifiedAppleScript(for: config))
             
         case .hyper:
-            // Hyper requires AppleScript for command execution
-            return .appleScript(script: keystrokeAppleScript(for: config))
-            
-        case .tabby:
-            // Tabby has limited CLI support
-            return .processWithTyping()
+            // Use unified AppleScript approach
+            return .appleScript(script: unifiedAppleScript(for: config))
             
         case .wezterm:
-            // WezTerm has excellent CLI support with the 'start' subcommand
-            var args = ["--args", "start"]
-            if let workingDirectory = config.workingDirectory {
-                args += ["--cwd", workingDirectory]
-            }
-            args += ["--", "sh", "-c", config.command]
-            return .processWithArgs(args: args)
+            // Use unified AppleScript approach for consistency
+            return .appleScript(script: unifiedAppleScript(for: config))
         }
     }
     
@@ -211,7 +211,6 @@ enum Terminal: String, CaseIterable {
         case .iTerm2: return "iTerm"
         case .ghostty: return "Ghostty"
         case .warp: return "Warp"
-        case .tabby: return "Tabby"
         case .alacritty: return "Alacritty"
         case .hyper: return "Hyper"
         case .wezterm: return "WezTerm"
@@ -220,18 +219,8 @@ enum Terminal: String, CaseIterable {
     
     /// Whether this terminal requires keystroke-based input (needs Accessibility permission)
     var requiresKeystrokeInput: Bool {
-        switch self {
-        case .terminal:
-            return false  // Uses 'do script' command, not keystrokes
-        case .iTerm2:
-            return false  // Uses URL scheme or 'write text' command
-        case .ghostty, .warp, .hyper:
-            return true   // Uses keystroke-based input
-        case .tabby:
-            return true   // Uses processWithTyping which requires keystrokes
-        case .alacritty, .wezterm:
-            return false  // Uses command line arguments
-        }
+        // All terminals now use keystroke-based input
+        return true
     }
 }
 
@@ -319,6 +308,7 @@ final class TerminalLauncher {
         let config = TerminalLaunchConfig(command: command, workingDirectory: nil, terminal: terminal)
         try launchWithConfig(config)
     }
+    
 
     func verifyPreferredTerminal() {
         let terminal = Terminal(rawValue: preferredTerminal) ?? .terminal
@@ -382,10 +372,15 @@ final class TerminalLauncher {
     }
     
     private func launchWithConfig(_ config: TerminalLaunchConfig) throws {
+        logger.debug("Launch config - command: \(config.command)")
+        logger.debug("Launch config - fullCommand: \(config.fullCommand)")
+        logger.debug("Launch config - keystrokeEscapedCommand: \(config.keystrokeEscapedCommand)")
+        
         let method = config.terminal.launchMethod(for: config)
         
         switch method {
         case .appleScript(let script):
+            logger.debug("Generated AppleScript:\n\(script)")
             try executeAppleScript(script)
             
         case .processWithArgs(let args):
@@ -398,7 +393,31 @@ final class TerminalLauncher {
             Thread.sleep(forTimeInterval: delay)
             
             // Use the same keystroke pattern as other terminals
-            try executeAppleScript(config.terminal.keystrokeAppleScript(for: config))
+            try executeAppleScript(config.terminal.unifiedAppleScript(for: config))
+            
+        case .urlScheme(let url):
+            // Open URL schemes using NSWorkspace
+            guard let nsUrl = URL(string: url) else {
+                throw TerminalLauncherError.processLaunchFailed("Invalid URL: \(url)")
+            }
+            
+            if !NSWorkspace.shared.open(nsUrl) {
+                // Fallback to using 'open' command if NSWorkspace fails
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                process.arguments = [url]
+                
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    
+                    if process.terminationStatus != 0 {
+                        throw TerminalLauncherError.processLaunchFailed("Failed to open URL scheme")
+                    }
+                } catch {
+                    throw TerminalLauncherError.processLaunchFailed(error.localizedDescription)
+                }
+            }
         }
     }
     
@@ -426,12 +445,20 @@ final class TerminalLauncher {
             // as some terminals (like Ghostty) can take longer to start up
             try AppleScriptExecutor.shared.execute(script, timeout: 15.0)
         } catch let error as AppleScriptError {
-            // Check if this is a keystroke permission error
+            // Check if this is a permission error
             if case .executionFailed(_, let errorCode) = error,
-               let code = errorCode,
-               (code == -25211 || code == -1719) {
-                // These error codes indicate accessibility permission issues
-                throw TerminalLauncherError.accessibilityPermissionDenied
+               let code = errorCode {
+                switch code {
+                case -25211, -1719:
+                    // These error codes indicate accessibility permission issues
+                    throw TerminalLauncherError.accessibilityPermissionDenied
+                case -2741:
+                    // This is a syntax error: "Expected end of line but found identifier"
+                    // It usually means the AppleScript has unescaped quotes or other syntax issues
+                    throw TerminalLauncherError.appleScriptExecutionFailed("AppleScript syntax error - likely unescaped quotes in command", errorCode: code)
+                default:
+                    break
+                }
             }
             // Convert AppleScriptError to TerminalLauncherError
             throw error.toTerminalLauncherError()
@@ -445,19 +472,51 @@ final class TerminalLauncher {
     // MARK: - Terminal Session Launching
     
     func launchTerminalSession(workingDirectory: String, command: String, sessionId: String) throws {
+        
         // Find tty-fwd binary path
         let ttyFwdPath = findTTYFwdBinary()
         
+        // Expand tilde in working directory path
+        let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
+        
         // Escape the working directory for shell
-        let escapedWorkingDir = workingDirectory.replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedWorkingDir = expandedWorkingDir.replacingOccurrences(of: "\"", with: "\\\"")
         
         // Construct the full command with cd && tty-fwd && exit pattern
-        let fullCommand = "cd \"\(escapedWorkingDir)\" && \(ttyFwdPath) --session-id=\"\(sessionId)\" -- \(command) && exit"
+        // tty-fwd will use TTY_SESSION_ID from environment or generate one
+        let fullCommand = "cd \"\(escapedWorkingDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(ttyFwdPath) -- \(command) && exit"
         
         // Get the preferred terminal or fallback
         let terminal = getValidTerminal()
         
         // Launch with configuration - no working directory since we handle it in the command
+        let config = TerminalLaunchConfig(
+            command: fullCommand,
+            workingDirectory: nil,
+            terminal: terminal
+        )
+        try launchWithConfig(config)
+    }
+    
+    /// Optimized terminal session launching that receives pre-formatted command from Rust
+    func launchOptimizedTerminalSession(workingDirectory: String, command: String, sessionId: String, ttyFwdPath: String? = nil) throws {
+        // Expand tilde in working directory path
+        let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
+        
+        // Use provided tty-fwd path or find bundled one
+        let ttyFwd = ttyFwdPath ?? findTTYFwdBinary()
+        
+        // The command comes pre-formatted from Rust, just launch it
+        // This avoids double escaping issues
+        // Properly escape the directory path for shell
+        let escapedDir = expandedWorkingDir.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let fullCommand = "cd \"\(escapedDir)\" && \(command)"
+        
+        // Get the preferred terminal or fallback
+        let terminal = getValidTerminal()
+        
+        // Launch with configuration
         let config = TerminalLaunchConfig(
             command: fullCommand,
             workingDirectory: nil,
