@@ -333,23 +333,36 @@ export class Terminal extends LitElement {
   private setupScrolling() {
     if (!this.container) return;
 
-    // Handle wheel events with accumulator for smooth scrolling
+    // Handle wheel events with pixel-based scrolling
     this.container.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
 
-        // Accumulate scroll delta for smooth scrolling with small movements
-        this.scrollAccumulator += e.deltaY;
-
         const lineHeight = this.fontSize * 1.2;
-        const deltaLines = Math.trunc(this.scrollAccumulator / lineHeight);
+        let deltaPixels = 0;
 
-        if (Math.abs(deltaLines) >= 1) {
-          this.scrollViewport(deltaLines);
-          // Subtract the scrolled amount, keep remainder for next scroll
-          this.scrollAccumulator -= deltaLines * lineHeight;
+        // Convert wheel delta to pixels based on deltaMode
+        switch (e.deltaMode) {
+          case WheelEvent.DOM_DELTA_PIXEL:
+            // Already in pixels
+            deltaPixels = e.deltaY;
+            break;
+          case WheelEvent.DOM_DELTA_LINE:
+            // Convert lines to pixels
+            deltaPixels = e.deltaY * lineHeight;
+            break;
+          case WheelEvent.DOM_DELTA_PAGE:
+            // Convert pages to pixels (assume page = viewport height)
+            deltaPixels = e.deltaY * (this.actualRows * lineHeight);
+            break;
         }
+
+        // Apply scaling for comfortable scrolling speed
+        const scrollScale = 0.5;
+        deltaPixels *= scrollScale;
+
+        this.scrollViewportPixels(deltaPixels);
       },
       { passive: false }
     );
