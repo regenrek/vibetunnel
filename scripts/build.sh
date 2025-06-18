@@ -142,7 +142,6 @@ fi
 
 # Clean up unwanted files from the bundle
 echo "Cleaning up unwanted files from bundle..."
-rm -f "$APP_PATH/Contents/Resources/app-config.plist"
 rm -f "$APP_PATH/Contents/Resources/Local.xcconfig"
 rm -rf "$APP_PATH/Contents/Resources/web/public/tests"
 echo "✓ Removed development files from bundle"

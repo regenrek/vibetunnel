@@ -35,7 +35,6 @@ let package = Package(
                 "Local.xcconfig.template",
                 "Shared.xcconfig",
                 "version.xcconfig",
-                "app-config.plist",
                 "sparkle-public-ed-key.txt",
                 "Resources",
                 "Assets.xcassets",
