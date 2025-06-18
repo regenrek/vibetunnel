@@ -195,7 +195,7 @@ fn main() -> Result<(), anyhow::Error> {
     if let Some(addr) = serve_address {
         // Setup signal handler to update session statuses on shutdown
         crate::term_socket::setup_shutdown_handler()?;
-        
+
         ctrlc::set_handler(move || {
             println!("Ctrl-C received, updating session statuses and exiting...");
             let _ = crate::term_socket::update_all_sessions_to_exited();

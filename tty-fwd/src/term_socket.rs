@@ -2,15 +2,18 @@ use anyhow::Result;
 use nix::pty::{openpty, Winsize};
 use nix::unistd::{close, dup2, fork, setsid, ForkResult};
 use serde_json::json;
+use signal_hook::{
+    consts::{SIGINT, SIGTERM},
+    iterator::Signals,
+};
 use std::env;
 use std::ffi::CString;
 use std::io::{Read, Write};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
-use uuid::Uuid;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use signal_hook::{consts::{SIGTERM, SIGINT}, iterator::Signals};
+use uuid::Uuid;
 
 /// Spawn a terminal session with PTY fallback
 pub fn spawn_terminal_via_socket(command: &[String], working_dir: Option<&str>) -> Result<String> {
@@ -405,7 +408,9 @@ fn handle_pty_session(
                 // Update session status to exited
                 let session_json_path = format!("{}/session.json", session_dir);
                 if let Ok(content) = std::fs::read_to_string(&session_json_path) {
-                    if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Ok(mut session_info) =
+                        serde_json::from_str::<serde_json::Value>(&content)
+                    {
                         session_info["status"] = json!("exited");
                         if let Ok(updated_content) = serde_json::to_string_pretty(&session_info) {
                             let _ = std::fs::write(&session_json_path, updated_content);
@@ -480,29 +485,37 @@ fn handle_stdin_to_pty(master_fd: RawFd, stdin_path: &str) -> Result<()> {
 
 /// Update all running sessions to "exited" status when server shuts down
 pub fn update_all_sessions_to_exited() -> Result<()> {
-    let control_dir = env::var("TTY_FWD_CONTROL_DIR")
-        .unwrap_or_else(|_| format!("{}/.vibetunnel/control", env::var("HOME").unwrap_or_default()));
-    
+    let control_dir = env::var("TTY_FWD_CONTROL_DIR").unwrap_or_else(|_| {
+        format!(
+            "{}/.vibetunnel/control",
+            env::var("HOME").unwrap_or_default()
+        )
+    });
+
     if !std::path::Path::new(&control_dir).exists() {
         return Ok(());
     }
-    
+
     for entry in std::fs::read_dir(&control_dir)? {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             let session_json_path = path.join("session.json");
             if session_json_path.exists() {
                 // Read current session info
                 if let Ok(content) = std::fs::read_to_string(&session_json_path) {
-                    if let Ok(mut session_info) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Ok(mut session_info) =
+                        serde_json::from_str::<serde_json::Value>(&content)
+                    {
                         // Update status to exited if it was running
                         if let Some(status) = session_info.get("status").and_then(|s| s.as_str()) {
                             if status == "running" {
                                 session_info["status"] = json!("exited");
                                 // Write back the updated session info
-                                if let Ok(updated_content) = serde_json::to_string_pretty(&session_info) {
+                                if let Ok(updated_content) =
+                                    serde_json::to_string_pretty(&session_info)
+                                {
                                     let _ = std::fs::write(&session_json_path, updated_content);
                                 }
                             }
@@ -512,7 +525,7 @@ pub fn update_all_sessions_to_exited() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -520,10 +533,11 @@ pub fn update_all_sessions_to_exited() -> Result<()> {
 pub fn setup_shutdown_handler() -> Result<()> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_clone = shutdown.clone();
-    
+
     std::thread::spawn(move || {
-        let mut signals = Signals::new(&[SIGTERM, SIGINT]).expect("Failed to create signals iterator");
-        
+        let mut signals =
+            Signals::new(&[SIGTERM, SIGINT]).expect("Failed to create signals iterator");
+
         for sig in signals.forever() {
             eprintln!("Received signal {:?}, updating session statuses...", sig);
             if let Err(e) = update_all_sessions_to_exited() {
@@ -533,6 +547,6 @@ pub fn setup_shutdown_handler() -> Result<()> {
             break;
         }
     });
-    
+
     Ok(())
 }
