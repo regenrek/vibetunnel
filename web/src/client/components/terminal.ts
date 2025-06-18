@@ -19,7 +19,16 @@ export class Terminal extends LitElement {
   private originalFontSize: number = 14;
 
   @state() private terminal: XtermTerminal | null = null;
-  @state() private viewportY = 0; // Current scroll position
+  private _viewportY = 0; // Current scroll position in pixels
+
+  get viewportY() {
+    return this._viewportY;
+  }
+
+  set viewportY(value: number) {
+    console.log(`viewportY set to ${value}, was ${this._viewportY}. Stack:`, new Error().stack);
+    this._viewportY = value;
+  }
   @state() private actualRows = 24; // Rows that fit in viewport
 
   private container: HTMLElement | null = null;
@@ -33,9 +42,9 @@ export class Terminal extends LitElement {
   private isTouchActive = false;
 
   // Operation queue for batching buffer modifications
-  private operationQueue: (() => void)[] = [];
+  private operationQueue: (() => void | Promise<void>)[] = [];
 
-  private queueOperation(operation: () => void) {
+  private queueOperation(operation: () => void | Promise<void>) {
     this.operationQueue.push(operation);
 
     if (!this.renderPending) {
@@ -47,12 +56,12 @@ export class Terminal extends LitElement {
     }
   }
 
-  private processOperationQueue() {
+  private async processOperationQueue() {
     // Process all queued operations in order
     while (this.operationQueue.length > 0) {
       const operation = this.operationQueue.shift();
       if (operation) {
-        operation();
+        await operation();
       }
     }
 
@@ -129,6 +138,12 @@ export class Terminal extends LitElement {
 
   private async reinitializeTerminal() {
     if (this.terminal) {
+      // Force layout/reflow so container gets its proper height
+      if (this.container) {
+        // Force layout reflow by accessing offsetHeight
+        void this.container.offsetHeight;
+      }
+
       this.terminal.resize(this.cols, this.rows);
       this.fitTerminal();
       this.renderBuffer();
@@ -205,6 +220,13 @@ export class Terminal extends LitElement {
   private fitTerminal() {
     if (!this.terminal || !this.container) return;
 
+    const _oldActualRows = this.actualRows;
+    const oldLineHeight = this.fontSize * 1.2;
+    const wasAtBottom = this.isScrolledToBottom();
+
+    // Calculate current scroll position in terms of content lines (before any changes)
+    const currentScrollLines = oldLineHeight > 0 ? this.viewportY / oldLineHeight : 0;
+
     if (this.fitHorizontally) {
       // Horizontal fitting: calculate fontSize to fit this.cols characters in container width
       const containerWidth = this.container.clientWidth;
@@ -236,9 +258,39 @@ export class Terminal extends LitElement {
       // Normal mode: just calculate how many rows fit in the viewport
       const containerHeight = this.container.clientHeight;
       const lineHeight = this.fontSize * 1.2;
-      this.actualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+      const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+      console.log(
+        `fitTerminal: containerHeight=${containerHeight}, lineHeight=${lineHeight}, actualRows=${newActualRows} (was ${this.actualRows})`
+      );
+
+      this.actualRows = newActualRows;
     }
 
+    // Recalculate viewportY based on new lineHeight and actualRows
+    if (this.terminal) {
+      const buffer = this.terminal.buffer.active;
+      const newLineHeight = this.fontSize * 1.2;
+      const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * newLineHeight);
+
+      if (wasAtBottom) {
+        // If we were at bottom, stay at bottom with new constraints
+        console.log(
+          `Staying at bottom: setting viewportY from ${this.viewportY} to ${maxScrollPixels}`
+        );
+        this.viewportY = maxScrollPixels;
+      } else {
+        // Convert the scroll position from old lineHeight to new lineHeight
+        const newViewportY = currentScrollLines * newLineHeight;
+        const clampedY = Math.max(0, Math.min(maxScrollPixels, newViewportY));
+        console.log(
+          `Recalculating scroll: old=${this.viewportY} (${currentScrollLines} lines @ ${oldLineHeight}px) -> new=${clampedY} (${currentScrollLines} lines @ ${newLineHeight}px), max=${maxScrollPixels}`
+        );
+        this.viewportY = clampedY;
+      }
+    }
+
+    // Always trigger a render after fit changes
+    this.renderBuffer();
     this.requestUpdate();
   }
 
@@ -246,10 +298,17 @@ export class Terminal extends LitElement {
     if (!this.container) return;
 
     this.resizeObserver = new ResizeObserver(() => {
+      console.log(
+        `ResizeObserver triggered - container size:`,
+        this.container?.clientWidth,
+        'x',
+        this.container?.clientHeight
+      );
       if (this.resizeTimeout) {
         clearTimeout(this.resizeTimeout);
       }
       this.resizeTimeout = setTimeout(() => {
+        console.log(`ResizeObserver calling fitTerminal and renderBuffer`);
         this.fitTerminal();
         this.renderBuffer();
       }, 50);
@@ -286,10 +345,10 @@ export class Terminal extends LitElement {
       { passive: false }
     );
 
-    // Handle pointer events for mobile/touch scrolling only
-    let pointerStartY = 0;
-    let lastY = 0;
+    // Simple 1:1 touch scrolling
     let isScrolling = false;
+    let lastY = 0;
+    let lastX = 0;
 
     const handlePointerDown = (e: PointerEvent) => {
       // Only handle touch pointers, not mouse
@@ -297,9 +356,8 @@ export class Terminal extends LitElement {
 
       this.isTouchActive = true;
       isScrolling = false;
-      pointerStartY = e.clientY;
       lastY = e.clientY;
-      this.touchScrollAccumulator = 0; // Reset accumulator on new pointer down
+      lastX = e.clientX;
 
       // Capture the pointer so we continue to receive events even if DOM rebuilds
       this.container?.setPointerCapture(e.pointerId);
@@ -310,28 +368,29 @@ export class Terminal extends LitElement {
       if (e.pointerType !== 'touch' || !this.container?.hasPointerCapture(e.pointerId)) return;
 
       const currentY = e.clientY;
-      const deltaY = lastY - currentY; // Change since last move, not since start
+      const currentX = e.clientX;
+      const deltaY = lastY - currentY; // Positive = scroll down, negative = scroll up
+      const deltaX = lastX - currentX; // Positive = scroll right, negative = scroll left
 
       // Start scrolling if we've moved more than a few pixels
-      if (!isScrolling && Math.abs(currentY - pointerStartY) > 5) {
+      if (!isScrolling && (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5)) {
         isScrolling = true;
       }
 
       if (!isScrolling) return;
 
-      // Accumulate pointer scroll delta for smooth scrolling with small movements
-      this.touchScrollAccumulator += deltaY;
-
-      const lineHeight = this.fontSize * 1.2;
-      const deltaLines = Math.trunc(this.touchScrollAccumulator / lineHeight);
-
-      if (Math.abs(deltaLines) >= 1) {
-        this.scrollViewport(deltaLines);
-        // Subtract the scrolled amount, keep remainder for next pointer move
-        this.touchScrollAccumulator -= deltaLines * lineHeight;
+      // Vertical scrolling (our custom pixel-based)
+      if (Math.abs(deltaY) > 0) {
+        console.log(`Touch scroll: deltaY=${deltaY}, currentViewportY=${this.viewportY}`);
+        this.scrollViewportPixels(deltaY);
+        lastY = currentY;
       }
 
-      lastY = currentY; // Update for next move event
+      // Horizontal scrolling (native browser scrollLeft) - only if not in horizontal fit mode
+      if (Math.abs(deltaX) > 0 && !this.fitHorizontally) {
+        this.container.scrollLeft += deltaX;
+        lastX = currentX;
+      }
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -364,10 +423,23 @@ export class Terminal extends LitElement {
   private scrollViewport(deltaLines: number) {
     if (!this.terminal) return;
 
-    const buffer = this.terminal.buffer.active;
-    const maxScroll = Math.max(0, buffer.length - this.actualRows);
+    const lineHeight = this.fontSize * 1.2;
+    const deltaPixels = deltaLines * lineHeight;
+    this.scrollViewportPixels(deltaPixels);
+  }
 
-    const newViewportY = Math.max(0, Math.min(maxScroll, this.viewportY + deltaLines));
+  private scrollViewportPixels(deltaPixels: number) {
+    if (!this.terminal) return;
+
+    const buffer = this.terminal.buffer.active;
+    const lineHeight = this.fontSize * 1.2;
+    const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
+
+    const newViewportY = Math.max(0, Math.min(maxScrollPixels, this.viewportY + deltaPixels));
+
+    console.log(
+      `scrollViewportPixels: deltaPixels=${deltaPixels}, oldY=${this.viewportY}, newY=${newViewportY}, maxScroll=${maxScrollPixels}, bufferLen=${buffer.length}, actualRows=${this.actualRows}`
+    );
 
     // Only render if we actually moved
     if (newViewportY !== this.viewportY) {
@@ -387,12 +459,22 @@ export class Terminal extends LitElement {
   private renderBuffer() {
     if (!this.terminal || !this.container) return;
 
+    console.log(`RENDER CALLED! Stack trace:`, new Error().stack);
+
     const renderStart = performance.now();
 
     const buffer = this.terminal.buffer.active;
     const bufferLength = buffer.length;
-    const maxScroll = Math.max(0, bufferLength - this.actualRows);
-    const startRow = Math.max(0, Math.min(maxScroll, this.viewportY));
+    const lineHeight = this.fontSize * 1.2;
+
+    // Convert pixel scroll position to fractional line position
+    const startRowFloat = this.viewportY / lineHeight;
+    const startRow = Math.floor(startRowFloat);
+    const pixelOffset = (startRowFloat - startRow) * lineHeight;
+
+    console.log(
+      `render: viewportY=${this.viewportY}, lineHeight=${lineHeight}, startRowFloat=${startRowFloat}, startRow=${startRow}, pixelOffset=${pixelOffset}`
+    );
 
     // Build complete innerHTML string
     let html = '';
@@ -402,26 +484,30 @@ export class Terminal extends LitElement {
     const cursorX = this.terminal.buffer.active.cursorX;
     const cursorY = this.terminal.buffer.active.cursorY + this.terminal.buffer.active.viewportY;
 
+    // Render exactly actualRows
+    console.log(`Rendering ${this.actualRows} rows, starting from row ${startRow}`);
     for (let i = 0; i < this.actualRows; i++) {
       const row = startRow + i;
 
+      // Apply pixel offset to ALL lines for smooth scrolling
+      const style = pixelOffset > 0 ? ` style="transform: translateY(-${pixelOffset}px);"` : '';
+
       if (row >= bufferLength) {
-        html += '<div class="terminal-line"></div>';
+        html += `<div class="terminal-line"${style}></div>`;
         continue;
       }
 
       const line = buffer.getLine(row);
       if (!line) {
-        html += '<div class="terminal-line"></div>';
+        html += `<div class="terminal-line"${style}></div>`;
         continue;
       }
 
       // Check if cursor is on this line (relative to viewport)
-      // Cursor Y is relative to terminal size, but we're rendering with actualRows
-      // Need to offset cursor position by the difference
       const isCursorLine = row === cursorY;
       const lineContent = this.renderLine(line, cell, isCursorLine ? cursorX : -1);
-      html += `<div class="terminal-line">${lineContent || ''}</div>`;
+
+      html += `<div class="terminal-line"${style}>${lineContent || ''}</div>`;
     }
 
     // Set the complete innerHTML at once
@@ -532,10 +618,17 @@ export class Terminal extends LitElement {
   public write(data: string) {
     if (!this.terminal) return;
 
-    this.queueOperation(() => {
+    this.queueOperation(async () => {
       if (!this.terminal) return;
 
-      this.terminal.write(data);
+      // XTerm.write() is async, wait for it to complete
+      await new Promise<void>((resolve) => {
+        if (this.terminal) {
+          this.terminal.write(data, resolve);
+        } else {
+          resolve();
+        }
+      });
     });
   }
 
@@ -581,17 +674,27 @@ export class Terminal extends LitElement {
   public scrollToBottom() {
     if (!this.terminal) return;
 
-    this.queueOperation(() => {
-      // Don't scroll if terminal isn't properly fitted yet
-      if (this.actualRows <= 1) {
-        return;
-      }
+    console.log(`scrollToBottom called! Stack:`, new Error().stack);
 
+    this.queueOperation(() => {
+      console.log(`scrollToBottom operation executing, actualRows=${this.actualRows}`);
       if (!this.terminal) return;
 
       const buffer = this.terminal.buffer.active;
-      const maxScroll = Math.max(0, buffer.length - this.actualRows);
-      this.viewportY = maxScroll;
+      const lineHeight = this.fontSize * 1.2;
+      // Use the same maxScrollPixels calculation as scrollViewportPixels
+      const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
+      console.log(
+        `scrollToBottom DETAILED: buffer.length=${buffer.length}, actualRows=${this.actualRows}, lineHeight=${lineHeight}, fontSize=${this.fontSize}`
+      );
+      console.log(
+        `scrollToBottom calculation: (${buffer.length} - ${this.actualRows}) * ${lineHeight} = ${maxScrollPixels}`
+      );
+      console.log(`scrollToBottom setting viewportY to ${maxScrollPixels}`);
+      this.viewportY = maxScrollPixels;
+
+      // Force a render since scroll position changed
+      this.renderBuffer();
     });
   }
 
@@ -606,8 +709,9 @@ export class Terminal extends LitElement {
       if (!this.terminal) return;
 
       const buffer = this.terminal.buffer.active;
-      const maxScroll = Math.max(0, buffer.length - this.actualRows);
-      this.viewportY = Math.max(0, Math.min(maxScroll, position));
+      const lineHeight = this.fontSize * 1.2;
+      const maxScrollLines = Math.max(0, buffer.length - this.actualRows);
+      this.viewportY = Math.max(0, Math.min(maxScrollLines, position)) * lineHeight;
     });
   }
 
@@ -662,7 +766,8 @@ export class Terminal extends LitElement {
    * @note May return stale data if operations are pending. Use queueCallback() for fresh data.
    */
   public getScrollPosition(): number {
-    return this.viewportY;
+    const lineHeight = this.fontSize * 1.2;
+    return Math.round(this.viewportY / lineHeight);
   }
 
   /**
@@ -674,6 +779,21 @@ export class Terminal extends LitElement {
     if (!this.terminal) return 0;
     const buffer = this.terminal.buffer.active;
     return Math.max(0, buffer.length - this.actualRows);
+  }
+
+  /**
+   * Check if the terminal is currently scrolled to the bottom.
+   * @returns True if at bottom, false otherwise
+   */
+  private isScrolledToBottom(): boolean {
+    if (!this.terminal) return true;
+
+    const buffer = this.terminal.buffer.active;
+    const lineHeight = this.fontSize * 1.2;
+    const maxScrollPixels = Math.max(0, (buffer.length - this.actualRows) * lineHeight);
+
+    // Consider "at bottom" if within one line height of the bottom
+    return this.viewportY >= maxScrollPixels - lineHeight;
   }
 
   render() {
@@ -705,7 +825,8 @@ export class Terminal extends LitElement {
           font-size: ${this.fontSize}px;
           line-height: ${this.fontSize * 1.2}px;
           white-space: pre;
-          touch-action: none;
+          touch-action: none !important;
+          overflow: hidden !important;
         }
 
         .terminal-line {
@@ -773,7 +894,7 @@ export class Terminal extends LitElement {
           background-color: rgba(79, 195, 247, 0.2);
         }
       </style>
-      <div id="terminal-container" class="terminal-container w-full h-full"></div>
+      <div id="terminal-container" class="terminal-container w-full h-full overflow-hidden"></div>
     `;
   }
 }

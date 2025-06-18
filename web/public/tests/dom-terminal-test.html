@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
     <title>DOM Terminal Test</title>
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="../bundle/output.css" rel="stylesheet">
 
     <!-- Fira Code Font -->
     <style>
@@ -418,11 +416,10 @@
 
             // Only write first 10 lines
             terminal.write(content);
-
-            // Scroll to bottom after content is written
+            
+            // Scroll to bottom after all content is written
             terminal.queueCallback(() => {
                 terminal.scrollToBottom();
-                console.log('Mock data generation completed!');
             });
         }
 
