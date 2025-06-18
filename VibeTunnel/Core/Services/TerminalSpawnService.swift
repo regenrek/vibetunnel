@@ -200,7 +200,6 @@ final class TerminalSpawnService: @unchecked Sendable {
 
             let response = SpawnResponse(success: true, error: nil, sessionId: request.sessionId)
             return try JSONEncoder().encode(response)
-
         } catch {
             logger.error("Failed to handle spawn request: \(error)")
             let response = SpawnResponse(success: false, error: error.localizedDescription, sessionId: nil)

@@ -327,15 +327,13 @@ final class TerminalLauncher {
         // Find all terminals that are currently running
         var runningTerminals: [Terminal] = []
 
-        for terminal in Terminal.allCases {
-            if runningApps.contains(where: { $0.bundleIdentifier == terminal.bundleIdentifier }) {
-                runningTerminals.append(terminal)
-                logger.debug("Detected running terminal: \(terminal.rawValue)")
-            }
+        for terminal in Terminal.allCases where runningApps.contains(where: { $0.bundleIdentifier == terminal.bundleIdentifier }) {
+            runningTerminals.append(terminal)
+            logger.debug("Detected running terminal: \(terminal.rawValue)")
         }
 
         // Return the terminal with highest priority
-        return runningTerminals.max(by: { $0.detectionPriority < $1.detectionPriority })
+        return runningTerminals.max { $0.detectionPriority < $1.detectionPriority }
     }
 
     private func getValidTerminal() -> Terminal {
@@ -511,14 +509,19 @@ final class TerminalLauncher {
         _ = ttyFwdPath ?? findTTYFwdBinary()
 
         // The command comes pre-formatted from Rust, just launch it
-        // Pass the working directory separately to avoid double-escaping issues
+        // This avoids double escaping issues
+        // Properly escape the directory path for shell
+        let escapedDir = expandedWorkingDir.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let fullCommand = "cd \"\(escapedDir)\" && \(command)"
+
         // Get the preferred terminal or fallback
         let terminal = getValidTerminal()
 
-        // Launch with configuration - let TerminalLaunchConfig handle the escaping
+        // Launch with configuration
         let config = TerminalLaunchConfig(
-            command: command,
-            workingDirectory: expandedWorkingDir,
+            command: fullCommand,
+            workingDirectory: nil,
             terminal: terminal
         )
         try launchWithConfig(config)

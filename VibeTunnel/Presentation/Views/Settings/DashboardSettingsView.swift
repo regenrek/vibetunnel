@@ -177,6 +177,9 @@ struct DashboardSettingsView: View {
             await ServerManager.shared.restart()
             logger.info("Server restarted on port \(port)")
 
+            // Wait for server to be fully ready before restarting session monitor
+            try? await Task.sleep(for: .seconds(1))
+            
             // Restart session monitoring with new port
             SessionMonitor.shared.stopMonitoring()
             SessionMonitor.shared.startMonitoring()
@@ -190,6 +193,9 @@ struct DashboardSettingsView: View {
             await ServerManager.shared.restart()
             logger.info("Server restarted with bind address \(accessMode.bindAddress)")
 
+            // Wait for server to be fully ready before restarting session monitor
+            try? await Task.sleep(for: .seconds(1))
+            
             // Restart session monitoring
             SessionMonitor.shared.stopMonitoring()
             SessionMonitor.shared.startMonitoring()
@@ -490,29 +496,35 @@ private struct AccessModeView: View {
                     if let ipAddress = localIPAddress {
                         Spacer()
 
-                        Button(action: {
-                            let urlString = "http://\(ipAddress):\(serverPort)"
-                            if let url = URL(string: urlString) {
-                                NSWorkspace.shared.open(url)
+                        Button(
+                            action: {
+                                let urlString = "http://\(ipAddress):\(serverPort)"
+                                if let url = URL(string: urlString) {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            },
+                            label: {
+                                Text("http://\(ipAddress):\(serverPort)")
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                                    .underline()
                             }
-                        }) {
-                            Text("http://\(ipAddress):\(serverPort)")
-                                .font(.caption)
-                                .foregroundStyle(.blue)
-                                .underline()
-                        }
+                        )
                         .buttonStyle(.plain)
                         .pointingHandCursor()
 
-                        Button(action: {
-                            let urlString = "http://\(ipAddress):\(serverPort)"
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(urlString, forType: .string)
-                        }) {
-                            Image(systemName: "doc.on.doc")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        Button(
+                            action: {
+                                let urlString = "http://\(ipAddress):\(serverPort)"
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(urlString, forType: .string)
+                            },
+                            label: {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        )
                         .buttonStyle(.plain)
                         .help("Copy URL")
                     } else {
@@ -554,31 +566,37 @@ private struct PortConfigurationView: View {
                         }
 
                     VStack(spacing: 0) {
-                        Button(action: {
-                            if portNumber < 65_535 {
-                                portNumber += 1
-                                serverPort = String(portNumber)
-                                restartServerWithNewPort(portNumber)
+                        Button(
+                            action: {
+                                if portNumber < 65_535 {
+                                    portNumber += 1
+                                    serverPort = String(portNumber)
+                                    restartServerWithNewPort(portNumber)
+                                }
+                            },
+                            label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 10))
+                                    .frame(width: 16, height: 12)
                             }
-                        }) {
-                            Image(systemName: "chevron.up")
-                                .font(.system(size: 10))
-                                .frame(width: 16, height: 12)
-                        }
+                        )
                         .buttonStyle(.plain)
                         .help("Increase port number")
 
-                        Button(action: {
-                            if portNumber > 1 {
-                                portNumber -= 1
-                                serverPort = String(portNumber)
-                                restartServerWithNewPort(portNumber)
+                        Button(
+                            action: {
+                                if portNumber > 1 {
+                                    portNumber -= 1
+                                    serverPort = String(portNumber)
+                                    restartServerWithNewPort(portNumber)
+                                }
+                            },
+                            label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10))
+                                    .frame(width: 16, height: 12)
                             }
-                        }) {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10))
-                                .frame(width: 16, height: 12)
-                        }
+                        )
                         .buttonStyle(.plain)
                         .help("Decrease port number")
                     }

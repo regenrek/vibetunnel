@@ -1,4 +1,11 @@
 import SwiftUI
+import OSLog
+
+// MARK: - Logger
+
+private extension Logger {
+    static let advanced = Logger(subsystem: "com.vibetunnel.VibeTunnel", category: "AdvancedSettings")
+}
 
 /// Advanced settings tab for power user options
 struct AdvancedSettingsView: View {
@@ -13,6 +20,9 @@ struct AdvancedSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Terminal preference section
+                TerminalPreferenceSection()
+
                 // Integration section
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
@@ -60,9 +70,6 @@ struct AdvancedSettingsView: View {
                     Text("Integration")
                         .font(.headline)
                 }
-
-                // Terminal preference section
-                TerminalPreferenceSection()
 
                 // Advanced section
                 Section {
@@ -122,7 +129,8 @@ struct AdvancedSettingsView: View {
 // MARK: - Terminal Preference Section
 
 private struct TerminalPreferenceSection: View {
-    @AppStorage("preferredTerminal") private var preferredTerminal = Terminal.terminal.rawValue
+    @AppStorage("preferredTerminal")
+    private var preferredTerminal = Terminal.terminal.rawValue
     @State private var terminalLauncher = TerminalLauncher.shared
     @State private var showingError = false
     @State private var errorMessage = ""
@@ -164,7 +172,7 @@ private struct TerminalPreferenceSection: View {
                                 try terminalLauncher.launchCommand("echo 'VibeTunnel Terminal Test: Success!'")
                             } catch {
                                 // Log the error
-                                print("Failed to launch terminal test: \(error)")
+                                Logger.advanced.error("Failed to launch terminal test: \(error)")
 
                                 // Set up alert content based on error type
                                 if let terminalError = error as? TerminalLauncherError {

@@ -211,7 +211,7 @@ private struct PermissionsSection: View {
                 .font(.headline)
         } footer: {
             Text(
-                "Terminal automation is required for all terminals. Accessibility is only needed for terminals that simulate keyboard input."
+                "Automation is required to spawn new Terminal windows. Accessibility is used to enter text."
             )
             .font(.caption)
             .frame(maxWidth: .infinity)

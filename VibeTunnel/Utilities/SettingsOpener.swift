@@ -155,7 +155,8 @@ enum SettingsOpener {
 /// A minimal hidden window that enables Settings to work in MenuBarExtra apps.
 /// This is a workaround for FB10184971.
 struct HiddenWindowView: View {
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openSettings)
+    private var openSettings
 
     var body: some View {
         Color.clear

@@ -75,11 +75,13 @@ final class AppleScriptExecutor {
                 }
             }
 
-            switch result! {
+            switch result {
             case .success(let value):
                 return value
             case .failure(let error):
                 throw error
+            case .none:
+                throw AppleScriptError.executionFailed(message: "Script execution result was nil", errorCode: nil)
             }
         }
     }

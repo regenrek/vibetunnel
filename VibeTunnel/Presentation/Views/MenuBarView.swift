@@ -104,22 +104,25 @@ struct MenuBarView: View {
                     Divider()
 
                     // About
-                    Button(action: {
-                        SettingsOpener.openSettings()
-                        // Navigate to About tab after settings opens
-                        Task {
-                            try? await Task.sleep(for: .milliseconds(100))
-                            NotificationCenter.default.post(
-                                name: .openSettingsTab,
-                                object: SettingsTab.about
-                            )
+                    Button(
+                        action: {
+                            SettingsOpener.openSettings()
+                            // Navigate to About tab after settings opens
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(100))
+                                NotificationCenter.default.post(
+                                    name: .openSettingsTab,
+                                    object: SettingsTab.about
+                                )
+                            }
+                        },
+                        label: {
+                            HStack {
+                                Image(systemName: "info.circle")
+                                Text("About VibeTunnel")
+                            }
                         }
-                    }) {
-                        HStack {
-                            Image(systemName: "info.circle")
-                            Text("About VibeTunnel")
-                        }
-                    }
+                    )
                 } label: {
                     Label("Help", systemImage: "questionmark.circle")
                 }
@@ -135,11 +138,14 @@ struct MenuBarView: View {
             )
 
             // Settings button
-            Button(action: {
-                SettingsOpener.openSettings()
-            }) {
-                Label("Settings…", systemImage: "gear")
-            }
+            Button(
+                action: {
+                    SettingsOpener.openSettings()
+                },
+                label: {
+                    Label("Settings…", systemImage: "gear")
+                }
+            )
             .buttonStyle(MenuButtonStyle())
             .keyboardShortcut(",", modifiers: .command)
 

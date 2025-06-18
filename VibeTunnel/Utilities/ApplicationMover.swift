@@ -324,7 +324,7 @@ final class ApplicationMover {
             configuration.activates = true
             configuration.promptsUserIfNeeded = true
 
-            workspace.open(appURL, configuration: configuration) { app, error in
+            workspace.open(appURL, configuration: configuration) { _, error in
                 Task { @MainActor in
                     if let error {
                         self.logger.error("Failed to launch app from Applications: \(error)")
