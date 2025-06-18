@@ -23,6 +23,12 @@ export class Terminal extends LitElement {
   @state() private followCursorEnabled = true; // Whether to follow cursor on writes
   private programmaticScroll = false; // Flag to prevent state updates during programmatic scrolling
 
+  // Debug performance tracking
+  private debugMode = false;
+  private renderCount = 0;
+  private totalRenderTime = 0;
+  private lastRenderTime = 0;
+
   get viewportY() {
     return this._viewportY;
   }
@@ -79,6 +85,9 @@ export class Terminal extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+
+    // Check for debug mode
+    this.debugMode = new URLSearchParams(window.location.search).has('debug');
   }
 
   disconnectedCallback() {
@@ -579,14 +588,21 @@ export class Terminal extends LitElement {
   private renderBuffer() {
     if (!this.terminal || !this.container) return;
 
+    const startTime = this.debugMode ? performance.now() : 0;
+
+    // Increment render count immediately
+    if (this.debugMode) {
+      this.renderCount++;
+    }
+
     const buffer = this.terminal.buffer.active;
     const bufferLength = buffer.length;
     const lineHeight = this.fontSize * 1.2;
 
-    // Convert pixel scroll position to line position with integer pixel offset
+    // Convert pixel scroll position to fractional line position
     const startRowFloat = this.viewportY / lineHeight;
     const startRow = Math.floor(startRowFloat);
-    const pixelOffset = Math.floor((startRowFloat - startRow) * lineHeight);
+    const pixelOffset = (startRowFloat - startRow) * lineHeight;
 
     // Build complete innerHTML string
     let html = '';
@@ -626,6 +642,16 @@ export class Terminal extends LitElement {
 
     // Process links after rendering
     UrlHighlighter.processLinks(this.container);
+
+    // Track render performance in debug mode
+    if (this.debugMode) {
+      const endTime = performance.now();
+      this.lastRenderTime = endTime - startTime;
+      this.totalRenderTime += this.lastRenderTime;
+
+      // Force component re-render to update debug overlay
+      this.requestUpdate();
+    }
   }
 
   private renderLine(line: IBufferLine, cell: IBufferCell, cursorCol: number = -1): string {
@@ -997,6 +1023,16 @@ export class Terminal extends LitElement {
     }
   }
 
+  /**
+   * Handle click on scroll-to-bottom indicator
+   */
+  private handleScrollToBottom = () => {
+    // Immediately enable follow cursor to hide the indicator
+    this.followCursorEnabled = true;
+    this.scrollToBottom();
+    this.requestUpdate();
+  };
+
   render() {
     return html`
       <style>
@@ -1094,8 +1130,104 @@ export class Terminal extends LitElement {
         .terminal-link:hover {
           background-color: rgba(79, 195, 247, 0.2);
         }
+
+        .scroll-to-bottom {
+          position: absolute;
+          bottom: 12px;
+          left: 12px;
+          width: 32px;
+          height: 32px;
+          background: rgba(0, 0, 0, 0.8);
+          border: 1px solid #444;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: #d4d4d4;
+          font-size: 16px;
+          transition: all 0.2s ease;
+          user-select: none;
+          z-index: 10;
+        }
+
+        .scroll-to-bottom:hover {
+          background: rgba(0, 0, 0, 0.9);
+          border-color: #666;
+          transform: translateY(-1px);
+        }
+
+        .scroll-to-bottom:active {
+          transform: translateY(0px);
+        }
+
+        .debug-overlay {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          background: rgba(0, 0, 0, 0.8);
+          border: 1px solid #444;
+          border-radius: 4px;
+          padding: 8px 12px;
+          font-family: 'Fira Code', monospace;
+          font-size: 11px;
+          color: #d4d4d4;
+          user-select: none;
+          z-index: 10;
+          line-height: 1.4;
+        }
+
+        .debug-overlay .metric {
+          display: flex;
+          justify-content: space-between;
+          min-width: 120px;
+        }
+
+        .debug-overlay .metric-label {
+          opacity: 0.7;
+        }
+
+        .debug-overlay .metric-value {
+          font-weight: bold;
+          margin-left: 8px;
+        }
       </style>
-      <div id="terminal-container" class="terminal-container w-full h-full overflow-hidden"></div>
+      <div style="position: relative; width: 100%; height: 100%;">
+        <div id="terminal-container" class="terminal-container w-full h-full overflow-hidden"></div>
+        ${!this.followCursorEnabled
+          ? html`
+              <div
+                class="scroll-to-bottom"
+                @click=${this.handleScrollToBottom}
+                title="Scroll to bottom"
+              >
+                ↓
+              </div>
+            `
+          : ''}
+        ${this.debugMode
+          ? html`
+              <div class="debug-overlay">
+                <div class="metric">
+                  <span class="metric-label">Renders:</span>
+                  <span class="metric-value">${this.renderCount}</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Avg:</span>
+                  <span class="metric-value"
+                    >${this.renderCount > 0
+                      ? (this.totalRenderTime / this.renderCount).toFixed(2)
+                      : '0.00'}ms</span
+                  >
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Last:</span>
+                  <span class="metric-value">${this.lastRenderTime.toFixed(2)}ms</span>
+                </div>
+              </div>
+            `
+          : ''}
+      </div>
     `;
   }
 }
