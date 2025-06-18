@@ -7,6 +7,8 @@ export interface SessionCreateData {
   workingDir: string;
   name?: string;
   spawn_terminal?: boolean;
+  width?: number;
+  height?: number;
 }
 
 @customElement('session-create-form')
@@ -128,10 +130,17 @@ export class SessionCreateForm extends LitElement {
 
     this.isCreating = true;
 
+    // Use conservative defaults that work well across devices
+    // The terminal will auto-resize to fit the actual container after creation
+    const terminalWidth = 120;
+    const terminalHeight = 30;
+
     const sessionData: SessionCreateData = {
       command: this.parseCommand(this.command.trim()),
       workingDir: this.workingDir.trim(),
       spawn_terminal: true,
+      width: terminalWidth,
+      height: terminalHeight,
     };
 
     // Add session name if provided

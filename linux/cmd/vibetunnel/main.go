@@ -1,0 +1,398 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/spf13/cobra"
+	"github.com/vibetunnel/linux/pkg/api"
+	"github.com/vibetunnel/linux/pkg/config"
+	"github.com/vibetunnel/linux/pkg/session"
+)
+
+var (
+	// Session management flags
+	controlPath   string
+	sessionName   string
+	listSessions  bool
+	sendKey       string
+	sendText      string
+	signalCmd     string
+	stopSession   bool
+	killSession   bool
+	cleanupExited bool
+
+	// Server flags
+	serve      bool
+	staticPath string
+
+	// Network and access configuration
+	port       string
+	bindAddr   string
+	localhost  bool
+	network    bool
+
+	// Security flags
+	password        string
+	passwordEnabled bool
+
+	// TLS/HTTPS flags (optional, defaults to HTTP like Rust version)
+	tlsEnabled      bool
+	tlsPort         string
+	tlsDomain       string
+	tlsSelfSigned   bool
+	tlsCertPath     string
+	tlsKeyPath      string
+	tlsAutoRedirect bool
+
+	// ngrok integration
+	ngrokEnabled bool
+	ngrokToken   string
+
+	// Advanced options
+	debugMode       bool
+	cleanupStartup  bool
+	serverMode      string
+	updateChannel   string
+
+	// Configuration file
+	configFile string
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "vibetunnel",
+	Short: "VibeTunnel - Remote terminal access for Linux",
+	Long: `VibeTunnel allows you to access your Linux terminal from any web browser.
+This is the Linux implementation compatible with the macOS VibeTunnel app.`,
+	RunE: run,
+}
+
+func init() {
+	homeDir, _ := os.UserHomeDir()
+	defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
+	defaultConfigPath := filepath.Join(homeDir, ".vibetunnel", "config.yaml")
+
+	// Session management flags
+	rootCmd.Flags().StringVar(&controlPath, "control-path", defaultControlPath, "Control directory path")
+	rootCmd.Flags().StringVar(&sessionName, "session-name", "", "Session name")
+	rootCmd.Flags().BoolVar(&listSessions, "list-sessions", false, "List all sessions")
+	rootCmd.Flags().StringVar(&sendKey, "send-key", "", "Send key to session")
+	rootCmd.Flags().StringVar(&sendText, "send-text", "", "Send text to session")
+	rootCmd.Flags().StringVar(&signalCmd, "signal", "", "Send signal to session")
+	rootCmd.Flags().BoolVar(&stopSession, "stop", false, "Stop session (SIGTERM)")
+	rootCmd.Flags().BoolVar(&killSession, "kill", false, "Kill session (SIGKILL)")
+	rootCmd.Flags().BoolVar(&cleanupExited, "cleanup-exited", false, "Clean up exited sessions")
+
+	// Server flags
+	rootCmd.Flags().BoolVar(&serve, "serve", false, "Start HTTP server")
+	rootCmd.Flags().StringVar(&staticPath, "static-path", "", "Path for static files")
+
+	// Network and access configuration (compatible with VibeTunnel settings)
+	rootCmd.Flags().StringVarP(&port, "port", "p", "4020", "Server port (default matches VibeTunnel)")
+	rootCmd.Flags().StringVar(&bindAddr, "bind", "", "Bind address (auto-detected if empty)")
+	rootCmd.Flags().BoolVar(&localhost, "localhost", false, "Bind to localhost only (127.0.0.1)")
+	rootCmd.Flags().BoolVar(&network, "network", false, "Bind to all interfaces (0.0.0.0)")
+
+	// Security flags (compatible with VibeTunnel dashboard settings)
+	rootCmd.Flags().StringVar(&password, "password", "", "Dashboard password for Basic Auth")
+	rootCmd.Flags().BoolVar(&passwordEnabled, "password-enabled", false, "Enable password protection")
+
+	// TLS/HTTPS flags (optional enhancement, defaults to HTTP like Rust version)
+	rootCmd.Flags().BoolVar(&tlsEnabled, "tls", false, "Enable HTTPS/TLS support")
+	rootCmd.Flags().StringVar(&tlsPort, "tls-port", "4443", "HTTPS port")
+	rootCmd.Flags().StringVar(&tlsDomain, "tls-domain", "", "Domain for Let's Encrypt (optional)")
+	rootCmd.Flags().BoolVar(&tlsSelfSigned, "tls-self-signed", true, "Use self-signed certificates (default)")
+	rootCmd.Flags().StringVar(&tlsCertPath, "tls-cert", "", "Custom TLS certificate path")
+	rootCmd.Flags().StringVar(&tlsKeyPath, "tls-key", "", "Custom TLS key path")
+	rootCmd.Flags().BoolVar(&tlsAutoRedirect, "tls-redirect", false, "Redirect HTTP to HTTPS")
+
+	// ngrok integration (compatible with VibeTunnel ngrok service)
+	rootCmd.Flags().BoolVar(&ngrokEnabled, "ngrok", false, "Enable ngrok tunnel")
+	rootCmd.Flags().StringVar(&ngrokToken, "ngrok-token", "", "ngrok auth token")
+
+	// Advanced options (compatible with VibeTunnel advanced settings)
+	rootCmd.Flags().BoolVar(&debugMode, "debug", false, "Enable debug mode")
+	rootCmd.Flags().BoolVar(&cleanupStartup, "cleanup-startup", false, "Clean up sessions on startup")
+	rootCmd.Flags().StringVar(&serverMode, "server-mode", "native", "Server mode (native, rust)")
+	rootCmd.Flags().StringVar(&updateChannel, "update-channel", "stable", "Update channel (stable, prerelease)")
+
+	// Configuration file
+	rootCmd.Flags().StringVarP(&configFile, "config", "c", defaultConfigPath, "Configuration file path")
+
+	// Add version command
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("VibeTunnel Linux v1.0.0")
+			fmt.Println("Compatible with VibeTunnel macOS app")
+		},
+	})
+
+	// Add config command
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "config",
+		Short: "Show configuration",
+		Run: func(cmd *cobra.Command, args []string) {
+			cfg := config.LoadConfig(configFile)
+			cfg.Print()
+		},
+	})
+}
+
+func run(cmd *cobra.Command, args []string) error {
+	// Load configuration from file and merge with CLI flags
+	cfg := config.LoadConfig(configFile)
+	cfg.MergeFlags(cmd.Flags())
+
+	// Apply configuration
+	if cfg.ControlPath != "" {
+		controlPath = cfg.ControlPath
+	}
+	if cfg.Server.Port != "" {
+		port = cfg.Server.Port
+	}
+
+	manager := session.NewManager(controlPath)
+
+	// Handle cleanup on startup if enabled
+	if cfg.Advanced.CleanupStartup || cleanupStartup {
+		fmt.Println("Cleaning up sessions on startup...")
+		if err := manager.CleanupExitedSessions(); err != nil {
+			fmt.Printf("Warning: cleanup failed: %v\n", err)
+		}
+	}
+
+	// Handle session management operations
+	if listSessions {
+		sessions, err := manager.ListSessions()
+		if err != nil {
+			return fmt.Errorf("failed to list sessions: %w", err)
+		}
+		fmt.Printf("ID\t\tName\t\tStatus\t\tCommand\n")
+		for _, s := range sessions {
+			fmt.Printf("%s\t%s\t\t%s\t\t%s\n", s.ID[:8], s.Name, s.Status, s.Cmdline)
+		}
+		return nil
+	}
+
+	if cleanupExited {
+		return manager.CleanupExitedSessions()
+	}
+
+	// Handle session input/control operations
+	if sessionName != "" && (sendKey != "" || sendText != "" || signalCmd != "" || stopSession || killSession) {
+		sess, err := manager.FindSession(sessionName)
+		if err != nil {
+			return fmt.Errorf("failed to find session: %w", err)
+		}
+
+		if sendKey != "" {
+			return sess.SendKey(sendKey)
+		}
+		if sendText != "" {
+			return sess.SendText(sendText)
+		}
+		if signalCmd != "" {
+			return sess.Signal(signalCmd)
+		}
+		if stopSession {
+			return sess.Stop()
+		}
+		if killSession {
+			return sess.Kill()
+		}
+	}
+
+	// Handle server mode
+	if serve {
+		return startServer(cfg, manager)
+	}
+
+	// Handle direct command execution (create new session)
+	if len(args) == 0 {
+		return fmt.Errorf("no command specified. Use --serve to start server, --list-sessions to see sessions, or provide a command to execute")
+	}
+
+	sess, err := manager.CreateSession(session.Config{
+		Name:    sessionName,
+		Cmdline: args,
+		Cwd:     ".",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+
+	fmt.Printf("Created session: %s (%s)\n", sess.ID, sess.ID[:8])
+	return sess.Attach()
+}
+
+func startServer(cfg *config.Config, manager *session.Manager) error {
+	// Determine static path
+	if staticPath == "" && cfg.Server.StaticPath == "" {
+		execPath, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("failed to get executable path: %w", err)
+		}
+		// Try dist first, fallback to public
+		distPath := filepath.Join(filepath.Dir(execPath), "..", "web", "dist")
+		publicPath := filepath.Join(filepath.Dir(execPath), "..", "web", "public")
+		
+		if _, err := os.Stat(distPath); err == nil {
+			staticPath = distPath
+		} else if _, err := os.Stat(publicPath); err == nil {
+			staticPath = publicPath
+		} else {
+			staticPath = distPath // Default to dist path even if it doesn't exist
+		}
+	} else if cfg.Server.StaticPath != "" {
+		staticPath = cfg.Server.StaticPath
+	}
+
+	// Determine password
+	serverPassword := password
+	if cfg.Security.PasswordEnabled && cfg.Security.Password != "" {
+		serverPassword = cfg.Security.Password
+	}
+
+	// Determine bind address
+	bindAddress := determineBind(cfg)
+	
+	// Convert port to int
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("invalid port: %w", err)
+	}
+	
+	// Create and configure server
+	server := api.NewServer(manager, staticPath, serverPassword, portInt)
+	
+	// Configure ngrok if enabled
+	var ngrokURL string
+	if cfg.Ngrok.Enabled || ngrokEnabled {
+		authToken := ngrokToken
+		if authToken == "" && cfg.Ngrok.AuthToken != "" {
+			authToken = cfg.Ngrok.AuthToken
+		}
+		if authToken != "" {
+			// Start ngrok through the server's service
+			if err := server.StartNgrok(authToken); err != nil {
+				fmt.Printf("Warning: ngrok failed to start: %v\n", err)
+			} else {
+				fmt.Printf("Ngrok tunnel starting...\n")
+			}
+		} else {
+			fmt.Printf("Warning: ngrok enabled but no auth token provided\n")
+		}
+	}
+
+	// Check if TLS is enabled
+	if tlsEnabled {
+		// Convert TLS port to int
+		tlsPortInt, err := strconv.Atoi(tlsPort)
+		if err != nil {
+			return fmt.Errorf("invalid TLS port: %w", err)
+		}
+
+		// Create TLS configuration
+		tlsConfig := &api.TLSConfig{
+			Enabled:      true,
+			Port:         tlsPortInt,
+			Domain:       tlsDomain,
+			SelfSigned:   tlsSelfSigned,
+			CertPath:     tlsCertPath,
+			KeyPath:      tlsKeyPath,
+			AutoRedirect: tlsAutoRedirect,
+		}
+
+		// Create TLS server
+		tlsServer := api.NewTLSServer(server, tlsConfig)
+		
+		// Print startup information for TLS
+		fmt.Printf("Starting VibeTunnel HTTPS server on %s:%s\n", bindAddress, tlsPort)
+		if tlsAutoRedirect {
+			fmt.Printf("HTTP redirect server on %s:%s -> HTTPS\n", bindAddress, port)
+		}
+		fmt.Printf("Serving web UI from: %s\n", staticPath)
+		fmt.Printf("Control directory: %s\n", controlPath)
+		
+		if tlsSelfSigned {
+			fmt.Printf("TLS: Using self-signed certificates for localhost\n")
+		} else if tlsDomain != "" {
+			fmt.Printf("TLS: Using Let's Encrypt for domain: %s\n", tlsDomain)
+		} else if tlsCertPath != "" && tlsKeyPath != "" {
+			fmt.Printf("TLS: Using custom certificates\n")
+		}
+		
+		if serverPassword != "" {
+			fmt.Printf("Basic auth enabled with username: admin\n")
+		}
+		
+		if ngrokURL != "" {
+			fmt.Printf("ngrok tunnel: %s\n", ngrokURL)
+		}
+		
+		if cfg.Advanced.DebugMode || debugMode {
+			fmt.Printf("Debug mode enabled\n")
+		}
+
+		// Start TLS server
+		httpAddr := ""
+		if tlsAutoRedirect {
+			httpAddr = fmt.Sprintf("%s:%s", bindAddress, port)
+		}
+		httpsAddr := fmt.Sprintf("%s:%s", bindAddress, tlsPort)
+		
+		return tlsServer.StartTLS(httpAddr, httpsAddr)
+	}
+
+	// Default HTTP behavior (like Rust version)
+	fmt.Printf("Starting VibeTunnel server on %s:%s\n", bindAddress, port)
+	fmt.Printf("Serving web UI from: %s\n", staticPath)
+	fmt.Printf("Control directory: %s\n", controlPath)
+	
+	if serverPassword != "" {
+		fmt.Printf("Basic auth enabled with username: admin\n")
+	}
+	
+	if ngrokURL != "" {
+		fmt.Printf("ngrok tunnel: %s\n", ngrokURL)
+	}
+	
+	if cfg.Advanced.DebugMode || debugMode {
+		fmt.Printf("Debug mode enabled\n")
+	}
+
+	return server.Start(fmt.Sprintf("%s:%s", bindAddress, port))
+}
+
+func determineBind(cfg *config.Config) string {
+	// CLI flags take precedence
+	if localhost {
+		return "127.0.0.1"
+	}
+	if network {
+		return "0.0.0.0"
+	}
+	
+	// Check configuration
+	switch cfg.Server.AccessMode {
+	case "localhost":
+		return "127.0.0.1"
+	case "network":
+		return "0.0.0.0"
+	default:
+		// Default to localhost for security
+		return "127.0.0.1"
+	}
+}
+
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}

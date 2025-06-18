@@ -33,6 +33,9 @@ export class SessionView extends LitElement {
   private loadingInterval: number | null = null;
   private keyboardListenerAdded = false;
   private touchListenersAdded = false;
+  private resizeTimeout: number | null = null;
+  private lastResizeWidth = 0;
+  private lastResizeHeight = 0;
 
   private keyboardHandler = (e: KeyboardEvent) => {
     if (!this.session) return;
@@ -281,6 +284,47 @@ export class SessionView extends LitElement {
     originalEventSource.addEventListener('error', handleError);
 
     this.streamConnection = connection;
+
+    // After connecting, ensure the backend session matches the terminal's actual dimensions
+    // TODO: Re-enable once terminal properly calculates dimensions
+    // this.syncTerminalDimensions();
+  }
+
+  private async syncTerminalDimensions() {
+    if (!this.terminal || !this.session) return;
+
+    // Wait a moment for terminal to be fully initialized
+    setTimeout(async () => {
+      if (!this.terminal || !this.session) return;
+
+      // Don't sync if the terminal hasn't been properly fitted yet
+      // The terminal component should emit resize events when it's properly sized
+      const cols = this.terminal.cols || 80;
+      const rows = this.terminal.rows || 24;
+
+      // Only sync if the dimensions are significantly different (avoid minor differences)
+      // and avoid syncing the default 80x24 dimensions
+      const colsDiff = Math.abs(cols - (this.session.width || 120));
+      const rowsDiff = Math.abs(rows - (this.session.height || 30));
+      
+      if ((colsDiff > 5 || rowsDiff > 5) && !(cols === 80 && rows === 24)) {
+        console.log(`Syncing terminal dimensions: ${cols}x${rows} (was ${this.session.width}x${this.session.height})`);
+        
+        try {
+          const response = await fetch(`/api/sessions/${this.session.id}/resize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ width: cols, height: rows }),
+          });
+
+          if (!response.ok) {
+            console.warn(`Failed to sync terminal dimensions: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn('Failed to sync terminal dimensions:', error);
+        }
+      }
+    }, 1000);
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
@@ -465,12 +509,48 @@ export class SessionView extends LitElement {
     }
   }
 
-  private handleTerminalResize(event: CustomEvent) {
+  private async handleTerminalResize(event: CustomEvent) {
     // Update terminal dimensions for display
     const { cols, rows } = event.detail;
     this.terminalCols = cols;
     this.terminalRows = rows;
     this.requestUpdate();
+
+    // Debounce resize requests to prevent jumpiness
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
+
+    this.resizeTimeout = setTimeout(async () => {
+      // Only send resize request if dimensions actually changed
+      if (cols === this.lastResizeWidth && rows === this.lastResizeHeight) {
+        console.log(`Skipping redundant resize request: ${cols}x${rows}`);
+        return;
+      }
+
+      // Send resize request to backend if session is active
+      if (this.session && this.session.status !== 'exited') {
+        try {
+          console.log(`Sending resize request: ${cols}x${rows} (was ${this.lastResizeWidth}x${this.lastResizeHeight})`);
+          
+          const response = await fetch(`/api/sessions/${this.session.id}/resize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ width: cols, height: rows }),
+          });
+
+          if (response.ok) {
+            // Cache the successfully sent dimensions
+            this.lastResizeWidth = cols;
+            this.lastResizeHeight = rows;
+          } else {
+            console.warn(`Failed to resize session: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn('Failed to send resize request:', error);
+        }
+      }
+    }, 250); // 250ms debounce delay
   }
 
   // Mobile input methods

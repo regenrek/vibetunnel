@@ -39,7 +39,6 @@ export class Terminal extends LitElement {
   @state() private actualRows = 24; // Rows that fit in viewport
 
   private container: HTMLElement | null = null;
-  private resizeObserver: ResizeObserver | null = null;
   private resizeTimeout: NodeJS.Timeout | null = null;
 
   // Virtual scrolling optimization
@@ -102,10 +101,7 @@ export class Terminal extends LitElement {
       this.momentumAnimation = null;
     }
 
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-      this.resizeObserver = null;
-    }
+    // ResizeObserver cleanup removed - we only use window resize events now
     if (this.terminal) {
       this.terminal.dispose();
       this.terminal = null;
@@ -176,22 +172,47 @@ export class Terminal extends LitElement {
     try {
       // Create regular terminal but don't call .open() to make it headless
       this.terminal = new XtermTerminal({
-        cursorBlink: false,
+        cursorBlink: true,
+        cursorStyle: 'block',
+        cursorWidth: 1,
         lineHeight: 1.2,
+        letterSpacing: 0,
         scrollback: 10000,
         allowProposedApi: true,
+        allowTransparency: false,
+        convertEol: true,
+        drawBoldTextInBrightColors: true,
+        fontWeightBold: 'bold',
+        minimumContrastRatio: 1,
+        macOptionIsMeta: true,
+        altClickMovesCursor: true,
+        rightClickSelectsWord: false,
+        wordSeparator: ' ()[]{}\'"`',
         theme: {
           background: '#1e1e1e',
           foreground: '#d4d4d4',
           cursor: '#00ff00',
+          cursorAccent: '#1e1e1e',
+          selectionBackground: '#264f78',
+          selectionForeground: '#ffffff',
+          selectionInactiveBackground: '#3a3a3a',
+          // Standard 16 colors (0-15) - using proper xterm colors
           black: '#000000',
-          red: '#f14c4c',
-          green: '#23d18b',
-          yellow: '#f5f543',
-          blue: '#3b8eea',
-          magenta: '#d670d6',
-          cyan: '#29b8db',
+          red: '#cd0000',
+          green: '#00cd00', 
+          yellow: '#cdcd00',
+          blue: '#0000ee',
+          magenta: '#cd00cd',
+          cyan: '#00cdcd',
           white: '#e5e5e5',
+          brightBlack: '#7f7f7f',
+          brightRed: '#ff0000',
+          brightGreen: '#00ff00',
+          brightYellow: '#ffff00',
+          brightBlue: '#5c5cff',
+          brightMagenta: '#ff00ff',
+          brightCyan: '#00ffff',
+          brightWhite: '#ffffff',
         },
       });
 
@@ -214,7 +235,7 @@ export class Terminal extends LitElement {
     measureEl.style.top = '0';
     measureEl.style.left = '0';
     measureEl.style.fontSize = `${this.fontSize}px`;
-    measureEl.style.fontFamily = 'Fira Code, monospace';
+    measureEl.style.fontFamily = 'Hack Nerd Font Mono, Fira Code, monospace';
 
     // Use a mix of characters that represent typical terminal content
     const testString =
@@ -268,14 +289,49 @@ export class Terminal extends LitElement {
       // Resize the terminal to the new dimensions
       if (this.terminal) {
         this.terminal.resize(this.cols, this.rows);
+
+        // Dispatch resize event for backend synchronization
+        this.dispatchEvent(
+          new CustomEvent('terminal-resize', {
+            detail: { cols: this.cols, rows: this.rows },
+            bubbles: true,
+          })
+        );
       }
     } else {
-      // Normal mode: just calculate how many rows fit in the viewport
+      // Normal mode: calculate both cols and rows based on container size
+      const containerWidth = this.container.clientWidth;
       const containerHeight = this.container.clientHeight;
       const lineHeight = this.fontSize * 1.2;
-      const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
-
-      this.actualRows = newActualRows;
+      const charWidth = this.measureCharacterWidth();
+      
+      const newCols = Math.max(20, Math.floor(containerWidth / charWidth));
+      const newRows = Math.max(6, Math.floor(containerHeight / lineHeight));
+      
+      // Update logical dimensions if they changed significantly
+      const colsChanged = Math.abs(newCols - this.cols) > 3;
+      const rowsChanged = Math.abs(newRows - this.rows) > 2;
+      
+      if (colsChanged || rowsChanged) {
+        this.cols = newCols;
+        this.rows = newRows;
+        this.actualRows = newRows;
+        
+        // Resize the terminal to the new dimensions
+        if (this.terminal) {
+          this.terminal.resize(this.cols, this.rows);
+          
+          // Dispatch resize event for backend synchronization
+          this.dispatchEvent(
+            new CustomEvent('terminal-resize', {
+              detail: { cols: this.cols, rows: this.rows },
+              bubbles: true,
+            })
+          );
+        }
+      } else {
+        this.actualRows = newRows;
+      }
     }
 
     // Recalculate viewportY based on new lineHeight and actualRows
@@ -303,19 +359,23 @@ export class Terminal extends LitElement {
   private setupResize() {
     if (!this.container) return;
 
-    this.resizeObserver = new ResizeObserver(() => {
-      if (this.resizeTimeout) {
-        clearTimeout(this.resizeTimeout);
-      }
-      this.resizeTimeout = setTimeout(() => {
-        this.fitTerminal();
-      }, 50);
-    });
-    this.resizeObserver.observe(this.container);
-
+    // Only listen to window resize events to avoid pixel-level jitter
+    // Use debounced handling to prevent resize spam
+    let windowResizeTimeout: number | null = null;
+    
     window.addEventListener('resize', () => {
-      this.fitTerminal();
+      if (windowResizeTimeout) {
+        clearTimeout(windowResizeTimeout);
+      }
+      windowResizeTimeout = setTimeout(() => {
+        this.fitTerminal();
+      }, 150); // Debounce window resize events
     });
+
+    // Do an initial fit when the terminal is first set up
+    setTimeout(() => {
+      this.fitTerminal();
+    }, 100);
   }
 
   private setupScrolling() {
@@ -738,11 +798,34 @@ export class Terminal extends LitElement {
       const isItalic = cell.isItalic();
       const isUnderline = cell.isUnderline();
       const isDim = cell.isDim();
+      const isInverse = cell.isInverse();
+      const isInvisible = cell.isInvisible();
+      const isStrikethrough = cell.isStrikethrough();
 
       if (isBold) classes += ' bold';
       if (isItalic) classes += ' italic';
       if (isUnderline) classes += ' underline';
       if (isDim) classes += ' dim';
+      if (isStrikethrough) classes += ' strikethrough';
+      
+      // Handle inverse colors
+      if (isInverse) {
+        // Swap foreground and background colors
+        const tempFg = style.match(/color: ([^;]+);/)?.[1];
+        const tempBg = style.match(/background-color: ([^;]+);/)?.[1];
+        if (tempFg && tempBg) {
+          style = style.replace(/color: [^;]+;/, `color: ${tempBg};`);
+          style = style.replace(/background-color: [^;]+;/, `background-color: ${tempFg};`);
+        } else if (tempFg) {
+          style = style.replace(/color: [^;]+;/, 'color: #1e1e1e;');
+          style += `background-color: ${tempFg};`;
+        }
+      }
+      
+      // Handle invisible text
+      if (isInvisible) {
+        style += 'opacity: 0;';
+      }
 
       // Check if styling changed - if so, flush current group
       if (classes !== currentClasses || style !== currentStyle) {
