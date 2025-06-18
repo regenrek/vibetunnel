@@ -37,8 +37,6 @@ final class AppleScriptPermissionManager: ObservableObject {
 
         let permitted = await AppleScriptExecutor.shared.checkPermission()
         hasPermission = permitted
-
-        logger.info("AppleScript permission status: \(permitted)")
         return permitted
     }
 

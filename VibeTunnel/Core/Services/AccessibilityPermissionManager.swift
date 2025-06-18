@@ -19,9 +19,7 @@ final class AccessibilityPermissionManager {
 
     /// Checks if we have Accessibility permissions.
     func hasPermission() -> Bool {
-        let permitted = AXIsProcessTrusted()
-        logger.info("Accessibility permission status: \(permitted)")
-        return permitted
+        return AXIsProcessTrusted()
     }
 
     /// Requests Accessibility permissions by triggering the system dialog.
