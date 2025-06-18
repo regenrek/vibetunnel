@@ -133,7 +133,7 @@ export class SessionView extends LitElement {
     }
   }
 
-  updated(changedProperties: any) {
+  updated(changedProperties: Map<string, unknown>) {
     super.updated(changedProperties);
 
     // Stop loading and create terminal when session becomes available
@@ -365,8 +365,11 @@ export class SessionView extends LitElement {
     } else {
       // Clean up viewport listener when closing overlay
       const textarea = this.querySelector('#mobile-input-textarea') as HTMLTextAreaElement;
-      if (textarea && (textarea as any)._viewportCleanup) {
-        (textarea as any)._viewportCleanup();
+      if (
+        textarea &&
+        (textarea as HTMLTextAreaElement & { _viewportCleanup?: () => void })._viewportCleanup
+      ) {
+        (textarea as HTMLTextAreaElement & { _viewportCleanup?: () => void })._viewportCleanup();
       }
     }
   }
@@ -445,7 +448,8 @@ export class SessionView extends LitElement {
         }
       };
       // Store cleanup function for later use
-      (textarea as any)._viewportCleanup = cleanup;
+      (textarea as HTMLTextAreaElement & { _viewportCleanup?: () => void })._viewportCleanup =
+        cleanup;
     }
 
     // Initial adjustment

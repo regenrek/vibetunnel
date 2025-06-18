@@ -31,7 +31,6 @@ export class Terminal extends LitElement {
   private scrollAccumulator = 0;
   private touchScrollAccumulator = 0;
   private isTouchActive = false;
-  private momentumAnimationId: number | null = null;
 
   // Operation queue for batching buffer modifications
   private operationQueue: (() => void)[] = [];
@@ -49,9 +48,6 @@ export class Terminal extends LitElement {
   }
 
   private processOperationQueue() {
-    const queueStart = performance.now();
-    const operationCount = this.operationQueue.length;
-
     // Process all queued operations in order
     while (this.operationQueue.length > 0) {
       const operation = this.operationQueue.shift();
@@ -59,8 +55,6 @@ export class Terminal extends LitElement {
         operation();
       }
     }
-
-    const queueEnd = performance.now();
 
     // Render once after all operations are complete
     this.renderBuffer();
@@ -296,25 +290,15 @@ export class Terminal extends LitElement {
     let pointerStartY = 0;
     let lastY = 0;
     let isScrolling = false;
-    let velocity = 0;
-    let lastPointerTime = 0;
 
     const handlePointerDown = (e: PointerEvent) => {
       // Only handle touch pointers, not mouse
       if (e.pointerType !== 'touch' || !e.isPrimary) return;
 
-      // Cancel any existing momentum scroll when new touch starts
-      if (this.momentumAnimationId) {
-        cancelAnimationFrame(this.momentumAnimationId);
-        this.momentumAnimationId = null;
-      }
-
       this.isTouchActive = true;
       isScrolling = false;
       pointerStartY = e.clientY;
       lastY = e.clientY;
-      velocity = 0;
-      lastPointerTime = Date.now();
       this.touchScrollAccumulator = 0; // Reset accumulator on new pointer down
 
       // Capture the pointer so we continue to receive events even if DOM rebuilds
@@ -327,7 +311,6 @@ export class Terminal extends LitElement {
 
       const currentY = e.clientY;
       const deltaY = lastY - currentY; // Change since last move, not since start
-      const currentTime = Date.now();
 
       // Start scrolling if we've moved more than a few pixels
       if (!isScrolling && Math.abs(currentY - pointerStartY) > 5) {
@@ -335,13 +318,6 @@ export class Terminal extends LitElement {
       }
 
       if (!isScrolling) return;
-
-      // Calculate velocity for momentum (pixels per millisecond, recent movement only)
-      const timeDelta = currentTime - lastPointerTime;
-      if (timeDelta > 0) {
-        velocity = deltaY / timeDelta; // Use recent deltaY, not total
-      }
-      lastPointerTime = currentTime;
 
       // Accumulate pointer scroll delta for smooth scrolling with small movements
       this.touchScrollAccumulator += deltaY;
@@ -366,16 +342,6 @@ export class Terminal extends LitElement {
 
       // Release pointer capture
       this.container?.releasePointerCapture(e.pointerId);
-
-      // Add momentum scrolling if needed (only after touch scrolling)
-      if (isScrolling && Math.abs(velocity) > 0.5) {
-        // Cancel any existing momentum scroll before starting new one
-        if (this.momentumAnimationId) {
-          cancelAnimationFrame(this.momentumAnimationId);
-          this.momentumAnimationId = null;
-        }
-        this.startMomentumScroll(velocity);
-      }
     };
 
     const handlePointerCancel = (e: PointerEvent) => {
@@ -393,45 +359,6 @@ export class Terminal extends LitElement {
     this.container.addEventListener('pointermove', handlePointerMove);
     this.container.addEventListener('pointerup', handlePointerUp);
     this.container.addEventListener('pointercancel', handlePointerCancel);
-  }
-
-  private startMomentumScroll(initialVelocity: number) {
-    let velocity = initialVelocity * 1.2; // Amplify initial velocity for better flick response
-    let accumulatedScroll = 0;
-    let frameCount = 0;
-
-    const animate = () => {
-      // Stop when velocity becomes very small
-      if (Math.abs(velocity) < 0.001) {
-        this.momentumAnimationId = null;
-        return;
-      }
-
-      frameCount++;
-
-      // More responsive deceleration curve for better flick feel
-      const friction = frameCount < 15 ? 0.985 : frameCount < 45 ? 0.97 : 0.94;
-
-      // Convert velocity (pixels/ms) to pixels per frame
-      const pixelsPerFrame = velocity * 16; // 16ms frame time
-      accumulatedScroll += pixelsPerFrame;
-
-      // Convert accumulated pixels to lines
-      const lineHeight = this.fontSize * 1.2;
-      const deltaLines = Math.trunc(accumulatedScroll / lineHeight);
-
-      if (Math.abs(deltaLines) >= 1) {
-        this.scrollViewport(deltaLines);
-        // Subtract the scrolled amount, keep remainder
-        accumulatedScroll -= deltaLines * lineHeight;
-      }
-
-      // Apply friction
-      velocity *= friction;
-      this.momentumAnimationId = requestAnimationFrame(animate);
-    };
-
-    this.momentumAnimationId = requestAnimationFrame(animate);
   }
 
   private scrollViewport(deltaLines: number) {
@@ -467,8 +394,6 @@ export class Terminal extends LitElement {
     const maxScroll = Math.max(0, bufferLength - this.actualRows);
     const startRow = Math.max(0, Math.min(maxScroll, this.viewportY));
 
-    const bufferPrepStart = performance.now();
-
     // Build complete innerHTML string
     let html = '';
     const cell = buffer.getNullCell();
@@ -499,26 +424,15 @@ export class Terminal extends LitElement {
       html += `<div class="terminal-line">${lineContent || ''}</div>`;
     }
 
-    const bufferPrepEnd = performance.now();
-    const domUpdateStart = performance.now();
-
     // Set the complete innerHTML at once
     this.container.innerHTML = html;
 
-    const domUpdateEnd = performance.now();
-    const linkProcessStart = performance.now();
-
     // Process links after rendering
     UrlHighlighter.processLinks(this.container);
-
-    const linkProcessEnd = performance.now();
     const renderEnd = performance.now();
-
     const totalTime = renderEnd - renderStart;
-    const bufferPrepTime = bufferPrepEnd - bufferPrepStart;
-    const domUpdateTime = domUpdateEnd - domUpdateStart;
-    const linkProcessTime = linkProcessEnd - linkProcessStart;
 
+    console.log(`Render: ${totalTime.toFixed(1)}ms`);
   }
 
   private renderLine(line: IBufferLine, cell: IBufferCell, cursorCol: number = -1): string {
@@ -621,11 +535,7 @@ export class Terminal extends LitElement {
     this.queueOperation(() => {
       if (!this.terminal) return;
 
-      const writeStart = performance.now();
-      this.terminal.write(data, () => {
-        const writeEnd = performance.now();
-
-      });
+      this.terminal.write(data);
     });
   }
 

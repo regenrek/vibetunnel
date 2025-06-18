@@ -37,7 +37,7 @@ export class FileBrowser extends LitElement {
     }
   }
 
-  async updated(changedProperties: Map<string, any>) {
+  async updated(changedProperties: Map<string, unknown>) {
     if (changedProperties.has('visible') && this.visible) {
       await this.loadDirectory(this.currentPath);
     }

@@ -1,10 +1,10 @@
 import express from 'express';
 import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 
 const app = express();
 const server = createServer(app);
@@ -139,7 +139,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Hot reload functionality for development
-const hotReloadClients = new Set<any>();
+const hotReloadClients = new Set<WebSocket>();
 
 // === SESSION MANAGEMENT ===
 
@@ -362,8 +362,8 @@ app.post('/api/cleanup-exited', async (req, res) => {
 const activeStreams = new Map<
   string,
   {
-    clients: Set<any>;
-    tailProcess: any;
+    clients: Set<WebSocket>;
+    tailProcess: ChildProcess;
     lastPosition: number;
   }
 >();
@@ -847,7 +847,7 @@ app.post('/api/mkdir', (req, res) => {
 
 // WebSocket for hot reload
 wss.on('connection', (ws, req) => {
-  const url = new URL(req.url!, `http://${req.headers.host}`);
+  const url = new URL(req.url ?? '', `http://${req.headers.host}`);
   const isHotReload = url.searchParams.get('hotReload') === 'true';
 
   if (isHotReload) {
@@ -871,7 +871,7 @@ if (process.env.NODE_ENV !== 'production') {
 
   watcher.on('change', (path: string) => {
     console.log(`File changed: ${path}`);
-    hotReloadClients.forEach((ws: any) => {
+    hotReloadClients.forEach((ws: WebSocket) => {
       if (ws.readyState === ws.OPEN) {
         ws.send(JSON.stringify({ type: 'reload' }));
       }

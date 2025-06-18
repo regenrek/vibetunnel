@@ -24,7 +24,7 @@ export class ResponsiveTerminal extends LitElement {
   @state() private terminal: Terminal | null = null;
   @state() private scaleFitAddon: ScaleFitAddon | null = null;
   @state() private isMobile = false;
-  @state() private touches = new Map<number, any>();
+  @state() private touches = new Map<number, Touch>();
   @state() private currentTerminalSize = { cols: 80, rows: 24 };
   @state() private actualLineHeight = 16;
   @state() private touchCount = 0;
@@ -88,7 +88,7 @@ export class ResponsiveTerminal extends LitElement {
     this.scaleFitAddon = null;
   }
 
-  updated(changedProperties: Map<string, any>) {
+  updated(changedProperties: Map<string, unknown>) {
     if (changedProperties.has('cols') || changedProperties.has('rows')) {
       this.currentTerminalSize = { cols: this.cols, rows: this.rows };
       if (this.terminal) {
@@ -161,7 +161,9 @@ export class ResponsiveTerminal extends LitElement {
     });
 
     // Open terminal first
-    this.terminal.open(this.wrapper!);
+    if (this.wrapper) {
+      this.terminal.open(this.wrapper);
+    }
 
     // Always disable default terminal handlers first
     this.disableDefaultTerminalHandlers();

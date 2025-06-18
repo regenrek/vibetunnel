@@ -161,7 +161,7 @@ export class VibeTunnelApp extends LitElement {
     // Find all session cards and trigger their kill buttons
     const sessionCards = this.querySelectorAll('session-card');
 
-    sessionCards.forEach((card: any) => {
+    sessionCards.forEach((card: Element) => {
       // Check if this session is running
       if (card.session && card.session.status === 'running') {
         // Find all buttons within this card and look for the kill button
