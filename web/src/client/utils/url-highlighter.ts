@@ -20,8 +20,8 @@ export class UrlHighlighter {
 
       // Look for http(s):// in this line
       const httpMatch = lineText.match(/(https?:\/\/)/);
-      if (httpMatch) {
-        const urlStart = httpMatch.index!;
+      if (httpMatch && httpMatch.index !== undefined) {
+        const urlStart = httpMatch.index;
         let fullUrl = '';
         let endLine = i;
 

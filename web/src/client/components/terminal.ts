@@ -53,8 +53,10 @@ export class Terminal extends LitElement {
 
     // Process all queued operations in order
     while (this.operationQueue.length > 0) {
-      const operation = this.operationQueue.shift()!;
-      operation();
+      const operation = this.operationQueue.shift();
+      if (operation) {
+        operation();
+      }
     }
 
     const queueEnd = performance.now();
@@ -608,8 +610,10 @@ export class Terminal extends LitElement {
     if (!this.terminal) return;
 
     this.queueOperation(() => {
+      if (!this.terminal) return;
+
       const writeStart = performance.now();
-      this.terminal!.write(data, () => {
+      this.terminal.write(data, () => {
         const writeEnd = performance.now();
 
         console.log(
@@ -626,7 +630,9 @@ export class Terminal extends LitElement {
     if (!this.terminal) return;
 
     this.queueOperation(() => {
-      this.terminal!.clear();
+      if (!this.terminal) return;
+
+      this.terminal.clear();
       this.viewportY = 0;
     });
   }
@@ -643,7 +649,9 @@ export class Terminal extends LitElement {
     if (!this.terminal) return;
 
     this.queueOperation(() => {
-      this.terminal!.resize(cols, rows);
+      if (!this.terminal) return;
+
+      this.terminal.resize(cols, rows);
       this.fitTerminal();
       this.requestUpdate();
     });
@@ -663,7 +671,9 @@ export class Terminal extends LitElement {
         return;
       }
 
-      const buffer = this.terminal!.buffer.active;
+      if (!this.terminal) return;
+
+      const buffer = this.terminal.buffer.active;
       const maxScroll = Math.max(0, buffer.length - this.actualRows);
       this.viewportY = maxScroll;
     });
@@ -677,7 +687,9 @@ export class Terminal extends LitElement {
     if (!this.terminal) return;
 
     this.queueOperation(() => {
-      const buffer = this.terminal!.buffer.active;
+      if (!this.terminal) return;
+
+      const buffer = this.terminal.buffer.active;
       const maxScroll = Math.max(0, buffer.length - this.actualRows);
       this.viewportY = Math.max(0, Math.min(maxScroll, position));
     });
