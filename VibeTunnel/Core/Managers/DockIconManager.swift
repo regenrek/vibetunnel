@@ -9,7 +9,11 @@ import OSLog
 /// is set to hide the dock icon.
 @MainActor
 final class DockIconManager: NSObject {
-    static let shared = DockIconManager()
+    private static let _shared = DockIconManager()
+    
+    static var shared: DockIconManager {
+        return _shared
+    }
     
     private var windowsObservation: NSKeyValueObservation?
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel", category: "DockIconManager")
@@ -17,12 +21,16 @@ final class DockIconManager: NSObject {
     private override init() {
         super.init()
         setupObservers()
-        // Initial update
-        updateDockVisibility()
+        // Initial update after a small delay to ensure app state is ready
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            self.updateDockVisibility()
+        }
     }
     
     deinit {
         windowsObservation?.invalidate()
+        NotificationCenter.default.removeObserver(self)
     }
     
     // MARK: - Public Methods
@@ -30,6 +38,12 @@ final class DockIconManager: NSObject {
     /// Update dock visibility based on current state.
     /// Call this when user preferences change or when you need to ensure proper state.
     func updateDockVisibility() {
+        // Ensure NSApp is available before proceeding
+        guard NSApp != nil else {
+            logger.warning("NSApp not available yet, skipping dock visibility update")
+            return
+        }
+        
         let userWantsDockHidden = !UserDefaults.standard.bool(forKey: "showInDock")
         
         // Count visible windows (excluding panels and hidden windows)
@@ -68,8 +82,19 @@ final class DockIconManager: NSObject {
     // MARK: - Private Methods
     
     private func setupObservers() {
+        // Ensure NSApp is available before setting up observers
+        guard NSApp != nil else {
+            logger.warning("NSApp not available, delaying observer setup")
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(200))
+                self.setupObservers()
+            }
+            return
+        }
+        
         // Observe changes to NSApp.windows using KVO
-        windowsObservation = NSApp.observe(\.windows, options: [.initial, .new]) { [weak self] _, _ in
+        // Remove .initial option to avoid triggering during initialization
+        windowsObservation = NSApp.observe(\.windows, options: [.new]) { [weak self] _, _ in
             Task { @MainActor in
                 // Add a small delay to let window state settle
                 try? await Task.sleep(for: .milliseconds(50))
@@ -119,6 +144,14 @@ final class DockIconManager: NSObject {
     
     @objc
     private func dockPreferenceChanged(_ notification: Notification) {
-        updateDockVisibility()
+        // Only update if the specific dock preference changed
+        guard let userDefaults = notification.object as? UserDefaults,
+              userDefaults == UserDefaults.standard else { return }
+        
+        // Ensure we're on main thread and add a small delay to avoid race conditions
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            self.updateDockVisibility()
+        }
     }
 }
