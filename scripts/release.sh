@@ -110,6 +110,64 @@ echo -e "${BLUE}🚀 VibeTunnel Automated Release${NC}"
 echo "=============================="
 echo ""
 
+# Additional strict pre-conditions before preflight check
+echo -e "${BLUE}🔍 Running strict pre-conditions...${NC}"
+
+# Check if we're on main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$CURRENT_BRANCH" != "main" ]]; then
+    echo -e "${RED}❌ Error: Must be on main branch to release (current: $CURRENT_BRANCH)${NC}"
+    echo "   Run: git checkout main"
+    exit 1
+fi
+
+# Check for uncommitted changes
+if ! git diff-index --quiet HEAD --; then
+    echo -e "${RED}❌ Error: Uncommitted changes detected${NC}"
+    echo "   Please commit or stash your changes before releasing"
+    git status --short
+    exit 1
+fi
+
+# Check if IS_PRERELEASE_BUILD is already set in environment
+if [[ -n "${IS_PRERELEASE_BUILD:-}" ]]; then
+    echo -e "${YELLOW}⚠️  Warning: IS_PRERELEASE_BUILD is already set to: $IS_PRERELEASE_BUILD${NC}"
+    echo "   This will be overridden by the release script"
+    unset IS_PRERELEASE_BUILD
+fi
+
+# Check for required environment variables for notarization
+if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" ]] || \
+   [[ -z "${APP_STORE_CONNECT_KEY_ID:-}" ]] || \
+   [[ -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
+    echo -e "${RED}❌ Error: Missing notarization environment variables${NC}"
+    echo "   Required variables:"
+    echo "   - APP_STORE_CONNECT_API_KEY_P8"
+    echo "   - APP_STORE_CONNECT_KEY_ID"  
+    echo "   - APP_STORE_CONNECT_ISSUER_ID"
+    exit 1
+fi
+
+# Check if notarize-dmg.sh exists
+if [[ ! -x "$SCRIPT_DIR/notarize-dmg.sh" ]]; then
+    echo -e "${RED}❌ Error: notarize-dmg.sh not found or not executable${NC}"
+    echo "   Expected at: $SCRIPT_DIR/notarize-dmg.sh"
+    exit 1
+fi
+
+# Check if we're up to date with origin/main
+git fetch origin main --quiet
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+if [[ "$LOCAL" != "$REMOTE" ]]; then
+    echo -e "${RED}❌ Error: Not up to date with origin/main${NC}"
+    echo "   Run: git pull --rebase origin main"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Strict pre-conditions passed${NC}"
+echo ""
+
 # Step 1: Run pre-flight check
 echo -e "${BLUE}📋 Step 1/8: Running pre-flight check...${NC}"
 if ! "$SCRIPT_DIR/preflight-check.sh"; then
@@ -154,6 +212,40 @@ echo "   Type: $RELEASE_TYPE"
 echo "   Version: $RELEASE_VERSION"
 echo "   Build: $BUILD_NUMBER"
 echo "   Tag: $TAG_NAME"
+echo ""
+
+# Additional validation after version determination
+echo -e "${BLUE}🔍 Validating release configuration...${NC}"
+
+# Check for double suffix issue
+if [[ "$RELEASE_VERSION" =~ -[a-zA-Z]+\.[0-9]+-[a-zA-Z]+\.[0-9]+ ]]; then
+    echo -e "${RED}❌ Error: Version has double suffix: $RELEASE_VERSION${NC}"
+    echo "   This indicates version.xcconfig already has a pre-release suffix"
+    echo "   Current MARKETING_VERSION: $MARKETING_VERSION"
+    exit 1
+fi
+
+# Verify build number hasn't been used
+echo "🔍 Checking build number uniqueness..."
+EXISTING_BUILDS=""
+if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
+    APPCAST_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
+    EXISTING_BUILDS+="$APPCAST_BUILDS"
+fi
+if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
+    PRERELEASE_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
+    EXISTING_BUILDS+="$PRERELEASE_BUILDS"
+fi
+
+for EXISTING_BUILD in $EXISTING_BUILDS; do
+    if [[ "$BUILD_NUMBER" == "$EXISTING_BUILD" ]]; then
+        echo -e "${RED}❌ Error: Build number $BUILD_NUMBER already exists in appcast!${NC}"
+        echo "   Please increment CURRENT_PROJECT_VERSION in version.xcconfig"
+        exit 1
+    fi
+done
+
+echo -e "${GREEN}✅ Release configuration validated${NC}"
 echo ""
 
 # Step 2: Clean build directory
@@ -257,6 +349,37 @@ echo -e "${GREEN}✅ DMG created: $DMG_NAME${NC}"
 echo ""
 echo -e "${BLUE}📋 Step 6/8: Notarizing DMG...${NC}"
 "$SCRIPT_DIR/notarize-dmg.sh" "$DMG_PATH"
+
+# Verify DMG notarization
+echo ""
+echo -e "${BLUE}🔍 Verifying DMG notarization...${NC}"
+
+# Check if DMG is properly signed
+if codesign -dv "$DMG_PATH" &>/dev/null; then
+    echo "✅ DMG is signed"
+else
+    echo -e "${RED}❌ Error: DMG is not signed${NC}"
+    exit 1
+fi
+
+# Verify notarization with spctl
+if spctl -a -t open --context context:primary-signature -v "$DMG_PATH" 2>&1 | grep -q "accepted"; then
+    echo "✅ DMG notarization verified - accepted by Gatekeeper"
+else
+    echo -e "${YELLOW}⚠️  Warning: Could not verify DMG notarization with spctl${NC}"
+    echo "   This might be normal in some environments"
+fi
+
+# Check if notarization ticket is stapled
+if xcrun stapler validate "$DMG_PATH" 2>&1 | grep -q "The validate action worked"; then
+    echo "✅ Notarization ticket is properly stapled"
+else
+    echo -e "${RED}❌ Error: Notarization ticket is not stapled to DMG${NC}"
+    echo "   Users may experience delays when opening the DMG"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ DMG notarization complete and verified${NC}"
 
 # Step 6: Create GitHub release
 echo ""

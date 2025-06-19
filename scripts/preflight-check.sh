@@ -123,6 +123,17 @@ else
     BUILD_NUMBER=""
 fi
 
+# Check for existing pre-release suffix in version
+if [[ -n "$MARKETING_VERSION" ]] && [[ "$MARKETING_VERSION" =~ -([a-zA-Z]+)\.([0-9]+)$ ]]; then
+    SUFFIX_TYPE="${BASH_REMATCH[1]}"
+    SUFFIX_NUMBER="${BASH_REMATCH[2]}"
+    check_warn "Version already contains pre-release suffix: $MARKETING_VERSION"
+    echo "   Pre-release type: $SUFFIX_TYPE"
+    echo "   Pre-release number: $SUFFIX_NUMBER"
+    echo "   ⚠️  Make sure to use matching arguments with release.sh"
+    echo "   Example: ./scripts/release.sh $SUFFIX_TYPE $SUFFIX_NUMBER"
+fi
+
 echo ""
 
 # 3. Check build numbers
@@ -164,6 +175,37 @@ else
     else
         check_fail "Build number must be > $HIGHEST_BUILD"
     fi
+fi
+
+echo ""
+
+# Check if Xcode project uses version.xcconfig
+echo "📌 Xcode Project Configuration:"
+XCODEPROJ="$PROJECT_ROOT/VibeTunnel.xcodeproj/project.pbxproj"
+if [[ -f "$XCODEPROJ" ]]; then
+    if grep -q "version.xcconfig" "$XCODEPROJ"; then
+        check_pass "Xcode project references version.xcconfig"
+        
+        # Check if MARKETING_VERSION uses variable expansion
+        if grep -q 'MARKETING_VERSION = "$(MARKETING_VERSION)"' "$XCODEPROJ"; then
+            check_pass "MARKETING_VERSION uses version.xcconfig value"
+        else
+            check_warn "MARKETING_VERSION may not use version.xcconfig value"
+            echo "   Consider updating to: MARKETING_VERSION = \"\$(MARKETING_VERSION)\""
+        fi
+        
+        # Check if CURRENT_PROJECT_VERSION uses variable expansion  
+        if grep -q 'CURRENT_PROJECT_VERSION = "$(CURRENT_PROJECT_VERSION)"' "$XCODEPROJ" || grep -q 'CURRENT_PROJECT_VERSION = $(CURRENT_PROJECT_VERSION)' "$XCODEPROJ"; then
+            check_pass "CURRENT_PROJECT_VERSION uses version.xcconfig value"
+        else
+            check_warn "CURRENT_PROJECT_VERSION may not use version.xcconfig value"
+            echo "   Consider updating to use version.xcconfig"
+        fi
+    else
+        check_fail "Xcode project doesn't reference version.xcconfig - versions may not match!"
+    fi
+else
+    check_fail "Xcode project file not found"
 fi
 
 echo ""

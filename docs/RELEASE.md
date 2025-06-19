@@ -11,18 +11,74 @@ VibeTunnel uses an automated release process that handles all the complexity of:
 - Publishing to GitHub
 - Updating Sparkle appcast files
 
+## ⚠️ Version Management Best Practices
+
+### Critical Version Rules
+
+1. **Version Configuration Source of Truth**
+   - ALL version information is stored in `VibeTunnel/version.xcconfig`
+   - The Xcode project must reference these values using `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`
+   - NEVER hardcode versions in the Xcode project
+
+2. **Pre-release Version Suffixes**
+   - For pre-releases, the suffix MUST be in version.xcconfig BEFORE running release.sh
+   - Example: To release beta 2, set `MARKETING_VERSION = 1.0.0-beta.2` in version.xcconfig
+   - The release script will NOT add suffixes - it uses the version exactly as configured
+
+3. **Build Number Management**
+   - Build numbers MUST be incremented for EVERY release (including pre-releases)
+   - Build numbers MUST be monotonically increasing
+   - Sparkle uses build numbers, not version strings, to determine if an update is available
+
+### Common Version Management Mistakes
+
+❌ **MISTAKE**: Running `./scripts/release.sh beta 2` when version.xcconfig already has `1.0.0-beta.2`
+- **Result**: Creates version `1.0.0-beta.2-beta.2` (double suffix)
+- **Fix**: The release type and number are only for tagging, not version modification
+
+❌ **MISTAKE**: Forgetting to increment build number
+- **Result**: Sparkle won't detect the update even with a new version
+- **Fix**: Always increment CURRENT_PROJECT_VERSION in version.xcconfig
+
+❌ **MISTAKE**: Hardcoding versions in Xcode project instead of using version.xcconfig
+- **Result**: Version mismatches between built app and expected version
+- **Fix**: Ensure Xcode project uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`
+
+### Version Workflow Example
+
+For releasing 1.0.0-beta.2:
+
+1. **Edit version.xcconfig**:
+   ```
+   MARKETING_VERSION = 1.0.0-beta.2  # Add suffix here
+   CURRENT_PROJECT_VERSION = 105      # Increment from previous build
+   ```
+
+2. **Verify configuration**:
+   ```bash
+   ./scripts/preflight-check.sh
+   # This will warn if version already has a suffix
+   ```
+
+3. **Run release**:
+   ```bash
+   ./scripts/release.sh beta 2
+   # The "beta 2" parameters are ONLY for git tagging
+   ```
+
 ## 🚀 Creating a Release
 
 ### 📋 Pre-Release Checklist (MUST DO FIRST!)
 
 Before running ANY release commands, verify these items:
 
-- [ ] **Version in version.xcconfig is correct**
+- [ ] **⚠️ CRITICAL: Version in version.xcconfig is EXACTLY what you want to release**
   ```bash
   grep MARKETING_VERSION VibeTunnel/version.xcconfig
   # For beta.2 should show: MARKETING_VERSION = 1.0.0-beta.2
   # NOT: MARKETING_VERSION = 1.0.0
   ```
+  ⚠️ **WARNING**: The release script uses this version AS-IS. It will NOT add suffixes!
   
 - [ ] **Build number is incremented**
   ```bash
@@ -79,15 +135,31 @@ All notable changes to VibeTunnel will be documented in this file.
 **CRITICAL**: The appcast generation relies on the local CHANGELOG.md file, NOT the GitHub release description. The changelog must be added to CHANGELOG.md BEFORE running the release script.
 
 ### Step 4: Create the Release
+
+⚠️ **CRITICAL UNDERSTANDING**: The release script parameters are ONLY for:
+1. Git tag creation
+2. Determining if it's a pre-release on GitHub
+3. Validation that your version.xcconfig matches your intent
+
+The script will NEVER modify the version - it uses version.xcconfig exactly as configured!
+
 ```bash
 # For stable releases:
 ./scripts/release.sh stable
+# Expects version.xcconfig to have a stable version like "1.0.0"
 
-# IMPORTANT: The release type parameter is only used for tagging!
-# The actual version comes from version.xcconfig
-# Example: If version.xcconfig has "1.0.0-beta.2", then:
-./scripts/release.sh beta 2    # Creates tag v1.0.0-beta.2 (NOT v1.0.0-beta.2-beta.2!)
+# For pre-releases:
+./scripts/release.sh beta 2
+# Expects version.xcconfig to ALREADY have "1.0.0-beta.2"
+# If version.xcconfig has "1.0.0", the script will add suffix and create "1.0.0-beta.2"
+# If version.xcconfig already has "1.0.0-beta.2", it will use it as-is
 ```
+
+**Script Validation**: The release script now includes:
+- Double-suffix detection (prevents 1.0.0-beta.2-beta.2)
+- Build number uniqueness check
+- Version consistency verification
+- Notarization credential validation
 
 **IMPORTANT**: The release script does NOT automatically increment build numbers. You must manually update the build number in VibeTunnel.xcodeproj before running the script, or it will fail the pre-flight check.
 
@@ -198,6 +270,49 @@ VibeTunnel supports two update channels:
    - Users opt-in via Settings
 
 ## 🐛 Common Issues and Solutions
+
+### Version and Build Number Issues
+
+#### Double Version Suffix (e.g., 1.0.0-beta.2-beta.2)
+**Problem**: Version has double suffix after running release script.
+
+**Cause**: version.xcconfig already had the suffix, and you provided the same suffix to release.sh.
+
+**Solution**: 
+1. Clean up the botched release:
+   ```bash
+   # Delete the bad tag
+   git tag -d v1.0.0-beta.2-beta.2
+   git push origin :refs/tags/v1.0.0-beta.2-beta.2
+   
+   # Delete the GitHub release
+   gh release delete v1.0.0-beta.2-beta.2 --yes
+   
+   # Fix version.xcconfig
+   # Set to the correct version without double suffix
+   ```
+2. Re-run the release with correct parameters
+
+#### Build Script Reports Version Mismatch
+**Problem**: Build script warns that built version doesn't match version.xcconfig.
+
+**Cause**: Xcode project is not properly configured to use version.xcconfig values.
+
+**Solution**: 
+1. Open VibeTunnel.xcodeproj in Xcode
+2. Select the project, then the target
+3. In Build Settings, ensure:
+   - MARKETING_VERSION = `$(MARKETING_VERSION)`
+   - CURRENT_PROJECT_VERSION = `$(CURRENT_PROJECT_VERSION)`
+
+#### Preflight Check Warns About Existing Suffix
+**Problem**: Preflight check shows "Version already contains pre-release suffix".
+
+**Solution**: This is a helpful warning! It reminds you to use matching parameters:
+```bash
+# If version.xcconfig has "1.0.0-beta.2"
+./scripts/release.sh beta 2  # Correct - matches the suffix
+```
 
 ### Appcast Shows HTML Tags Instead of Formatted Text
 **Problem**: Sparkle update dialog shows escaped HTML like `&lt;h2&gt;` instead of formatted text.

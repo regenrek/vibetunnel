@@ -163,6 +163,28 @@ VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP_PA
 BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP_PATH/Contents/Info.plist")
 echo "Version: $VERSION ($BUILD)"
 
+# Verify version matches xcconfig
+if [[ -f "$PROJECT_DIR/VibeTunnel/version.xcconfig" ]]; then
+    EXPECTED_VERSION=$(grep 'MARKETING_VERSION' "$PROJECT_DIR/VibeTunnel/version.xcconfig" | sed 's/.*MARKETING_VERSION = //')
+    EXPECTED_BUILD=$(grep 'CURRENT_PROJECT_VERSION' "$PROJECT_DIR/VibeTunnel/version.xcconfig" | sed 's/.*CURRENT_PROJECT_VERSION = //')
+    
+    if [[ "$VERSION" != "$EXPECTED_VERSION" ]]; then
+        echo "⚠️  WARNING: Built version ($VERSION) doesn't match version.xcconfig ($EXPECTED_VERSION)"
+        echo "   This may indicate the Xcode project is not properly configured to use version.xcconfig"
+    else
+        echo "✓ Version matches version.xcconfig"
+    fi
+    
+    if [[ "$BUILD" != "$EXPECTED_BUILD" ]]; then
+        echo "⚠️  WARNING: Built build number ($BUILD) doesn't match version.xcconfig ($EXPECTED_BUILD)"
+        echo "   This may indicate the Xcode project is not properly configured to use version.xcconfig"
+    else
+        echo "✓ Build number matches version.xcconfig"
+    fi
+else
+    echo "⚠️  WARNING: version.xcconfig not found - cannot verify version consistency"
+fi
+
 # Verify IS_PRERELEASE_BUILD flag
 PRERELEASE_FLAG=$(/usr/libexec/PlistBuddy -c "Print IS_PRERELEASE_BUILD" "$APP_PATH/Contents/Info.plist" 2>/dev/null || echo "not found")
 if [[ "$PRERELEASE_FLAG" != "not found" ]]; then
