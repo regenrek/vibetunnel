@@ -11,9 +11,23 @@
             <sparkle:version>107</sparkle:version>
             <sparkle:shortVersionString>1.0-beta.2</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>VibeTunnel 1.0.0-beta.2</h2><p><strong>Pre-release version</strong></p><div><h2>VibeTunnel 1.0-beta.2</h2>
-<p>Latest version of VibeTunnel with new features and improvements.</p>
-<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md">View full changelog</a></p></div>
+                <h2>VibeTunnel 1.0.0-beta.2</h2><p><strong>Pre-release version</strong></p><div><h3>🎨 Improvements</h3>
+<ul>
+<li>Redesigned slick new web frontend</li>
+<li>Faster terminal rendering in the web frontend</li>
+<li>New Sessions spawn new Terminal windows. (This needs Applescript and Accessibility permissions)</li>
+<li>Enhanced font handling with system font priority</li>
+<li>Better async operations in PTY service for improved performance</li>
+<li>Improved window activation when showing the welcome and settings windows</li>
+<li>Preparations for Linux support</li>
+</ul>
+<h3>🐛 Bug Fixes</h3>
+<ul>
+<li>Fixed window front order when dock icon is hidden</li>
+<li>Fixed PTY service enhancements with proper async operations</li>
+<li>Fixed race condition in session creation that caused frontend to open previous session</li>
+</ul>
+<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md#100-beta2-20250619">View full changelog</a></p></div>
             ]]></description>
             <pubDate>Thu, 19 Jun 2025 12:50:59 +0200</pubDate>
             <enclosure 
@@ -30,9 +44,52 @@
             <sparkle:version>103</sparkle:version>
             <sparkle:shortVersionString>1.0-beta.1</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>VibeTunnel 1.0-beta.1</h2><p><strong>Pre-release version</strong></p><div><h2>VibeTunnel 1.0-beta.1</h2>
-<p>Latest version of VibeTunnel with new features and improvements.</p>
-<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md">View full changelog</a></p></div>
+                <h2>VibeTunnel 1.0-beta.1</h2><p><strong>Pre-release version</strong></p><div><h3>🎉 First Public Beta Release</h3>
+This is the first public beta release of VibeTunnel, ready for testing by early adopters.
+<h3>✨ What's Included</h3>
+<ul>
+<li>Complete terminal session proxying to web browsers</li>
+<li>Support for multiple concurrent sessions</li>
+<li>Real-time terminal rendering with full TTY support</li>
+<li>Secure password-protected dashboard</li>
+<li>Tailscale and ngrok integration for remote access</li>
+<li>Automatic updates via Sparkle framework</li>
+<li>Native macOS menu bar application</li>
+</ul>
+<h3>🐛 Bug Fixes Since Internal Testing</h3>
+<ul>
+<li>Fixed visible circle spacer in menu (now uses Color.clear)</li>
+<li>Removed development files from app bundle</li>
+<li>Enhanced build process with automatic cleanup</li>
+<li>Fixed Sparkle API compatibility for v2.7.0</li>
+</ul>
+<h3>📝 Notes</h3>
+<ul>
+<li>This is a beta release - please report any issues on GitHub</li>
+<li>Auto-update functionality is fully enabled</li>
+<li>All core features are stable and ready for daily use</li>
+</ul>
+<h3>✨ What's New Since Internal Testing</h3>
+<ul>
+<li>Improved stability and performance</li>
+<li>Enhanced error handling for edge cases</li>
+<li>Refined UI/UX based on internal feedback</li>
+<li>Better session cleanup and resource management</li>
+<li>Optimized for macOS Sonoma and Sequoia</li>
+</ul>
+<h3>🐛 Known Issues</h3>
+<ul>
+<li>Occasional connection drops with certain terminal applications</li>
+<li>Performance optimization needed for very long sessions</li>
+<li>Some terminal escape sequences may not render perfectly</li>
+</ul>
+<h3>📝 Notes</h3>
+<ul>
+<li>This is a beta release - please report any issues on GitHub</li>
+<li>Auto-update functionality is fully enabled</li>
+<li>All core features are stable and ready for daily use</li>
+</ul>
+<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md#100-beta1-20250619">View full changelog</a></p></div>
             ]]></description>
             <pubDate>Tue, 17 Jun 2025 01:09:18 +0200</pubDate>
             <enclosure 

@@ -265,12 +265,28 @@ create_appcast_item() {
     if [ -x "$changelog_script" ] && [ -f "$changelog_file" ]; then
         # Extract version number from tag (remove 'v' prefix)
         local version_for_changelog="${version_string}"
+        
+        # Try multiple version formats
+        # First try as-is (e.g., "1.0-beta.2")
         changelog_html=$("$changelog_script" "$version_for_changelog" "$changelog_file" 2>/dev/null || echo "")
         
+        # If that fails and it's a pre-release, try with .0 added (e.g., "1.0.0-beta.2")
+        if [ -z "$changelog_html" ] || [[ "$changelog_html" == *"Latest version of VibeTunnel"* ]]; then
+            if [[ "$version_for_changelog" =~ ^([0-9]+\.[0-9]+)(-.*)?$ ]]; then
+                local expanded_version="${BASH_REMATCH[1]}.0${BASH_REMATCH[2]}"
+                local temp_html=$("$changelog_script" "$expanded_version" "$changelog_file" 2>/dev/null || echo "")
+                if [ -n "$temp_html" ] && [[ "$temp_html" != *"Latest version of VibeTunnel"* ]]; then
+                    changelog_html="$temp_html"
+                fi
+            fi
+        fi
+        
         # If that fails, try with the base version for pre-releases
-        if [ -z "$changelog_html" ] && [[ "$version_for_changelog" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-            local base_version="${BASH_REMATCH[1]}"
-            changelog_html=$("$changelog_script" "$base_version" "$changelog_file" 2>/dev/null || echo "")
+        if [ -z "$changelog_html" ] || [[ "$changelog_html" == *"Latest version of VibeTunnel"* ]]; then
+            if [[ "$version_for_changelog" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+                local base_version="${BASH_REMATCH[1]}"
+                changelog_html=$("$changelog_script" "$base_version" "$changelog_file" 2>/dev/null || echo "")
+            fi
         fi
     fi
     
