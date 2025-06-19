@@ -553,6 +553,7 @@ private struct PortConfigurationView: View {
     @State private var alternativePorts: [Int] = []
     
     private let serverManager = ServerManager.shared
+    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "PortConfiguration")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -655,21 +656,10 @@ private struct PortConfigurationView: View {
                             .font(.caption)
                         }
                     }
-                    
-                    // If it's our instance, offer to force quit
-                    if case .killOurInstance(let pid, let processName) = conflict.suggestedAction {
-                        Button("Force Quit \(processName)") {
-                            Task {
-                                await forceQuitConflictingProcess(conflict)
-                            }
-                        }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    }
                 }
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.1))
                 .cornerRadius(6)
             } else if !serverManager.isRunning && serverManager.lastError != nil {
@@ -702,8 +692,16 @@ private struct PortConfigurationView: View {
         }
         
         if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
-            portConflict = conflict
-            alternativePorts = conflict.alternativePorts
+            // Only show warning for non-VibeTunnel processes
+            // tty-fwd and other VibeTunnel instances will be auto-killed by ServerManager
+            if case .reportExternalApp = conflict.suggestedAction {
+                portConflict = conflict
+                alternativePorts = conflict.alternativePorts
+            } else {
+                // It's our own process, will be handled automatically
+                portConflict = nil
+                alternativePorts = []
+            }
         } else {
             portConflict = nil
             alternativePorts = []
@@ -718,7 +716,7 @@ private struct PortConfigurationView: View {
             restartServerWithNewPort(portNumber)
         } catch {
             // Handle error - maybe show alert
-            print("Failed to force quit: \(error)")
+            logger.error("Failed to force quit: \(error)")
         }
     }
     

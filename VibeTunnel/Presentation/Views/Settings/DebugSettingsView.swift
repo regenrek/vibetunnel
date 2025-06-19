@@ -249,6 +249,9 @@ private struct ServerSection: View {
     @Binding var serverModeString: String
     let serverManager: ServerManager
     let getCurrentServerMode: () -> String
+    
+    @State private var portConflict: PortConflict?
+    @State private var isCheckingPort = false
 
     var body: some View {
         Section {
@@ -376,11 +379,86 @@ private struct ServerSection: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                
+                // Port conflict warning
+                if let conflict = portConflict {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            
+                            Text("Port \(conflict.port) is used by \(conflict.process.name)")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        if !conflict.alternativePorts.isEmpty {
+                            HStack(spacing: 4) {
+                                Text("Try port:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                ForEach(conflict.alternativePorts.prefix(3), id: \.self) { port in
+                                    Button(String(port)) {
+                                        serverManager.port = String(port)
+                                        Task {
+                                            await serverManager.restart()
+                                        }
+                                    }
+                                    .buttonStyle(.link)
+                                    .font(.caption)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(6)
+                }
             }
             .padding(.vertical, 4)
+            .onAppear {
+                Task {
+                    await checkPortAvailability()
+                }
+            }
+            .onChange(of: serverPort) { _, _ in
+                Task {
+                    await checkPortAvailability()
+                }
+            }
         } header: {
             Text("HTTP Server")
                 .font(.headline)
+        }
+    }
+    
+    private func checkPortAvailability() async {
+        isCheckingPort = true
+        defer { isCheckingPort = false }
+        
+        let port = Int(serverPort)
+        
+        // Only check if it's not the port we're already successfully using
+        if serverManager.isRunning && Int(serverManager.port) == port {
+            portConflict = nil
+            return
+        }
+        
+        if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
+            // Only show warning for non-VibeTunnel processes
+            // tty-fwd and other VibeTunnel instances will be auto-killed by ServerManager
+            if case .reportExternalApp = conflict.suggestedAction {
+                portConflict = conflict
+            } else {
+                // It's our own process, will be handled automatically
+                portConflict = nil
+            }
+        } else {
+            portConflict = nil
         }
     }
 }
