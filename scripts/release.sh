@@ -338,38 +338,44 @@ SPARKLE_OK=true
 
 # Check each Sparkle component for proper signing with timestamps
 if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
-        echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
-        SPARKLE_OK=false
-    else
+    # Debug: capture codesign output
+    CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1)
+    if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
         echo "✅ Installer.xpc properly signed with timestamp"
+    else
+        echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
+        echo "Debug output: $CODESIGN_OUT" | head -20
+        SPARKLE_OK=false
     fi
 fi
 
 if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
+    CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" 2>&1)
+    if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
+        echo "✅ Downloader.xpc properly signed with timestamp"
+    else
         echo -e "${RED}❌ Downloader.xpc missing timestamp signature${NC}"
         SPARKLE_OK=false
-    else
-        echo "✅ Downloader.xpc properly signed with timestamp"
     fi
 fi
 
 if [ -f "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
+    CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 2>&1)
+    if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
+        echo "✅ Autoupdate properly signed with timestamp"
+    else
         echo -e "${RED}❌ Autoupdate missing timestamp signature${NC}"
         SPARKLE_OK=false
-    else
-        echo "✅ Autoupdate properly signed with timestamp"
     fi
 fi
 
 if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
+    CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" 2>&1)
+    if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
+        echo "✅ Updater.app properly signed with timestamp"
+    else
         echo -e "${RED}❌ Updater.app missing timestamp signature${NC}"
         SPARKLE_OK=false
-    else
-        echo "✅ Updater.app properly signed with timestamp"
     fi
 fi
 
