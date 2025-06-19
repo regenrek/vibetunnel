@@ -70,7 +70,7 @@ export class PtyManager {
     command: string[],
     options: SessionOptions = {}
   ): Promise<SessionCreationResult> {
-    const sessionId = uuidv4();
+    const sessionId = options.sessionId || uuidv4();
     const sessionName = options.sessionName || path.basename(command[0]);
     const workingDir = options.workingDir || process.cwd();
     const term = options.term || this.defaultTerm;

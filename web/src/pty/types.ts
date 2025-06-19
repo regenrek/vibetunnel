@@ -91,6 +91,7 @@ export interface SessionOptions {
   term?: string;
   cols?: number;
   rows?: number;
+  sessionId?: string;
 }
 
 export interface PtyConfig {

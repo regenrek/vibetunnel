@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as net from 'net';
 import { spawn, ChildProcess } from 'child_process';
 import { PtyService, PtyError } from './pty/index.js';
 
