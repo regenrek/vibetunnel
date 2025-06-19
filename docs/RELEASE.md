@@ -13,13 +13,57 @@ VibeTunnel uses an automated release process that handles all the complexity of:
 
 ## 🚀 Creating a Release
 
+### 📋 Pre-Release Checklist (MUST DO FIRST!)
+
+Before running ANY release commands, verify these items:
+
+- [ ] **Version in version.xcconfig is correct**
+  ```bash
+  grep MARKETING_VERSION VibeTunnel/version.xcconfig
+  # For beta.2 should show: MARKETING_VERSION = 1.0.0-beta.2
+  # NOT: MARKETING_VERSION = 1.0.0
+  ```
+  
+- [ ] **Build number is incremented**
+  ```bash
+  grep CURRENT_PROJECT_VERSION VibeTunnel/version.xcconfig
+  # Must be higher than the last release
+  ```
+  
+- [ ] **CHANGELOG.md has entry for this version**
+  ```bash
+  grep "## \[1.0.0-beta.2\]" CHANGELOG.md
+  # Must exist with release notes
+  ```
+
+- [ ] **Run Tuist generate if build number was changed**
+  ```bash
+  tuist generate
+  git add VibeTunnel.xcodeproj/project.pbxproj
+  git commit -m "Update Xcode project for build XXX"
+  ```
+
 ### Step 1: Pre-flight Check
 ```bash
 ./scripts/preflight-check.sh
 ```
 This validates your environment is ready for release.
 
-### Step 2: Create/Update CHANGELOG.md
+### Step 2: CRITICAL Pre-Release Version Check
+**IMPORTANT**: Before running the release script, ensure your version.xcconfig is set correctly:
+
+1. For beta releases: The MARKETING_VERSION should already include the suffix (e.g., `1.0.0-beta.2`)
+2. The release script will NOT add additional suffixes - it uses the version as-is
+3. Always verify the version before proceeding:
+   ```bash
+   grep MARKETING_VERSION VibeTunnel/version.xcconfig
+   # Should show: MARKETING_VERSION = 1.0.0-beta.2
+   ```
+
+**Common Mistake**: If the version is already `1.0.0-beta.2` and you run `./scripts/release.sh beta 2`, 
+it will create `1.0.0-beta.2-beta.2` which is wrong!
+
+### Step 3: Create/Update CHANGELOG.md
 Before creating any release, ensure the CHANGELOG.md file exists and contains a proper section for the version being released. If this is your first release, create a CHANGELOG.md file in the project root:
 
 ```markdown
@@ -27,7 +71,7 @@ Before creating any release, ensure the CHANGELOG.md file exists and contains a 
 
 All notable changes to VibeTunnel will be documented in this file.
 
-## [1.1.0] - 2025-06-10
+## [1.0.0-beta.2] - 2025-06-19
 
 ### 🎨 UI Improvements
 - **Enhanced feature** - Description of the improvement
@@ -36,15 +80,15 @@ All notable changes to VibeTunnel will be documented in this file.
 
 **CRITICAL**: The appcast generation relies on the local CHANGELOG.md file, NOT the GitHub release description. The changelog must be added to CHANGELOG.md BEFORE running the release script.
 
-### Step 3: Create the Release
+### Step 4: Create the Release
 ```bash
 # For stable releases:
 ./scripts/release.sh stable
 
-# For pre-releases (beta, alpha, rc):
-./scripts/release.sh beta 1    # Creates version-beta.1
-./scripts/release.sh alpha 2   # Creates version-alpha.2
-./scripts/release.sh rc 1      # Creates version-rc.1
+# IMPORTANT: The release type parameter is only used for tagging!
+# The actual version comes from version.xcconfig
+# Example: If version.xcconfig has "1.0.0-beta.2", then:
+./scripts/release.sh beta 2    # Creates tag v1.0.0-beta.2 (NOT v1.0.0-beta.2-beta.2!)
 ```
 
 **IMPORTANT**: The release script does NOT automatically increment build numbers. You must manually update the build number in VibeTunnel.xcodeproj before running the script, or it will fail the pre-flight check.
@@ -57,7 +101,7 @@ The script will:
 5. Update the appcast files with EdDSA signatures
 6. Commit and push all changes
 
-### Step 4: Verify Success
+### Step 5: Verify Success
 - Check the GitHub releases page
 - Verify the appcast was updated correctly with proper changelog content
 - Test updating from a previous version

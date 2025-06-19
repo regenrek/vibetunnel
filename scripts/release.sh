@@ -137,7 +137,15 @@ if [[ "$RELEASE_TYPE" == "stable" ]]; then
     RELEASE_VERSION="$MARKETING_VERSION"
     TAG_NAME="v$RELEASE_VERSION"
 else
-    RELEASE_VERSION="$MARKETING_VERSION-$RELEASE_TYPE.$PRERELEASE_NUMBER"
+    # Check if MARKETING_VERSION already contains the pre-release suffix
+    EXPECTED_SUFFIX="$RELEASE_TYPE.$PRERELEASE_NUMBER"
+    if [[ "$MARKETING_VERSION" == *"-$EXPECTED_SUFFIX" ]]; then
+        # Version already has the correct suffix, use as-is
+        RELEASE_VERSION="$MARKETING_VERSION"
+    else
+        # Add the suffix
+        RELEASE_VERSION="$MARKETING_VERSION-$RELEASE_TYPE.$PRERELEASE_NUMBER"
+    fi
     TAG_NAME="v$RELEASE_VERSION"
 fi
 
@@ -170,7 +178,8 @@ if [[ "$RELEASE_TYPE" == "stable" ]]; then
     BASE_VERSION=$(echo "$MARKETING_VERSION" | sed 's/-.*$//')
     VERSION_TO_SET="$BASE_VERSION"
 else
-    # For pre-releases, set the full version with suffix
+    # For pre-releases, use the RELEASE_VERSION we calculated above
+    # (which already handles whether to add suffix or not)
     VERSION_TO_SET="$RELEASE_VERSION"
 fi
 
