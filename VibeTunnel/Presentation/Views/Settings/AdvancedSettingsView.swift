@@ -171,7 +171,7 @@ private struct TerminalPreferenceSection: View {
                 HStack {
                     Text("Test Terminal")
                     Spacer()
-                    Button("Test with 'echo'") {
+                    Button("Test Echo") {
                         Task {
                             do {
                                 try terminalLauncher.launchCommand("echo 'VibeTunnel Terminal Test: Success!'")
