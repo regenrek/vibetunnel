@@ -314,6 +314,43 @@ export class PtyManager {
   }
 
   /**
+   * Try to create a control pipe for an existing external session
+   */
+  private createControlPipeForExternalSession(sessionId: string): string | null {
+    const diskSession = this.sessionManager.getSession(sessionId);
+    if (!diskSession || !diskSession.stdin) {
+      return null;
+    }
+
+    try {
+      // Create control pipe in the same directory as stdin
+      const controlPipePath = path.join(path.dirname(diskSession.stdin), 'control-pipe');
+
+      // Create the control pipe file if it doesn't exist
+      if (!fs.existsSync(controlPipePath)) {
+        fs.writeFileSync(controlPipePath, '');
+      }
+
+      // Update session.json to include the control pipe
+      const sessionDir = path.dirname(diskSession.stdin);
+      const sessionInfoPath = path.join(sessionDir, 'session.json');
+
+      if (fs.existsSync(sessionInfoPath)) {
+        const sessionInfo = JSON.parse(fs.readFileSync(sessionInfoPath, 'utf8'));
+        sessionInfo['control-pipe'] = controlPipePath;
+        fs.writeFileSync(sessionInfoPath, JSON.stringify(sessionInfo, null, 2));
+
+        console.log(`Created control pipe for external session ${sessionId}: ${controlPipePath}`);
+        return controlPipePath;
+      }
+    } catch (error) {
+      console.warn(`Failed to create control pipe for session ${sessionId}:`, error);
+    }
+
+    return null;
+  }
+
+  /**
    * Send a control message to an external session
    */
   private sendControlMessage(
@@ -321,11 +358,20 @@ export class PtyManager {
     message: ResizeControlMessage | KillControlMessage
   ): boolean {
     const diskSession = this.sessionManager.getSession(sessionId);
-    if (!diskSession || !diskSession['control-pipe']) {
+    if (!diskSession) {
       return false;
     }
 
-    const controlPipe = diskSession['control-pipe'];
+    let controlPipe = diskSession['control-pipe'];
+
+    // If no control pipe exists, try to create one for external sessions
+    if (!controlPipe) {
+      controlPipe = this.createControlPipeForExternalSession(sessionId);
+      if (!controlPipe) {
+        return false;
+      }
+    }
+
     try {
       if (fs.existsSync(controlPipe)) {
         const messageStr = JSON.stringify(message) + '\n';
@@ -391,7 +437,23 @@ export class PtyManager {
         if (sent) {
           console.log(`Sent resize command to external session ${sessionId}: ${cols}x${rows}`);
         } else {
-          console.log(`Cannot resize external session ${sessionId} - no control pipe available`);
+          // Fallback: send SIGWINCH to notify the process of terminal size change
+          if (diskSession.pid && ProcessUtils.isProcessRunning(diskSession.pid)) {
+            try {
+              process.kill(diskSession.pid, 'SIGWINCH');
+              console.log(
+                `Control pipe not available for session ${sessionId}, sent SIGWINCH to PID ${diskSession.pid}`
+              );
+            } catch (_error) {
+              console.log(
+                `Cannot resize external session ${sessionId} - no control pipe and SIGWINCH failed`
+              );
+            }
+          } else {
+            console.log(
+              `Cannot resize external session ${sessionId} - no control pipe available and process not running`
+            );
+          }
         }
       }
     } catch (error) {
