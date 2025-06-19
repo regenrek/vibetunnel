@@ -58,12 +58,12 @@ async function main() {
   console.log(`Starting command: ${command.join(' ')}`);
   console.log(`Working directory: ${cwd}`);
 
-  // Initialize PTY service
+  // Initialize PTY service - fwd.ts should always use node-pty directly
   const controlPath = path.join(os.homedir(), '.vibetunnel', 'control');
   const ptyService = new PtyService({
-    implementation: 'auto', // Let it choose the best available
+    implementation: 'node-pty', // Always use node-pty, never tty-fwd
     controlPath,
-    fallbackToTtyFwd: true,
+    fallbackToTtyFwd: false, // Disable fallback - fwd.ts replaces tty-fwd
   });
 
   try {
@@ -92,44 +92,45 @@ async function main() {
       throw new Error('Session not found after creation');
     }
 
-    // Get direct access to PTY process for faster input and exit detection (if using node-pty)
+    // Get direct access to PTY process for faster input and exit detection
     let directPtyProcess: any = null;
-    if (ptyService.isUsingNodePty()) {
-      try {
-        const ptyManager = (ptyService as any).ptyManager;
-        const internalSession = ptyManager?.sessions?.get(result.sessionId);
-        directPtyProcess = internalSession?.ptyProcess;
-        if (directPtyProcess) {
-          console.log('Got direct PTY process access for faster input and exit detection');
+    try {
+      const ptyManager = (ptyService as any).ptyManager;
+      const internalSession = ptyManager?.sessions?.get(result.sessionId);
+      directPtyProcess = internalSession?.ptyProcess;
+      if (directPtyProcess) {
+        console.log('Got direct PTY process access for faster input and exit detection');
 
-          // Listen for PTY process exit directly for immediate response
-          directPtyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-            console.log(`\n\nPTY process exited with code ${exitCode}, signal ${signal}`);
+        // Listen for PTY process exit directly for immediate response
+        directPtyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+          console.log(`\n\nPTY process exited with code ${exitCode}, signal ${signal}`);
 
-            // Clean up all intervals and streams immediately
-            intervals.forEach((interval) => clearInterval(interval));
-            streams.forEach((stream) => {
-              try {
-                stream.destroy?.();
-              } catch (_e) {
-                // Ignore cleanup errors
-              }
-            });
-
-            // Restore terminal settings
-            if (!monitorOnly && process.stdin.isTTY) {
-              process.stdin.setRawMode(false);
+          // Clean up all intervals and streams immediately
+          intervals.forEach((interval) => clearInterval(interval));
+          streams.forEach((stream) => {
+            try {
+              stream.destroy?.();
+            } catch (_e) {
+              // Ignore cleanup errors
             }
-            if (!monitorOnly) {
-              process.stdin.pause();
-            }
-
-            process.exit(exitCode || 0);
           });
-        }
-      } catch (error) {
-        console.warn('Could not get direct PTY access, using fallback:', error);
+
+          // Restore terminal settings
+          if (!monitorOnly && process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+          }
+          if (!monitorOnly) {
+            process.stdin.pause();
+          }
+
+          process.exit(exitCode || 0);
+        });
+      } else {
+        throw new Error('Could not access PTY process - fwd.ts requires node-pty implementation');
       }
+    } catch (error) {
+      console.error('Failed to get direct PTY access:', error);
+      process.exit(1);
     }
 
     console.log(`PID: ${session.pid}`);
@@ -301,16 +302,10 @@ async function main() {
       process.stdin.resume();
       process.stdin.setEncoding('utf8');
 
-      // Forward stdin to PTY (use direct access for speed if available)
+      // Forward stdin to PTY using direct access for maximum speed
       process.stdin.on('data', (data: string) => {
         try {
-          if (directPtyProcess) {
-            // Direct write to PTY for maximum speed
-            directPtyProcess.write(data);
-          } else {
-            // Fallback to PTY service
-            ptyService.sendInput(result.sessionId, { text: data });
-          }
+          directPtyProcess.write(data);
         } catch (error) {
           console.error('Failed to send input:', error);
         }
@@ -460,54 +455,7 @@ async function main() {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // Fallback session status monitoring (only needed if we don't have direct PTY access)
-    if (!directPtyProcess) {
-      const checkInterval = setInterval(() => {
-        try {
-          const currentSession = ptyService.getSession(result.sessionId);
-          if (!currentSession || currentSession.status === 'exited') {
-            console.log('\n\nSession has exited (detected via status polling).');
-            if (currentSession?.exit_code !== undefined) {
-              console.log(`Exit code: ${currentSession.exit_code}`);
-            }
-
-            // Clean up all intervals and streams
-            intervals.forEach((interval) => clearInterval(interval));
-            streams.forEach((stream) => {
-              try {
-                stream.destroy?.();
-              } catch (_e) {
-                // Ignore cleanup errors
-              }
-            });
-
-            // Restore terminal settings before exit (only if we were in interactive mode)
-            if (!monitorOnly && process.stdin.isTTY) {
-              process.stdin.setRawMode(false);
-            }
-            if (!monitorOnly) {
-              process.stdin.pause();
-            }
-
-            process.exit(currentSession?.exit_code || 0);
-          }
-        } catch (error) {
-          console.error('Error monitoring session:', error);
-          // Clean up all intervals and streams on error too
-          intervals.forEach((interval) => clearInterval(interval));
-          streams.forEach((stream) => {
-            try {
-              stream.destroy?.();
-            } catch (_e) {
-              // Ignore cleanup errors
-            }
-          });
-          process.exit(1);
-        }
-      }, 1000); // Check every second (slower since it's fallback)
-
-      intervals.push(checkInterval);
-    }
+    // No fallback monitoring needed - we always have direct PTY access
 
     // Keep the process alive
     await new Promise<void>((resolve) => {
