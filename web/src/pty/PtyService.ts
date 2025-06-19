@@ -218,8 +218,8 @@ export class PtyService {
           arrow_right: '\x1b[C',
           arrow_left: '\x1b[D',
           escape: '\x1b',
-          enter: process.platform === 'win32' ? '\r' : '\n',
-          ctrl_enter: '\r',
+          enter: '\r',
+          ctrl_enter: '\n',
           shift_enter: '\r\n',
         };
         dataToSend = keyMap[input.key] || '';
