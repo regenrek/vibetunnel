@@ -6,26 +6,10 @@
 	<dict>
 		<key>VibeTunnel.xcscheme_^#shared#^_</key>
 		<dict>
+			<key>isShown</key>
+			<true/>
 			<key>orderHint</key>
 			<integer>0</integer>
-		</dict>
-	</dict>
-	<key>SuppressBuildableAutocreation</key>
-	<dict>
-		<key>788687F02DFF4FCB00B22C15</key>
-		<dict>
-			<key>primary</key>
-			<true/>
-		</dict>
-		<key>788687FD2DFF4FCB00B22C15</key>
-		<dict>
-			<key>primary</key>
-			<true/>
-		</dict>
-		<key>788688072DFF4FCC00B22C15</key>
-		<dict>
-			<key>primary</key>
-			<true/>
 		</dict>
 	</dict>
 </dict>
