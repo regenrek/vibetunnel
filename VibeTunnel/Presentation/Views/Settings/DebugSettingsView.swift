@@ -317,8 +317,8 @@ private struct ServerSection: View {
 
                     Spacer()
 
-                    // Show restart button for Rust mode always
-                    if serverModeString == ServerMode.rust.rawValue {
+                    // Show restart button for all modes except Swift/Hummingbird
+                    if serverModeString != ServerMode.hummingbird.rawValue {
                         Button("Restart") {
                             Task {
                                 await serverManager.manualRestart()
