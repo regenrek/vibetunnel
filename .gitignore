@@ -98,3 +98,7 @@ Cargo.lock
 *.profdata
 default.profraw
 default.profdata
+
+# Tuist generated files
+Derived/
+Workspace.xcworkspace/

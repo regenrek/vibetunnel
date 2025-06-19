@@ -14,7 +14,7 @@
 # VALIDATION CHECKS:
 #   - Git repository status (clean working tree, main branch, synced)
 #   - Version information and build number validation
-#   - Required development tools (Tuist, GitHub CLI, Sparkle tools)
+#   - Required development tools (GitHub CLI, Sparkle tools)
 #   - Code signing certificates and notarization credentials
 #   - Sparkle configuration (keys, appcast files)
 #   - IS_PRERELEASE_BUILD system configuration
@@ -26,7 +26,6 @@
 # DEPENDENCIES:
 #   - git (repository management)
 #   - gh (GitHub CLI)
-#   - tuist (project generation)
 #   - sign_update (Sparkle EdDSA signing)
 #   - xcbeautify (optional, build output formatting)
 #   - security (keychain access for certificates)
@@ -182,12 +181,6 @@ else
     check_fail "GitHub CLI not installed - run: brew install gh"
 fi
 
-# Tuist
-if command -v tuist &> /dev/null; then
-    check_pass "Tuist installed"
-else
-    check_fail "Tuist not installed - run: curl -Ls https://install.tuist.io | bash"
-fi
 
 # Sparkle tools
 if [[ -f "$HOME/.local/bin/sign_update" ]]; then

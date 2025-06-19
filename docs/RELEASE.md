@@ -36,11 +36,9 @@ Before running ANY release commands, verify these items:
   # Must exist with release notes
   ```
 
-- [ ] **Run Tuist generate if build number was changed**
+- [ ] **Clean build and derived data if needed**
   ```bash
-  tuist generate
-  git add VibeTunnel.xcodeproj/project.pbxproj
-  git commit -m "Update Xcode project for build XXX"
+  rm -rf build DerivedData
   ```
 
 ### Step 1: Pre-flight Check
