@@ -8,7 +8,7 @@
         <item>
             <title>VibeTunnel 1.0.0-beta.2</title>
             <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.2/VibeTunnel-1.0.0-beta.2.dmg</link>
-            <sparkle:version>105</sparkle:version>
+            <sparkle:version>106</sparkle:version>
             <sparkle:shortVersionString>1.0.0-beta.2</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>VibeTunnel 1.0.0-beta.2</h2><p><strong>Pre-release version</strong></p><div><h3>🎨 Improvements</h3>
@@ -29,12 +29,12 @@
 </ul>
 <p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md#100-beta2-20250619">View full changelog</a></p></div>
             ]]></description>
-            <pubDate>Thu, 19 Jun 2025 02:40:16 +0200</pubDate>
+            <pubDate>Thu, 19 Jun 2025 03:23:38 +0200</pubDate>
             <enclosure 
                 url="https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.2/VibeTunnel-1.0.0-beta.2.dmg"
-                length="22201465"
+                length="22202987"
                 type="application/octet-stream"
-                sparkle:edSignature="VuOks4uaCl1UNuz+229Pqn4sXmLYU3+Jp2tWGyHzVGUei3bPuyXX9OD+p2vxrCKJSn/XqJbWp03c6dKd384PBw=="
+                sparkle:edSignature="YjjxQF1iO2owI/ey8qEU8CvZSQTXM1dTdGmVjZrUqjk3GtteqyjuHwGqrqF5XfhvDYl3WoACHT5T+vRW/IvnCQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
