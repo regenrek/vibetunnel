@@ -8,6 +8,12 @@
 
 set -euo pipefail
 
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
 # Add Sparkle tools to PATH
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -41,12 +47,6 @@ if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
     echo "Please ensure the private key is available before running this script."
     exit 1
 fi
-
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
 
 # Function to print colored output
 print_info() {
