@@ -27,7 +27,6 @@ struct TerminalLaunchConfig {
         fullCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "'", with: "'\\''")
     }
 
     var keystrokeEscapedCommand: String {
