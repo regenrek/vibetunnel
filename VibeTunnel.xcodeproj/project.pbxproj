@@ -3,1399 +3,301 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 55;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		002CE2F9A8F690BB43741B15 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC023B6F08D8F3D8981324B8 /* Sparkle.xcframework */; };
-		04A5D715E3A92617F9AE29CA /* BasicAuthMiddlewareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92B44AA16C818959BCB8777 /* BasicAuthMiddlewareTests.swift */; };
-		05F8F79F25718B3180C6AEBD /* TerminalLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2CF0D3AAACC0F429BADA3B /* TerminalLaunchTests.swift */; };
-		0711FA666CD809174B6C82B3 /* CAsyncHTTPClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A5086EC46B10894FD518AFF /* CAsyncHTTPClient.framework */; };
-		0944A4CCD2D1D592ACCD9C03 /* NIOSSL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 385EE5051436178327357EDB /* NIOSSL.framework */; };
-		0E8B9CBE749D82D988507D6E /* InternalCollectionsUtilities.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54828E62952548741A522016 /* InternalCollectionsUtilities.framework */; };
-		0EFB8EF015FC5062ECDE26E7 /* NIOTransportServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FDEE319AC29BE76FC40F54DC /* NIOTransportServices.framework */; };
-		10166BDA65572A6C163E7658 /* HummingbirdTesting.framework in Dependencies */ = {isa = PBXBuildFile; fileRef = B32ECCF7B472D681E57B8835 /* HummingbirdTesting.framework */; };
-		105C9D21AA59FD8B3F45115E /* ServiceContextModule.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D0E78454423ED0784D25C530 /* ServiceContextModule.framework */; };
-		136D6581DE00ED1AE0622B8F /* VibeTunnel.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D81845A210FF7DB68A2A548B /* VibeTunnel.framework */; };
-		14590B2197FB53B5037B4602 /* _AtomicsShims.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 32605D2AD666422A00FC682D /* _AtomicsShims.framework */; };
-		151D61B2EF0D591BD5262886 /* HummingbirdServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35D1AE97AB082B61601DEE /* HummingbirdServer.swift */; };
-		165578F5DE1368A006597E1B /* CNIOWASI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10857052024B37770A9CFB75 /* CNIOWASI.framework */; };
-		1B7027D256DCBA8882B09493 /* RealModule.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F79C49A17C1331381971FA4F /* RealModule.framework */; };
-		2035CE189FCF3BEC5BEDB4EA /* DockIconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 959E6773865CF5772597EC5B /* DockIconManager.swift */; };
-		20B742EC77793895331A50EF /* AccessDashboardPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C14FEB85ED0D32CB425CD34D /* AccessDashboardPageView.swift */; };
-		225B1312C769EDB4B247D8AD /* OrderedCollections.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0DAD579918726AC6F78FE902 /* OrderedCollections.framework */; };
-		23B517D65FEAD22C8E84CC05 /* HTTPClientProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15EF539A998715E5FBA4163 /* HTTPClientProtocol.swift */; };
-		26D15AF6C0900625CCA2396A /* MockHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90EE1B337F4F2A13005BE5A /* MockHTTPClient.swift */; };
-		2C7FE1B37CE06621EA2DA265 /* TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB4874FBDC6E1573EF83217 /* TestFixtures.swift */; };
-		2CABB81781274E6079A1FBE0 /* TerminalManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B2F128E3C68E2A1002670B /* TerminalManager.swift */; };
-		2FFC130D6D60CABA6CE01163 /* CoreMetrics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7735B4AF945922FB0A98454C /* CoreMetrics.framework */; };
-		30605EFA7967B96707C9F977 /* swift-nio-ssl_NIOSSL.bundle in Resources */ = {isa = PBXBuildFile; fileRef = CFCF6EEC0692ED653A3831F4 /* swift-nio-ssl_NIOSSL.bundle */; };
-		3316B04D918B4AA1CD567AB2 /* SessionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34E1D600A2C80AB88B99937 /* SessionMonitor.swift */; };
-		34D25A72A22C60FA88182FFF /* Metrics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F205BD786C8C6E0A9C68207 /* Metrics.framework */; };
-		369B9E8B1CCF97553D785FA8 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46989D8526209233BF594D9 /* WelcomeView.swift */; };
-		36C02238587C4EB08E93767D /* APIEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF060AD436CFA9D3A575DE9 /* APIEndpoints.swift */; };
-		36D4860E3DE90C1A9F069E62 /* DashboardKeychainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35296A72742413F820A0E85C /* DashboardKeychainTests.swift */; };
-		3700EB4D4850230636C9D00D /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC6FB29ABF1EC7927C2ECBF3 /* DebugSettingsView.swift */; };
-		39DF5463D57E9504A6F00CE8 /* TunnelServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B14C6CF3EB10FB92A3BE7B34 /* TunnelServer.swift */; };
-		3BF84C1DFF9E809FE6110685 /* ApplicationMover.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6BEB4CFFAF43A9BB0731910 /* ApplicationMover.swift */; };
-		3D0B3ACE952F11A90480A018 /* CNIOExtrasZlib.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0A8DB48EF4931DF57E8AD99 /* CNIOExtrasZlib.framework */; };
-		3DA7CF62FFFC49F1BB30F166 /* TerminalManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1F4584599A2BEA1EED9520 /* TerminalManagerTests.swift */; };
-		3E42E206E21ABBDD712E48CD /* Atomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 75FAD918C5126D69E3C58350 /* Atomics.framework */; };
-		41D26807980E10BBDE9990A4 /* Algorithms.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6FA729BBA1A9623465607F1B /* Algorithms.framework */; };
-		45565B74EAF996F149CEB431 /* NIOSOCKS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5E984AFEB89D35065277C3D7 /* NIOSOCKS.framework */; };
-		48A869C26C95BAD29F41E594 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC023B6F08D8F3D8981324B8 /* Sparkle.xcframework */; };
-		4ACCD2E4EB23A9222BCD0A87 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249B7A8A132EEBC3DA361703 /* MenuBarView.swift */; };
-		4B463774575A817D8B0B965A /* HummingbirdCore.framework in Dependencies */ = {isa = PBXBuildFile; fileRef = 2C2801CEBC9E1DB3029C2538 /* HummingbirdCore.framework */; };
-		5272F227B1604294FEE94829 /* _NIODataStructures.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ECC442DB9A473EC6AA918FAF /* _NIODataStructures.framework */; };
-		52BE4FA9347153848923C9B7 /* HummingbirdCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2C2801CEBC9E1DB3029C2538 /* HummingbirdCore.framework */; };
-		53577729870DAE7A501C2D57 /* BasicAuthMiddleware.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76E5E6B65227CF0A33EB988 /* BasicAuthMiddleware.swift */; };
-		57813191B2DDB4DEDE7441F2 /* DashboardSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8C2A5EBA09D10082B013AB /* DashboardSettingsView.swift */; };
-		593E2C833EE904F9BFF28AD6 /* NIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22DCB962D44FA2C78E21A9FE /* NIO.framework */; };
-		5A8BB550B715A7D8A58D11A2 /* TunnelClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61CCC4F34BE56EE53DC15285 /* TunnelClientTests.swift */; };
-		5BDD6044C5DB8E41A9E07BFB /* NIOExtras.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 44063037FDFEF69B06F36958 /* NIOExtras.framework */; };
-		5C34DF5A19D4C57B996E4D4D /* VibeTunnelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C2248CA8FAB53FBA6F3F40D /* VibeTunnelTests.swift */; };
-		61FED5E46A451A30E3FBD746 /* AuthCacheClearingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 717AE8C9C92C7B952B6BB7E7 /* AuthCacheClearingTests.swift */; };
-		64A236599952C4B1AC5CCEDC /* ProtectDashboardPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7060BEA7CCC3E9C4CF73BC93 /* ProtectDashboardPageView.swift */; };
-		65558A4E513C99CC7BA8261B /* UpdateChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92553DE979A86107E0C97569 /* UpdateChannel.swift */; };
-		695845C0D22398747ED5C708 /* VTCommandPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC20236CAA89EE08B25359FF /* VTCommandPageView.swift */; };
-		696E3C9F33849C60697F14C6 /* swift-nio_NIOPosix.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 802DF48B416989D97C43A610 /* swift-nio_NIOPosix.bundle */; };
-		6AD1A682A6D96FD7383FA8B6 /* NetworkUtilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18BD559C8EFBD2A97B790FE /* NetworkUtilityTests.swift */; };
-		6DDF1B49AE15436ED7B88196 /* CLIInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B63855BBA75B07B20C12977F /* CLIInstallerTests.swift */; };
-		6FBEB2538AA58B3E8B55BCDC /* RequestPermissionsPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC1A10A2DCFF425FADA8C46 /* RequestPermissionsPageView.swift */; };
-		6FE3A1930F33C488F17E20BE /* HTTPTypesFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4DBE03C42CF760C67387AD9E /* HTTPTypesFoundation.framework */; };
-		70A50C8F7BECE59B8E954420 /* CNIOAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F50CB7CF780176D5DD136C03 /* CNIOAtomics.framework */; };
-		73C6395E9B09133D0EA0E4D9 /* AppleScriptPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817B2E76807EB3D00346AC4F /* AppleScriptPermissionManager.swift */; };
-		755D5C97F66CBF9C90613B72 /* TTYForwardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891482480E02BE5F71FBF7DF /* TTYForwardManager.swift */; };
-		77718BD5A976360E3D8A736E /* NIOPosix.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CB9C0C33D3301B5A9A1F337 /* NIOPosix.framework */; };
-		77F8CD39F71C0225277908F7 /* WindowCenteringHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B3842D22935722ED460774B /* WindowCenteringHelper.swift */; };
-		7B7418BAF160BA67E4DDD1C8 /* NIOHTTPTypesHTTP1.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3576A53FA4C2E38CCA1E5F95 /* NIOHTTPTypesHTTP1.framework */; };
-		7C64E0FACC6BB9791AE73C49 /* Collections.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 36B42A5F98B97575FB8FFDDD /* Collections.framework */; };
-		7CBA887F907BEB5E6AABBF0E /* ServerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411F6DEF8F58E527A335841D /* ServerProtocol.swift */; };
-		819EAF9AA8532DC3FD0B0BA5 /* _NIOBase64.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1DBAED9B8F89ED72FA999DC /* _NIOBase64.framework */; };
-		81DFB444F6E569B5D0DDFB74 /* BitCollections.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 474624D0ADA7EE82061681F3 /* BitCollections.framework */; };
-		826E78B2E79F50B19B303646 /* DequeModule.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5CD9149E76237AF9D973F5E0 /* DequeModule.framework */; };
-		8475F5FE22A4017D35A40116 /* AccessibilityPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F2BB4E8B4E924F1FF9CCED /* AccessibilityPermissionManager.swift */; };
-		851E5BCD54A3A832BC38EA54 /* NgrokServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12B77FEB5663DBC91627854 /* NgrokServiceTests.swift */; };
-		884C4F7C5FF4D15B4B81CE93 /* SessionMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32639C7365CB87416501EA39 /* SessionMonitorTests.swift */; };
-		8A5AC470A52002B06B7C5850 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A180322E826DA47CC92431F8 /* SharedComponents.swift */; };
-		8AB3E5BBD8AA4BF009258DAF /* swift-nio-ssl_NIOSSL.bundle in Dependencies */ = {isa = PBXBuildFile; fileRef = CFCF6EEC0692ED653A3831F4 /* swift-nio-ssl_NIOSSL.bundle */; };
-		8AFA895892482EEE62492444 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4A46B5AB16A595BC80FA59B /* AppConstants.swift */; };
-		8B771E0EBD668895CDAE437B /* RustServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6206AE3437E5DEAD4F22956E /* RustServer.swift */; };
-		8DDC075C37E58C0C96F4C13A /* DashboardAccessMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF8C1B05DE67460F6823655B /* DashboardAccessMode.swift */; };
-		8F87023F231215A1B5116BA7 /* ServerMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89ACD1F841BCE3496A5569EB /* ServerMonitor.swift */; };
-		95E3328726341AB80EF378F1 /* CLIInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72965860FE4633CDE0854AB1 /* CLIInstaller.swift */; };
-		96831CDED37490C52D97B704 /* SparkleUpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6C5598E6DD5568183A03BB /* SparkleUpdaterManager.swift */; };
-		9855336DCF97B1C170CA24DE /* NIOConcurrencyHelpers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 372EA773A966D0A87957A86A /* NIOConcurrencyHelpers.framework */; };
-		9A92921CEFC5D2EB85068155 /* SettingsOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CEAF2B834BE061A32BF02E1 /* SettingsOpener.swift */; };
-		9EA88795A22B5A36A7466D04 /* Instrumentation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0CD3F52B2EB7B7E592D6EA4 /* Instrumentation.framework */; };
-		9EDBEDA6B1211A74AEC6F953 /* swift-nio_NIOPosix.bundle in Dependencies */ = {isa = PBXBuildFile; fileRef = 802DF48B416989D97C43A610 /* swift-nio_NIOPosix.bundle */; };
-		A36367FF4BA76209E4986337 /* AsyncHTTPClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22C0339587F5E60BC0CBCB82 /* AsyncHTTPClient.framework */; };
-		A3C5B18C5FDB796CF943B4F4 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464DBD0851814CE2E3B15288 /* ModelTests.swift */; };
-		A637085A0B6586A58C38C6EA /* NSImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6365BF66760D9996B037FF02 /* NSImage+Resize.swift */; };
-		A9A2B1B25C4DFDA5A4332585 /* TunnelServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE72753172FCE452AC5D035A /* TunnelServerTests.swift */; };
-		A9C3385F0F0DE0DC22AEE6F5 /* NIOCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 336103227328BAE436A608E4 /* NIOCore.framework */; };
-		AAE89379C614029D81C52E19 /* CNIOBoringSSL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6FF26EA8A5B59E3E63D51FE /* CNIOBoringSSL.framework */; };
-		AAFEE8B61D27AE31AEAF7398 /* TunnelSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112BF469B1810A0BE2E35404 /* TunnelSession.swift */; };
-		ABFC76AFA07E125CB511524A /* TunnelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B58D431FAE84410F2E79350 /* TunnelClient.swift */; };
-		B13DB8E214AEE048D850B5A7 /* Hummingbird.framework in Dependencies */ = {isa = PBXBuildFile; fileRef = DC5D94D470B3C6BBDB08E85B /* Hummingbird.framework */; };
-		B2C2CCCD1FDC837650117E70 /* HeapModule.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 76AACE7D7601F362D92E5B25 /* HeapModule.framework */; };
-		B2D9F45BABC95DF4A2B828F2 /* StartupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3F784A65A0839AF2B3D3EC /* StartupManager.swift */; };
-		B335C57B9867105BBF2188FF /* AdvancedSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1474D864A6FCC0DA1C32977B /* AdvancedSettingsView.swift */; };
-		B3E9CFC33C1FCB4BB865C746 /* Hummingbird.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC5D94D470B3C6BBDB08E85B /* Hummingbird.framework */; };
-		B4D039D95575D5374B60601D /* CastFileGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9060378F187730B53898CEE7 /* CastFileGenerator.swift */; };
-		B4D0FE77B912A7E0F4E2EDFD /* NetworkUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6859A29422968BB66FFFB3 /* NetworkUtility.swift */; };
-		B522C07DB1DCB9DBF18ACE6A /* AppleScriptExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D795735495B8F53512D0BAE3 /* AppleScriptExecutor.swift */; };
-		B76AB4E5A1BFD97BC07C614A /* NIOTLS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7BCA660C7CF66E942CE81B9F /* NIOTLS.framework */; };
-		B9667F3E1775BFF925EDC6CA /* AsyncAlgorithms.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 55C35F486251E2F5FF9E6825 /* AsyncAlgorithms.framework */; };
-		BAA9F72A5A63BBD0D0058FED /* SessionIdHandlingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AE3E17589BA968039A2207 /* SessionIdHandlingTests.swift */; };
-		BAB7064BCC4284D6FD9CD963 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E096581ADC618B15D2F1832 /* SettingsTab.swift */; };
-		C17159D44AA197FBC7F4052A /* _NumericsShims.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87D02C3C566A9DF07E17FCE2 /* _NumericsShims.framework */; };
-		C1D380B12AAE36AFFF8DDB95 /* _RopeModule.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8F8C6D62D4C5455EEBA88403 /* _RopeModule.framework */; };
-		C3AF69DBAA64B2E7A9E64F13 /* NIOFoundationCompat.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 28625707A4A28B29FF85E3D7 /* NIOFoundationCompat.framework */; };
-		C69659E11381FB84C097C655 /* UnixSignals.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AC04318939B0C2F53B947DA5 /* UnixSignals.framework */; };
-		C78DFD9C6D41DB406D1DB3A4 /* NIOHTTPCompression.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B840BD78E636B3ACF3F6B2D /* NIOHTTPCompression.framework */; };
-		C7960A41BDB2FF577AB20738 /* SelectTerminalPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D12BA7D39B6D6E16B67CECAD /* SelectTerminalPageView.swift */; };
-		C99CA4E7625E44E6FF88FD62 /* HTTPTypesFoundation.framework in Dependencies */ = {isa = PBXBuildFile; fileRef = 4DBE03C42CF760C67387AD9E /* HTTPTypesFoundation.framework */; };
-		CD77975367A113FE1C4B9924 /* TestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF575E466699FCCBFD5A543 /* TestTags.swift */; };
-		CDD2193EB1862FFED4E8E6DE /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94575505C3D16CCD706D2F2 /* GeneralSettingsView.swift */; };
-		D1820D49DE80BF27A46DEE91 /* NIOEmbedded.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A4E4CD6757CBB5266F8A94F /* NIOEmbedded.framework */; };
-		D204E2141B34813401D760D4 /* ServiceLifecycle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8AA8CDA43A60ACAAC422F9CF /* ServiceLifecycle.framework */; };
-		D3FB707CA1E034A7E75C0135 /* CNIODarwin.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F20EC81805E691B5B06659F0 /* CNIODarwin.framework */; };
-		D493BDF7088AACDB0369BDC9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816CE68A88D3288849769E2C /* SettingsView.swift */; };
-		D693A773251854E0B4F50334 /* NIOHPACK.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9AA39D4B07ABCCF5B2144B2F /* NIOHPACK.framework */; };
-		D6AEDD9B152FB28CCAC68656 /* CNIOWindows.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBFAB373700C51E0A5731BC6 /* CNIOWindows.framework */; };
-		D78FFC8A9F9C0A83D2DBDF82 /* CommonViewModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BB681C01D84D9D3CE02468 /* CommonViewModifiers.swift */; };
-		D79CB75C45201FC0A3B4C9B9 /* NIOHTTPTypes.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61A8A55C93DA14A8383D7180 /* NIOHTTPTypes.framework */; };
-		D91AA6F8B1429FC5E0E3BEB7 /* HTTPTypes.framework in Dependencies */ = {isa = PBXBuildFile; fileRef = 5712551945A0F88EA0F8636A /* HTTPTypes.framework */; };
-		DA13617A433F8DFB12BDC12E /* ServerManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80749B24DF09FD7D73BD6854 /* ServerManagerTests.swift */; };
-		DC4EEA602BFD0120A66CC3D1 /* ServerConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CAC34576342CE1442BE415 /* ServerConsoleView.swift */; };
-		DCEE5165E36CAF8E32F1FC27 /* TTYForwardManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20BF3BCBCE8386AFABAA263 /* TTYForwardManagerTests.swift */; };
-		E3FAD53250B3B3E2ECA023F0 /* CNIOLLHTTP.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A6F5B9B89AB09F85094CEFF /* CNIOLLHTTP.framework */; };
-		E45CD2F07B70D00472918A0E /* Logging.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2E3AACE201029E0C021FCCE6 /* Logging.framework */; };
-		E5563E53FB643F9CB3A02C6D /* ConcurrencyHelpers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23CDA5F715B70DBCB14B1B45 /* ConcurrencyHelpers.framework */; };
-		E60A9A9D3B795028C971CFBC /* TerminalSpawnService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18FA93846A245D95266A0A7F /* TerminalSpawnService.swift */; };
-		E6AA6EE119652A8EE3D063F2 /* WelcomeWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850038EC88881C66E99BFEB6 /* WelcomeWindowController.swift */; };
-		E75DE510664191F05DB8C4F8 /* HummingbirdTesting.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B32ECCF7B472D681E57B8835 /* HummingbirdTesting.framework */; };
-		E82A6EDC0BD1591769D25F86 /* CNIOBoringSSLShims.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F9734B90321278E697C474EA /* CNIOBoringSSLShims.framework */; };
-		E8661C1598F2AAC1F6056887 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 71800B5F9B0234DC771C7BDE /* libz.tbd */; };
-		E9BC8B30A9B4884082915D42 /* NIOHTTP1.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6E29F659586EFF88519A95D /* NIOHTTP1.framework */; };
-		EC13E16CD260F80A5727CC68 /* Tracing.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F48185A6BAD586887CE941C /* Tracing.framework */; };
-		ED85892529AEDC333C62304E /* Logging.framework in Dependencies */ = {isa = PBXBuildFile; fileRef = 2E3AACE201029E0C021FCCE6 /* Logging.framework */; };
-		F0339CCF64C6FAEE3C5EF0F1 /* HTTPTypes.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5712551945A0F88EA0F8636A /* HTTPTypes.framework */; };
-		F06F8D91F8573FB466227B98 /* WelcomePageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B737F0B95502F1F7D04E4DC /* WelcomePageView.swift */; };
-		F186F2F4072942FE5FDA1CFD /* LazyBasicAuthMiddleware.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E386E6D11C8170D06BA9D8 /* LazyBasicAuthMiddleware.swift */; };
-		F1EF866D59668E6F41ABFC0E /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79131A64B5CCB49D2B688EA5 /* AboutView.swift */; };
-		F3DC54D20076D9BE16828EE6 /* NIOHTTP2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FA7E41365A76F26DEA64458 /* NIOHTTP2.framework */; };
-		F42A58695F37142FFE6BB8D1 /* NgrokService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FEE65446EB1FD724C6CCC7B /* NgrokService.swift */; };
-		F4B1C6BC607FE44B6B66E189 /* TerminalLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF145619A0EBB598F60D700B /* TerminalLauncher.swift */; };
-		F5A43E5B761262F4E12EA26C /* DashboardKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12188373F4F9A9A57D5979FD /* DashboardKeychain.swift */; };
-		F7575DB2AD096E04C7FE4670 /* View+Cursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD03E68D0AD3798888E69FCC /* View+Cursor.swift */; };
-		F78364599B8BE4BC2087FA72 /* CNIOLinux.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A36BDE5301ACEF5C4CC6D8DB /* CNIOLinux.framework */; };
-		F9FF073FFC553A68E16F7B2D /* HashTreeCollections.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2927C29C9D557634B053DEC3 /* HashTreeCollections.framework */; };
-		FF7A743D4BF0844EF61B97C9 /* ServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF657674C35642EEA5B97BF9 /* ServerManager.swift */; };
+		788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */ = {isa = PBXBuildFile; productRef = 788688212DFF600100B22C15 /* Hummingbird */; };
+		89D01D862CB5D7DC0075D8BD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 89D01D852CB5D7DC0075D8BD /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		511AF1B367F9A1F2CF059A67 /* PBXContainerItemProxy */ = {
+		788687FF2DFF4FCB00B22C15 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 4C82CEFDA8E4EFE0B37538D7 /* Project object */;
+			containerPortal = 788687E92DFF4FCB00B22C15 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9F82885C40F6FE67B5339EB3;
+			remoteGlobalIDString = 788687F02DFF4FCB00B22C15;
 			remoteInfo = VibeTunnel;
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-		33B77E36FCA7F6297807106A /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		34218FC92F0B70CB80CA6FCC /* Dependencies */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 8;
-			dstSubfolderSpec = 16;
-			files = (
-				8AB3E5BBD8AA4BF009258DAF /* swift-nio-ssl_NIOSSL.bundle in Dependencies */,
-				9EDBEDA6B1211A74AEC6F953 /* swift-nio_NIOPosix.bundle in Dependencies */,
-			);
-			name = Dependencies;
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-		4FE9A149DA4001AB9629E22C /* Dependencies */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 8;
-			dstSubfolderSpec = 16;
-			files = (
-				D91AA6F8B1429FC5E0E3BEB7 /* HTTPTypes.framework in Dependencies */,
-				C99CA4E7625E44E6FF88FD62 /* HTTPTypesFoundation.framework in Dependencies */,
-				B13DB8E214AEE048D850B5A7 /* Hummingbird.framework in Dependencies */,
-				4B463774575A817D8B0B965A /* HummingbirdCore.framework in Dependencies */,
-				10166BDA65572A6C163E7658 /* HummingbirdTesting.framework in Dependencies */,
-				ED85892529AEDC333C62304E /* Logging.framework in Dependencies */,
-			);
-			name = Dependencies;
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-		BFDE5B3FFEEE62B7E05D93A6 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
-		04B2F128E3C68E2A1002670B /* TerminalManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalManager.swift; sourceTree = "<group>"; };
-		0B3842D22935722ED460774B /* WindowCenteringHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCenteringHelper.swift; sourceTree = "<group>"; };
-		0B840BD78E636B3ACF3F6B2D /* NIOHTTPCompression.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOHTTPCompression.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		0D1F4584599A2BEA1EED9520 /* TerminalManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalManagerTests.swift; sourceTree = "<group>"; };
-		0DAD579918726AC6F78FE902 /* OrderedCollections.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OrderedCollections.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		10857052024B37770A9CFB75 /* CNIOWASI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOWASI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		112BF469B1810A0BE2E35404 /* TunnelSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelSession.swift; sourceTree = "<group>"; };
-		12188373F4F9A9A57D5979FD /* DashboardKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardKeychain.swift; sourceTree = "<group>"; };
-		1474D864A6FCC0DA1C32977B /* AdvancedSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsView.swift; sourceTree = "<group>"; };
-		18FA93846A245D95266A0A7F /* TerminalSpawnService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSpawnService.swift; sourceTree = "<group>"; };
-		1A6F5B9B89AB09F85094CEFF /* CNIOLLHTTP.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOLLHTTP.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		22C0339587F5E60BC0CBCB82 /* AsyncHTTPClient.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AsyncHTTPClient.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		22DCB962D44FA2C78E21A9FE /* NIO.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIO.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		23CDA5F715B70DBCB14B1B45 /* ConcurrencyHelpers.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ConcurrencyHelpers.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		249B7A8A132EEBC3DA361703 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
-		28625707A4A28B29FF85E3D7 /* NIOFoundationCompat.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOFoundationCompat.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		2927C29C9D557634B053DEC3 /* HashTreeCollections.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HashTreeCollections.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		29CAC34576342CE1442BE415 /* ServerConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConsoleView.swift; sourceTree = "<group>"; };
-		2C2801CEBC9E1DB3029C2538 /* HummingbirdCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HummingbirdCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		2E3AACE201029E0C021FCCE6 /* Logging.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Logging.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		32605D2AD666422A00FC682D /* _AtomicsShims.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = _AtomicsShims.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		32639C7365CB87416501EA39 /* SessionMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMonitorTests.swift; sourceTree = "<group>"; };
-		336103227328BAE436A608E4 /* NIOCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		35296A72742413F820A0E85C /* DashboardKeychainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardKeychainTests.swift; sourceTree = "<group>"; };
-		3576A53FA4C2E38CCA1E5F95 /* NIOHTTPTypesHTTP1.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOHTTPTypesHTTP1.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		36B42A5F98B97575FB8FFDDD /* Collections.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Collections.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		372EA773A966D0A87957A86A /* NIOConcurrencyHelpers.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOConcurrencyHelpers.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		385EE5051436178327357EDB /* NIOSSL.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOSSL.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		3A5086EC46B10894FD518AFF /* CAsyncHTTPClient.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CAsyncHTTPClient.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		3B3F784A65A0839AF2B3D3EC /* StartupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupManager.swift; sourceTree = "<group>"; };
-		3F205BD786C8C6E0A9C68207 /* Metrics.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Metrics.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		3F48185A6BAD586887CE941C /* Tracing.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Tracing.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		411F6DEF8F58E527A335841D /* ServerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProtocol.swift; sourceTree = "<group>"; };
-		44063037FDFEF69B06F36958 /* NIOExtras.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOExtras.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		44F2BB4E8B4E924F1FF9CCED /* AccessibilityPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionManager.swift; sourceTree = "<group>"; };
-		464DBD0851814CE2E3B15288 /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
-		474624D0ADA7EE82061681F3 /* BitCollections.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = BitCollections.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		4AC1A10A2DCFF425FADA8C46 /* RequestPermissionsPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestPermissionsPageView.swift; sourceTree = "<group>"; };
-		4CB9C0C33D3301B5A9A1F337 /* NIOPosix.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOPosix.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		4CEAF2B834BE061A32BF02E1 /* SettingsOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsOpener.swift; sourceTree = "<group>"; };
-		4DBE03C42CF760C67387AD9E /* HTTPTypesFoundation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HTTPTypesFoundation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		54828E62952548741A522016 /* InternalCollectionsUtilities.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = InternalCollectionsUtilities.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		55C35F486251E2F5FF9E6825 /* AsyncAlgorithms.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AsyncAlgorithms.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		5712551945A0F88EA0F8636A /* HTTPTypes.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HTTPTypes.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		5CD9149E76237AF9D973F5E0 /* DequeModule.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = DequeModule.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		5E984AFEB89D35065277C3D7 /* NIOSOCKS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOSOCKS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		5FA7E41365A76F26DEA64458 /* NIOHTTP2.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOHTTP2.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		61A8A55C93DA14A8383D7180 /* NIOHTTPTypes.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOHTTPTypes.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		61CCC4F34BE56EE53DC15285 /* TunnelClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelClientTests.swift; sourceTree = "<group>"; };
-		6206AE3437E5DEAD4F22956E /* RustServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustServer.swift; sourceTree = "<group>"; };
-		62E386E6D11C8170D06BA9D8 /* LazyBasicAuthMiddleware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LazyBasicAuthMiddleware.swift; sourceTree = "<group>"; };
-		6365BF66760D9996B037FF02 /* NSImage+Resize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Resize.swift"; sourceTree = "<group>"; };
-		66DA6862DACB9E50DE51CD7E /* VibeTunnelTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "VibeTunnelTests-Info.plist"; sourceTree = "<group>"; };
-		6A32654FF22A680E5B0E153A /* VibeTunnel-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "VibeTunnel-Info.plist"; sourceTree = "<group>"; };
-		6C2248CA8FAB53FBA6F3F40D /* VibeTunnelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeTunnelTests.swift; sourceTree = "<group>"; };
-		6FA729BBA1A9623465607F1B /* Algorithms.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Algorithms.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		6FF575E466699FCCBFD5A543 /* TestTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestTags.swift; sourceTree = "<group>"; };
-		7060BEA7CCC3E9C4CF73BC93 /* ProtectDashboardPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectDashboardPageView.swift; sourceTree = "<group>"; };
-		717AE8C9C92C7B952B6BB7E7 /* AuthCacheClearingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCacheClearingTests.swift; sourceTree = "<group>"; };
-		71800B5F9B0234DC771C7BDE /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/libz.tbd; sourceTree = DEVELOPER_DIR; };
-		72965860FE4633CDE0854AB1 /* CLIInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstaller.swift; sourceTree = "<group>"; };
-		75FAD918C5126D69E3C58350 /* Atomics.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Atomics.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		76AACE7D7601F362D92E5B25 /* HeapModule.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeapModule.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		7735B4AF945922FB0A98454C /* CoreMetrics.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoreMetrics.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		79131A64B5CCB49D2B688EA5 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
-		7B737F0B95502F1F7D04E4DC /* WelcomePageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomePageView.swift; sourceTree = "<group>"; };
-		7BCA660C7CF66E942CE81B9F /* NIOTLS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOTLS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		7E096581ADC618B15D2F1832 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
-		7FEE65446EB1FD724C6CCC7B /* NgrokService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NgrokService.swift; sourceTree = "<group>"; };
-		802DF48B416989D97C43A610 /* swift-nio_NIOPosix.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "swift-nio_NIOPosix.bundle"; sourceTree = BUILT_PRODUCTS_DIR; };
-		80749B24DF09FD7D73BD6854 /* ServerManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerManagerTests.swift; sourceTree = "<group>"; };
-		816CE68A88D3288849769E2C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		817B2E76807EB3D00346AC4F /* AppleScriptPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptPermissionManager.swift; sourceTree = "<group>"; };
-		850038EC88881C66E99BFEB6 /* WelcomeWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWindowController.swift; sourceTree = "<group>"; };
-		87D02C3C566A9DF07E17FCE2 /* _NumericsShims.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = _NumericsShims.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		891482480E02BE5F71FBF7DF /* TTYForwardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTYForwardManager.swift; sourceTree = "<group>"; };
-		89ACD1F841BCE3496A5569EB /* ServerMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerMonitor.swift; sourceTree = "<group>"; };
-		8A4E4CD6757CBB5266F8A94F /* NIOEmbedded.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOEmbedded.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		8AA8CDA43A60ACAAC422F9CF /* ServiceLifecycle.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ServiceLifecycle.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		8E8C2A5EBA09D10082B013AB /* DashboardSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSettingsView.swift; sourceTree = "<group>"; };
-		8F8C6D62D4C5455EEBA88403 /* _RopeModule.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = _RopeModule.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		9060378F187730B53898CEE7 /* CastFileGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastFileGenerator.swift; sourceTree = "<group>"; };
-		92553DE979A86107E0C97569 /* UpdateChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChannel.swift; sourceTree = "<group>"; };
-		959E6773865CF5772597EC5B /* DockIconManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockIconManager.swift; sourceTree = "<group>"; };
-		9AA39D4B07ABCCF5B2144B2F /* NIOHPACK.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOHPACK.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		9B58D431FAE84410F2E79350 /* TunnelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelClient.swift; sourceTree = "<group>"; };
-		A180322E826DA47CC92431F8 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
-		A18BD559C8EFBD2A97B790FE /* NetworkUtilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkUtilityTests.swift; sourceTree = "<group>"; };
-		A34E1D600A2C80AB88B99937 /* SessionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMonitor.swift; sourceTree = "<group>"; };
-		A36BDE5301ACEF5C4CC6D8DB /* CNIOLinux.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOLinux.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		A4A46B5AB16A595BC80FA59B /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
-		AC04318939B0C2F53B947DA5 /* UnixSignals.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = UnixSignals.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		AC20236CAA89EE08B25359FF /* VTCommandPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTCommandPageView.swift; sourceTree = "<group>"; };
-		AC35D1AE97AB082B61601DEE /* HummingbirdServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HummingbirdServer.swift; sourceTree = "<group>"; };
-		AE72753172FCE452AC5D035A /* TunnelServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelServerTests.swift; sourceTree = "<group>"; };
-		AF657674C35642EEA5B97BF9 /* ServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerManager.swift; sourceTree = "<group>"; };
-		B12B77FEB5663DBC91627854 /* NgrokServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NgrokServiceTests.swift; sourceTree = "<group>"; };
-		B14C6CF3EB10FB92A3BE7B34 /* TunnelServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelServer.swift; sourceTree = "<group>"; };
-		B32ECCF7B472D681E57B8835 /* HummingbirdTesting.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HummingbirdTesting.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B46989D8526209233BF594D9 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
-		B63855BBA75B07B20C12977F /* CLIInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstallerTests.swift; sourceTree = "<group>"; };
-		B6E29F659586EFF88519A95D /* NIOHTTP1.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOHTTP1.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B6FF26EA8A5B59E3E63D51FE /* CNIOBoringSSL.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOBoringSSL.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B90EE1B337F4F2A13005BE5A /* MockHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockHTTPClient.swift; sourceTree = "<group>"; };
-		B94575505C3D16CCD706D2F2 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
-		BC023B6F08D8F3D8981324B8 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Sparkle.xcframework; sourceTree = "<group>"; };
-		BF145619A0EBB598F60D700B /* TerminalLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalLauncher.swift; sourceTree = "<group>"; };
-		C0A8DB48EF4931DF57E8AD99 /* CNIOExtrasZlib.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOExtrasZlib.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		C0CD3F52B2EB7B7E592D6EA4 /* Instrumentation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Instrumentation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		C14FEB85ED0D32CB425CD34D /* AccessDashboardPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessDashboardPageView.swift; sourceTree = "<group>"; };
-		C15EF539A998715E5FBA4163 /* HTTPClientProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClientProtocol.swift; sourceTree = "<group>"; };
-		CD03E68D0AD3798888E69FCC /* View+Cursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Cursor.swift"; sourceTree = "<group>"; };
-		CF8C1B05DE67460F6823655B /* DashboardAccessMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAccessMode.swift; sourceTree = "<group>"; };
-		CFCF6EEC0692ED653A3831F4 /* swift-nio-ssl_NIOSSL.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "swift-nio-ssl_NIOSSL.bundle"; sourceTree = BUILT_PRODUCTS_DIR; };
-		D0E78454423ED0784D25C530 /* ServiceContextModule.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ServiceContextModule.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		D12BA7D39B6D6E16B67CECAD /* SelectTerminalPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectTerminalPageView.swift; sourceTree = "<group>"; };
-		D1DBAED9B8F89ED72FA999DC /* _NIOBase64.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = _NIOBase64.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		D795735495B8F53512D0BAE3 /* AppleScriptExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptExecutor.swift; sourceTree = "<group>"; };
-		D81845A210FF7DB68A2A548B /* VibeTunnel.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = VibeTunnel.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		DA6859A29422968BB66FFFB3 /* NetworkUtility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkUtility.swift; sourceTree = "<group>"; };
-		DC5D94D470B3C6BBDB08E85B /* Hummingbird.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Hummingbird.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		DDB4874FBDC6E1573EF83217 /* TestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFixtures.swift; sourceTree = "<group>"; };
-		DF2CF0D3AAACC0F429BADA3B /* TerminalLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalLaunchTests.swift; sourceTree = "<group>"; };
-		E9BB681C01D84D9D3CE02468 /* CommonViewModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonViewModifiers.swift; sourceTree = "<group>"; };
-		EA6C5598E6DD5568183A03BB /* SparkleUpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdaterManager.swift; sourceTree = "<group>"; };
-		EAF060AD436CFA9D3A575DE9 /* APIEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEndpoints.swift; sourceTree = "<group>"; };
-		EBFAB373700C51E0A5731BC6 /* CNIOWindows.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOWindows.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		EC6FB29ABF1EC7927C2ECBF3 /* DebugSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
-		ECC442DB9A473EC6AA918FAF /* _NIODataStructures.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = _NIODataStructures.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F20BF3BCBCE8386AFABAA263 /* TTYForwardManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTYForwardManagerTests.swift; sourceTree = "<group>"; };
-		F20EC81805E691B5B06659F0 /* CNIODarwin.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIODarwin.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F50CB7CF780176D5DD136C03 /* CNIOAtomics.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOAtomics.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F6BEB4CFFAF43A9BB0731910 /* ApplicationMover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMover.swift; sourceTree = "<group>"; };
-		F76E5E6B65227CF0A33EB988 /* BasicAuthMiddleware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasicAuthMiddleware.swift; sourceTree = "<group>"; };
-		F79C49A17C1331381971FA4F /* RealModule.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = RealModule.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F8AE3E17589BA968039A2207 /* SessionIdHandlingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdHandlingTests.swift; sourceTree = "<group>"; };
-		F92B44AA16C818959BCB8777 /* BasicAuthMiddlewareTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasicAuthMiddlewareTests.swift; sourceTree = "<group>"; };
-		F9734B90321278E697C474EA /* CNIOBoringSSLShims.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CNIOBoringSSLShims.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA297A1FB8066D825D6525B5 /* VibeTunnelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeTunnelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		FDEE319AC29BE76FC40F54DC /* NIOTransportServices.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NIOTransportServices.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		788687F12DFF4FCB00B22C15 /* VibeTunnel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibeTunnel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		788687FE2DFF4FCB00B22C15 /* VibeTunnelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeTunnelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		78868B612DFF808300B22C15 /* Exceptions for "VibeTunnel" folder in "VibeTunnel" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				Shared.xcconfig,
+				version.xcconfig,
+			);
+			target = 788687F02DFF4FCB00B22C15 /* VibeTunnel */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		788687F32DFF4FCB00B22C15 /* VibeTunnel */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				78868B612DFF808300B22C15 /* Exceptions for "VibeTunnel" folder in "VibeTunnel" target */,
+			);
+			path = VibeTunnel;
+			sourceTree = "<group>";
+		};
+		788688012DFF4FCB00B22C15 /* VibeTunnelTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VibeTunnelTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
-		2FD464BF4BA1F22E2EBF0847 /* Frameworks */ = {
+		788687EE2DFF4FCB00B22C15 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				002CE2F9A8F690BB43741B15 /* Sparkle.xcframework in Frameworks */,
+				788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */,
+				89D01D862CB5D7DC0075D8BD /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6406B08FD91098C65B85C22C /* Frameworks */ = {
+		788687FB2DFF4FCB00B22C15 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E8661C1598F2AAC1F6056887 /* libz.tbd in Frameworks */,
-				41D26807980E10BBDE9990A4 /* Algorithms.framework in Frameworks */,
-				B9667F3E1775BFF925EDC6CA /* AsyncAlgorithms.framework in Frameworks */,
-				A36367FF4BA76209E4986337 /* AsyncHTTPClient.framework in Frameworks */,
-				3E42E206E21ABBDD712E48CD /* Atomics.framework in Frameworks */,
-				81DFB444F6E569B5D0DDFB74 /* BitCollections.framework in Frameworks */,
-				0711FA666CD809174B6C82B3 /* CAsyncHTTPClient.framework in Frameworks */,
-				70A50C8F7BECE59B8E954420 /* CNIOAtomics.framework in Frameworks */,
-				AAE89379C614029D81C52E19 /* CNIOBoringSSL.framework in Frameworks */,
-				E82A6EDC0BD1591769D25F86 /* CNIOBoringSSLShims.framework in Frameworks */,
-				D3FB707CA1E034A7E75C0135 /* CNIODarwin.framework in Frameworks */,
-				3D0B3ACE952F11A90480A018 /* CNIOExtrasZlib.framework in Frameworks */,
-				E3FAD53250B3B3E2ECA023F0 /* CNIOLLHTTP.framework in Frameworks */,
-				F78364599B8BE4BC2087FA72 /* CNIOLinux.framework in Frameworks */,
-				165578F5DE1368A006597E1B /* CNIOWASI.framework in Frameworks */,
-				D6AEDD9B152FB28CCAC68656 /* CNIOWindows.framework in Frameworks */,
-				7C64E0FACC6BB9791AE73C49 /* Collections.framework in Frameworks */,
-				E5563E53FB643F9CB3A02C6D /* ConcurrencyHelpers.framework in Frameworks */,
-				2FFC130D6D60CABA6CE01163 /* CoreMetrics.framework in Frameworks */,
-				826E78B2E79F50B19B303646 /* DequeModule.framework in Frameworks */,
-				F0339CCF64C6FAEE3C5EF0F1 /* HTTPTypes.framework in Frameworks */,
-				6FE3A1930F33C488F17E20BE /* HTTPTypesFoundation.framework in Frameworks */,
-				F9FF073FFC553A68E16F7B2D /* HashTreeCollections.framework in Frameworks */,
-				B2C2CCCD1FDC837650117E70 /* HeapModule.framework in Frameworks */,
-				B3E9CFC33C1FCB4BB865C746 /* Hummingbird.framework in Frameworks */,
-				52BE4FA9347153848923C9B7 /* HummingbirdCore.framework in Frameworks */,
-				E75DE510664191F05DB8C4F8 /* HummingbirdTesting.framework in Frameworks */,
-				9EA88795A22B5A36A7466D04 /* Instrumentation.framework in Frameworks */,
-				0E8B9CBE749D82D988507D6E /* InternalCollectionsUtilities.framework in Frameworks */,
-				E45CD2F07B70D00472918A0E /* Logging.framework in Frameworks */,
-				34D25A72A22C60FA88182FFF /* Metrics.framework in Frameworks */,
-				593E2C833EE904F9BFF28AD6 /* NIO.framework in Frameworks */,
-				9855336DCF97B1C170CA24DE /* NIOConcurrencyHelpers.framework in Frameworks */,
-				A9C3385F0F0DE0DC22AEE6F5 /* NIOCore.framework in Frameworks */,
-				D1820D49DE80BF27A46DEE91 /* NIOEmbedded.framework in Frameworks */,
-				5BDD6044C5DB8E41A9E07BFB /* NIOExtras.framework in Frameworks */,
-				C3AF69DBAA64B2E7A9E64F13 /* NIOFoundationCompat.framework in Frameworks */,
-				D693A773251854E0B4F50334 /* NIOHPACK.framework in Frameworks */,
-				E9BC8B30A9B4884082915D42 /* NIOHTTP1.framework in Frameworks */,
-				F3DC54D20076D9BE16828EE6 /* NIOHTTP2.framework in Frameworks */,
-				C78DFD9C6D41DB406D1DB3A4 /* NIOHTTPCompression.framework in Frameworks */,
-				D79CB75C45201FC0A3B4C9B9 /* NIOHTTPTypes.framework in Frameworks */,
-				7B7418BAF160BA67E4DDD1C8 /* NIOHTTPTypesHTTP1.framework in Frameworks */,
-				77718BD5A976360E3D8A736E /* NIOPosix.framework in Frameworks */,
-				45565B74EAF996F149CEB431 /* NIOSOCKS.framework in Frameworks */,
-				0944A4CCD2D1D592ACCD9C03 /* NIOSSL.framework in Frameworks */,
-				B76AB4E5A1BFD97BC07C614A /* NIOTLS.framework in Frameworks */,
-				0EFB8EF015FC5062ECDE26E7 /* NIOTransportServices.framework in Frameworks */,
-				225B1312C769EDB4B247D8AD /* OrderedCollections.framework in Frameworks */,
-				1B7027D256DCBA8882B09493 /* RealModule.framework in Frameworks */,
-				105C9D21AA59FD8B3F45115E /* ServiceContextModule.framework in Frameworks */,
-				D204E2141B34813401D760D4 /* ServiceLifecycle.framework in Frameworks */,
-				EC13E16CD260F80A5727CC68 /* Tracing.framework in Frameworks */,
-				C69659E11381FB84C097C655 /* UnixSignals.framework in Frameworks */,
-				136D6581DE00ED1AE0622B8F /* VibeTunnel.framework in Frameworks */,
-				14590B2197FB53B5037B4602 /* _AtomicsShims.framework in Frameworks */,
-				819EAF9AA8532DC3FD0B0BA5 /* _NIOBase64.framework in Frameworks */,
-				5272F227B1604294FEE94829 /* _NIODataStructures.framework in Frameworks */,
-				C17159D44AA197FBC7F4052A /* _NumericsShims.framework in Frameworks */,
-				C1D380B12AAE36AFFF8DDB95 /* _RopeModule.framework in Frameworks */,
-				48A869C26C95BAD29F41E594 /* Sparkle.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0DD83B4196D66608380E46BB = {
+		788687E82DFF4FCB00B22C15 = {
 			isa = PBXGroup;
 			children = (
-				199D511A0F282D2C6591A4AE /* Project */,
-				7866022B46DD9C411CAEDA26 /* Products */,
-				E60159C1ACB8191618893577 /* Frameworks */,
+				788687F32DFF4FCB00B22C15 /* VibeTunnel */,
+				788688012DFF4FCB00B22C15 /* VibeTunnelTests */,
+				788687F22DFF4FCB00B22C15 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		14BE8D993CD94BF6C9271296 /* Welcome */ = {
+		788687F22DFF4FCB00B22C15 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				C14FEB85ED0D32CB425CD34D /* AccessDashboardPageView.swift */,
-				7060BEA7CCC3E9C4CF73BC93 /* ProtectDashboardPageView.swift */,
-				4AC1A10A2DCFF425FADA8C46 /* RequestPermissionsPageView.swift */,
-				D12BA7D39B6D6E16B67CECAD /* SelectTerminalPageView.swift */,
-				AC20236CAA89EE08B25359FF /* VTCommandPageView.swift */,
-				7B737F0B95502F1F7D04E4DC /* WelcomePageView.swift */,
-			);
-			path = Welcome;
-			sourceTree = "<group>";
-		};
-		199D511A0F282D2C6591A4AE /* Project */ = {
-			isa = PBXGroup;
-			children = (
-				E2D217918B47CECFFB34EDBA /* .build */,
-				EE74C5222A66E440B9DB4B62 /* Derived */,
-				42F4D830325F0A1AF92862DC /* VibeTunnel */,
-				FB7DBD505C3DA3D1EA1F4425 /* VibeTunnelTests */,
-			);
-			name = Project;
-			sourceTree = "<group>";
-		};
-		27C095394577A3563A9362B3 /* sparkle */ = {
-			isa = PBXGroup;
-			children = (
-				DE463689CA6C498645FB0BFA /* Sparkle */,
-			);
-			path = sparkle;
-			sourceTree = "<group>";
-		};
-		3231637C60B32266D341FD0E /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				F6BEB4CFFAF43A9BB0731910 /* ApplicationMover.swift */,
-				72965860FE4633CDE0854AB1 /* CLIInstaller.swift */,
-				4CEAF2B834BE061A32BF02E1 /* SettingsOpener.swift */,
-				BF145619A0EBB598F60D700B /* TerminalLauncher.swift */,
-				850038EC88881C66E99BFEB6 /* WelcomeWindowController.swift */,
-			);
-			path = Utilities;
-			sourceTree = "<group>";
-		};
-		42F4D830325F0A1AF92862DC /* VibeTunnel */ = {
-			isa = PBXGroup;
-			children = (
-				805D1E5FE91607E7F152BCF5 /* Core */,
-				ACE39AC346875AD77F7B3BF1 /* Extensions */,
-				F0999476D6B41C5A8CFDA38B /* Presentation */,
-				3231637C60B32266D341FD0E /* Utilities */,
-			);
-			path = VibeTunnel;
-			sourceTree = "<group>";
-		};
-		47C212FDA4A28653BF541B6E /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				B56C61AB590F67D30586AD34 /* Settings */,
-				14BE8D993CD94BF6C9271296 /* Welcome */,
-				79131A64B5CCB49D2B688EA5 /* AboutView.swift */,
-				249B7A8A132EEBC3DA361703 /* MenuBarView.swift */,
-				29CAC34576342CE1442BE415 /* ServerConsoleView.swift */,
-				816CE68A88D3288849769E2C /* SettingsView.swift */,
-				A180322E826DA47CC92431F8 /* SharedComponents.swift */,
-				B46989D8526209233BF594D9 /* WelcomeView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		510D4E1A1D45CFB0964F27EA /* InfoPlists */ = {
-			isa = PBXGroup;
-			children = (
-				6A32654FF22A680E5B0E153A /* VibeTunnel-Info.plist */,
-				66DA6862DACB9E50DE51CD7E /* VibeTunnelTests-Info.plist */,
-			);
-			path = InfoPlists;
-			sourceTree = "<group>";
-		};
-		56C25596C3D61B0CAA274924 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				A4A46B5AB16A595BC80FA59B /* AppConstants.swift */,
-				CF8C1B05DE67460F6823655B /* DashboardAccessMode.swift */,
-				112BF469B1810A0BE2E35404 /* TunnelSession.swift */,
-				92553DE979A86107E0C97569 /* UpdateChannel.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		784D39FD2180437AE84E5F91 /* Managers */ = {
-			isa = PBXGroup;
-			children = (
-				959E6773865CF5772597EC5B /* DockIconManager.swift */,
-			);
-			path = Managers;
-			sourceTree = "<group>";
-		};
-		7866022B46DD9C411CAEDA26 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				32605D2AD666422A00FC682D /* _AtomicsShims.framework */,
-				D1DBAED9B8F89ED72FA999DC /* _NIOBase64.framework */,
-				ECC442DB9A473EC6AA918FAF /* _NIODataStructures.framework */,
-				87D02C3C566A9DF07E17FCE2 /* _NumericsShims.framework */,
-				8F8C6D62D4C5455EEBA88403 /* _RopeModule.framework */,
-				6FA729BBA1A9623465607F1B /* Algorithms.framework */,
-				55C35F486251E2F5FF9E6825 /* AsyncAlgorithms.framework */,
-				22C0339587F5E60BC0CBCB82 /* AsyncHTTPClient.framework */,
-				75FAD918C5126D69E3C58350 /* Atomics.framework */,
-				474624D0ADA7EE82061681F3 /* BitCollections.framework */,
-				3A5086EC46B10894FD518AFF /* CAsyncHTTPClient.framework */,
-				F50CB7CF780176D5DD136C03 /* CNIOAtomics.framework */,
-				B6FF26EA8A5B59E3E63D51FE /* CNIOBoringSSL.framework */,
-				F9734B90321278E697C474EA /* CNIOBoringSSLShims.framework */,
-				F20EC81805E691B5B06659F0 /* CNIODarwin.framework */,
-				C0A8DB48EF4931DF57E8AD99 /* CNIOExtrasZlib.framework */,
-				A36BDE5301ACEF5C4CC6D8DB /* CNIOLinux.framework */,
-				1A6F5B9B89AB09F85094CEFF /* CNIOLLHTTP.framework */,
-				10857052024B37770A9CFB75 /* CNIOWASI.framework */,
-				EBFAB373700C51E0A5731BC6 /* CNIOWindows.framework */,
-				36B42A5F98B97575FB8FFDDD /* Collections.framework */,
-				23CDA5F715B70DBCB14B1B45 /* ConcurrencyHelpers.framework */,
-				7735B4AF945922FB0A98454C /* CoreMetrics.framework */,
-				5CD9149E76237AF9D973F5E0 /* DequeModule.framework */,
-				2927C29C9D557634B053DEC3 /* HashTreeCollections.framework */,
-				76AACE7D7601F362D92E5B25 /* HeapModule.framework */,
-				5712551945A0F88EA0F8636A /* HTTPTypes.framework */,
-				4DBE03C42CF760C67387AD9E /* HTTPTypesFoundation.framework */,
-				DC5D94D470B3C6BBDB08E85B /* Hummingbird.framework */,
-				2C2801CEBC9E1DB3029C2538 /* HummingbirdCore.framework */,
-				B32ECCF7B472D681E57B8835 /* HummingbirdTesting.framework */,
-				C0CD3F52B2EB7B7E592D6EA4 /* Instrumentation.framework */,
-				54828E62952548741A522016 /* InternalCollectionsUtilities.framework */,
-				2E3AACE201029E0C021FCCE6 /* Logging.framework */,
-				3F205BD786C8C6E0A9C68207 /* Metrics.framework */,
-				22DCB962D44FA2C78E21A9FE /* NIO.framework */,
-				372EA773A966D0A87957A86A /* NIOConcurrencyHelpers.framework */,
-				336103227328BAE436A608E4 /* NIOCore.framework */,
-				8A4E4CD6757CBB5266F8A94F /* NIOEmbedded.framework */,
-				44063037FDFEF69B06F36958 /* NIOExtras.framework */,
-				28625707A4A28B29FF85E3D7 /* NIOFoundationCompat.framework */,
-				9AA39D4B07ABCCF5B2144B2F /* NIOHPACK.framework */,
-				B6E29F659586EFF88519A95D /* NIOHTTP1.framework */,
-				5FA7E41365A76F26DEA64458 /* NIOHTTP2.framework */,
-				0B840BD78E636B3ACF3F6B2D /* NIOHTTPCompression.framework */,
-				61A8A55C93DA14A8383D7180 /* NIOHTTPTypes.framework */,
-				3576A53FA4C2E38CCA1E5F95 /* NIOHTTPTypesHTTP1.framework */,
-				4CB9C0C33D3301B5A9A1F337 /* NIOPosix.framework */,
-				5E984AFEB89D35065277C3D7 /* NIOSOCKS.framework */,
-				385EE5051436178327357EDB /* NIOSSL.framework */,
-				7BCA660C7CF66E942CE81B9F /* NIOTLS.framework */,
-				FDEE319AC29BE76FC40F54DC /* NIOTransportServices.framework */,
-				0DAD579918726AC6F78FE902 /* OrderedCollections.framework */,
-				F79C49A17C1331381971FA4F /* RealModule.framework */,
-				D0E78454423ED0784D25C530 /* ServiceContextModule.framework */,
-				8AA8CDA43A60ACAAC422F9CF /* ServiceLifecycle.framework */,
-				802DF48B416989D97C43A610 /* swift-nio_NIOPosix.bundle */,
-				CFCF6EEC0692ED653A3831F4 /* swift-nio-ssl_NIOSSL.bundle */,
-				3F48185A6BAD586887CE941C /* Tracing.framework */,
-				AC04318939B0C2F53B947DA5 /* UnixSignals.framework */,
-				D81845A210FF7DB68A2A548B /* VibeTunnel.framework */,
-				FA297A1FB8066D825D6525B5 /* VibeTunnelTests.xctest */,
+				788687F12DFF4FCB00B22C15 /* VibeTunnel.app */,
+				788687FE2DFF4FCB00B22C15 /* VibeTunnelTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		790AD269A3CEC1B110E369EE /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				DA6859A29422968BB66FFFB3 /* NetworkUtility.swift */,
-				0B3842D22935722ED460774B /* WindowCenteringHelper.swift */,
-			);
-			path = Utilities;
-			sourceTree = "<group>";
-		};
-		805D1E5FE91607E7F152BCF5 /* Core */ = {
-			isa = PBXGroup;
-			children = (
-				784D39FD2180437AE84E5F91 /* Managers */,
-				56C25596C3D61B0CAA274924 /* Models */,
-				9C8CE17DE058A1D3C77E7B26 /* Services */,
-				790AD269A3CEC1B110E369EE /* Utilities */,
-			);
-			path = Core;
-			sourceTree = "<group>";
-		};
-		9C8CE17DE058A1D3C77E7B26 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				44F2BB4E8B4E924F1FF9CCED /* AccessibilityPermissionManager.swift */,
-				D795735495B8F53512D0BAE3 /* AppleScriptExecutor.swift */,
-				817B2E76807EB3D00346AC4F /* AppleScriptPermissionManager.swift */,
-				F76E5E6B65227CF0A33EB988 /* BasicAuthMiddleware.swift */,
-				9060378F187730B53898CEE7 /* CastFileGenerator.swift */,
-				12188373F4F9A9A57D5979FD /* DashboardKeychain.swift */,
-				C15EF539A998715E5FBA4163 /* HTTPClientProtocol.swift */,
-				AC35D1AE97AB082B61601DEE /* HummingbirdServer.swift */,
-				62E386E6D11C8170D06BA9D8 /* LazyBasicAuthMiddleware.swift */,
-				7FEE65446EB1FD724C6CCC7B /* NgrokService.swift */,
-				6206AE3437E5DEAD4F22956E /* RustServer.swift */,
-				AF657674C35642EEA5B97BF9 /* ServerManager.swift */,
-				89ACD1F841BCE3496A5569EB /* ServerMonitor.swift */,
-				411F6DEF8F58E527A335841D /* ServerProtocol.swift */,
-				A34E1D600A2C80AB88B99937 /* SessionMonitor.swift */,
-				EA6C5598E6DD5568183A03BB /* SparkleUpdaterManager.swift */,
-				3B3F784A65A0839AF2B3D3EC /* StartupManager.swift */,
-				04B2F128E3C68E2A1002670B /* TerminalManager.swift */,
-				18FA93846A245D95266A0A7F /* TerminalSpawnService.swift */,
-				891482480E02BE5F71FBF7DF /* TTYForwardManager.swift */,
-				9B58D431FAE84410F2E79350 /* TunnelClient.swift */,
-				B14C6CF3EB10FB92A3BE7B34 /* TunnelServer.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		ACE39AC346875AD77F7B3BF1 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				6365BF66760D9996B037FF02 /* NSImage+Resize.swift */,
-			);
-			path = Extensions;
-			sourceTree = "<group>";
-		};
-		B56C61AB590F67D30586AD34 /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				1474D864A6FCC0DA1C32977B /* AdvancedSettingsView.swift */,
-				EAF060AD436CFA9D3A575DE9 /* APIEndpoints.swift */,
-				8E8C2A5EBA09D10082B013AB /* DashboardSettingsView.swift */,
-				EC6FB29ABF1EC7927C2ECBF3 /* DebugSettingsView.swift */,
-				B94575505C3D16CCD706D2F2 /* GeneralSettingsView.swift */,
-				7E096581ADC618B15D2F1832 /* SettingsTab.swift */,
-			);
-			path = Settings;
-			sourceTree = "<group>";
-		};
-		BC62E19A25B0CC83A3FD5DC2 /* artifacts */ = {
-			isa = PBXGroup;
-			children = (
-				27C095394577A3563A9362B3 /* sparkle */,
-			);
-			path = artifacts;
-			sourceTree = "<group>";
-		};
-		C0831734A471D1A00BA4971B /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				B90EE1B337F4F2A13005BE5A /* MockHTTPClient.swift */,
-				DDB4874FBDC6E1573EF83217 /* TestFixtures.swift */,
-				6FF575E466699FCCBFD5A543 /* TestTags.swift */,
-			);
-			path = Utilities;
-			sourceTree = "<group>";
-		};
-		DBA61A2F7B519D48C2D604C2 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				E9BB681C01D84D9D3CE02468 /* CommonViewModifiers.swift */,
-				CD03E68D0AD3798888E69FCC /* View+Cursor.swift */,
-			);
-			path = Utilities;
-			sourceTree = "<group>";
-		};
-		DE463689CA6C498645FB0BFA /* Sparkle */ = {
-			isa = PBXGroup;
-			children = (
-				BC023B6F08D8F3D8981324B8 /* Sparkle.xcframework */,
-			);
-			path = Sparkle;
-			sourceTree = "<group>";
-		};
-		E2D217918B47CECFFB34EDBA /* .build */ = {
-			isa = PBXGroup;
-			children = (
-				BC62E19A25B0CC83A3FD5DC2 /* artifacts */,
-			);
-			path = .build;
-			sourceTree = "<group>";
-		};
-		E60159C1ACB8191618893577 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				71800B5F9B0234DC771C7BDE /* libz.tbd */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		EE74C5222A66E440B9DB4B62 /* Derived */ = {
-			isa = PBXGroup;
-			children = (
-				510D4E1A1D45CFB0964F27EA /* InfoPlists */,
-			);
-			path = Derived;
-			sourceTree = "<group>";
-		};
-		F0999476D6B41C5A8CFDA38B /* Presentation */ = {
-			isa = PBXGroup;
-			children = (
-				DBA61A2F7B519D48C2D604C2 /* Utilities */,
-				47C212FDA4A28653BF541B6E /* Views */,
-			);
-			path = Presentation;
-			sourceTree = "<group>";
-		};
-		FB7DBD505C3DA3D1EA1F4425 /* VibeTunnelTests */ = {
-			isa = PBXGroup;
-			children = (
-				C0831734A471D1A00BA4971B /* Utilities */,
-				717AE8C9C92C7B952B6BB7E7 /* AuthCacheClearingTests.swift */,
-				F92B44AA16C818959BCB8777 /* BasicAuthMiddlewareTests.swift */,
-				B63855BBA75B07B20C12977F /* CLIInstallerTests.swift */,
-				35296A72742413F820A0E85C /* DashboardKeychainTests.swift */,
-				464DBD0851814CE2E3B15288 /* ModelTests.swift */,
-				A18BD559C8EFBD2A97B790FE /* NetworkUtilityTests.swift */,
-				B12B77FEB5663DBC91627854 /* NgrokServiceTests.swift */,
-				80749B24DF09FD7D73BD6854 /* ServerManagerTests.swift */,
-				F8AE3E17589BA968039A2207 /* SessionIdHandlingTests.swift */,
-				32639C7365CB87416501EA39 /* SessionMonitorTests.swift */,
-				DF2CF0D3AAACC0F429BADA3B /* TerminalLaunchTests.swift */,
-				0D1F4584599A2BEA1EED9520 /* TerminalManagerTests.swift */,
-				F20BF3BCBCE8386AFABAA263 /* TTYForwardManagerTests.swift */,
-				61CCC4F34BE56EE53DC15285 /* TunnelClientTests.swift */,
-				AE72753172FCE452AC5D035A /* TunnelServerTests.swift */,
-				6C2248CA8FAB53FBA6F3F40D /* VibeTunnelTests.swift */,
-			);
-			path = VibeTunnelTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9F82885C40F6FE67B5339EB3 /* VibeTunnel */ = {
+		788687F02DFF4FCB00B22C15 /* VibeTunnel */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8D99F6108356CC0D04FBF9FD /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
+			buildConfigurationList = 788688152DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
 			buildPhases = (
-				B4E21600DA0180F73AA29DAB /* Sources */,
-				1C0E69C8ECC6DD66167C8DED /* Resources */,
-				2FD464BF4BA1F22E2EBF0847 /* Frameworks */,
-				BFDE5B3FFEEE62B7E05D93A6 /* Embed Frameworks */,
-				4FE9A149DA4001AB9629E22C /* Dependencies */,
+				788687ED2DFF4FCB00B22C15 /* Sources */,
+				788687EE2DFF4FCB00B22C15 /* Frameworks */,
+				788687EF2DFF4FCB00B22C15 /* Resources */,
+				B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */,
+				A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				788687F32DFF4FCB00B22C15 /* VibeTunnel */,
 			);
 			name = VibeTunnel;
 			packageProductDependencies = (
+				788688212DFF600100B22C15 /* Hummingbird */,
+				89D01D852CB5D7DC0075D8BD /* Sparkle */,
 			);
 			productName = VibeTunnel;
-			productReference = D81845A210FF7DB68A2A548B /* VibeTunnel.framework */;
-			productType = "com.apple.product-type.framework";
+			productReference = 788687F12DFF4FCB00B22C15 /* VibeTunnel.app */;
+			productType = "com.apple.product-type.application";
 		};
-		B989FECB23CC657C23B738C0 /* VibeTunnelTests */ = {
+		788687FD2DFF4FCB00B22C15 /* VibeTunnelTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5206A7856D8052D7EF1978A8 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */;
+			buildConfigurationList = 788688182DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */;
 			buildPhases = (
-				CD2AB3D6C7EE84073E821CDA /* Sources */,
-				6C8E993955683B4DC8FF88AF /* Resources */,
-				6406B08FD91098C65B85C22C /* Frameworks */,
-				33B77E36FCA7F6297807106A /* Embed Frameworks */,
-				34218FC92F0B70CB80CA6FCC /* Dependencies */,
+				788687FA2DFF4FCB00B22C15 /* Sources */,
+				788687FB2DFF4FCB00B22C15 /* Frameworks */,
+				788687FC2DFF4FCB00B22C15 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				E1F63E2B71ADBC45ACB8E2D0 /* PBXTargetDependency */,
+				788688002DFF4FCB00B22C15 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				788688012DFF4FCB00B22C15 /* VibeTunnelTests */,
 			);
 			name = VibeTunnelTests;
 			packageProductDependencies = (
 			);
 			productName = VibeTunnelTests;
-			productReference = FA297A1FB8066D825D6525B5 /* VibeTunnelTests.xctest */;
+			productReference = 788687FE2DFF4FCB00B22C15 /* VibeTunnelTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		4C82CEFDA8E4EFE0B37538D7 /* Project object */ = {
+		788687E92DFF4FCB00B22C15 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = YES;
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					788687F02DFF4FCB00B22C15 = {
+						CreatedOnToolsVersion = 16.1;
+					};
+					788687FD2DFF4FCB00B22C15 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 788687F02DFF4FCB00B22C15;
+					};
 				};
 			};
-			buildConfigurationList = 6D69C4974433AED85B9B8A62 /* Build configuration list for PBXProject "VibeTunnel" */;
-			compatibilityVersion = "Xcode 14.0";
+			buildConfigurationList = 788687EC2DFF4FCB00B22C15 /* Build configuration list for PBXProject "VibeTunnel" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				Base,
 				en,
+				Base,
 			);
-			mainGroup = 0DD83B4196D66608380E46BB;
-			productRefGroup = 7866022B46DD9C411CAEDA26 /* Products */;
+			mainGroup = 788687E82DFF4FCB00B22C15;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */,
+				89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 788687F22DFF4FCB00B22C15 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9F82885C40F6FE67B5339EB3 /* VibeTunnel */,
-				B989FECB23CC657C23B738C0 /* VibeTunnelTests */,
+				788687F02DFF4FCB00B22C15 /* VibeTunnel */,
+				788687FD2DFF4FCB00B22C15 /* VibeTunnelTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		1C0E69C8ECC6DD66167C8DED /* Resources */ = {
+		788687EF2DFF4FCB00B22C15 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6C8E993955683B4DC8FF88AF /* Resources */ = {
+		788687FC2DFF4FCB00B22C15 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				30605EFA7967B96707C9F977 /* swift-nio-ssl_NIOSSL.bundle in Resources */,
-				696E3C9F33849C60697F14C6 /* swift-nio_NIOPosix.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/tty-fwd/src/main.rs",
+				"$(SRCROOT)/tty-fwd/src/protocol.rs",
+				"$(SRCROOT)/tty-fwd/src/tty_spawn.rs",
+				"$(SRCROOT)/tty-fwd/src/utils.rs",
+				"$(SRCROOT)/tty-fwd/Cargo.toml",
+				"$(SRCROOT)/tty-fwd/build-universal.sh",
+				"$(SRCROOT)/tty-fwd/target/release/tty-fwd-universal",
+			);
+			name = "Build tty-fwd Universal Binary";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/tty-fwd",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Build tty-fwd universal binary\necho \"Building tty-fwd universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nTTY_FWD_DIR=\"${PROJECT_DIR}/tty-fwd\"\nBUILD_SCRIPT=\"${TTY_FWD_DIR}/build-universal.sh\"\nSOURCE_BINARY=\"${TTY_FWD_DIR}/target/release/tty-fwd-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/tty-fwd\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to tty-fwd directory and run build\ncd \"${TTY_FWD_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing tty-fwd binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"tty-fwd universal binary copied and signed to ${DEST_BINARY}\"\n";
+		};
+		B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/web/package.json",
+				"$(SRCROOT)/web/src",
+				"$(SRCROOT)/web/tsconfig.json",
+				"$(SRCROOT)/web/tsconfig.client.json",
+				"$(SRCROOT)/web/tailwind.config.js",
+			);
+			name = "Build Web Frontend";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/web/public",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Build web frontend\necho \"Building web frontend...\"\n\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nWEB_DIR=\"${PROJECT_DIR}/web\"\nPUBLIC_DIR=\"${WEB_DIR}/public\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/web/public\"\n\n# Export CI environment variable to prevent interactive prompts\nexport CI=true\n\n# Check if npm is available\nif ! command -v npm &> /dev/null; then\n    echo \"error: npm could not be found in PATH\"\n    echo \"PATH is: $PATH\"\n    echo \"Please ensure Node.js is installed and available in your shell configuration\"\n    exit 1\nfi\n\n# Print npm version for debugging\necho \"Using npm version: $(npm --version)\"\necho \"Using node version: $(node --version)\"\necho \"PATH: $PATH\"\n\n# Check if web directory exists\nif [ ! -d \"${WEB_DIR}\" ]; then\n    echo \"error: Web directory not found at ${WEB_DIR}\"\n    exit 1\nfi\n\n# Change to web directory\ncd \"${WEB_DIR}\"\n\n# Install dependencies\necho \"Installing npm dependencies...\"\nnpm install --no-progress --no-audit\nif [ $? -ne 0 ]; then\n    echo \"error: npm install failed\"\n    exit 1\nfi\n\n# Fix permissions for tailwindcss executable\nif [ -f \"node_modules/.bin/tailwindcss\" ]; then\n    chmod +x \"node_modules/.bin/tailwindcss\"\nfi\nif [ -f \"node_modules/tailwindcss/lib/cli.js\" ]; then\n    chmod +x \"node_modules/tailwindcss/lib/cli.js\"\nfi\n\n# Clean up any existing output.css directory/file conflicts\nif [ -d \"public/output.css\" ]; then\n    rm -rf \"public/output.css\"\nfi\n\n# Build the web frontend\necho \"Running npm bundle...\"\nnpm run bundle\nif [ $? -ne 0 ]; then\n    echo \"error: npm run bundle failed\"\n    exit 1\nfi\n\n# Create destination directory\nmkdir -p \"${DEST_DIR}\"\n\n# Copy built files to Resources\necho \"Copying web files to app bundle...\"\nif [ -d \"${PUBLIC_DIR}\" ]; then\n    # Copy all files from public directory\n    cp -R \"${PUBLIC_DIR}/\"* \"${DEST_DIR}/\"\n    echo \"Web frontend files copied to ${DEST_DIR}\"\nelse\n    echo \"error: Public directory not found at ${PUBLIC_DIR}\"\n    exit 1\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
-		B4E21600DA0180F73AA29DAB /* Sources */ = {
+		788687ED2DFF4FCB00B22C15 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2035CE189FCF3BEC5BEDB4EA /* DockIconManager.swift in Sources */,
-				8AFA895892482EEE62492444 /* AppConstants.swift in Sources */,
-				8DDC075C37E58C0C96F4C13A /* DashboardAccessMode.swift in Sources */,
-				AAFEE8B61D27AE31AEAF7398 /* TunnelSession.swift in Sources */,
-				65558A4E513C99CC7BA8261B /* UpdateChannel.swift in Sources */,
-				8475F5FE22A4017D35A40116 /* AccessibilityPermissionManager.swift in Sources */,
-				B522C07DB1DCB9DBF18ACE6A /* AppleScriptExecutor.swift in Sources */,
-				73C6395E9B09133D0EA0E4D9 /* AppleScriptPermissionManager.swift in Sources */,
-				53577729870DAE7A501C2D57 /* BasicAuthMiddleware.swift in Sources */,
-				B4D039D95575D5374B60601D /* CastFileGenerator.swift in Sources */,
-				F5A43E5B761262F4E12EA26C /* DashboardKeychain.swift in Sources */,
-				23B517D65FEAD22C8E84CC05 /* HTTPClientProtocol.swift in Sources */,
-				151D61B2EF0D591BD5262886 /* HummingbirdServer.swift in Sources */,
-				F186F2F4072942FE5FDA1CFD /* LazyBasicAuthMiddleware.swift in Sources */,
-				F42A58695F37142FFE6BB8D1 /* NgrokService.swift in Sources */,
-				8B771E0EBD668895CDAE437B /* RustServer.swift in Sources */,
-				FF7A743D4BF0844EF61B97C9 /* ServerManager.swift in Sources */,
-				8F87023F231215A1B5116BA7 /* ServerMonitor.swift in Sources */,
-				7CBA887F907BEB5E6AABBF0E /* ServerProtocol.swift in Sources */,
-				3316B04D918B4AA1CD567AB2 /* SessionMonitor.swift in Sources */,
-				96831CDED37490C52D97B704 /* SparkleUpdaterManager.swift in Sources */,
-				B2D9F45BABC95DF4A2B828F2 /* StartupManager.swift in Sources */,
-				755D5C97F66CBF9C90613B72 /* TTYForwardManager.swift in Sources */,
-				2CABB81781274E6079A1FBE0 /* TerminalManager.swift in Sources */,
-				E60A9A9D3B795028C971CFBC /* TerminalSpawnService.swift in Sources */,
-				ABFC76AFA07E125CB511524A /* TunnelClient.swift in Sources */,
-				39DF5463D57E9504A6F00CE8 /* TunnelServer.swift in Sources */,
-				B4D0FE77B912A7E0F4E2EDFD /* NetworkUtility.swift in Sources */,
-				77F8CD39F71C0225277908F7 /* WindowCenteringHelper.swift in Sources */,
-				A637085A0B6586A58C38C6EA /* NSImage+Resize.swift in Sources */,
-				D78FFC8A9F9C0A83D2DBDF82 /* CommonViewModifiers.swift in Sources */,
-				F7575DB2AD096E04C7FE4670 /* View+Cursor.swift in Sources */,
-				F1EF866D59668E6F41ABFC0E /* AboutView.swift in Sources */,
-				4ACCD2E4EB23A9222BCD0A87 /* MenuBarView.swift in Sources */,
-				DC4EEA602BFD0120A66CC3D1 /* ServerConsoleView.swift in Sources */,
-				36C02238587C4EB08E93767D /* APIEndpoints.swift in Sources */,
-				B335C57B9867105BBF2188FF /* AdvancedSettingsView.swift in Sources */,
-				57813191B2DDB4DEDE7441F2 /* DashboardSettingsView.swift in Sources */,
-				3700EB4D4850230636C9D00D /* DebugSettingsView.swift in Sources */,
-				CDD2193EB1862FFED4E8E6DE /* GeneralSettingsView.swift in Sources */,
-				BAB7064BCC4284D6FD9CD963 /* SettingsTab.swift in Sources */,
-				D493BDF7088AACDB0369BDC9 /* SettingsView.swift in Sources */,
-				8A5AC470A52002B06B7C5850 /* SharedComponents.swift in Sources */,
-				20B742EC77793895331A50EF /* AccessDashboardPageView.swift in Sources */,
-				64A236599952C4B1AC5CCEDC /* ProtectDashboardPageView.swift in Sources */,
-				6FBEB2538AA58B3E8B55BCDC /* RequestPermissionsPageView.swift in Sources */,
-				C7960A41BDB2FF577AB20738 /* SelectTerminalPageView.swift in Sources */,
-				695845C0D22398747ED5C708 /* VTCommandPageView.swift in Sources */,
-				F06F8D91F8573FB466227B98 /* WelcomePageView.swift in Sources */,
-				369B9E8B1CCF97553D785FA8 /* WelcomeView.swift in Sources */,
-				3BF84C1DFF9E809FE6110685 /* ApplicationMover.swift in Sources */,
-				95E3328726341AB80EF378F1 /* CLIInstaller.swift in Sources */,
-				9A92921CEFC5D2EB85068155 /* SettingsOpener.swift in Sources */,
-				F4B1C6BC607FE44B6B66E189 /* TerminalLauncher.swift in Sources */,
-				E6AA6EE119652A8EE3D063F2 /* WelcomeWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		CD2AB3D6C7EE84073E821CDA /* Sources */ = {
+		788687FA2DFF4FCB00B22C15 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				61FED5E46A451A30E3FBD746 /* AuthCacheClearingTests.swift in Sources */,
-				04A5D715E3A92617F9AE29CA /* BasicAuthMiddlewareTests.swift in Sources */,
-				6DDF1B49AE15436ED7B88196 /* CLIInstallerTests.swift in Sources */,
-				36D4860E3DE90C1A9F069E62 /* DashboardKeychainTests.swift in Sources */,
-				A3C5B18C5FDB796CF943B4F4 /* ModelTests.swift in Sources */,
-				6AD1A682A6D96FD7383FA8B6 /* NetworkUtilityTests.swift in Sources */,
-				851E5BCD54A3A832BC38EA54 /* NgrokServiceTests.swift in Sources */,
-				DA13617A433F8DFB12BDC12E /* ServerManagerTests.swift in Sources */,
-				BAA9F72A5A63BBD0D0058FED /* SessionIdHandlingTests.swift in Sources */,
-				884C4F7C5FF4D15B4B81CE93 /* SessionMonitorTests.swift in Sources */,
-				DCEE5165E36CAF8E32F1FC27 /* TTYForwardManagerTests.swift in Sources */,
-				05F8F79F25718B3180C6AEBD /* TerminalLaunchTests.swift in Sources */,
-				3DA7CF62FFFC49F1BB30F166 /* TerminalManagerTests.swift in Sources */,
-				5A8BB550B715A7D8A58D11A2 /* TunnelClientTests.swift in Sources */,
-				A9A2B1B25C4DFDA5A4332585 /* TunnelServerTests.swift in Sources */,
-				26D15AF6C0900625CCA2396A /* MockHTTPClient.swift in Sources */,
-				2C7FE1B37CE06621EA2DA265 /* TestFixtures.swift in Sources */,
-				CD77975367A113FE1C4B9924 /* TestTags.swift in Sources */,
-				5C34DF5A19D4C57B996E4D4D /* VibeTunnelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		E1F63E2B71ADBC45ACB8E2D0 /* PBXTargetDependency */ = {
+		788688002DFF4FCB00B22C15 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			name = VibeTunnel;
-			target = 9F82885C40F6FE67B5339EB3 /* VibeTunnel */;
-			targetProxy = 511AF1B367F9A1F2CF059A67 /* PBXContainerItemProxy */;
+			target = 788687F02DFF4FCB00B22C15 /* VibeTunnel */;
+			targetProxy = 788687FF2DFF4FCB00B22C15 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		2287F1E073ABA2294F8D65E6 /* Debug */ = {
+		788688102DFF4FCC00B22C15 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 788687F32DFF4FCB00B22C15 /* VibeTunnel */;
+			baseConfigurationReferenceRelativePath = Shared.xcconfig;
 			buildSettings = {
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CURRENT_PROJECT_VERSION = 1;
-				DEFINES_MODULE = YES;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/artifacts/sparkle/Sparkle",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/checkouts/async-http-client/Sources/CAsyncHTTPClient/include",
-					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-extras/Sources/CNIOExtrasZlib/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSLShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOAtomics/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIODarwin/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLLHTTP/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLinux/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWASI/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
-					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
-				);
-				INFOPLIST_FILE = "VibeTunnel/Info.plist";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACH_O_TYPE = staticlib;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = VibeTunnel;
-				PRODUCT_NAME = VibeTunnel;
-				SDKROOT = auto;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx watchos watchsimulator xros xrsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-					"$(inherited)",
-					DEBUG,
-				);
-				SWIFT_COMPILATION_MODE = singlefile;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,4,6,7";
-				TVOS_DEPLOYMENT_TARGET = 12.0;
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-				WATCHOS_DEPLOYMENT_TARGET = 4.0;
-				XROS_DEPLOYMENT_TARGET = 1.0;
-			};
-			name = Debug;
-		};
-		3618B418B216B9CB91E3030C /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/artifacts/sparkle/Sparkle",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/checkouts/async-http-client/Sources/CAsyncHTTPClient/include",
-					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-extras/Sources/CNIOExtrasZlib/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSLShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOAtomics/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIODarwin/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLLHTTP/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLinux/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWASI/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
-					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
-				);
-				INFOPLIST_FILE = "VibeTunnelTests/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-					"$(SRCROOT)/.build/artifacts/sparkle/Sparkle",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = VibeTunnelTests;
-				PRODUCT_NAME = VibeTunnelTests;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx watchos watchsimulator xros xrsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,4,6,7";
-				TVOS_DEPLOYMENT_TARGET = 12.0;
-				WATCHOS_DEPLOYMENT_TARGET = 4.0;
-				XROS_DEPLOYMENT_TARGET = 1.0;
-			};
-			name = Release;
-		};
-		6BDD461861CF6891A0D3CAAA /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CURRENT_PROJECT_VERSION = 1;
-				DEFINES_MODULE = YES;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/artifacts/sparkle/Sparkle",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/checkouts/async-http-client/Sources/CAsyncHTTPClient/include",
-					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-extras/Sources/CNIOExtrasZlib/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSLShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOAtomics/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIODarwin/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLLHTTP/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLinux/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWASI/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
-					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
-				);
-				INFOPLIST_FILE = "VibeTunnel/Info.plist";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACH_O_TYPE = staticlib;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = VibeTunnel;
-				PRODUCT_NAME = VibeTunnel;
-				SDKROOT = auto;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx watchos watchsimulator xros xrsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,4,6,7";
-				TVOS_DEPLOYMENT_TARGET = 12.0;
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-				WATCHOS_DEPLOYMENT_TARGET = 4.0;
-				XROS_DEPLOYMENT_TARGET = 1.0;
-			};
-			name = Release;
-		};
-		B4C6059C1E7369615C48693C /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/artifacts/sparkle/Sparkle",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/.build/checkouts/async-http-client/Sources/CAsyncHTTPClient/include",
-					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-extras/Sources/CNIOExtrasZlib/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSLShims/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOAtomics/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIODarwin/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLLHTTP/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOLinux/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWASI/include",
-					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
-					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
-				);
-				INFOPLIST_FILE = "VibeTunnelTests/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-					"$(SRCROOT)/.build/artifacts/sparkle/Sparkle",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio-ssl/Sources/CNIOBoringSSL/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include/module.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CAsyncHTTPClient/CAsyncHTTPClient.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOAtomics/CNIOAtomics.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOBoringSSLShims/CNIOBoringSSLShims.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIODarwin/CNIODarwin.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOExtrasZlib/CNIOExtrasZlib.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLLHTTP/CNIOLLHTTP.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOLinux/CNIOLinux.modulemap",
-					"-Xcc",
-					"-fmodule-map-file=$(SRCROOT)/.build/tuist-derived/CNIOWASI/CNIOWASI.modulemap",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = VibeTunnelTests;
-				PRODUCT_NAME = VibeTunnelTests;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx watchos watchsimulator xros xrsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-					"$(inherited)",
-					DEBUG,
-				);
-				SWIFT_COMPILATION_MODE = singlefile;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,4,6,7";
-				TVOS_DEPLOYMENT_TARGET = 12.0;
-				WATCHOS_DEPLOYMENT_TARGET = 4.0;
-				XROS_DEPLOYMENT_TARGET = 1.0;
-			};
-			name = Debug;
-		};
-		E5ADA5251EC344824C852777 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = YES;
-				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
@@ -1411,7 +313,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -1421,57 +323,50 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_STRICT_OBJC_MSGSEND = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
-				);
-				GCC_C_LANGUAGE_STANDARD = gnu11;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_NO_COMMON_BLOCKS = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(inherited)",
 					"DEBUG=1",
-					"SWIFT_PACKAGE=1",
+					"$(inherited)",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MTL_ENABLE_DEBUG_INFO = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-package-name",
-					VibeTunnel,
-				);
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-					"$(inherited)",
-					SWIFT_PACKAGE,
-				);
-				SWIFT_SUPPRESS_WARNINGS = YES;
-				USE_HEADERMAP = NO;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
-		F5CF3F9AC6801B6BE276B81C /* Release */ = {
+		788688112DFF4FCC00B22C15 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 788687F32DFF4FCB00B22C15 /* VibeTunnel */;
+			baseConfigurationReferenceRelativePath = Shared.xcconfig;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = YES;
-				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
@@ -1487,7 +382,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -1498,72 +393,201 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
-				);
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = NO;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(inherited)",
-					"SWIFT_PACKAGE=1",
-				);
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_SWIFT_FLAGS = (
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		788688132DFF4FCC00B22C15 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = VibeTunnel/VibeTunnel.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 104;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VibeTunnel/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = VibeTunnel;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "VibeTunnel uses AppleScript to spawn a terminal when you create a new session in the dashboard. This allows VibeTunnel to automatically open your preferred terminal application and connect it to the remote session.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025 VibeTunnel Team. All rights reserved.";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"-package-name",
-					VibeTunnel,
+					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		788688142DFF4FCC00B22C15 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = VibeTunnel/VibeTunnel.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 104;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VibeTunnel/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = VibeTunnel;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "VibeTunnel uses AppleScript to spawn a terminal when you create a new session in the dashboard. This allows VibeTunnel to automatically open your preferred terminal application and connect it to the remote session.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025 VibeTunnel Team. All rights reserved.";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					SWIFT_PACKAGE,
+					"@executable_path/../Frameworks",
 				);
-				SWIFT_SUPPRESS_WARNINGS = YES;
-				USE_HEADERMAP = NO;
-				VALIDATE_PRODUCT = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		788688162DFF4FCC00B22C15 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 104;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnelTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeTunnel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibeTunnel";
+			};
+			name = Debug;
+		};
+		788688172DFF4FCC00B22C15 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 104;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.vibetunnelTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeTunnel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibeTunnel";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5206A7856D8052D7EF1978A8 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */ = {
+		788687EC2DFF4FCB00B22C15 /* Build configuration list for PBXProject "VibeTunnel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B4C6059C1E7369615C48693C /* Debug */,
-				3618B418B216B9CB91E3030C /* Release */,
+				788688102DFF4FCC00B22C15 /* Debug */,
+				788688112DFF4FCC00B22C15 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		6D69C4974433AED85B9B8A62 /* Build configuration list for PBXProject "VibeTunnel" */ = {
+		788688152DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E5ADA5251EC344824C852777 /* Debug */,
-				F5CF3F9AC6801B6BE276B81C /* Release */,
+				788688132DFF4FCC00B22C15 /* Debug */,
+				788688142DFF4FCC00B22C15 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8D99F6108356CC0D04FBF9FD /* Build configuration list for PBXNativeTarget "VibeTunnel" */ = {
+		788688182DFF4FCC00B22C15 /* Build configuration list for PBXNativeTarget "VibeTunnelTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2287F1E073ABA2294F8D65E6 /* Debug */,
-				6BDD461861CF6891A0D3CAAA /* Release */,
+				788688162DFF4FCC00B22C15 /* Debug */,
+				788688172DFF4FCC00B22C15 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/hummingbird-project/hummingbird";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.14.1;
+			};
+		};
+		89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		788688212DFF600100B22C15 /* Hummingbird */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */;
+			productName = Hummingbird;
+		};
+		89D01D852CB5D7DC0075D8BD /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 4C82CEFDA8E4EFE0B37538D7 /* Project object */;
+	rootObject = 788687E92DFF4FCB00B22C15 /* Project object */;
 }

@@ -14,8 +14,8 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "9F82885C40F6FE67B5339EB3"
-               BuildableName = "VibeTunnel.framework"
+               BlueprintIdentifier = "788687F02DFF4FCB00B22C15"
+               BuildableName = "VibeTunnel.app"
                BlueprintName = "VibeTunnel"
                ReferencedContainer = "container:VibeTunnel.xcodeproj">
             </BuildableReference>
@@ -33,7 +33,7 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B989FECB23CC657C23B738C0"
+               BlueprintIdentifier = "788687FD2DFF4FCB00B22C15"
                BuildableName = "VibeTunnelTests.xctest"
                BlueprintName = "VibeTunnelTests"
                ReferencedContainer = "container:VibeTunnel.xcodeproj">
@@ -54,8 +54,8 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9F82885C40F6FE67B5339EB3"
-            BuildableName = "VibeTunnel.framework"
+            BlueprintIdentifier = "788687F02DFF4FCB00B22C15"
+            BuildableName = "VibeTunnel.app"
             BlueprintName = "VibeTunnel"
             ReferencedContainer = "container:VibeTunnel.xcodeproj">
          </BuildableReference>
@@ -70,8 +70,8 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9F82885C40F6FE67B5339EB3"
-            BuildableName = "VibeTunnel.framework"
+            BlueprintIdentifier = "788687F02DFF4FCB00B22C15"
+            BuildableName = "VibeTunnel.app"
             BlueprintName = "VibeTunnel"
             ReferencedContainer = "container:VibeTunnel.xcodeproj">
          </BuildableReference>
