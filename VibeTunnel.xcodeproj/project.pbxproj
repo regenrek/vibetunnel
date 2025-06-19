@@ -220,7 +220,6 @@
 				"$(SRCROOT)/tty-fwd/src/utils.rs",
 				"$(SRCROOT)/tty-fwd/Cargo.toml",
 				"$(SRCROOT)/tty-fwd/build-universal.sh",
-				"$(SRCROOT)/tty-fwd/target/release/tty-fwd-universal",
 			);
 			name = "Build tty-fwd Universal Binary";
 			outputFileListPaths = (
@@ -230,7 +229,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Build tty-fwd universal binary\necho \"Building tty-fwd universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nTTY_FWD_DIR=\"${PROJECT_DIR}/tty-fwd\"\nBUILD_SCRIPT=\"${TTY_FWD_DIR}/build-universal.sh\"\nSOURCE_BINARY=\"${TTY_FWD_DIR}/target/release/tty-fwd-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/tty-fwd\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to tty-fwd directory and run build\ncd \"${TTY_FWD_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing tty-fwd binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"tty-fwd universal binary copied and signed to ${DEST_BINARY}\"\n";
+			shellScript = "# Build tty-fwd universal binary\necho \"Building tty-fwd universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nTTY_FWD_DIR=\"${PROJECT_DIR}/tty-fwd\"\nBUILD_SCRIPT=\"${TTY_FWD_DIR}/build-universal.sh\"\n\n# Determine target directory based on configuration\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n    TARGET_DIR=\"debug\"\nelse\n    TARGET_DIR=\"release\"\nfi\n\nSOURCE_BINARY=\"${TTY_FWD_DIR}/target/${TARGET_DIR}/tty-fwd-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/tty-fwd\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to tty-fwd directory and run build\ncd \"${TTY_FWD_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing tty-fwd binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"tty-fwd universal binary copied and signed to ${DEST_BINARY}\"\n";
 		};
 		B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */ = {
 			isa = PBXShellScriptBuildPhase;
