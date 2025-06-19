@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 	"github.com/vibetunnel/linux/pkg/api"
 	"github.com/vibetunnel/linux/pkg/config"
 	"github.com/vibetunnel/linux/pkg/session"
-	"github.com/vibetunnel/linux/pkg/termsocket"
 )
 
 var (
@@ -241,36 +239,21 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func startServer(cfg *config.Config, manager *session.Manager) error {
-	// Start terminal socket server (just for receiving requests - Mac app handles spawning)
-	termServer := termsocket.NewServer("")
-	// Don't register any handler - the Mac app will handle the actual spawning
+	// Terminal spawning behavior:
+	// 1. When spawn_terminal=true in API requests, we first try to connect to the Mac app's socket
+	// 2. If Mac app is running, it handles the terminal spawn via TerminalSpawnService 
+	// 3. If Mac app is not running, we fall back to native terminal spawning (osascript on macOS)
+	// This matches the Rust implementation's behavior.
 	
-	if err := termServer.Start(); err != nil {
-		log.Printf("Warning: Failed to start terminal socket server: %v", err)
-		// Don't fail server startup if terminal socket fails
-	} else {
-		defer termServer.Stop()
-		log.Printf("Terminal socket server started at %s", termsocket.DefaultSocketPath)
-	}
-	// Determine static path
-	if staticPath == "" && cfg.Server.StaticPath == "" {
-		execPath, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("failed to get executable path: %w", err)
-		}
-		// Try dist first, fallback to public
-		distPath := filepath.Join(filepath.Dir(execPath), "..", "web", "dist")
-		publicPath := filepath.Join(filepath.Dir(execPath), "..", "web", "public")
-
-		if _, err := os.Stat(distPath); err == nil {
-			staticPath = distPath
-		} else if _, err := os.Stat(publicPath); err == nil {
-			staticPath = publicPath
-		} else {
-			staticPath = distPath // Default to dist path even if it doesn't exist
-		}
-	} else if cfg.Server.StaticPath != "" {
+	// Use static path from command line or config
+	if staticPath == "" {
 		staticPath = cfg.Server.StaticPath
+	}
+	
+	// When running from Mac app, static path should always be provided via --static-path
+	// When running standalone, user must provide the path
+	if staticPath == "" {
+		return fmt.Errorf("static path not specified. Use --static-path flag or configure in config file")
 	}
 
 	// Determine password
@@ -389,7 +372,6 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 
 	return server.Start(fmt.Sprintf("%s:%s", bindAddress, port))
 }
-
 
 func determineBind(cfg *config.Config) string {
 	// CLI flags take precedence

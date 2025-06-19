@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/vibetunnel/linux/pkg/ngrok"
 	"github.com/vibetunnel/linux/pkg/session"
+	"github.com/vibetunnel/linux/pkg/terminal"
 	"github.com/vibetunnel/linux/pkg/termsocket"
 )
 
@@ -68,7 +70,8 @@ func (s *Server) createHandler() http.Handler {
 	api.HandleFunc("/ngrok/status", s.handleNgrokStatus).Methods("GET")
 
 	if s.staticPath != "" {
-		r.PathPrefix("/").Handler(http.FileServer(http.Dir(s.staticPath)))
+		// Serve static files with index.html fallback for directories
+		r.PathPrefix("/").HandlerFunc(s.serveStaticWithIndex)
 	}
 
 	return r
@@ -102,6 +105,59 @@ func (s *Server) basicAuthMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) serveStaticWithIndex(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	// Add CORS headers (like Rust server)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Clean the path
+	if path == "/" {
+		path = "/index.html"
+	}
+
+	// Log the request for debugging
+	log.Printf("[DEBUG] Static request: %s -> %s (static path: %s)", r.URL.Path, path, s.staticPath)
+
+	// Try to serve the file
+	fullPath := filepath.Join(s.staticPath, filepath.Clean(path))
+
+	// Check if it's a directory
+	info, err := os.Stat(fullPath)
+	if err == nil && info.IsDir() {
+		// Try to serve index.html from the directory
+		indexPath := filepath.Join(fullPath, "index.html")
+		if _, err := os.Stat(indexPath); err == nil {
+			log.Printf("[DEBUG] Serving directory index: %s", indexPath)
+			http.ServeFile(w, r, indexPath)
+			return
+		}
+	}
+
+	// Check if file exists
+	if err == nil && !info.IsDir() {
+		// File exists, serve it
+		log.Printf("[DEBUG] Serving file: %s", fullPath)
+		http.ServeFile(w, r, fullPath)
+		return
+	}
+
+	// File doesn't exist - SPA fallback
+	// For any non-existent path, serve the root index.html
+	// This allows client-side routing to handle the route
+	indexPath := filepath.Join(s.staticPath, "index.html")
+	if _, err := os.Stat(indexPath); err == nil {
+		log.Printf("[DEBUG] SPA fallback - serving index.html for: %s", r.URL.Path)
+		http.ServeFile(w, r, indexPath)
+		return
+	}
+
+	// If even index.html doesn't exist, return 404
+	log.Printf("[ERROR] Static path not configured correctly - index.html not found at: %s", indexPath)
+	log.Printf("[ERROR] Static path is: %s", s.staticPath)
+	http.NotFound(w, r)
 }
 
 func (s *Server) unauthorized(w http.ResponseWriter) {
@@ -175,11 +231,59 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	// Check if we should spawn in a terminal
 	if req.SpawnTerminal {
-		// Try to use the terminal spawn service
+		// Try to use the Mac app's terminal spawn service first
 		if conn, err := termsocket.TryConnect(""); err == nil {
 			defer conn.Close()
 
-			// Create session first to get the ID
+			// Generate a session ID
+			sessionID := session.GenerateID()
+
+			// Get vibetunnel path
+			vibetunnelPath, _ := os.Executable()
+
+			// Format spawn request - this will be sent to the Mac app
+			spawnReq := &termsocket.SpawnRequest{
+				Command:    termsocket.FormatCommand(sessionID, vibetunnelPath, cmdline),
+				WorkingDir: cwd,
+				SessionID:  sessionID,
+				TTYFwdPath: vibetunnelPath,
+				Terminal:   req.Term,
+			}
+
+			// Send spawn request to Mac app
+			resp, err := termsocket.SendSpawnRequest(conn, spawnReq)
+			if err != nil {
+				log.Printf("[ERROR] Failed to send terminal spawn request: %v", err)
+				http.Error(w, fmt.Sprintf("Failed to spawn terminal: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			if !resp.Success {
+				errorMsg := resp.Error
+				if errorMsg == "" {
+					errorMsg = "Unknown error"
+				}
+				log.Printf("[ERROR] Terminal spawn failed: %s", errorMsg)
+				http.Error(w, fmt.Sprintf("Terminal spawn failed: %s", errorMsg), http.StatusInternalServerError)
+				return
+			}
+
+			log.Printf("[INFO] Successfully spawned terminal session via Mac app: %s", sessionID)
+
+			// Return success response
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":   true,
+				"message":   "Terminal session spawned successfully",
+				"error":     nil,
+				"sessionId": sessionID,
+			})
+			return
+		} else {
+			// Mac app terminal spawn service not available - fallback to native terminal spawning
+			log.Printf("[INFO] Mac app socket not available (%v), falling back to native terminal spawn", err)
+
+			// Create session locally
 			sess, err := s.manager.CreateSession(session.Config{
 				Name:    req.Name,
 				Cmdline: cmdline,
@@ -188,6 +292,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				Height:  rows,
 			})
 			if err != nil {
+				log.Printf("[ERROR] Failed to create session: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -195,27 +300,22 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			// Get vibetunnel path
 			vibetunnelPath, _ := os.Executable()
 
-			// Format spawn request
-			spawnReq := &termsocket.SpawnRequest{
-				Command:    termsocket.FormatCommand(sess.ID, vibetunnelPath, cmdline),
-				WorkingDir: cwd,
-				SessionID:  sess.ID,
-				TTYFwdPath: vibetunnelPath,
-				Terminal:   req.Term,
+			// Spawn terminal using native method
+			if err := terminal.SpawnInTerminal(sess.ID, vibetunnelPath, cmdline, cwd); err != nil {
+				log.Printf("[ERROR] Failed to spawn native terminal: %v", err)
+				// Clean up the session since terminal spawn failed
+				s.manager.RemoveSession(sess.ID)
+				http.Error(w, fmt.Sprintf("Failed to spawn terminal: %v", err), http.StatusInternalServerError)
+				return
 			}
 
-			// Send spawn request
-			if resp, err := termsocket.SendSpawnRequest(conn, spawnReq); err != nil || !resp.Success {
-				log.Printf("[WARN] Terminal spawn failed: %v", err)
-				// Continue with regular session
-			} else {
-				log.Printf("[INFO] Session spawned in terminal: %s", sess.ID)
-			}
+			log.Printf("[INFO] Successfully spawned terminal session natively: %s", sess.ID)
 
+			// Return success response
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"success":   true,
-				"message":   "Session created successfully",
+				"message":   "Terminal session spawned successfully (native)",
 				"error":     nil,
 				"sessionId": sess.ID,
 			})
@@ -463,8 +563,8 @@ func (s *Server) handleResizeSession(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Session resized successfully",
-		"cols":   req.Cols,
-		"rows":  req.Rows,
+		"cols":    req.Cols,
+		"rows":    req.Rows,
 	})
 }
 

@@ -168,36 +168,24 @@ final class GoServer: ServerProtocol {
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
 
         // Get the Resources directory path
-        let bundlePath = Bundle.main.bundlePath
-        let resourcesPath = Bundle.main.resourcePath ?? bundlePath
+        let resourcesPath = Bundle.main.resourcePath ?? Bundle.main.bundlePath
 
-        // Set working directory to Resources directory where both vibetunnel and web folder exist
+        // Set working directory to Resources directory
         process.currentDirectoryURL = URL(fileURLWithPath: resourcesPath)
-        logger.info("Setting working directory to: \(resourcesPath)")
+        logger.info("Working directory: \(resourcesPath)")
 
-        // The web/dist directory should be at web/dist relative to Resources
-        let webDistPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/dist")
-        let webDistExists = FileManager.default.fileExists(atPath: webDistPath.path)
-        logger.info("Web dist directory at \(webDistPath.path) exists: \(webDistExists)")
-
-        if !webDistExists {
-            // Try public path as fallback
-            let webPublicPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/public")
-            let webPublicExists = FileManager.default.fileExists(atPath: webPublicPath.path)
-            logger.info("Web public directory at \(webPublicPath.path) exists: \(webPublicExists)")
-
-            if !webPublicExists {
-                logger.error("Web directory NOT FOUND at: \(webDistPath.path) or \(webPublicPath.path)")
-                logContinuation?.yield(ServerLogEntry(
-                    level: .error,
-                    message: "Web directory not found",
-                    source: .go
-                ))
-            }
+        // Static files are always at Resources/web/public
+        let staticPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/public").path
+        
+        // Verify the web directory exists
+        if !FileManager.default.fileExists(atPath: staticPath) {
+            logger.error("Web directory not found at expected location: \(staticPath)")
+            logContinuation?.yield(ServerLogEntry(
+                level: .error,
+                message: "Web directory not found at: \(staticPath)",
+                source: .go
+            ))
         }
-
-        // Use absolute path for static directory
-        let staticPath = webDistPath.path
 
         // Build command to run vibetunnel through login shell
         // Use bind address from ServerManager to control server accessibility

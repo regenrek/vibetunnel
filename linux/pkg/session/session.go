@@ -14,6 +14,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// GenerateID generates a new unique session ID
+func GenerateID() string {
+	return uuid.New().String()
+}
+
 type Status string
 
 const (

@@ -20,7 +20,7 @@ func main() {
 	if os.Getenv("VT_DEBUG") != "" {
 		fmt.Fprintf(os.Stderr, "VT Debug: args = %v\n", os.Args)
 	}
-	
+
 	// Handle version flag only if it's the only argument
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Printf("vt version %s\n", Version)
@@ -29,7 +29,7 @@ func main() {
 
 	// Get preferred server
 	server := getPreferredServer()
-	
+
 	// Forward to appropriate server
 	var err error
 	switch server {
@@ -96,12 +96,12 @@ func forwardToGoServer(args []string) error {
 		// For regular commands, just prepend -- to tell vibetunnel to stop parsing
 		finalArgs = append([]string{"--"}, args...)
 	}
-	
+
 	// Debug: print what we're executing
 	if os.Getenv("VT_DEBUG") != "" {
 		fmt.Fprintf(os.Stderr, "VT Debug: executing %s with args: %v\n", vibetunnelPath, finalArgs)
 	}
-	
+
 	// Create command
 	cmd := exec.Command(vibetunnelPath, finalArgs...)
 	cmd.Stdin = os.Stdin
@@ -114,8 +114,8 @@ func forwardToGoServer(args []string) error {
 
 func isVTSpecialCommand(arg string) bool {
 	switch arg {
-	case "--claude", "--claude-yolo", "--shell", "-i", 
-	     "--no-shell-wrap", "-S", "--show-session-info", "--show-session-id":
+	case "--claude", "--claude-yolo", "--shell", "-i",
+		"--no-shell-wrap", "-S", "--show-session-info", "--show-session-id":
 		return true
 	}
 	return false
@@ -162,7 +162,7 @@ func translateVTToGoArgs(args []string) []string {
 			result = append(result, args[1:]...)
 		}
 		return result
-		
+
 	case "--claude-yolo":
 		// Find Claude and run with permissions skip
 		claudePath := findClaude()
@@ -170,7 +170,7 @@ func translateVTToGoArgs(args []string) []string {
 			return []string{"--", claudePath, "--dangerously-skip-permissions"}
 		}
 		return []string{"--", "claude", "--dangerously-skip-permissions"}
-		
+
 	case "--shell", "-i":
 		// Launch interactive shell
 		shell := os.Getenv("SHELL")
@@ -178,21 +178,21 @@ func translateVTToGoArgs(args []string) []string {
 			shell = "/bin/bash"
 		}
 		return []string{"--", shell, "-i"}
-		
+
 	case "--no-shell-wrap", "-S":
 		// Direct execution without shell - skip the flag and pass rest
 		if len(args) > 1 {
 			return append([]string{"--"}, args[1:]...)
 		}
 		return []string{}
-		
+
 	case "--show-session-info":
 		return []string{"--list-sessions"}
-		
+
 	case "--show-session-id":
 		// This needs special handling - just pass through for now
 		return args
-		
+
 	default:
 		// This shouldn't happen since we check isVTSpecialCommand first
 		return args
