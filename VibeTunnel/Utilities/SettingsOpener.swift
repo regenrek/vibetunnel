@@ -39,9 +39,6 @@ enum SettingsOpener {
 
             // Find and bring settings window to front
             if let settingsWindow = findSettingsWindow() {
-                // Register window with DockIconManager
-                DockIconManager.shared.trackWindow(settingsWindow)
-                
                 // Center the window
                 WindowCenteringHelper.centerOnActiveScreen(settingsWindow)
 

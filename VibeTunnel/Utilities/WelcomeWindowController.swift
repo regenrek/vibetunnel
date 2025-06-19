@@ -49,14 +49,8 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
     func show() {
         guard let window else { return }
 
-        // Check if dock icon is currently hidden
-        let showInDock = UserDefaults.standard.bool(forKey: "showInDock")
-
-        // Temporarily show dock icon if it's hidden
-        // This is necessary for proper window activation
-        if !showInDock {
-            NSApp.setActivationPolicy(.regular)
-        }
+        // Ensure dock icon is visible for window activation
+        DockIconManager.shared.temporarilyShowDock()
 
         // Center window on the active screen (screen with mouse cursor)
         WindowCenteringHelper.centerOnActiveScreen(window)
