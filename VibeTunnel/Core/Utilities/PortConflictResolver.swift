@@ -135,6 +135,28 @@ final class PortConflictResolver {
         }
     }
     
+    /// Force kill any process, regardless of type
+    func forceKillProcess(_ conflict: PortConflict) async throws {
+        logger.info("Force killing process: \(conflict.process.name) (PID: \(conflict.process.pid))")
+        
+        // Kill the process
+        let killProcess = Process()
+        killProcess.executableURL = URL(fileURLWithPath: "/bin/kill")
+        killProcess.arguments = ["-9", "\(conflict.process.pid)"]
+        
+        try killProcess.run()
+        killProcess.waitUntilExit()
+        
+        if killProcess.terminationStatus != 0 {
+            // Try with sudo if regular kill fails
+            logger.warning("Regular kill failed, attempting with elevated privileges")
+            throw PortConflictError.failedToKillProcess(pid: conflict.process.pid)
+        }
+        
+        // Wait a moment for port to be released
+        try await Task.sleep(for: .milliseconds(500))
+    }
+    
     /// Find available ports near a given port
     func findAvailablePorts(near port: Int, count: Int) async -> [Int] {
         var availablePorts: [Int] = []

@@ -786,7 +786,8 @@ private struct PortConfigurationView: View {
 
     private func forceQuitConflictingProcess(_ conflict: PortConflict) async {
         do {
-            try await PortConflictResolver.shared.resolveConflict(conflict)
+            // Try to use forceKillProcess which works for any process
+            try await PortConflictResolver.shared.forceKillProcess(conflict)
             portConflict = nil
             // Restart server after clearing conflict
             restartServerWithNewPort(portNumber)
