@@ -340,7 +340,7 @@ private struct ServerSection: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Server Mode")
-                        Text("Choose between the built-in Swift Hummingbird server or the Rust binary")
+                        Text("Play with this if you're feeling dangerous. Multiple servers cause reasons™.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
