@@ -1324,25 +1324,25 @@ export class SessionView extends LitElement {
 
                   <!-- Action buttons -->
                   <div class="flex gap-2 justify-center">
+                    <button
+                      class="font-mono px-4 py-2 text-sm transition-all cursor-pointer"
+                      style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
+                      @click=${() => (this.showCtrlAlpha = false)}
+                      @mouseover=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = '#888';
+                        btn.style.color = 'black';
+                      }}
+                      @mouseout=${(e: Event) => {
+                        const btn = e.target as HTMLElement;
+                        btn.style.background = 'black';
+                        btn.style.color = '#d4d4d4';
+                      }}
+                    >
+                      CANCEL
+                    </button>
                     ${this.ctrlSequence.length > 0
                       ? html`
-                          <button
-                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
-                            style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
-                            @click=${this.handleSendCtrlSequence}
-                            @mouseover=${(e: Event) => {
-                              const btn = e.target as HTMLElement;
-                              btn.style.background = '#569cd6';
-                              btn.style.color = 'black';
-                            }}
-                            @mouseout=${(e: Event) => {
-                              const btn = e.target as HTMLElement;
-                              btn.style.background = 'black';
-                              btn.style.color = '#d4d4d4';
-                            }}
-                          >
-                            SEND
-                          </button>
                           <button
                             class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
                             style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
@@ -1360,25 +1360,25 @@ export class SessionView extends LitElement {
                           >
                             CLEAR
                           </button>
+                          <button
+                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                            style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
+                            @click=${this.handleSendCtrlSequence}
+                            @mouseover=${(e: Event) => {
+                              const btn = e.target as HTMLElement;
+                              btn.style.background = '#569cd6';
+                              btn.style.color = 'black';
+                            }}
+                            @mouseout=${(e: Event) => {
+                              const btn = e.target as HTMLElement;
+                              btn.style.background = 'black';
+                              btn.style.color = '#d4d4d4';
+                            }}
+                          >
+                            SEND
+                          </button>
                         `
                       : ''}
-                    <button
-                      class="font-mono px-4 py-2 text-sm transition-all cursor-pointer"
-                      style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
-                      @click=${() => (this.showCtrlAlpha = false)}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#888';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
-                    >
-                      CLOSE
-                    </button>
                   </div>
                 </div>
               </div>
