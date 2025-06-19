@@ -155,6 +155,25 @@ if [[ ! -x "$SCRIPT_DIR/notarize-dmg.sh" ]]; then
     exit 1
 fi
 
+# Check if GitHub CLI is installed and authenticated
+if ! command -v gh >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: GitHub CLI (gh) is not installed${NC}"
+    echo "   Install with: brew install gh"
+    exit 1
+fi
+
+if ! gh auth status >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: GitHub CLI is not authenticated${NC}"
+    echo "   Run: gh auth login"
+    exit 1
+fi
+
+# Check if changelog file exists
+if [[ ! -f "$PROJECT_ROOT/CHANGELOG.md" ]]; then
+    echo -e "${YELLOW}⚠️  Warning: CHANGELOG.md not found${NC}"
+    echo "   Release notes will be basic"
+fi
+
 # Check if we're up to date with origin/main
 git fetch origin main --quiet
 LOCAL=$(git rev-parse HEAD)
@@ -482,10 +501,21 @@ fi
 echo ""
 echo -e "${BLUE}📋 Step 7/9: Creating GitHub release...${NC}"
 
-# Check if tag already exists
+# Check if tag already exists locally
 if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️  Tag $TAG_NAME already exists!${NC}"
-    
+    echo -e "${YELLOW}⚠️  Tag $TAG_NAME already exists locally!${NC}"
+    DELETE_EXISTING=true
+else
+    # Check if tag exists on remote
+    if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
+        echo -e "${YELLOW}⚠️  Tag $TAG_NAME already exists on remote!${NC}"
+        DELETE_EXISTING=true
+    else
+        DELETE_EXISTING=false
+    fi
+fi
+
+if [[ "$DELETE_EXISTING" == "true" ]]; then
     # Check if a release exists for this tag
     if gh release view "$TAG_NAME" >/dev/null 2>&1; then
         echo ""

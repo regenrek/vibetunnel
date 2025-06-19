@@ -1,8 +1,33 @@
 #!/bin/bash
-# notarize-app.sh - Complete notarization script for VibeTunnel with Sparkle
-# Handles hardened runtime, proper signing of all components, and notarization
+
+# =============================================================================
+# VibeTunnel App Notarization Script
+# =============================================================================
+#
+# This script handles complete notarization for VibeTunnel including:
+# - Hardened runtime signing
+# - Proper signing of all components (including Sparkle)
+# - Apple notarization submission and stapling
+#
+# USAGE:
+#   ./scripts/notarize-app.sh <app_path>
+#
+# ARGUMENTS:
+#   app_path    Path to the .app bundle to notarize
+#
+# ENVIRONMENT VARIABLES:
+#   SIGN_IDENTITY                     Developer ID identity (optional)
+#   APP_STORE_CONNECT_API_KEY_P8      App Store Connect API key
+#   APP_STORE_CONNECT_KEY_ID          API Key ID
+#   APP_STORE_CONNECT_ISSUER_ID       API Issuer ID
+#
+# =============================================================================
 
 set -eo pipefail
+
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -f "$SCRIPT_DIR/common.sh" ]] && source "$SCRIPT_DIR/common.sh"
 
 # ============================================================================
 # Configuration
@@ -26,8 +51,18 @@ success() {
 }
 
 APP_BUNDLE="${1:-build/Build/Products/Release/VibeTunnel.app}"
-SIGN_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
+# Use environment variable or detect from keychain
+SIGN_IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')}"
 TIMEOUT_MINUTES=30
+
+# Validate signing identity
+if [[ -z "$SIGN_IDENTITY" ]]; then
+    error "No signing identity found. Please set SIGN_IDENTITY environment variable."
+    echo "Example: export SIGN_IDENTITY=\"Developer ID Application: Your Name (TEAMID)\""
+    exit 1
+fi
+
+log "Using signing identity: $SIGN_IDENTITY"
 
 # Check if app bundle exists
 if [ ! -d "$APP_BUNDLE" ]; then

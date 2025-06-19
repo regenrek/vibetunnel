@@ -1,9 +1,28 @@
 #!/bin/bash
 
+# =============================================================================
+# VibeTunnel DMG Creation Script
+# =============================================================================
+#
+# This script creates a DMG disk image for VibeTunnel distribution.
+#
+# USAGE:
+#   ./scripts/create-dmg.sh <app_path> [output_path]
+#
+# ARGUMENTS:
+#   app_path      Path to the .app bundle
+#   output_path   Path for output DMG (optional, defaults to build/VibeTunnel-<version>.dmg)
+#
+# ENVIRONMENT VARIABLES:
+#   DMG_VOLUME_NAME   Name for the DMG volume (optional, defaults to app name)
+#
+# =============================================================================
+
 set -euo pipefail
 
-# Script to create a DMG for VibeTunnel
-# Usage: ./scripts/create-dmg.sh <app_path> [output_path]
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -f "$SCRIPT_DIR/common.sh" ]] && source "$SCRIPT_DIR/common.sh"
 
 if [[ $# -lt 1 ]] || [[ $# -gt 2 ]]; then
     echo "Usage: $0 <app_path> [output_path]"
@@ -20,9 +39,11 @@ if [[ ! -d "$APP_PATH" ]]; then
     exit 1
 fi
 
-# Get version info
+# Get app name and version info
+APP_NAME=$(/usr/libexec/PlistBuddy -c "Print CFBundleName" "$APP_PATH/Contents/Info.plist" 2>/dev/null || echo "VibeTunnel")
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP_PATH/Contents/Info.plist")
-DMG_NAME="VibeTunnel-${VERSION}.dmg"
+DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-$APP_NAME}"
 
 # Use provided output path or default
 if [[ $# -eq 2 ]]; then
@@ -46,7 +67,7 @@ ln -s /Applications "$DMG_TEMP/Applications"
 
 # Create DMG
 hdiutil create \
-    -volname "VibeTunnel" \
+    -volname "$DMG_VOLUME_NAME" \
     -srcfolder "$DMG_TEMP" \
     -ov \
     -format UDZO \

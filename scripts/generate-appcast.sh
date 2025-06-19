@@ -19,9 +19,20 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # Configuration
-GITHUB_USERNAME="${GITHUB_USERNAME:-amantus-ai}"
-GITHUB_REPO="${GITHUB_USERNAME}/${GITHUB_REPO:-vibetunnel}"
-SPARKLE_PRIVATE_KEY_PATH="private/sparkle_private_key"
+# Try to extract from git remote if not set
+if [[ -z "${GITHUB_USERNAME:-}" ]] || [[ -z "${GITHUB_REPO:-}" ]]; then
+    GIT_REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$GIT_REMOTE_URL" =~ github\.com[:/]([^/]+)/([^/]+)(\.git)?$ ]]; then
+        GITHUB_USERNAME="${GITHUB_USERNAME:-${BASH_REMATCH[1]}}"
+        GITHUB_REPO="${GITHUB_REPO:-${BASH_REMATCH[2]}}"
+    else
+        GITHUB_USERNAME="${GITHUB_USERNAME:-amantus-ai}"
+        GITHUB_REPO="${GITHUB_REPO:-vibetunnel}"
+    fi
+fi
+
+GITHUB_REPO_FULL="${GITHUB_USERNAME}/${GITHUB_REPO}"
+SPARKLE_PRIVATE_KEY_PATH="${SPARKLE_PRIVATE_KEY_PATH:-private/sparkle_private_key}"
 
 # Verify private key exists
 if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
@@ -302,7 +313,7 @@ EOF
 
 # Main function
 main() {
-    print_info "Generating appcast files for $GITHUB_REPO"
+    print_info "Generating appcast files for $GITHUB_REPO_FULL"
     
     # Create temporary directory
     local temp_dir=$(mktemp -d)
@@ -311,13 +322,13 @@ main() {
     # Fetch all releases from GitHub with error handling
     print_info "Fetching releases from GitHub..."
     local releases
-    if ! releases=$(gh api "repos/$GITHUB_REPO/releases" --paginate 2>/dev/null); then
+    if ! releases=$(gh api "repos/$GITHUB_REPO_FULL/releases" --paginate 2>/dev/null); then
         print_error "Failed to fetch releases from GitHub. Please check your GitHub CLI authentication and network connection."
         exit 1
     fi
     
     if [ -z "$releases" ] || [ "$releases" = "[]" ]; then
-        print_warning "No releases found for repository $GITHUB_REPO"
+        print_warning "No releases found for repository $GITHUB_REPO_FULL"
         exit 0
     fi
     
