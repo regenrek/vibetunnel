@@ -89,26 +89,26 @@ if [ -d "$APP_BUNDLE/Contents/Frameworks" ]; then
     log "Signing embedded frameworks..."
     find "$APP_BUNDLE/Contents/Frameworks" \( -type d -name "*.framework" -o -type f -name "*.dylib" \) 2>/dev/null | while read -r framework; do
         log "Signing framework: $framework"
-        codesign --force --options runtime --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$framework" || log "Warning: Failed to sign $framework"
+        codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$framework" || log "Warning: Failed to sign $framework"
     done
 fi
 
 # Sign embedded binaries (like tty-fwd)
 if [ -f "$APP_BUNDLE/Contents/Resources/tty-fwd" ]; then
     log "Signing tty-fwd binary..."
-    codesign --force --options runtime --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/Resources/tty-fwd" || log "Warning: Failed to sign tty-fwd"
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/Resources/tty-fwd" || log "Warning: Failed to sign tty-fwd"
 fi
 
 # Sign the main executable
 log "Signing main executable..."
-codesign --force --options runtime --entitlements "$TMP_ENTITLEMENTS" --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/MacOS/VibeTunnel" || true
+codesign --force --options runtime --timestamp --entitlements "$TMP_ENTITLEMENTS" --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/MacOS/VibeTunnel" || true
 
 # Sign the app bundle WITHOUT deep signing (per Sparkle documentation)
 # "Due to different code signing requirements, please do not add --deep to 
 # OTHER_CODE_SIGN_FLAGS or from custom build scripts when signing your application. 
 # This is a common source of Sandboxing errors."
 log "Signing complete app bundle (without --deep per Sparkle requirements)..."
-codesign --force --options runtime --entitlements "$TMP_ENTITLEMENTS" --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE"
+codesign --force --options runtime --timestamp --entitlements "$TMP_ENTITLEMENTS" --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE"
 
 # Verify the signature
 log "Verifying code signature..."

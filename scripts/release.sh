@@ -331,6 +331,56 @@ echo ""
 echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
 "$SCRIPT_DIR/sign-and-notarize.sh" --sign-and-notarize
 
+# Verify Sparkle component signing
+echo ""
+echo -e "${BLUE}🔍 Verifying Sparkle component signatures...${NC}"
+SPARKLE_OK=true
+
+# Check each Sparkle component for proper signing with timestamps
+if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -q "timestamp"; then
+        echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
+        SPARKLE_OK=false
+    else
+        echo "✅ Installer.xpc properly signed with timestamp"
+    fi
+fi
+
+if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" 2>&1 | grep -q "timestamp"; then
+        echo -e "${RED}❌ Downloader.xpc missing timestamp signature${NC}"
+        SPARKLE_OK=false
+    else
+        echo "✅ Downloader.xpc properly signed with timestamp"
+    fi
+fi
+
+if [ -f "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" ]; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 2>&1 | grep -q "timestamp"; then
+        echo -e "${RED}❌ Autoupdate missing timestamp signature${NC}"
+        SPARKLE_OK=false
+    else
+        echo "✅ Autoupdate properly signed with timestamp"
+    fi
+fi
+
+if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" ]; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" 2>&1 | grep -q "timestamp"; then
+        echo -e "${RED}❌ Updater.app missing timestamp signature${NC}"
+        SPARKLE_OK=false
+    else
+        echo "✅ Updater.app properly signed with timestamp"
+    fi
+fi
+
+if [ "$SPARKLE_OK" = false ]; then
+    echo -e "${RED}❌ Sparkle component signing verification failed!${NC}"
+    echo "This will cause 'update isn't properly signed' errors for users."
+    exit 1
+fi
+
+echo -e "${GREEN}✅ All Sparkle components properly signed${NC}"
+
 # Step 5: Create DMG
 echo ""
 echo -e "${BLUE}📋 Step 6/8: Creating DMG...${NC}"
@@ -380,6 +430,47 @@ else
 fi
 
 echo -e "${GREEN}✅ DMG notarization complete and verified${NC}"
+
+# Verify app inside DMG is properly signed
+echo ""
+echo -e "${BLUE}🔍 Verifying app inside DMG...${NC}"
+
+# Mount the DMG temporarily
+DMG_MOUNT=$(mktemp -d)
+if hdiutil attach "$DMG_PATH" -mountpoint "$DMG_MOUNT" -nobrowse -quiet; then
+    DMG_APP="$DMG_MOUNT/VibeTunnel.app"
+    
+    # Check if app is notarized
+    if spctl -a -t exec -vv "$DMG_APP" 2>&1 | grep -q "source=Notarized Developer ID"; then
+        echo "✅ App in DMG is properly notarized"
+    else
+        echo -e "${RED}❌ App in DMG is not properly notarized!${NC}"
+        hdiutil detach "$DMG_MOUNT" -quiet
+        exit 1
+    fi
+    
+    # Check if notarization ticket is stapled
+    if xcrun stapler validate "$DMG_APP" 2>&1 | grep -q "The validate action worked"; then
+        echo "✅ App in DMG has stapled notarization ticket"
+    else
+        echo -e "${RED}❌ App in DMG missing stapled notarization ticket!${NC}"
+        hdiutil detach "$DMG_MOUNT" -quiet
+        exit 1
+    fi
+    
+    # Check Sparkle components in DMG
+    if codesign -dv "$DMG_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -q "timestamp"; then
+        echo "✅ Sparkle components in DMG properly signed"
+    else
+        echo -e "${YELLOW}⚠️  Warning: Sparkle components in DMG may not have timestamp signatures${NC}"
+    fi
+    
+    # Unmount DMG
+    hdiutil detach "$DMG_MOUNT" -quiet
+    echo -e "${GREEN}✅ App inside DMG verification complete${NC}"
+else
+    echo -e "${YELLOW}⚠️  Warning: Could not mount DMG for verification${NC}"
+fi
 
 # Step 6: Create GitHub release
 echo ""

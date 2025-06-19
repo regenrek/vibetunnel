@@ -188,28 +188,29 @@ if [ -n "${KEYCHAIN_NAME:-}" ]; then
 fi
 
 # Sign XPC services (directories, not files)
+# IMPORTANT: Do NOT use --deep flag, sign each component individually
 if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
     log "Signed Installer.xpc"
 fi
 if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
     # For Sparkle versions >= 2.6, preserve entitlements
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --preserve-metadata=entitlements $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp --preserve-metadata=entitlements $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
     log "Signed Downloader.xpc"
 fi
 
 # Sign other Sparkle components
 if [ -f "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
     log "Signed Autoupdate"
 fi
 if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
     log "Signed Updater.app"
 fi
 
 # Finally sign the framework itself
-codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 log "Signed Sparkle.framework"
 
 # 2. Sparkle framework is already signed above per documentation
