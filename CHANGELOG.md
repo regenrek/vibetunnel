@@ -14,6 +14,7 @@
 ### 🐛 Bug Fixes
 - Fixed window front order when dock icon is hidden
 - Fixed PTY service enhancements with proper async operations
+- Fixed race condition in session creation that caused frontend to open previous session
 
 ## [1.0.0-beta.1] - 2025-06-17
 
