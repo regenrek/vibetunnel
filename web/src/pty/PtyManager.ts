@@ -265,13 +265,13 @@ export class PtyManager {
    * Send text input to a session
    */
   sendInput(sessionId: string, input: SessionInput): void {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new PtyError(`Session ${sessionId} not found`, 'SESSION_NOT_FOUND', sessionId);
-    }
+    // First try to get session from memory (for sessions we created)
+    const memorySession = this.sessions.get(sessionId);
 
-    if (!session.ptyProcess) {
-      throw new PtyError(`Session ${sessionId} has no active PTY`, 'NO_ACTIVE_PTY', sessionId);
+    // If not in memory, check if session exists on filesystem
+    const diskSession = this.sessionManager.getSession(sessionId);
+    if (!diskSession) {
+      throw new PtyError(`Session ${sessionId} not found`, 'SESSION_NOT_FOUND', sessionId);
     }
 
     try {
@@ -285,11 +285,23 @@ export class PtyManager {
         throw new PtyError('No text or key specified in input', 'INVALID_INPUT');
       }
 
-      // Send to PTY
-      session.ptyProcess.write(dataToSend);
-
-      // Record input in asciinema
-      session.asciinemaWriter?.writeInput(dataToSend);
+      // If we have an in-memory session with active PTY, use it
+      if (memorySession?.ptyProcess) {
+        memorySession.ptyProcess.write(dataToSend);
+        memorySession.asciinemaWriter?.writeInput(dataToSend);
+      } else {
+        // Otherwise, write to the session's stdin pipe
+        const stdinPath = diskSession.stdin;
+        if (stdinPath && fs.existsSync(stdinPath)) {
+          fs.writeFileSync(stdinPath, dataToSend);
+        } else {
+          throw new PtyError(
+            `Session ${sessionId} stdin pipe not found at ${stdinPath}`,
+            'STDIN_NOT_FOUND',
+            sessionId
+          );
+        }
+      }
     } catch (error) {
       throw new PtyError(
         `Failed to send input to session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -326,18 +338,27 @@ export class PtyManager {
    * Resize a session terminal
    */
   resizeSession(sessionId: string, cols: number, rows: number): void {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
+    // First try to get session from memory (for sessions we created)
+    const memorySession = this.sessions.get(sessionId);
+
+    // If not in memory, check if session exists on filesystem
+    const diskSession = this.sessionManager.getSession(sessionId);
+    if (!diskSession) {
       throw new PtyError(`Session ${sessionId} not found`, 'SESSION_NOT_FOUND', sessionId);
     }
 
-    if (!session.ptyProcess) {
-      throw new PtyError(`Session ${sessionId} has no active PTY`, 'NO_ACTIVE_PTY', sessionId);
-    }
-
     try {
-      session.ptyProcess.resize(cols, rows);
-      session.asciinemaWriter?.writeResize(cols, rows);
+      // If we have an in-memory session with active PTY, resize it
+      if (memorySession?.ptyProcess) {
+        memorySession.ptyProcess.resize(cols, rows);
+        memorySession.asciinemaWriter?.writeResize(cols, rows);
+      } else {
+        // For external sessions, we can't directly resize the PTY
+        // but we don't throw an error - the session should handle SIGWINCH automatically
+        console.log(
+          `Cannot resize external session ${sessionId} directly, PTY should handle SIGWINCH automatically`
+        );
+      }
     } catch (error) {
       throw new PtyError(
         `Failed to resize session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -352,16 +373,21 @@ export class PtyManager {
    * Returns a promise that resolves when the process is actually terminated
    */
   async killSession(sessionId: string, signal: string | number = 'SIGTERM'): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
+    // First try to get session from memory (for sessions we created)
+    const memorySession = this.sessions.get(sessionId);
+
+    // If not in memory, check if session exists on filesystem
+    const diskSession = this.sessionManager.getSession(sessionId);
+    if (!diskSession) {
       throw new PtyError(`Session ${sessionId} not found`, 'SESSION_NOT_FOUND', sessionId);
     }
 
     try {
-      if (session.ptyProcess) {
+      // If we have an in-memory session with active PTY, kill it directly
+      if (memorySession?.ptyProcess) {
         // If signal is already SIGKILL, send it immediately and wait briefly
         if (signal === 'SIGKILL' || signal === 9) {
-          session.ptyProcess.kill('SIGKILL');
+          memorySession.ptyProcess.kill('SIGKILL');
           this.sessions.delete(sessionId);
           // Wait a bit for SIGKILL to take effect
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -369,10 +395,46 @@ export class PtyManager {
         }
 
         // Start with SIGTERM and escalate if needed
-        await this.killSessionWithEscalation(sessionId, session);
+        await this.killSessionWithEscalation(sessionId, memorySession);
       } else {
-        // No PTY process, just remove from sessions
-        this.sessions.delete(sessionId);
+        // For external sessions, kill by PID
+        if (diskSession.pid && ProcessUtils.isProcessRunning(diskSession.pid)) {
+          console.log(
+            `Killing external session ${sessionId} (PID: ${diskSession.pid}) with ${signal}...`
+          );
+
+          if (signal === 'SIGKILL' || signal === 9) {
+            process.kill(diskSession.pid, 'SIGKILL');
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            return;
+          }
+
+          // Send SIGTERM first
+          process.kill(diskSession.pid, 'SIGTERM');
+
+          // Wait up to 3 seconds for graceful termination
+          const maxWaitTime = 3000;
+          const checkInterval = 500;
+          const maxChecks = maxWaitTime / checkInterval;
+
+          for (let i = 0; i < maxChecks; i++) {
+            await new Promise((resolve) => setTimeout(resolve, checkInterval));
+
+            if (!ProcessUtils.isProcessRunning(diskSession.pid)) {
+              console.log(
+                `External session ${sessionId} terminated gracefully after ${(i + 1) * checkInterval}ms`
+              );
+              return;
+            }
+          }
+
+          // Process didn't terminate gracefully, force kill
+          console.log(
+            `External session ${sessionId} didn't terminate gracefully, sending SIGKILL...`
+          );
+          process.kill(diskSession.pid, 'SIGKILL');
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
     } catch (error) {
       throw new PtyError(
