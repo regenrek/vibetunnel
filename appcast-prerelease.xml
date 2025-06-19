@@ -32,9 +32,9 @@
             <pubDate>Thu, 19 Jun 2025 01:44:52 +0200</pubDate>
             <enclosure 
                 url="https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.2/VibeTunnel-1.0.0-beta.2.dmg"
-                length="22199297"
+                length="22201283"
                 type="application/octet-stream"
-                sparkle:edSignature="U+0XJXgW8H1qBTOFdQeBdZGFchuRo8KXfJbyatDrqro46LDsiVIXA2ipq4BkaKWMCm7w+Kq6lGU9poapzzoVBw=="
+                sparkle:edSignature="n80Uh5YVFzG91tMhZ8/OEdh8R/WQy/DoRQ0PBOfhYmmiii/22QIV1CUjZUkZt2xDvlwhk/QaFN6CJHQ6naAnAw=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>

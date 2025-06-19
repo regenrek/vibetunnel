@@ -30,7 +30,8 @@ fi
 
 # Create a temporary file for the API key
 TEMP_KEY=$(mktemp)
-echo "$APP_STORE_CONNECT_API_KEY_P8" > "$TEMP_KEY"
+# Fix newline encoding in the API key
+echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > "$TEMP_KEY"
 
 # Submit for notarization
 echo "Submitting DMG for notarization..."
