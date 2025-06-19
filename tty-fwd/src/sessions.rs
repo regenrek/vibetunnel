@@ -164,10 +164,15 @@ pub fn send_key_to_session(
         _ => return Err(anyhow!("Unknown key: {}", key)),
     };
 
-    // Use a timeout-protected write operation that also checks for readers
-    write_to_pipe_with_timeout(&stdin_path, key_bytes, Duration::from_secs(5))?;
-
-    Ok(())
+    // Try to write to the pipe directly first
+    match write_to_pipe_with_timeout(&stdin_path, key_bytes, Duration::from_secs(1)) {
+        Ok(()) => Ok(()),
+        Err(pipe_error) => {
+            // If pipe write fails, try to proxy to Node.js server
+            eprintln!("Direct pipe write failed: {}, trying Node.js proxy for key", pipe_error);
+            proxy_key_to_nodejs_server(session_id, key)
+        }
+    }
 }
 
 pub fn send_text_to_session(
@@ -182,10 +187,56 @@ pub fn send_text_to_session(
         return Err(anyhow!("Session {} not found or not running", session_id));
     }
 
-    // Use a timeout-protected write operation that also checks for readers
-    write_to_pipe_with_timeout(&stdin_path, text.as_bytes(), Duration::from_secs(5))?;
+    // Try to write to the pipe directly first
+    match write_to_pipe_with_timeout(&stdin_path, text.as_bytes(), Duration::from_secs(1)) {
+        Ok(()) => Ok(()),
+        Err(pipe_error) => {
+            // If pipe write fails, try to proxy to Node.js server
+            eprintln!("Direct pipe write failed: {}, trying Node.js proxy", pipe_error);
+            proxy_input_to_nodejs_server(session_id, text)
+        }
+    }
+}
 
-    Ok(())
+fn proxy_input_to_nodejs_server(session_id: &str, text: &str) -> Result<(), anyhow::Error> {
+    use std::collections::HashMap;
+    
+    // Create HTTP client
+    let client = reqwest::blocking::Client::new();
+    
+    // Create request body
+    let mut body = HashMap::new();
+    body.insert("text", text);
+    
+    // Send request to Node.js server
+    let url = format!("http://localhost:3000/api/sessions/{}/input", session_id);
+    let response = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .map_err(|e| anyhow!("Failed to proxy to Node.js server: {}", e))?;
+    
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(anyhow!("Node.js server returned error: {}", response.status()))
+    }
+}
+
+fn proxy_key_to_nodejs_server(session_id: &str, key: &str) -> Result<(), anyhow::Error> {
+    // Convert key to equivalent text sequence for Node.js server
+    let text = match key {
+        "arrow_up" => "\x1b[A",
+        "arrow_down" => "\x1b[B", 
+        "arrow_right" => "\x1b[C",
+        "arrow_left" => "\x1b[D",
+        "escape" => "\x1b",
+        "enter" | "ctrl_enter" => "\r",
+        "shift_enter" => "\x1b\x0d",
+        _ => return Err(anyhow!("Unknown key for proxy: {}", key)),
+    };
+    
+    proxy_input_to_nodejs_server(session_id, text)
 }
 
 fn write_to_pipe_with_timeout(

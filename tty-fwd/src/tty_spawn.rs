@@ -711,6 +711,18 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
         dup2(&slave_owned_fd, &mut stdout_fd).expect("Failed to dup2 stdout");
         dup2(&slave_owned_fd, &mut stderr_fd).expect("Failed to dup2 stderr");
 
+        // Configure the PTY slave for proper signal handling
+        if let Ok(mut attrs) = tcgetattr(&slave_owned_fd) {
+            // Enable signal interpretation (ISIG) so Ctrl+C generates SIGINT
+            attrs.local_flags.insert(LocalFlags::ISIG);
+            // Enable canonical mode for line editing but keep other flags
+            attrs.local_flags.insert(LocalFlags::ICANON);
+            // Keep echo enabled for interactive sessions
+            attrs.local_flags.insert(LocalFlags::ECHO);
+            // Apply the terminal attributes
+            tcsetattr(&slave_owned_fd, SetArg::TCSANOW, &attrs).ok();
+        }
+
         // Forget the OwnedFd instances to prevent them from being closed
         std::mem::forget(stdin_fd);
         std::mem::forget(stdout_fd);
@@ -723,7 +735,24 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
         }
     } else {
         unsafe {
+            let _slave_fd = pty.slave.as_raw_fd();
             login_tty_compat(pty.slave.into_raw_fd())?;
+            
+            // Configure the PTY slave for proper signal handling after login_tty
+            use std::os::fd::{FromRawFd, OwnedFd};
+            let stdin_fd = OwnedFd::from_raw_fd(0); // stdin is now the slave
+            if let Ok(mut attrs) = tcgetattr(&stdin_fd) {
+                // Enable signal interpretation (ISIG) so Ctrl+C generates SIGINT
+                attrs.local_flags.insert(LocalFlags::ISIG);
+                // Enable canonical mode for line editing
+                attrs.local_flags.insert(LocalFlags::ICANON);
+                // Keep echo enabled for interactive sessions
+                attrs.local_flags.insert(LocalFlags::ECHO);
+                // Apply the terminal attributes
+                tcsetattr(&stdin_fd, SetArg::TCSANOW, &attrs).ok();
+            }
+            std::mem::forget(stdin_fd); // Don't close stdin
+            
             // No stderr redirection since script_mode is always false
         }
     }
