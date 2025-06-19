@@ -193,32 +193,59 @@ export class PtyService {
   }
 
   /**
-   * Send input using tty-fwd binary
+   * Send input using tty-fwd binary (fast async approach)
    */
   private sendInputTtyFwd(sessionId: string, input: SessionInput): void {
-    const ttyFwdPath = this.findTtyFwdBinary();
-    const args = ['--control-path', this.config.controlPath, '--session', sessionId];
-
-    if (input.text !== undefined) {
-      args.push('--send-text', input.text);
-    } else if (input.key !== undefined) {
-      args.push('--send-key', input.key);
-    } else {
-      throw new PtyError('No text or key specified in input');
+    // For performance, write directly to the session's stdin pipe instead of spawning tty-fwd
+    const session = this.getSession(sessionId);
+    if (!session || !session.stdin) {
+      throw new PtyError(
+        `Session ${sessionId} not found or has no stdin pipe`,
+        'SESSION_NOT_FOUND',
+        sessionId
+      );
     }
 
     try {
-      const result = spawnSync(ttyFwdPath, args, {
-        stdio: 'pipe',
-        timeout: 5000,
-      });
+      let dataToSend = '';
+      if (input.text !== undefined) {
+        dataToSend = input.text;
+      } else if (input.key !== undefined) {
+        // Convert special keys to appropriate sequences
+        const keyMap: Record<string, string> = {
+          arrow_up: '\x1b[A',
+          arrow_down: '\x1b[B',
+          arrow_right: '\x1b[C',
+          arrow_left: '\x1b[D',
+          escape: '\x1b',
+          enter: process.platform === 'win32' ? '\r' : '\n',
+          ctrl_enter: '\r',
+          shift_enter: '\r\n',
+        };
+        dataToSend = keyMap[input.key] || '';
+        if (!dataToSend) {
+          throw new PtyError(`Unknown special key: ${input.key}`, 'UNKNOWN_KEY');
+        }
+      } else {
+        throw new PtyError('No text or key specified in input');
+      }
 
-      if (result.status !== 0) {
-        throw new PtyError(`tty-fwd send input failed with code ${result.status}`);
+      // Use async file write for better performance
+      const fs = require('fs');
+      if (fs.existsSync(session.stdin)) {
+        fs.appendFileSync(session.stdin, dataToSend);
+      } else {
+        throw new PtyError(
+          `Session stdin pipe not found: ${session.stdin}`,
+          'STDIN_NOT_FOUND',
+          sessionId
+        );
       }
     } catch (error) {
       throw new PtyError(
-        `Failed to send input via tty-fwd: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to send input to session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
+        'SEND_INPUT_FAILED',
+        sessionId
       );
     }
   }

@@ -222,22 +222,17 @@ export class PtyManager {
   }
 
   /**
-   * Monitor stdin file for input data
+   * Monitor stdin file for input data using fs.watchFile for better performance
    */
   private monitorStdinFile(session: PtySession): void {
-    // Use fs.watchFile for basic file monitoring
-    // This is a simple implementation - could be enhanced with chokidar for better performance
     let lastSize = 0;
 
-    const checkStdin = () => {
+    const handleStdinChange = (curr: fs.Stats, _prev: fs.Stats) => {
       try {
-        if (!fs.existsSync(session.stdinPath)) return;
-
-        const stats = fs.statSync(session.stdinPath);
-        if (stats.size > lastSize) {
+        if (curr.size > lastSize) {
           // Read new data
           const fd = fs.openSync(session.stdinPath, 'r');
-          const buffer = Buffer.alloc(stats.size - lastSize);
+          const buffer = Buffer.alloc(curr.size - lastSize);
           const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, lastSize);
           fs.closeSync(fd);
 
@@ -247,19 +242,19 @@ export class PtyManager {
             session.asciinemaWriter?.writeInput(data);
           }
 
-          lastSize = stats.size;
+          lastSize = curr.size;
         }
       } catch (_error) {
         // File might not exist or be readable, ignore
       }
     };
 
-    // Check every 100ms for stdin input
-    const interval = setInterval(checkStdin, 100);
+    // Use fs.watchFile for immediate notification instead of polling
+    fs.watchFile(session.stdinPath, { interval: 50 }, handleStdinChange);
 
-    // Clean up interval when session ends
+    // Clean up file watcher when session ends
     session.ptyProcess?.onExit(() => {
-      clearInterval(interval);
+      fs.unwatchFile(session.stdinPath, handleStdinChange);
     });
   }
 
@@ -292,10 +287,10 @@ export class PtyManager {
         memorySession.ptyProcess.write(dataToSend);
         memorySession.asciinemaWriter?.writeInput(dataToSend);
       } else {
-        // Otherwise, write to the session's stdin pipe
+        // Otherwise, append to the session's stdin pipe for better performance
         const stdinPath = diskSession.stdin;
         if (stdinPath && fs.existsSync(stdinPath)) {
-          fs.writeFileSync(stdinPath, dataToSend);
+          fs.appendFileSync(stdinPath, dataToSend);
         } else {
           throw new PtyError(
             `Session ${sessionId} stdin pipe not found at ${stdinPath}`,
