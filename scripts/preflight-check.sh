@@ -14,7 +14,7 @@
 # VALIDATION CHECKS:
 #   - Git repository status (clean working tree, main branch, synced)
 #   - Version information and build number validation
-#   - Required development tools (GitHub CLI, Sparkle tools)
+#   - Required development tools (Rust, Node.js, GitHub CLI, Sparkle tools)
 #   - Code signing certificates and notarization credentials
 #   - Sparkle configuration (keys, appcast files)
 #   - IS_PRERELEASE_BUILD system configuration
@@ -25,6 +25,8 @@
 #
 # DEPENDENCIES:
 #   - git (repository management)
+#   - cargo/rustup (Rust toolchain with x86_64-apple-darwin target)
+#   - node/npm (web frontend build)
 #   - gh (GitHub CLI)
 #   - sign_update (Sparkle EdDSA signing)
 #   - xcbeautify (optional, build output formatting)
@@ -168,6 +170,26 @@ echo ""
 
 # 4. Check required tools
 echo "📌 Required Tools:"
+
+# Rust toolchain
+if command -v cargo &> /dev/null; then
+    check_pass "Rust toolchain installed"
+    # Check for x86_64 target
+    if rustup target list --installed | grep -q "x86_64-apple-darwin"; then
+        check_pass "Rust x86_64-apple-darwin target installed"
+    else
+        check_fail "Rust x86_64 target missing - run: rustup target add x86_64-apple-darwin"
+    fi
+else
+    check_fail "Rust not installed - visit https://rustup.rs"
+fi
+
+# Node.js
+if command -v node &> /dev/null; then
+    check_pass "Node.js installed"
+else
+    check_fail "Node.js not installed - required for web frontend build"
+fi
 
 # GitHub CLI
 if command -v gh &> /dev/null; then

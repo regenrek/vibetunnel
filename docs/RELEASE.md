@@ -128,6 +128,14 @@ YOUR_PRIVATE_KEY_CONTENT
 
 ### 3. Prerequisites
 - Xcode 16.4+ installed
+- Rust toolchain with x86_64 target:
+  ```bash
+  # Install Rust if needed
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  # Add x86_64 target for universal binary support
+  rustup target add x86_64-apple-darwin
+  ```
+- Node.js (for web frontend build)
 - GitHub CLI authenticated: `gh auth status`
 - Apple Developer ID certificate in Keychain
 - Sparkle tools in `~/.local/bin/` (sign_update, generate_appcast)
