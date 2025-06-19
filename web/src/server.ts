@@ -274,9 +274,6 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
         try {
           const parsed = JSON.parse(line);
           if (parsed.version && parsed.width && parsed.height) {
-            console.log(
-              `[STREAM] Terminal header for session ${sessionId}: ${parsed.width}x${parsed.height}`
-            );
             res.write(`data: ${line}\n\n`);
             headerSent = true;
           } else if (Array.isArray(parsed) && parsed.length >= 3) {
@@ -354,12 +351,10 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
 
       for (const line of lines) {
         if (line.trim()) {
-          console.log(`[STREAM] Processing line: ${line.substring(0, 200)}`);
           let eventData;
           try {
             const parsed = JSON.parse(line);
             if (parsed.version && parsed.width && parsed.height) {
-              console.log(`[STREAM] Skipping duplicate header in live stream`);
               continue; // Skip duplicate headers
             }
             if (Array.isArray(parsed) && parsed.length >= 3) {
@@ -386,7 +381,6 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
           }
 
           if (eventData && streamInfo) {
-            console.log(`[STREAM] Broadcasting to ${streamInfo.clients.size} clients`);
             // Broadcast to all connected clients
             streamInfo.clients.forEach((client) => {
               try {
@@ -631,8 +625,6 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
   if (text === undefined || text === null) {
     return res.status(400).json({ error: 'Text is required' });
   }
-
-  console.log(`Sending input to session ${sessionId}:`, JSON.stringify(text));
 
   try {
     // Validate session exists
