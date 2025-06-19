@@ -233,6 +233,13 @@ public final class TunnelServer {
                 return await self.sendSessionInput(request: request, sessionId: sessionId)
             }
 
+            router.post("/api/sessions/:sessionId/resize") { request, context async -> Response in
+                guard let sessionId = context.parameters.get("sessionId") else {
+                    return self.errorResponse(message: "Session ID required", status: .badRequest)
+                }
+                return await self.resizeSession(request: request, sessionId: sessionId)
+            }
+
             router.get("/api/sessions/:sessionId/cast") { _, context async -> Response in
                 guard let sessionId = context.parameters.get("sessionId") else {
                     return self.errorResponse(message: "Session ID required", status: .badRequest)
@@ -1555,6 +1562,74 @@ public final class TunnelServer {
             logger.error("Error sending input via tty-fwd: \(error)")
             let errorMessage = error.localizedDescription
             return errorResponse(message: "Failed to send input: \(errorMessage)", status: .internalServerError)
+        }
+    }
+
+    private func resizeSession(request: Request, sessionId: String) async -> Response {
+        do {
+            let buffer = try await request.body.collect(upTo: 1_024 * 1_024)
+            let requestData = Data(buffer: buffer)
+
+            struct ResizeRequest: Codable {
+                let cols: Int
+                let rows: Int
+            }
+
+            let resizeRequest = try JSONDecoder().decode(ResizeRequest.self, from: requestData)
+
+            // Validate dimensions
+            guard resizeRequest.cols > 0, resizeRequest.rows > 0 else {
+                return errorResponse(message: "Invalid dimensions: cols and rows must be greater than 0", status: .badRequest)
+            }
+
+            logger.info("Resizing session \(sessionId) to \(resizeRequest.cols)x\(resizeRequest.rows)")
+
+            // Validate session exists and is running
+            let sessionInfoOutput = try await executeTtyFwd(args: [
+                "--control-path",
+                ttyFwdControlDir,
+                "--list-sessions"
+            ])
+
+            guard let sessionData = sessionInfoOutput.data(using: .utf8),
+                  let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData),
+                  let session = sessions[sessionId]
+            else {
+                logger.error("Session \(sessionId) not found in active sessions")
+                return errorResponse(message: "Session not found", status: .notFound)
+            }
+
+            // Check if session is running
+            if session.status != "running" {
+                logger.error("Session \(sessionId) is not running (status: \(session.status))")
+                return errorResponse(message: "Session is not running", status: .badRequest)
+            }
+
+            // Execute resize command
+            _ = try await executeTtyFwd(args: [
+                "--control-path",
+                ttyFwdControlDir,
+                "--session",
+                sessionId,
+                "--resize",
+                "\(resizeRequest.cols)x\(resizeRequest.rows)"
+            ])
+
+            logger.info("Successfully resized session \(sessionId) to \(resizeRequest.cols)x\(resizeRequest.rows)")
+            
+            struct SuccessResponse: Codable {
+                let success: Bool
+                let message: String
+            }
+            
+            let response = SuccessResponse(success: true, message: "Session resized to \(resizeRequest.cols)x\(resizeRequest.rows)")
+            return jsonResponse(response)
+        } catch let decodingError as DecodingError {
+            logger.error("Error decoding resize request: \(decodingError)")
+            return errorResponse(message: "Invalid request format. Expected JSON with 'cols' and 'rows' fields", status: .badRequest)
+        } catch {
+            logger.error("Failed to resize session: \(error)")
+            return errorResponse(message: "Failed to resize session: \(error.localizedDescription)")
         }
     }
 
