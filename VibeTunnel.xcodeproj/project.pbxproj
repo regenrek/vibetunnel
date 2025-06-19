@@ -999,7 +999,7 @@
 					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
 					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
 				);
-				INFOPLIST_FILE = "Derived/InfoPlists/VibeTunnel-Info.plist";
+				INFOPLIST_FILE = "VibeTunnel/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1104,7 +1104,7 @@
 					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
 					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
 				);
-				INFOPLIST_FILE = "Derived/InfoPlists/VibeTunnelTests-Info.plist";
+				INFOPLIST_FILE = "VibeTunnelTests/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1206,7 +1206,7 @@
 					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
 					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
 				);
-				INFOPLIST_FILE = "Derived/InfoPlists/VibeTunnel-Info.plist";
+				INFOPLIST_FILE = "VibeTunnel/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1307,7 +1307,7 @@
 					"$(SRCROOT)/.build/checkouts/swift-nio/Sources/CNIOWindows/include",
 					"$(SRCROOT)/.build/checkouts/swift-numerics/Sources/_NumericsShims/include",
 				);
-				INFOPLIST_FILE = "Derived/InfoPlists/VibeTunnelTests-Info.plist";
+				INFOPLIST_FILE = "VibeTunnelTests/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
