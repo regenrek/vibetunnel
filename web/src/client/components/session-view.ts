@@ -894,7 +894,14 @@ export class SessionView extends LitElement {
 
   render() {
     if (!this.session) {
-      return html` <div class="p-4 text-vs-muted">No session selected</div> `;
+      return html`
+        <div class="w-full h-full bg-black flex items-center justify-center">
+          <div class="text-vs-text font-mono text-center">
+            <div class="text-2xl mb-2">${this.getLoadingText()}</div>
+            <div class="text-sm text-vs-muted">Waiting for session...</div>
+          </div>
+        </div>
+      `;
     }
 
     return html`
