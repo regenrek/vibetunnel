@@ -394,8 +394,8 @@ export class PtyManager {
       arrow_right: '\x1b[C',
       arrow_left: '\x1b[D',
       escape: '\x1b',
-      enter: '\r',
-      ctrl_enter: '\n',
+      enter: '\n',
+      ctrl_enter: '\r',
       shift_enter: '\r\n',
     };
 
