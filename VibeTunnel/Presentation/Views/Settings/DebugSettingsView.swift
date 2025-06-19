@@ -259,16 +259,15 @@ private struct ServerSection: View {
                 // Server Information
                 VStack(alignment: .leading, spacing: 8) {
                     LabeledContent("Status") {
-                        HStack {
-                            Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
-                                isServerRunning ? "exclamationmark.circle.fill" : "xmark.circle.fill"
-                            )
-                            .foregroundStyle(isServerHealthy ? .green :
-                                isServerRunning ? .orange : .secondary
-                            )
-                            Text(isServerHealthy ? "Healthy" :
-                                isServerRunning ? "Unhealthy" : "Stopped"
-                            )
+                        if isServerHealthy || isServerRunning {
+                            HStack {
+                                Image(systemName: isServerHealthy ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                    .foregroundStyle(isServerHealthy ? .green : .orange)
+                                Text(isServerHealthy ? "Healthy" : "Unhealthy")
+                            }
+                        } else {
+                            Text("Stopped")
+                                .foregroundStyle(.secondary)
                         }
                     }
 
