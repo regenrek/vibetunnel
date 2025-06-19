@@ -80,6 +80,12 @@ struct InputRequest {
 }
 
 #[derive(Debug, Deserialize)]
+struct ResizeRequest {
+    cols: u16,
+    rows: u16,
+}
+
+#[derive(Debug, Deserialize)]
 struct MkdirRequest {
     path: String,
 }
@@ -349,6 +355,11 @@ pub fn start_server(
                 {
                     handle_session_input(&control_path, path, &req)
                 }
+                (&Method::POST, path)
+                    if path.starts_with("/api/sessions/") && path.ends_with("/resize") =>
+                {
+                    handle_session_resize(&control_path, path, &req)
+                }
                 (&Method::DELETE, path)
                     if path.starts_with("/api/sessions/") && path.ends_with("/cleanup") =>
                 {
@@ -588,11 +599,13 @@ fn handle_create_session(
             let session_info_path = session_path.join("session.json");
             let stream_out_path = session_path.join("stream-out");
             let stdin_path = session_path.join("stdin");
+            let control_path = session_path.join("control");
             let notification_stream_path = session_path.join("notification-stream");
 
             if let Err(e) = tty_spawn
                 .stdout_path(&stream_out_path, true)
                 .and_then(|spawn| spawn.stdin_path(&stdin_path))
+                .and_then(|spawn| spawn.control_path(&control_path))
             {
                 eprintln!("Failed to set up TTY paths for session {session_id_clone}: {e}");
                 return;
@@ -956,6 +969,103 @@ fn handle_session_input(
                 success: None,
                 message: None,
                 error: Some("Invalid request body".to_string()),
+                session_id: None,
+            };
+            json_response(StatusCode::BAD_REQUEST, &error)
+        }
+    } else {
+        let error = ApiResponse {
+            success: None,
+            message: None,
+            error: Some("Invalid session ID".to_string()),
+            session_id: None,
+        };
+        json_response(StatusCode::BAD_REQUEST, &error)
+    }
+}
+
+fn handle_session_resize(
+    control_path: &Path,
+    path: &str,
+    req: &crate::http_server::HttpRequest,
+) -> Response<String> {
+    if let Some(session_id) = extract_session_id(path) {
+        let body_bytes = req.body();
+        let body = String::from_utf8_lossy(body_bytes);
+        
+        if let Ok(resize_req) = serde_json::from_str::<ResizeRequest>(&body) {
+            // Validate dimensions
+            if resize_req.cols == 0 || resize_req.rows == 0 {
+                let error = ApiResponse {
+                    success: None,
+                    message: None,
+                    error: Some("Invalid dimensions: cols and rows must be greater than 0".to_string()),
+                    session_id: None,
+                };
+                return json_response(StatusCode::BAD_REQUEST, &error);
+            }
+
+            // First validate session exists and is running
+            match sessions::list_sessions(control_path) {
+                Ok(sessions) => {
+                    if let Some(session_entry) = sessions.get(&session_id) {
+                        // Check if session is running
+                        if session_entry.session_info.status != "running" {
+                            let error = ApiResponse {
+                                success: None,
+                                message: None,
+                                error: Some("Session is not running".to_string()),
+                                session_id: None,
+                            };
+                            return json_response(StatusCode::BAD_REQUEST, &error);
+                        }
+
+                        // Perform the resize
+                        match sessions::resize_session(control_path, &session_id, resize_req.cols, resize_req.rows) {
+                            Ok(()) => {
+                                let response = ApiResponse {
+                                    success: Some(true),
+                                    message: Some(format!("Session resized to {}x{}", resize_req.cols, resize_req.rows)),
+                                    error: None,
+                                    session_id: None,
+                                };
+                                json_response(StatusCode::OK, &response)
+                            }
+                            Err(e) => {
+                                let error = ApiResponse {
+                                    success: None,
+                                    message: None,
+                                    error: Some(format!("Failed to resize session: {e}")),
+                                    session_id: None,
+                                };
+                                json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+                            }
+                        }
+                    } else {
+                        let error = ApiResponse {
+                            success: None,
+                            message: None,
+                            error: Some("Session not found".to_string()),
+                            session_id: None,
+                        };
+                        json_response(StatusCode::NOT_FOUND, &error)
+                    }
+                }
+                Err(e) => {
+                    let error = ApiResponse {
+                        success: None,
+                        message: None,
+                        error: Some(format!("Failed to list sessions: {e}")),
+                        session_id: None,
+                    };
+                    json_response(StatusCode::INTERNAL_SERVER_ERROR, &error)
+                }
+            }
+        } else {
+            let error = ApiResponse {
+                success: None,
+                message: None,
+                error: Some("Invalid request body. Expected JSON with 'cols' and 'rows' fields".to_string()),
                 session_id: None,
             };
             json_response(StatusCode::BAD_REQUEST, &error)
@@ -1977,6 +2087,20 @@ mod tests {
     }
 
     #[test]
+    fn test_resize_request_deserialization() {
+        let json = r#"{"cols":120,"rows":40}"#;
+        let request: ResizeRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.cols, 120);
+        assert_eq!(request.rows, 40);
+
+        // Test with zero values (should be rejected by handler)
+        let json = r#"{"cols":0,"rows":0}"#;
+        let request: ResizeRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.cols, 0);
+        assert_eq!(request.rows, 0);
+    }
+
+    #[test]
     fn test_mkdir_request_deserialization() {
         let json = r#"{"path":"/tmp/test"}"#;
         let request: MkdirRequest = serde_json::from_str(json).unwrap();
@@ -2100,6 +2224,8 @@ mod tests {
             started_at: Some(jiff::Timestamp::now()),
             term: "xterm".to_string(),
             spawn_type: "pty".to_string(),
+            cols: None,
+            rows: None,
         };
 
         fs::write(
@@ -2140,6 +2266,8 @@ mod tests {
             started_at: None,
             term: "xterm".to_string(),
             spawn_type: "pty".to_string(),
+            cols: None,
+            rows: None,
         };
 
         fs::write(

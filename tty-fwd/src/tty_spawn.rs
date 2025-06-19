@@ -156,6 +156,7 @@ impl TtySpawn {
                 command,
                 stdin_file: None,
                 stdout_file: None,
+                control_file: None,
                 notification_writer: None,
                 session_json_path: None,
                 session_name: None,
@@ -178,6 +179,19 @@ impl TtySpawn {
             .custom_flags(O_NONBLOCK)
             .open(path)?;
         self.options_mut().stdin_file = Some(file);
+        Ok(self)
+    }
+
+    /// Sets a path as control file for resize and other control commands.
+    pub fn control_path<P: AsRef<Path>>(&mut self, path: P) -> Result<&mut Self, Error> {
+        let path = path.as_ref();
+        mkfifo_atomic(path)?;
+        let file = File::options()
+            .read(true)
+            .write(true)
+            .custom_flags(O_NONBLOCK)
+            .open(path)?;
+        self.options_mut().control_file = Some(file);
         Ok(self)
     }
 
@@ -251,6 +265,7 @@ struct SpawnOptions {
     command: Vec<OsString>,
     stdin_file: Option<File>,
     stdout_file: Option<File>,
+    control_file: Option<File>,
     notification_writer: Option<NotificationWriter>,
     session_json_path: Option<PathBuf>,
     session_name: Option<String>,
@@ -265,6 +280,8 @@ pub fn create_session_info(
     name: String,
     cwd: String,
     term: String,
+    cols: Option<u16>,
+    rows: Option<u16>,
 ) -> Result<(), Error> {
     let session_info = SessionInfo {
         cmdline,
@@ -276,6 +293,8 @@ pub fn create_session_info(
         started_at: Some(Timestamp::now()),
         term,
         spawn_type: "socket".to_string(),
+        cols,
+        rows,
     };
 
     let session_info_str = serde_json::to_string(&session_info)?;
@@ -325,6 +344,27 @@ fn update_session_status(
 /// optional `out` log file.  Additionally it can retrieve instructions from
 /// the given control socket.
 fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
+    // if we can't retrieve the terminal atts we're not directly connected
+    // to a pty in which case we won't do any of the terminal related
+    // operations. In detached mode, we don't connect to the current terminal.
+    let term_attrs = if opts.detached {
+        None
+    } else {
+        tcgetattr(io::stdin()).ok()
+    };
+    let winsize = if opts.detached {
+        Some(Winsize {
+            ws_row: 24,
+            ws_col: 80,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        })
+    } else {
+        term_attrs
+            .as_ref()
+            .and_then(|_| get_winsize(io::stdin().as_fd()))
+    };
+
     // Create session info at the beginning if we have a session JSON path
     if let Some(ref session_json_path) = opts.session_json_path {
         // Get executable name for session name
@@ -355,6 +395,8 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
             session_name.clone(),
             current_dir.clone(),
             opts.term.clone(),
+            winsize.as_ref().map(|w| w.ws_col),
+            winsize.as_ref().map(|w| w.ws_row),
         )?;
 
         // Send session started notification
@@ -371,26 +413,6 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
             let _ = notification_writer.write_notification(notification);
         }
     }
-    // if we can't retrieve the terminal atts we're not directly connected
-    // to a pty in which case we won't do any of the terminal related
-    // operations. In detached mode, we don't connect to the current terminal.
-    let term_attrs = if opts.detached {
-        None
-    } else {
-        tcgetattr(io::stdin()).ok()
-    };
-    let winsize = if opts.detached {
-        Some(Winsize {
-            ws_row: 24,
-            ws_col: 80,
-            ws_xpixel: 0,
-            ws_ypixel: 0,
-        })
-    } else {
-        term_attrs
-            .as_ref()
-            .and_then(|_| get_winsize(io::stdin().as_fd()))
-    };
 
     // Create the outer pty for stdout
     let pty = openpty(&winsize, &term_attrs)?;
@@ -434,6 +456,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
                 let session_json_path = opts.session_json_path.clone();
                 let notification_writer = opts.notification_writer;
                 let stdin_file = opts.stdin_file;
+                let control_file = opts.control_file;
 
                 // Create StreamWriter for detached session if we have an output file
                 let stream_writer = if let Some(stdout_file) = opts.stdout_file.take() {
@@ -464,6 +487,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
                         notification_writer,
                         stream_writer,
                         stdin_file,
+                        control_file,
                     );
                 });
 
@@ -845,6 +869,7 @@ fn monitor_detached_session(
     mut notification_writer: Option<NotificationWriter>,
     mut stream_writer: Option<StreamWriter>,
     stdin_file: Option<File>,
+    control_file: Option<File>,
 ) -> Result<(), Error> {
     let mut buf = [0; 4096];
     let mut done = false;
@@ -858,6 +883,10 @@ fn monitor_detached_session(
             read_fds.insert(f.as_fd());
         }
 
+        if let Some(ref f) = control_file {
+            read_fds.insert(f.as_fd());
+        }
+
         match select(None, Some(&mut read_fds), None, None, Some(&mut timeout)) {
             Ok(0) => {
                 // Timeout occurred - just continue
@@ -866,6 +895,54 @@ fn monitor_detached_session(
             Err(Errno::EINTR | Errno::EAGAIN) => continue,
             Ok(_) => {}
             Err(err) => return Err(err.into()),
+        }
+
+        if let Some(ref f) = control_file {
+            if read_fds.contains(f.as_fd()) {
+                match read(f, &mut buf) {
+                    Ok(0) | Err(Errno::EAGAIN | Errno::EINTR) => {}
+                    Err(err) => return Err(err.into()),
+                    Ok(n) => {
+                        // Parse control command
+                        if let Ok(cmd_str) = std::str::from_utf8(&buf[..n]) {
+                            for line in cmd_str.lines() {
+                                if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(line) {
+                                    if let Some(cmd_type) = cmd.get("cmd").and_then(|v| v.as_str()) {
+                                        if cmd_type == "resize" {
+                                            if let (Some(cols), Some(rows)) = (
+                                                cmd.get("cols").and_then(|v| v.as_u64()),
+                                                cmd.get("rows").and_then(|v| v.as_u64()),
+                                            ) {
+                                                let winsize = Winsize {
+                                                    ws_row: rows as u16,
+                                                    ws_col: cols as u16,
+                                                    ws_xpixel: 0,
+                                                    ws_ypixel: 0,
+                                                };
+                                                if let Err(e) = set_winsize(master.as_fd(), winsize) {
+                                                    eprintln!("Failed to resize terminal: {}", e);
+                                                } else {
+                                                    // Log resize event
+                                                    if let Some(writer) = &mut stream_writer {
+                                                        let time = writer.elapsed_time();
+                                                        let data = format!("{}x{}", cols, rows);
+                                                        let event = AsciinemaEvent {
+                                                            time,
+                                                            event_type: AsciinemaEventType::Resize,
+                                                            data,
+                                                        };
+                                                        let _ = writer.write_event(event);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if let Some(ref f) = stdin_file {

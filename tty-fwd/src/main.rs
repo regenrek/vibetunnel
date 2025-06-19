@@ -23,6 +23,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut session_id = std::env::var("TTY_SESSION_ID").ok();
     let mut send_key = None::<String>;
     let mut send_text = None::<String>;
+    let mut resize = None::<String>;
     let mut signal = None::<i32>;
     let mut stop = false;
     let mut kill = false;
@@ -63,6 +64,9 @@ fn main() -> Result<(), anyhow::Error> {
             }
             p if p.is_long("send-text") => {
                 send_text = Some(parser.value()?);
+            }
+            p if p.is_long("resize") => {
+                resize = Some(parser.value()?);
             }
             p if p.is_long("signal") => {
                 let signal_str: String = parser.value()?;
@@ -112,6 +116,7 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("  --send-key <key>        Send key input to session");
                 println!("                          Keys: arrow_up, arrow_down, arrow_left, arrow_right, escape, enter, ctrl_enter, shift_enter");
                 println!("  --send-text <text>      Send text input to session");
+                println!("  --resize <cols>x<rows>  Resize terminal (e.g., --resize 120x40)");
                 println!("  --signal <number>       Send signal number to session PID");
                 println!(
                     "  --stop                  Send SIGTERM to session (equivalent to --signal 15)"
@@ -160,6 +165,28 @@ fn main() -> Result<(), anyhow::Error> {
             return sessions::send_text_to_session(&control_path, sid, &text);
         }
         return Err(anyhow!("--send-text requires --session <session_id>"));
+    }
+
+    // Handle resize command
+    if let Some(resize_spec) = resize {
+        if let Some(sid) = &session_id {
+            // Parse resize spec like "120x40"
+            let parts: Vec<&str> = resize_spec.split('x').collect();
+            if parts.len() != 2 {
+                return Err(anyhow!("Invalid resize format. Use <cols>x<rows> (e.g., 120x40)"));
+            }
+            let cols: u16 = parts[0].parse()
+                .map_err(|_| anyhow!("Invalid column value: {}", parts[0]))?;
+            let rows: u16 = parts[1].parse()
+                .map_err(|_| anyhow!("Invalid row value: {}", parts[1]))?;
+            
+            if cols == 0 || rows == 0 {
+                return Err(anyhow!("Column and row values must be greater than 0"));
+            }
+            
+            return sessions::resize_session(&control_path, sid, cols, rows);
+        }
+        return Err(anyhow!("--resize requires --session <session_id>"));
     }
 
     // Handle signal command

@@ -27,6 +27,10 @@ pub struct SessionInfo {
     pub term: String,
     #[serde(default = "get_default_spawn_type")]
     pub spawn_type: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cols: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub rows: Option<u16>,
 }
 
 fn get_default_term() -> String {
@@ -760,6 +764,8 @@ mod tests {
             started_at: Some(Timestamp::now()),
             term: "xterm-256color".to_string(),
             spawn_type: "pty".to_string(),
+            cols: None,
+            rows: None,
         };
 
         let json = serde_json::to_string(&session).unwrap();
@@ -1119,6 +1125,8 @@ mod tests {
                 started_at: None,
                 term: "xterm".to_string(),
                 spawn_type: "pty".to_string(),
+                cols: None,
+                rows: None,
             },
             stream_out: "/tmp/stream.out".to_string(),
             stdin: "/tmp/stdin".to_string(),
