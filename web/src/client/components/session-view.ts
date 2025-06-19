@@ -970,26 +970,6 @@ export class SessionView extends LitElement {
                   `
                 : ''}
             </div>
-            <button
-              class="font-mono text-lg transition-colors flex-shrink-0"
-              style="background: transparent; color: ${this.terminalFitHorizontally
-                ? '#569cd6'
-                : '#d4d4d4'}; border: none; padding: 4px;"
-              @click=${this.handleTerminalFitToggle}
-              title="Toggle fit to width"
-              @mouseover=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                btn.style.color = '#569cd6';
-              }}
-              @mouseout=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                btn.style.color = this.terminalFitHorizontally ? '#569cd6' : '#d4d4d4';
-              }}
-            >
-              ${this.terminalFitHorizontally
-                ? html`<span>←</span>&nbsp;<span>→</span>`
-                : html`<span>→</span>&nbsp;<span>←</span>`}
-            </button>
           </div>
         </div>
 
