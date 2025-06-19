@@ -239,97 +239,42 @@ final class RustServer: ServerProtocol {
         // Start monitoring output
         startOutputMonitoring()
 
-        // Start the process on background thread
         do {
+            // Start the process (this just launches it and returns immediately)
             try await processHandler.runProcess(process)
-
-            await MainActor.run {
-                self.isRunning = true
-            }
-
-            // Check for early exit on background thread
-            try await Task.detached(priority: .userInitiated) {
-                try await Task.sleep(for: .milliseconds(100))
-            }.value
-            // Try to read any immediate error output
-            if let stderrPipe = self.stderrPipe {
-                let errorHandle = stderrPipe.fileHandleForReading
-                if let immediateError = try? errorHandle.read(upToCount: 1024),
-                   !immediateError.isEmpty,
-                   let errorString = String(data: immediateError, encoding: .utf8) {
-                    logger.error("Immediate stderr output: \(errorString)")
-                    
-                    // Check for specific errors
-                    if errorString.contains("Address already in use") {
-                        // Extract port number if possible
-                        let portPattern = #"Address already in use.*?(\d+)"#
-                        if let regex = try? NSRegularExpression(pattern: portPattern),
-                           regex.firstMatch(in: errorString, range: NSRange(errorString.startIndex..., in: errorString)) != nil {
-                            // Port conflict detected
-                            logContinuation?.yield(ServerLogEntry(
-                                level: .error,
-                                message: "Port \(port) is already in use. Another process is using this port.",
-                                source: .rust
-                            ))
-                        }
-                        
-                        // Check what's using the port
-                        if let conflict = await PortConflictResolver.shared.detectConflict(on: Int(port) ?? 4020) {
-                            let errorMessage = "Port \(port) is used by \(conflict.process.name)"
-                            logContinuation?.yield(ServerLogEntry(
-                                level: .error,
-                                message: errorMessage,
-                                source: .rust
-                            ))
-                        }
-                    }
-                }
-            }
             
-            // Give the server more time to fully start on background thread
-            try await Task.detached(priority: .userInitiated) {
-                try await Task.sleep(for: .milliseconds(900))
-            }.value
-
-            // Check if process is still running
+            // Mark server as running
+            isRunning = true
+            
+            logger.info("Rust server process started")
+            
+            // Give the process a moment to start before checking for early failures
+            try await Task.sleep(for: .milliseconds(100))
+            
+            // Check if process exited immediately (indicating failure)
             if !process.isRunning {
+                isRunning = false
                 let exitCode = process.terminationStatus
-                logger.error("Process terminated with exit code: \(exitCode)")
-                
-                var errorDetails = "Exit code: \(exitCode)"
+                logger.error("Process exited immediately with code: \(exitCode)")
                 
                 // Try to read any error output
+                var errorDetails = "Exit code: \(exitCode)"
                 if let stderrPipe = self.stderrPipe {
                     let errorData = stderrPipe.fileHandleForReading.availableData
                     if !errorData.isEmpty, let errorOutput = String(data: errorData, encoding: .utf8) {
-                        logger.error("Process stderr: \(errorOutput)")
-                        errorDetails += "\nError output: \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))"
-                        logContinuation?.yield(ServerLogEntry(
-                            level: .error,
-                            message: "Process error: \(errorOutput)",
-                            source: .rust
-                        ))
-                    }
-                }
-                
-                // Also check stdout for any diagnostic info
-                if let stdoutPipe = self.stdoutPipe {
-                    let outputData = stdoutPipe.fileHandleForReading.availableData
-                    if !outputData.isEmpty, let output = String(data: outputData, encoding: .utf8) {
-                        logger.error("Process stdout before termination: \(output)")
-                        errorDetails += "\nLast output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))"
+                        errorDetails += "\nError: \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))"
                     }
                 }
                 
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,
-                    message: "Server process failed to start - \(errorDetails)",
+                    message: "Server failed to start: \(errorDetails)",
                     source: .rust
                 ))
-
+                
                 throw RustServerError.processFailedToStart
             }
-
+            
             logger.info("Rust server process started, performing health check...")
             logContinuation?.yield(ServerLogEntry(level: .info, message: "Performing health check...", source: .rust))
 
