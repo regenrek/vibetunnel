@@ -253,9 +253,14 @@ fi
 
 echo -e "${GREEN}✅ DMG created: $DMG_NAME${NC}"
 
+# Step 5.5: Notarize DMG
+echo ""
+echo -e "${BLUE}📋 Step 6/8: Notarizing DMG...${NC}"
+"$SCRIPT_DIR/notarize-dmg.sh" "$DMG_PATH"
+
 # Step 6: Create GitHub release
 echo ""
-echo -e "${BLUE}📋 Step 7/8: Creating GitHub release...${NC}"
+echo -e "${BLUE}📋 Step 7/9: Creating GitHub release...${NC}"
 
 # Check if tag already exists
 if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
@@ -346,7 +351,7 @@ echo -e "${GREEN}✅ GitHub release created${NC}"
 
 # Step 7: Update appcast
 echo ""
-echo -e "${BLUE}📋 Step 8/8: Updating appcast...${NC}"
+echo -e "${BLUE}📋 Step 8/9: Updating appcast...${NC}"
 
 # Generate appcast
 echo "🔐 Generating appcast with EdDSA signatures..."
