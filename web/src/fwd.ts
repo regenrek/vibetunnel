@@ -203,6 +203,40 @@ async function main() {
       });
     }
 
+    // Also monitor the stdin FIFO for input from web server
+    const stdinPath = session.stdin;
+    if (stdinPath && fs.existsSync(stdinPath)) {
+      console.log(`Monitoring stdin pipe: ${stdinPath}`);
+
+      try {
+        // Open the FIFO for reading (non-blocking)
+        const stdinStream = fs.createReadStream(stdinPath, {
+          encoding: 'utf8',
+          flags: 'r',
+        });
+
+        stdinStream.on('data', (data: string) => {
+          try {
+            // Forward data from web server to PTY
+            ptyService.sendInput(result.sessionId, { text: data });
+          } catch (error) {
+            console.error('Failed to forward stdin data to PTY:', error);
+          }
+        });
+
+        stdinStream.on('error', (error) => {
+          console.warn('Stdin FIFO stream error:', error);
+        });
+
+        // Clean up on exit
+        process.on('exit', () => {
+          stdinStream.destroy();
+        });
+      } catch (error) {
+        console.warn('Failed to set up stdin FIFO monitoring:', error);
+      }
+    }
+
     // Stream PTY output to stdout
     const streamOutput = session['stream-out'];
     console.log(`Waiting for output stream file: ${streamOutput}`);
