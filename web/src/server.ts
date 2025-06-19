@@ -246,8 +246,9 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
   }
 
   console.log(
-    `New SSE client connected to session ${sessionId} from ${req.get('User-Agent')?.substring(0, 50) || 'unknown'}`
+    `[STREAM] New SSE client connected to session ${sessionId} from ${req.get('User-Agent')?.substring(0, 50) || 'unknown'}`
   );
+  console.log(`[STREAM] Stream file exists: ${fs.existsSync(streamOutPath)}, path: ${streamOutPath}`);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -264,18 +265,22 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
   try {
     const content = fs.readFileSync(streamOutPath, 'utf8');
     const lines = content.trim().split('\n');
+    console.log(`[STREAM] Reading existing content: ${lines.length} lines from ${streamOutPath}`);
 
+    let exitEventFound = false;
     for (const line of lines) {
       if (line.trim()) {
         try {
           const parsed = JSON.parse(line);
           if (parsed.version && parsed.width && parsed.height) {
-            console.log(`Terminal size for session ${sessionId}: ${parsed.width}x${parsed.height}`);
+            console.log(`[STREAM] Terminal header for session ${sessionId}: ${parsed.width}x${parsed.height}`);
             res.write(`data: ${line}\n\n`);
             headerSent = true;
           } else if (Array.isArray(parsed) && parsed.length >= 3) {
             // Check if this is an exit event (format: ['exit', exitCode, sessionId])
             if (parsed[0] === 'exit') {
+              console.log(`[STREAM] Found exit event in existing content: ${JSON.stringify(parsed)}`);
+              exitEventFound = true;
               // Exit events should preserve their original format
               res.write(`data: ${line}\n\n`);
             } else {
@@ -285,12 +290,18 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
             }
           }
         } catch (_e) {
-          // Skip invalid lines
+          console.log(`[STREAM] Skipping invalid line: ${line.substring(0, 100)}`);
         }
       }
     }
-  } catch (_error) {
-    console.error('Error reading existing content:', _error);
+    
+    if (exitEventFound) {
+      console.log(`[STREAM] Session ${sessionId} already has exit event, closing connection immediately`);
+      res.end();
+      return;
+    }
+  } catch (error) {
+    console.error(`[STREAM] Error reading existing content for session ${sessionId}:`, error);
   }
 
   // Send default header if none found
@@ -309,7 +320,8 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
   let streamInfo = activeStreams.get(sessionId);
 
   if (!streamInfo) {
-    console.log(`Creating new shared tail process for session ${sessionId}`);
+    console.log(`[STREAM] Creating new shared tail process for session ${sessionId}`);
+    console.log(`[STREAM] Tail command: tail -f ${streamOutPath}`);
 
     // Create new tail process for this session
     const tailProcess = spawn('tail', ['-f', streamOutPath]);
@@ -322,24 +334,29 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     };
 
     activeStreams.set(sessionId, streamInfo);
+    console.log(`[STREAM] Tail process created with PID: ${tailProcess.pid}`);
 
     // Handle tail output - broadcast to all clients
     tailProcess.stdout.on('data', (chunk) => {
+      console.log(`[STREAM] Tail received data for session ${sessionId}: ${chunk.toString().length} bytes`);
       buffer += chunk.toString();
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
       for (const line of lines) {
         if (line.trim()) {
+          console.log(`[STREAM] Processing line: ${line.substring(0, 200)}`);
           let eventData;
           try {
             const parsed = JSON.parse(line);
             if (parsed.version && parsed.width && parsed.height) {
+              console.log(`[STREAM] Skipping duplicate header in live stream`);
               continue; // Skip duplicate headers
             }
             if (Array.isArray(parsed) && parsed.length >= 3) {
               // Check if this is an exit event (format: ['exit', exitCode, sessionId])
               if (parsed[0] === 'exit') {
+                console.log(`[STREAM] Exit event detected in live stream: ${JSON.stringify(parsed)}`);
                 // Exit events should preserve their original format without timestamp modification
                 eventData = `data: ${JSON.stringify(parsed)}\n\n`;
               } else {
@@ -350,6 +367,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
               }
             }
           } catch (_e) {
+            console.log(`[STREAM] Non-JSON line, treating as raw output`);
             // Handle non-JSON as raw output
             const currentTime = Date.now() / 1000;
             const castEvent = [currentTime - startTime, 'o', line];
@@ -357,30 +375,42 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
           }
 
           if (eventData && streamInfo) {
+            console.log(`[STREAM] Broadcasting to ${streamInfo.clients.size} clients`);
             // Broadcast to all connected clients
             streamInfo.clients.forEach((client) => {
               try {
                 client.write(eventData);
-              } catch (_error) {
-                console.error('Error writing to client:', _error);
+              } catch (error) {
+                console.error(`[STREAM] Error writing to client:`, error);
                 if (streamInfo) {
                   streamInfo.clients.delete(client);
                   console.log(
-                    `Removed failed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`
+                    `[STREAM] Removed failed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`
                   );
                 }
               }
             });
+            
+            // If this was an exit event, close the tail process
+            if (eventData.includes('"exit"')) {
+              console.log(`[STREAM] Exit event sent, cleaning up tail process for session ${sessionId}`);
+              setTimeout(() => {
+                if (streamInfo && streamInfo.tailProcess) {
+                  streamInfo.tailProcess.kill('SIGTERM');
+                }
+              }, 100);
+            }
           }
         }
       }
     });
 
     tailProcess.on('error', (error) => {
-      console.error(`Shared tail process error for session ${sessionId}:`, error);
+      console.error(`[STREAM] Shared tail process error for session ${sessionId}:`, error);
       // Cleanup all clients
       const currentStreamInfo = activeStreams.get(sessionId);
       if (currentStreamInfo) {
+        console.log(`[STREAM] Cleaning up ${currentStreamInfo.clients.size} clients due to tail error`);
         currentStreamInfo.clients.forEach((client) => {
           try {
             client.end();
@@ -391,10 +421,11 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     });
 
     tailProcess.on('exit', (code) => {
-      console.log(`Shared tail process exited for session ${sessionId} with code ${code}`);
+      console.log(`[STREAM] Shared tail process exited for session ${sessionId} with code ${code}`);
       // Cleanup all clients
       const currentStreamInfo = activeStreams.get(sessionId);
       if (currentStreamInfo) {
+        console.log(`[STREAM] Cleaning up ${currentStreamInfo.clients.size} clients due to tail exit`);
         currentStreamInfo.clients.forEach((client) => {
           try {
             client.end();
@@ -407,19 +438,19 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
 
   // Add this client to the shared stream
   streamInfo.clients.add(res);
-  console.log(`Added client to session ${sessionId}, total clients: ${streamInfo.clients.size}`);
+  console.log(`[STREAM] Added client to session ${sessionId}, total clients: ${streamInfo.clients.size}`);
 
   // Cleanup when client disconnects
   const cleanup = () => {
     if (streamInfo && streamInfo.clients.has(res)) {
       streamInfo.clients.delete(res);
       console.log(
-        `Removed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`
+        `[STREAM] Removed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`
       );
 
       // If no more clients, cleanup the tail process
       if (streamInfo.clients.size === 0) {
-        console.log(`No more clients for session ${sessionId}, cleaning up tail process`);
+        console.log(`[STREAM] No more clients for session ${sessionId}, cleaning up tail process`);
         try {
           streamInfo.tailProcess.kill('SIGTERM');
         } catch (_e) {}
@@ -428,11 +459,26 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     }
   };
 
-  req.on('close', cleanup);
-  req.on('aborted', cleanup);
-  req.on('error', cleanup);
-  res.on('close', cleanup);
-  res.on('finish', cleanup);
+  req.on('close', () => {
+    console.log(`[STREAM] Request closed for session ${sessionId}`);
+    cleanup();
+  });
+  req.on('aborted', () => {
+    console.log(`[STREAM] Request aborted for session ${sessionId}`);
+    cleanup();
+  });
+  req.on('error', (error) => {
+    console.log(`[STREAM] Request error for session ${sessionId}:`, error);
+    cleanup();
+  });
+  res.on('close', () => {
+    console.log(`[STREAM] Response closed for session ${sessionId}`);
+    cleanup();
+  });
+  res.on('finish', () => {
+    console.log(`[STREAM] Response finished for session ${sessionId}`);
+    cleanup();
+  });
 });
 
 // Get session snapshot (optimized cast with only content after last clear)
