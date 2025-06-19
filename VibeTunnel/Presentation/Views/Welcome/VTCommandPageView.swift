@@ -92,12 +92,8 @@ struct VTCommandPageView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .onAppear {
-            Task {
-                // This happens on startup, but we wanna refresh before showing.
-                await MainActor.run {
-                    cliInstaller.checkInstallationStatus()
-                }
-            }
+            // Check installation status synchronously on appear
+            cliInstaller.checkInstallationStatus()
         }
     }
 }

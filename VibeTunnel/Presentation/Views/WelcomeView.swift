@@ -123,10 +123,19 @@ struct WelcomeView: View {
                 currentPage += 1
             }
         } else {
-            // Finish action - open Settings
+            // Finish action - save welcome version and close window
             welcomeVersion = AppConstants.currentWelcomeVersion
-            dismiss()
-            SettingsOpener.openSettings()
+            
+            // Close the window properly through the window controller
+            if let window = NSApp.windows.first(where: { $0.contentViewController is NSHostingController<WelcomeView> }) {
+                window.close()
+            }
+            
+            // Open settings after a delay to ensure the window is fully closed
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(200))
+                SettingsOpener.openSettings()
+            }
         }
     }
 }

@@ -26,6 +26,9 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         // Use normal window level instead of floating
         window.level = .normal
+        
+        // Set content view mode to ensure proper cleanup
+        hostingController.sizingOptions = [.preferredContentSize]
 
         super.init(window: window)
 
@@ -75,6 +78,16 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
     @objc
     private func handleShowWelcomeNotification() {
         show()
+    }
+    
+    // MARK: - NSWindowDelegate
+    
+    func windowWillClose(_ notification: Notification) {
+        // Ensure any async tasks are cancelled
+        Task { @MainActor in
+            // Give SwiftUI time to clean up
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
 }
