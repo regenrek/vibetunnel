@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 /// Centralized manager for dock icon visibility.
 ///
@@ -12,9 +13,15 @@ final class DockIconManager {
     
     private var windowObservers: [NSObjectProtocol] = []
     private var activeWindows = Set<NSWindow>()
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel", category: "DockIconManager")
     
     private init() {
         setupNotifications()
+        // Check for any existing windows after a small delay
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            checkExistingWindows()
+        }
     }
     
     deinit {
@@ -27,6 +34,7 @@ final class DockIconManager {
     /// Register a window to be tracked for dock icon visibility.
     /// The dock icon will remain visible as long as any registered window is open.
     func trackWindow(_ window: NSWindow) {
+        logger.info("Tracking window: \(window.title, privacy: .public)")
         activeWindows.insert(window)
         updateDockVisibility()
         
@@ -38,7 +46,10 @@ final class DockIconManager {
         ) { [weak self, weak window] _ in
             Task { @MainActor in
                 guard let self, let window else { return }
+                self.logger.info("Window closing: \(window.title, privacy: .public)")
                 self.activeWindows.remove(window)
+                // Add a small delay to avoid race conditions with window state changes
+                try? await Task.sleep(for: .milliseconds(100))
                 self.updateDockVisibility()
             }
         }
@@ -52,10 +63,14 @@ final class DockIconManager {
         let userWantsDockHidden = !UserDefaults.standard.bool(forKey: "showInDock")
         let hasActiveWindows = !activeWindows.isEmpty
         
+        logger.info("Updating dock visibility - User wants hidden: \(userWantsDockHidden), Active windows: \(self.activeWindows.count)")
+        
         // Show dock if user wants it shown OR if any windows are open
         if !userWantsDockHidden || hasActiveWindows {
+            logger.info("Showing dock icon")
             NSApp.setActivationPolicy(.regular)
         } else {
+            logger.info("Hiding dock icon")
             NSApp.setActivationPolicy(.accessory)
         }
     }
@@ -83,6 +98,17 @@ final class DockIconManager {
         // Only update if no windows are open
         if activeWindows.isEmpty {
             updateDockVisibility()
+        }
+    }
+    
+    /// Check for any existing windows and track them
+    private func checkExistingWindows() {
+        logger.info("Checking for existing windows...")
+        for window in NSApp.windows {
+            if window.isVisible && !window.isKind(of: NSPanel.self) {
+                logger.info("Found existing window: \(window.title, privacy: .public)")
+                trackWindow(window)
+            }
         }
     }
 }
