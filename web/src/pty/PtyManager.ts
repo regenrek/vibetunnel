@@ -389,13 +389,16 @@ export class PtyManager {
    * Convert special key names to escape sequences
    */
   private convertSpecialKey(key: SpecialKey): string {
+    // On Windows, enter should send \r (carriage return) instead of \n (line feed)
+    const isWindows = process.platform === 'win32';
+
     const keyMap: Record<SpecialKey, string> = {
       arrow_up: '\x1b[A',
       arrow_down: '\x1b[B',
       arrow_right: '\x1b[C',
       arrow_left: '\x1b[D',
       escape: '\x1b',
-      enter: '\n',
+      enter: isWindows ? '\r' : '\n',
       ctrl_enter: '\r',
       shift_enter: '\r\n',
     };
