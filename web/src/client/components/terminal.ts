@@ -1142,6 +1142,29 @@ export class Terminal extends LitElement {
     this.requestUpdate();
   };
 
+  private handlePaste = (e: ClipboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const clipboardData = e.clipboardData?.getData('text/plain');
+    if (clipboardData) {
+      // Dispatch a custom event with the pasted text
+      this.dispatchEvent(
+        new CustomEvent('terminal-paste', {
+          detail: { text: clipboardData },
+          bubbles: true,
+        })
+      );
+    }
+  };
+
+  private handleClick = () => {
+    // Focus the terminal container so it can receive paste events
+    if (this.container) {
+      this.container.focus();
+    }
+  };
+
   render() {
     return html`
       <style>
@@ -1337,7 +1360,14 @@ export class Terminal extends LitElement {
         }
       </style>
       <div style="position: relative; width: 100%; height: 100%;">
-        <div id="terminal-container" class="terminal-container w-full h-full overflow-hidden"></div>
+        <div
+          id="terminal-container"
+          class="terminal-container w-full h-full overflow-hidden"
+          tabindex="0"
+          contenteditable="false"
+          @paste=${this.handlePaste}
+          @click=${this.handleClick}
+        ></div>
         ${!this.followCursorEnabled
           ? html`
               <div

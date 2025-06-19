@@ -690,17 +690,17 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
 // Resize session terminal
 app.post('/api/sessions/:sessionId/resize', async (req, res) => {
   const sessionId = req.params.sessionId;
-  const { width, height } = req.body;
+  const { cols, rows } = req.body;
 
-  if (typeof width !== 'number' || typeof height !== 'number') {
-    return res.status(400).json({ error: 'Width and height must be numbers' });
+  if (typeof cols !== 'number' || typeof rows !== 'number') {
+    return res.status(400).json({ error: 'Cols and rows must be numbers' });
   }
 
-  if (width < 1 || height < 1 || width > 1000 || height > 1000) {
-    return res.status(400).json({ error: 'Width and height must be between 1 and 1000' });
+  if (cols < 1 || rows < 1 || cols > 1000 || rows > 1000) {
+    return res.status(400).json({ error: 'Cols and rows must be between 1 and 1000' });
   }
 
-  console.log(`Resizing session ${sessionId} to ${width}x${height}`);
+  console.log(`Resizing session ${sessionId} to ${cols}x${rows}`);
 
   try {
     // Validate session exists
@@ -716,10 +716,10 @@ app.post('/api/sessions/:sessionId/resize', async (req, res) => {
     }
 
     // Resize the session
-    ptyService.resizeSession(sessionId, width, height);
-    console.log(`Successfully resized session ${sessionId} to ${width}x${height}`);
+    ptyService.resizeSession(sessionId, cols, rows);
+    console.log(`Successfully resized session ${sessionId} to ${cols}x${rows}`);
 
-    res.json({ success: true, width, height });
+    res.json({ success: true, cols, rows });
   } catch (error) {
     console.error('Error resizing session via PTY service:', error);
     if (error instanceof PtyError) {

@@ -29,6 +29,7 @@ export class SessionView extends LitElement {
   @state() private showCtrlAlpha = false;
   @state() private terminalFitHorizontally = false;
   @state() private reconnectCount = 0;
+  @state() private ctrlSequence: string[] = [];
 
   private loadingInterval: number | null = null;
   private keyboardListenerAdded = false;
@@ -52,23 +53,23 @@ export class SessionView extends LitElement {
       return;
     }
 
-    // Allow Ctrl+A (select all), Ctrl+F (find), Ctrl+R (refresh), etc.
+    // Allow Ctrl+A (select all), Ctrl+F (find), Ctrl+R (refresh), Ctrl+C/V (copy/paste), etc.
     if (
       !isMacOS &&
       e.ctrlKey &&
       !e.shiftKey &&
-      ['a', 'f', 'r', 'l', 't', 'w', 'n'].includes(e.key.toLowerCase())
+      ['a', 'f', 'r', 'l', 't', 'w', 'n', 'c', 'v'].includes(e.key.toLowerCase())
     ) {
       return;
     }
 
-    // Allow Cmd+A, Cmd+F, Cmd+R, etc. on macOS
+    // Allow Cmd+A, Cmd+F, Cmd+R, Cmd+C/V (copy/paste), etc. on macOS
     if (
       isMacOS &&
       e.metaKey &&
       !e.shiftKey &&
       !e.altKey &&
-      ['a', 'f', 'r', 'l', 't', 'w', 'n'].includes(e.key.toLowerCase())
+      ['a', 'f', 'r', 'l', 't', 'w', 'n', 'c', 'v'].includes(e.key.toLowerCase())
     ) {
       return;
     }
@@ -118,9 +119,8 @@ export class SessionView extends LitElement {
     super.connectedCallback();
     this.connected = true;
 
-    // Make session-view focusable for copy/paste without interfering with XTerm cursor
+    // Make session-view focusable
     this.tabIndex = 0;
-    this.addEventListener('paste', this.handlePasteEvent);
     this.addEventListener('click', () => this.focus());
 
     // Show loading animation if no session yet
@@ -149,8 +149,7 @@ export class SessionView extends LitElement {
     super.disconnectedCallback();
     this.connected = false;
 
-    // Remove paste event listener and click handler
-    this.removeEventListener('paste', this.handlePasteEvent);
+    // Remove click handler
     this.removeEventListener('click', () => this.focus());
 
     // Remove global keyboard event listener
@@ -232,6 +231,12 @@ export class SessionView extends LitElement {
       this.handleTerminalResize.bind(this) as unknown as EventListener
     );
 
+    // Listen for paste events from terminal
+    this.terminal.addEventListener(
+      'terminal-paste',
+      this.handleTerminalPaste.bind(this) as EventListener
+    );
+
     // Connect to stream directly without artificial delays
     this.connectToStream();
   }
@@ -304,22 +309,17 @@ export class SessionView extends LitElement {
       return;
     }
 
-    // Handle clipboard shortcuts: Cmd+C/V on macOS, Shift+Ctrl+C/V on Linux/Windows
+    // Allow standard browser copy/paste shortcuts
     const isMacOS = navigator.platform.toLowerCase().includes('mac');
-    const isPasteShortcut =
+    const isStandardPaste =
       (isMacOS && e.metaKey && e.key === 'v' && !e.ctrlKey && !e.shiftKey) ||
-      (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'V');
-    const isCopyShortcut =
+      (!isMacOS && e.ctrlKey && e.key === 'v' && !e.shiftKey);
+    const isStandardCopy =
       (isMacOS && e.metaKey && e.key === 'c' && !e.ctrlKey && !e.shiftKey) ||
-      (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'C');
+      (!isMacOS && e.ctrlKey && e.key === 'c' && !e.shiftKey);
 
-    if (isPasteShortcut) {
-      await this.handlePaste();
-      return;
-    }
-
-    if (isCopyShortcut) {
-      await this.handleCopy();
+    if (isStandardPaste || isStandardCopy) {
+      // Allow standard browser copy/paste to work
       return;
     }
 
@@ -504,6 +504,14 @@ export class SessionView extends LitElement {
         }
       }
     }, 250) as unknown as number; // 250ms debounce delay
+  }
+
+  private handleTerminalPaste(e: Event) {
+    const customEvent = e as CustomEvent;
+    const text = customEvent.detail?.text;
+    if (text && this.session) {
+      this.sendInputText(text);
+    }
   }
 
   // Mobile input methods
@@ -699,15 +707,33 @@ export class SessionView extends LitElement {
   }
 
   private async handleCtrlKey(letter: string) {
-    // Convert letter to control character (A=1, B=2, ..., Z=26)
-    const controlCode = String.fromCharCode(letter.charCodeAt(0) - 64);
-    await this.sendInputText(controlCode);
-    this.showCtrlAlpha = false; // Close overlay after sending
+    // Add to sequence instead of immediately sending
+    this.ctrlSequence = [...this.ctrlSequence, letter];
+    this.requestUpdate();
+  }
+
+  private async handleSendCtrlSequence() {
+    // Send each ctrl key in sequence
+    for (const letter of this.ctrlSequence) {
+      const controlCode = String.fromCharCode(letter.charCodeAt(0) - 64);
+      await this.sendInputText(controlCode);
+    }
+    // Clear sequence and close overlay
+    this.ctrlSequence = [];
+    this.showCtrlAlpha = false;
+    this.requestUpdate();
+  }
+
+  private handleClearCtrlSequence() {
+    this.ctrlSequence = [];
+    this.requestUpdate();
   }
 
   private handleCtrlAlphaBackdrop(e: Event) {
     if (e.target === e.currentTarget) {
       this.showCtrlAlpha = false;
+      this.ctrlSequence = [];
+      this.requestUpdate();
     }
   }
 
@@ -720,114 +746,6 @@ export class SessionView extends LitElement {
     if (terminal && terminal.handleFitToggle) {
       // Use the terminal's own toggle method which handles scroll position correctly
       terminal.handleFitToggle();
-    }
-  }
-
-  private handlePasteEvent = async (e: ClipboardEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!this.session) return;
-
-    try {
-      const clipboardText = e.clipboardData?.getData('text/plain');
-      if (clipboardText) {
-        await this.sendInputText(clipboardText);
-      }
-    } catch (error) {
-      console.error('Failed to handle paste event:', error);
-    }
-  };
-
-  private async handlePaste() {
-    if (!this.session) return;
-
-    try {
-      // Try clipboard API first (requires user activation)
-      const clipboardText = await navigator.clipboard.readText();
-
-      if (clipboardText) {
-        // Send the clipboard text to the terminal
-        await this.sendInputText(clipboardText);
-      }
-    } catch (error) {
-      console.error('Failed to read from clipboard:', error);
-      // Show user a message about using Ctrl+V instead
-      console.log('Tip: Try using Ctrl+V (Cmd+V on Mac) to paste instead');
-
-      // Fallback: try to use the older document.execCommand method
-      try {
-        const textArea = document.createElement('textarea');
-        textArea.style.position = 'fixed';
-        textArea.style.opacity = '0';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '-9999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-
-        if (document.execCommand('paste')) {
-          const pastedText = textArea.value;
-          if (pastedText) {
-            await this.sendInputText(pastedText);
-          }
-        }
-
-        document.body.removeChild(textArea);
-      } catch (fallbackError) {
-        console.error('Fallback paste method also failed:', fallbackError);
-        console.log('Please focus the terminal and use Ctrl+V (Cmd+V on Mac) to paste');
-      }
-    }
-  }
-
-  private async handleCopy() {
-    if (!this.terminal) return;
-
-    try {
-      // Get selected text from terminal by querying the DOM
-      const terminalElement = this.querySelector('vibe-terminal');
-      if (!terminalElement) return;
-
-      const selection = window.getSelection();
-      const selectedText = selection?.toString() || '';
-
-      if (selectedText) {
-        // Write the selected text to clipboard
-        await navigator.clipboard.writeText(selectedText);
-        console.log(
-          'Text copied to clipboard:',
-          selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '')
-        );
-      } else {
-        console.log('No text selected for copying');
-      }
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      // Fallback: try to use the older document.execCommand method
-      try {
-        const selection = window.getSelection();
-        const selectedText = selection?.toString() || '';
-
-        if (selectedText) {
-          const textArea = document.createElement('textarea');
-          textArea.value = selectedText;
-          textArea.style.position = 'fixed';
-          textArea.style.opacity = '0';
-          document.body.appendChild(textArea);
-          textArea.select();
-
-          if (document.execCommand('copy')) {
-            console.log(
-              'Text copied to clipboard (fallback):',
-              selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '')
-            );
-          }
-
-          document.body.removeChild(textArea);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback copy method also failed:', fallbackError);
-      }
     }
   }
 
@@ -1328,7 +1246,24 @@ export class SessionView extends LitElement {
                   style="background: black; border: 1px solid #569cd6; border-radius: 8px; padding: 20px;"
                   @click=${(e: Event) => e.stopPropagation()}
                 >
-                  <div class="text-vs-user text-center mb-4 font-bold">Ctrl + Key</div>
+                  <div class="text-vs-user text-center mb-2 font-bold">Ctrl + Key</div>
+
+                  <!-- Help text -->
+                  <div class="text-xs text-vs-muted text-center mb-3 opacity-70">
+                    Build sequences like ctrl+c ctrl+c
+                  </div>
+
+                  <!-- Current sequence display -->
+                  ${this.ctrlSequence.length > 0
+                    ? html`
+                        <div class="text-center mb-4 p-2 border border-vs-muted rounded bg-vs-bg">
+                          <div class="text-xs text-vs-muted mb-1">Current sequence:</div>
+                          <div class="text-sm text-vs-accent font-bold">
+                            ${this.ctrlSequence.map((letter) => `Ctrl+${letter}`).join(' ')}
+                          </div>
+                        </div>
+                      `
+                    : ''}
 
                   <!-- Grid of A-Z buttons -->
                   <div class="grid grid-cols-6 gap-2 mb-4">
@@ -1387,8 +1322,46 @@ export class SessionView extends LitElement {
                     <div>Common: C=interrupt, X=exit, O=save, W=search</div>
                   </div>
 
-                  <!-- Close button -->
-                  <div class="flex justify-center">
+                  <!-- Action buttons -->
+                  <div class="flex gap-2 justify-center">
+                    ${this.ctrlSequence.length > 0
+                      ? html`
+                          <button
+                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                            style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
+                            @click=${this.handleSendCtrlSequence}
+                            @mouseover=${(e: Event) => {
+                              const btn = e.target as HTMLElement;
+                              btn.style.background = '#569cd6';
+                              btn.style.color = 'black';
+                            }}
+                            @mouseout=${(e: Event) => {
+                              const btn = e.target as HTMLElement;
+                              btn.style.background = 'black';
+                              btn.style.color = '#d4d4d4';
+                            }}
+                          >
+                            SEND
+                          </button>
+                          <button
+                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                            style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
+                            @click=${this.handleClearCtrlSequence}
+                            @mouseover=${(e: Event) => {
+                              const btn = e.target as HTMLElement;
+                              btn.style.background = '#888';
+                              btn.style.color = 'black';
+                            }}
+                            @mouseout=${(e: Event) => {
+                              const btn = e.target as HTMLElement;
+                              btn.style.background = 'black';
+                              btn.style.color = '#d4d4d4';
+                            }}
+                          >
+                            CLEAR
+                          </button>
+                        `
+                      : ''}
                     <button
                       class="font-mono px-4 py-2 text-sm transition-all cursor-pointer"
                       style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
