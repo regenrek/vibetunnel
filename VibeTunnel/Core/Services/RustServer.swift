@@ -140,6 +140,23 @@ final class RustServer: ServerProtocol {
             if let permissions = attributes[.posixPermissions] as? NSNumber {
                 logger.info("tty-fwd binary permissions: \(String(permissions.intValue, radix: 8))")
             }
+            if let fileSize = attributes[.size] as? NSNumber {
+                logger.info("tty-fwd binary size: \(fileSize.intValue) bytes")
+            }
+            
+            // Log binary architecture info
+            logContinuation?.yield(ServerLogEntry(
+                level: .debug,
+                message: "Binary path: \(binaryPath)",
+                source: .rust
+            ))
+        } else if !fileExists {
+            logger.error("tty-fwd binary NOT FOUND at: \(binaryPath)")
+            logContinuation?.yield(ServerLogEntry(
+                level: .error,
+                message: "Binary not found at: \(binaryPath)",
+                source: .rust
+            ))
         }
 
         // Create the process using login shell
@@ -158,6 +175,19 @@ final class RustServer: ServerProtocol {
         let webPublicPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/public")
         let webPublicExists = FileManager.default.fileExists(atPath: webPublicPath.path)
         logger.info("Web public directory at \(webPublicPath.path) exists: \(webPublicExists)")
+        
+        if !webPublicExists {
+            logger.error("Web public directory NOT FOUND at: \(webPublicPath.path)")
+            logContinuation?.yield(ServerLogEntry(
+                level: .error,
+                message: "Web public directory not found at: \(webPublicPath.path)",
+                source: .rust
+            ))
+            // List contents of Resources directory for debugging
+            if let contents = try? FileManager.default.contentsOfDirectory(atPath: resourcesPath) {
+                logger.debug("Resources directory contents: \(contents.joined(separator: ", "))")
+            }
+        }
 
         // Use absolute path for static directory
         let staticPath = webPublicPath.path
@@ -215,18 +245,60 @@ final class RustServer: ServerProtocol {
 
             isRunning = true
 
-            // Give the server a moment to start
-            try await Task.sleep(for: .seconds(1))
+            // Immediately check for early exit (e.g., port binding failure)
+            try await Task.sleep(for: .milliseconds(100))
+            
+            // Try to read any immediate error output
+            if let stderrPipe = self.stderrPipe {
+                let errorHandle = stderrPipe.fileHandleForReading
+                if let immediateError = try? errorHandle.read(upToCount: 1024),
+                   !immediateError.isEmpty,
+                   let errorString = String(data: immediateError, encoding: .utf8) {
+                    logger.error("Immediate stderr output: \(errorString)")
+                    
+                    // Check for specific errors
+                    if errorString.contains("Address already in use") {
+                        // Extract port number if possible
+                        let portPattern = #"Address already in use.*?(\d+)"#
+                        if let regex = try? NSRegularExpression(pattern: portPattern),
+                           let match = regex.firstMatch(in: errorString, range: NSRange(errorString.startIndex..., in: errorString)) {
+                            // Port conflict detected
+                            logContinuation?.yield(ServerLogEntry(
+                                level: .error,
+                                message: "Port \(port) is already in use. Another process is using this port.",
+                                source: .rust
+                            ))
+                        }
+                        
+                        // Check what's using the port
+                        if let conflict = await PortConflictResolver.shared.detectConflict(on: Int(port) ?? 4020) {
+                            let errorMessage = "Port \(port) is used by \(conflict.process.name)"
+                            logContinuation?.yield(ServerLogEntry(
+                                level: .error,
+                                message: errorMessage,
+                                source: .rust
+                            ))
+                        }
+                    }
+                }
+            }
+
+            // Give the server more time to fully start
+            try await Task.sleep(for: .milliseconds(900))
 
             // Check if process is still running
             if !process.isRunning {
-                logger.error("Process terminated with exit code: \(process.terminationStatus)")
-
+                let exitCode = process.terminationStatus
+                logger.error("Process terminated with exit code: \(exitCode)")
+                
+                var errorDetails = "Exit code: \(exitCode)"
+                
                 // Try to read any error output
                 if let stderrPipe = self.stderrPipe {
                     let errorData = stderrPipe.fileHandleForReading.availableData
                     if !errorData.isEmpty, let errorOutput = String(data: errorData, encoding: .utf8) {
                         logger.error("Process stderr: \(errorOutput)")
+                        errorDetails += "\nError output: \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))"
                         logContinuation?.yield(ServerLogEntry(
                             level: .error,
                             message: "Process error: \(errorOutput)",
@@ -234,6 +306,25 @@ final class RustServer: ServerProtocol {
                         ))
                     }
                 }
+                
+                // Also check stdout for any diagnostic info
+                if let stdoutPipe = self.stdoutPipe {
+                    let outputData = stdoutPipe.fileHandleForReading.availableData
+                    if !outputData.isEmpty, let output = String(data: outputData, encoding: .utf8) {
+                        logger.error("Process stdout before termination: \(output)")
+                        errorDetails += "\nLast output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))"
+                    }
+                }
+                
+                // Log command that failed
+                logger.error("Failed command: /bin/zsh -l -c \"\(ttyFwdCommand)\"")
+                errorDetails += "\nCommand: \(ttyFwdCommand)"
+                
+                logContinuation?.yield(ServerLogEntry(
+                    level: .error,
+                    message: "Server process failed to start - \(errorDetails)",
+                    source: .rust
+                ))
 
                 throw RustServerError.processFailedToStart
             }
@@ -281,10 +372,24 @@ final class RustServer: ServerProtocol {
             }
         } catch {
             isRunning = false
-            logger.error("Failed to start Rust server: \(error.localizedDescription)")
+            
+            // Log more detailed error information
+            let errorMessage: String
+            if let rustError = error as? RustServerError {
+                errorMessage = rustError.localizedDescription
+            } else if let nsError = error as NSError? {
+                errorMessage = "\(nsError.localizedDescription) (Code: \(nsError.code), Domain: \(nsError.domain))"
+                if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] {
+                    logger.error("Underlying error: \(String(describing: underlyingError))")
+                }
+            } else {
+                errorMessage = String(describing: error)
+            }
+            
+            logger.error("Failed to start Rust server: \(errorMessage)")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Failed to start: \(error.localizedDescription)",
+                message: "Failed to start Rust server: \(errorMessage)",
                 source: .rust
             ))
             throw error
