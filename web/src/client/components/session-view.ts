@@ -267,49 +267,6 @@ export class SessionView extends LitElement {
     originalEventSource.addEventListener('error', handleError);
 
     this.streamConnection = connection;
-
-    // After connecting, ensure the backend session matches the terminal's actual dimensions
-    // TODO: Re-enable once terminal properly calculates dimensions
-    // this.syncTerminalDimensions();
-  }
-
-  private async syncTerminalDimensions() {
-    if (!this.terminal || !this.session) return;
-
-    // Wait a moment for terminal to be fully initialized
-    setTimeout(async () => {
-      if (!this.terminal || !this.session) return;
-
-      // Don't sync if the terminal hasn't been properly fitted yet
-      // The terminal component should emit resize events when it's properly sized
-      const cols = this.terminal.cols || 80;
-      const rows = this.terminal.rows || 24;
-
-      // Only sync if the dimensions are significantly different (avoid minor differences)
-      // and avoid syncing the default 80x24 dimensions
-      const colsDiff = Math.abs(cols - (this.session.width || 120));
-      const rowsDiff = Math.abs(rows - (this.session.height || 30));
-
-      if ((colsDiff > 5 || rowsDiff > 5) && !(cols === 80 && rows === 24)) {
-        console.log(
-          `Syncing terminal dimensions: ${cols}x${rows} (was ${this.session.width}x${this.session.height})`
-        );
-
-        try {
-          const response = await fetch(`/api/sessions/${this.session.id}/resize`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ width: cols, height: rows }),
-          });
-
-          if (!response.ok) {
-            console.warn(`Failed to sync terminal dimensions: ${response.status}`);
-          }
-        } catch (error) {
-          console.warn('Failed to sync terminal dimensions:', error);
-        }
-      }
-    }, 1000);
   }
 
   private async handleKeyboardInput(e: KeyboardEvent) {
@@ -876,7 +833,14 @@ export class SessionView extends LitElement {
     // Give the viewport time to settle after keyboard disappears
     setTimeout(() => {
       if (this.terminal) {
-        // Force the terminal to recalculate its scroll position
+        // Force the terminal to recalculate its viewport dimensions and scroll boundaries
+        // This fixes the issue where maxScrollPixels becomes incorrect after keyboard changes
+        const terminalElement = this.terminal as unknown as { fitTerminal?: () => void };
+        if (typeof terminalElement.fitTerminal === 'function') {
+          terminalElement.fitTerminal();
+        }
+
+        // Then scroll to bottom to fix the position
         this.terminal.scrollToBottom();
       }
     }, 300); // Wait for viewport to settle

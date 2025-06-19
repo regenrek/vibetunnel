@@ -43,12 +43,10 @@ export class Terminal extends LitElement {
 
   // Virtual scrolling optimization
   private renderPending = false;
-  private scrollAccumulator = 0;
-  private touchScrollAccumulator = 0;
-  private isTouchActive = false;
   private momentumVelocityY = 0;
   private momentumVelocityX = 0;
   private momentumAnimation: number | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   // Operation queue for batching buffer modifications
   private operationQueue: (() => void | Promise<void>)[] = [];
@@ -101,7 +99,11 @@ export class Terminal extends LitElement {
       this.momentumAnimation = null;
     }
 
-    // ResizeObserver cleanup removed - we only use window resize events now
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+
     if (this.terminal) {
       this.terminal.dispose();
       this.terminal = null;
@@ -301,32 +303,21 @@ export class Terminal extends LitElement {
       const lineHeight = this.fontSize * 1.2;
       const charWidth = this.measureCharacterWidth();
 
-      const newCols = Math.max(20, Math.floor(containerWidth / charWidth));
-      const newRows = Math.max(6, Math.floor(containerHeight / lineHeight));
+      this.cols = Math.max(20, Math.floor(containerWidth / charWidth)) - 1; // This -1 should not be needed, but it is...
+      this.rows = Math.max(6, Math.floor(containerHeight / lineHeight));
+      this.actualRows = this.rows;
 
-      // Update logical dimensions if they changed significantly
-      const colsChanged = Math.abs(newCols - this.cols) > 3;
-      const rowsChanged = Math.abs(newRows - this.rows) > 2;
+      // Resize the terminal to the new dimensions
+      if (this.terminal) {
+        this.terminal.resize(this.cols, this.rows);
 
-      if (colsChanged || rowsChanged) {
-        this.cols = newCols;
-        this.rows = newRows;
-        this.actualRows = newRows;
-
-        // Resize the terminal to the new dimensions
-        if (this.terminal) {
-          this.terminal.resize(this.cols, this.rows);
-
-          // Dispatch resize event for backend synchronization
-          this.dispatchEvent(
-            new CustomEvent('terminal-resize', {
-              detail: { cols: this.cols, rows: this.rows },
-              bubbles: true,
-            })
-          );
-        }
-      } else {
-        this.actualRows = newRows;
+        // Dispatch resize event for backend synchronization
+        this.dispatchEvent(
+          new CustomEvent('terminal-resize', {
+            detail: { cols: this.cols, rows: this.rows },
+            bubbles: true,
+          })
+        );
       }
     }
 
@@ -355,23 +346,19 @@ export class Terminal extends LitElement {
   private setupResize() {
     if (!this.container) return;
 
-    // Only listen to window resize events to avoid pixel-level jitter
-    // Use debounced handling to prevent resize spam
-    let windowResizeTimeout: number | null = null;
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.resizeTimeout) {
+        clearTimeout(this.resizeTimeout);
+      }
+      this.resizeTimeout = setTimeout(() => {
+        this.fitTerminal();
+      }, 50);
+    });
+    this.resizeObserver.observe(this.container);
 
     window.addEventListener('resize', () => {
-      if (windowResizeTimeout) {
-        clearTimeout(windowResizeTimeout);
-      }
-      windowResizeTimeout = window.setTimeout(() => {
-        this.fitTerminal();
-      }, 150); // Debounce window resize events
-    });
-
-    // Do an initial fit when the terminal is first set up
-    setTimeout(() => {
       this.fitTerminal();
-    }, 100);
+    });
   }
 
   private setupScrolling() {
@@ -440,7 +427,6 @@ export class Terminal extends LitElement {
         this.momentumAnimation = null;
       }
 
-      this.isTouchActive = true;
       isScrolling = false;
       lastY = e.clientY;
       lastX = e.clientX;
@@ -492,8 +478,6 @@ export class Terminal extends LitElement {
       // Only handle touch pointers
       if (e.pointerType !== 'touch') return;
 
-      this.isTouchActive = false;
-
       // Calculate momentum if we were scrolling
       if (isScrolling && touchHistory.length >= 2) {
         const now = performance.now();
@@ -522,8 +506,6 @@ export class Terminal extends LitElement {
     const handlePointerCancel = (e: PointerEvent) => {
       // Only handle touch pointers
       if (e.pointerType !== 'touch') return;
-
-      this.isTouchActive = false;
 
       // Release pointer capture
       this.container?.releasePointerCapture(e.pointerId);
@@ -928,6 +910,8 @@ export class Terminal extends LitElement {
 
     this.queueRenderOperation(() => {
       if (!this.terminal) return;
+
+      this.fitTerminal();
 
       const buffer = this.terminal.buffer.active;
       const lineHeight = this.fontSize * 1.2;
