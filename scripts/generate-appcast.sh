@@ -23,6 +23,14 @@ GITHUB_USERNAME="${GITHUB_USERNAME:-amantus-ai}"
 GITHUB_REPO="${GITHUB_USERNAME}/${GITHUB_REPO:-vibetunnel}"
 SPARKLE_PRIVATE_KEY_PATH="private/sparkle_private_key"
 
+# Verify private key exists
+if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
+    echo -e "${RED}❌ Error: Sparkle private key not found at $SPARKLE_PRIVATE_KEY_PATH${NC}"
+    echo "This file is required to sign updates for Sparkle."
+    echo "Please ensure the private key is available before running this script."
+    exit 1
+fi
+
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -84,37 +92,30 @@ generate_signature() {
         return 0
     fi
     
-    # Try to use sign_update from Keychain first (preferred method)
+    # Find sign_update binary
+    local sign_update_bin=""
     if command -v sign_update >/dev/null 2>&1; then
-        # First try without -f flag to use Keychain
-        local signature=$(sign_update "$file_path" -p 2>/dev/null)
-        if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
-            echo "$signature"
-            return 0
-        fi
-        
-        # If Keychain didn't work and we have a private key file, try that
-        if [ -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
-            signature=$(sign_update "$file_path" -f "$SPARKLE_PRIVATE_KEY_PATH" -p 2>/dev/null)
-            if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
-                echo "$signature"
-                return 0
-            fi
-        fi
+        sign_update_bin="sign_update"
+    elif [ -f ".build/artifacts/sparkle/Sparkle/bin/sign_update" ]; then
+        sign_update_bin=".build/artifacts/sparkle/Sparkle/bin/sign_update"
+    elif [ -f "build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update" ]; then
+        sign_update_bin="build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
+    else
+        echo -e "${RED}❌ Error: Could not find sign_update binary${NC}" >&2
+        echo "Please ensure Sparkle is built or sign_update is in PATH" >&2
+        exit 1
     fi
     
-    # Try using the bundled tool from Sparkle framework
-    local sign_tool="/Applications/Sparkle Test App.app/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/sign_update"
-    if [ -f "$sign_tool" ]; then
-        local signature=$("$sign_tool" "$file_path" -p 2>/dev/null)
-        if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
-            echo "$signature"
-            return 0
-        fi
+    # Sign using the private key file (no fallback)
+    local signature=$($sign_update_bin "$file_path" -f "$SPARKLE_PRIVATE_KEY_PATH" -p 2>/dev/null)
+    if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+        echo "$signature"
+        return 0
     fi
     
-    print_warning "Could not generate signature for $filename"
-    echo ""
+    echo -e "${RED}❌ Error: Failed to generate signature for $filename${NC}" >&2
+    echo "Please ensure the private key at $SPARKLE_PRIVATE_KEY_PATH is valid" >&2
+    exit 1
 }
 
 # Function to format date for appcast

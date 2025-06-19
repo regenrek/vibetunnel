@@ -102,3 +102,6 @@ default.profdata
 # Tuist generated files
 Derived/
 Workspace.xcworkspace/
+
+# Sparkle private keys - NEVER commit these
+private/
