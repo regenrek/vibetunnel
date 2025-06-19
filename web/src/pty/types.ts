@@ -50,6 +50,7 @@ export interface SessionEntryWithId {
   'stream-out': string;
   stdin: string;
   'notification-stream': string;
+  'control-pipe'?: string;
   waiting: boolean;
 }
 
@@ -72,6 +73,22 @@ export interface AsciinemaTheme {
 }
 
 export type AsciinemaEventType = 'o' | 'i' | 'r' | 'm'; // output, input, resize, marker
+
+export interface ControlMessage {
+  cmd: string;
+  [key: string]: unknown;
+}
+
+export interface ResizeControlMessage extends ControlMessage {
+  cmd: 'resize';
+  cols: number;
+  rows: number;
+}
+
+export interface KillControlMessage extends ControlMessage {
+  cmd: 'kill';
+  signal?: string | number;
+}
 
 export interface AsciinemaEvent {
   time: number;

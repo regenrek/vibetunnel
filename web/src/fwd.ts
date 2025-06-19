@@ -46,13 +46,13 @@ async function main() {
 
   const monitorOnly = args[0] === '--monitor-only';
   const command = monitorOnly ? args.slice(1) : args;
-  
+
   if (command.length === 0) {
     console.error('Error: No command specified');
     showUsage();
     process.exit(1);
   }
-  
+
   const cwd = process.cwd();
 
   console.log(`Starting command: ${command.join(' ')}`);
@@ -92,6 +92,95 @@ async function main() {
     console.log(`Status: ${session.status}`);
     console.log(`Stream output: ${session['stream-out']}`);
     console.log(`Input pipe: ${session.stdin}`);
+
+    // Set up control pipe for external commands (resize, etc.)
+    const controlPipePath = path.join(path.dirname(session.stdin), 'control-pipe');
+    try {
+      // Create control pipe as a regular file (not FIFO) for simplicity
+      if (!fs.existsSync(controlPipePath)) {
+        fs.writeFileSync(controlPipePath, '');
+      }
+
+      // Update session info to include control pipe
+      const sessionInfoPath = path.join(path.dirname(session.stdin), 'session.json');
+      if (fs.existsSync(sessionInfoPath)) {
+        const sessionInfo = JSON.parse(fs.readFileSync(sessionInfoPath, 'utf8'));
+        sessionInfo['control-pipe'] = controlPipePath;
+        fs.writeFileSync(sessionInfoPath, JSON.stringify(sessionInfo, null, 2));
+      }
+
+      console.log(`Control pipe: ${controlPipePath}`);
+
+      // Watch for control messages
+      let lastControlPosition = 0;
+      const watchControl = () => {
+        try {
+          if (fs.existsSync(controlPipePath)) {
+            const stats = fs.statSync(controlPipePath);
+            if (stats.size > lastControlPosition) {
+              const fd = fs.openSync(controlPipePath, 'r');
+              const buffer = Buffer.allocUnsafe(stats.size - lastControlPosition);
+              fs.readSync(fd, buffer, 0, buffer.length, lastControlPosition);
+              fs.closeSync(fd);
+              const newData = buffer.toString('utf8');
+
+              const lines = newData.split('\n').filter((line) => line.trim());
+              for (const line of lines) {
+                try {
+                  const message = JSON.parse(line);
+                  handleControlMessage(message);
+                } catch (_e) {
+                  console.warn('Invalid control message:', line);
+                }
+              }
+
+              lastControlPosition = stats.size;
+            }
+          }
+        } catch (_error) {
+          // Control file might be temporarily unavailable
+        }
+      };
+
+      // Check for control messages every 200ms
+      const controlInterval = setInterval(watchControl, 200);
+
+      // Handle control messages
+      const handleControlMessage = (message: Record<string, unknown>) => {
+        if (message.cmd === 'resize' && message.cols && message.rows) {
+          console.log(`Received resize command: ${message.cols}x${message.rows}`);
+          // Get current session from PTY service and resize if possible
+          try {
+            ptyService.resizeSession(result.sessionId, message.cols, message.rows);
+          } catch (error) {
+            console.warn('Failed to resize session:', error);
+          }
+        } else if (message.cmd === 'kill') {
+          console.log(`Received kill command: ${message.signal || 'SIGTERM'}`);
+          // The session monitoring will detect the exit and handle cleanup
+          try {
+            ptyService.killSession(result.sessionId, message.signal || 'SIGTERM');
+          } catch (error) {
+            console.warn('Failed to kill session:', error);
+          }
+        }
+      };
+
+      // Clean up control interval on exit
+      process.on('exit', () => {
+        clearInterval(controlInterval);
+        try {
+          if (fs.existsSync(controlPipePath)) {
+            fs.unlinkSync(controlPipePath);
+          }
+        } catch (_e) {
+          // Ignore cleanup errors
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to set up control pipe:', error);
+    }
+
     if (monitorOnly) {
       console.log(`Monitor-only mode enabled\n`);
     } else {
@@ -117,7 +206,7 @@ async function main() {
     // Stream PTY output to stdout
     const streamOutput = session['stream-out'];
     console.log(`Waiting for output stream file: ${streamOutput}`);
-    
+
     // Wait for the stream file to be created
     const waitForStreamFile = async (maxWait = 5000) => {
       const startTime = Date.now();
@@ -125,7 +214,7 @@ async function main() {
         if (streamOutput && fs.existsSync(streamOutput)) {
           return true;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       return false;
     };
@@ -135,13 +224,13 @@ async function main() {
       console.log('Warning: Stream output file not found, proceeding without real-time output');
     } else {
       console.log('Stream file found, starting output monitoring...');
-      
+
       let lastPosition = 0;
-      
+
       const readNewData = () => {
         try {
           if (!streamOutput || !fs.existsSync(streamOutput)) return;
-          
+
           const stats = fs.statSync(streamOutput);
           if (stats.size > lastPosition) {
             const fd = fs.openSync(streamOutput, 'r');
@@ -149,7 +238,7 @@ async function main() {
             fs.readSync(fd, buffer, 0, buffer.length, lastPosition);
             fs.closeSync(fd);
             const chunk = buffer.toString('utf8');
-            
+
             // Parse asciinema format and extract text content
             const lines = chunk.split('\n');
             for (const line of lines) {
@@ -165,7 +254,7 @@ async function main() {
                 }
               }
             }
-            
+
             lastPosition = stats.size;
           }
         } catch (_error) {
@@ -175,7 +264,7 @@ async function main() {
 
       // Start monitoring
       const streamInterval = setInterval(readNewData, 50);
-      
+
       // Clean up on exit
       process.on('exit', () => {
         clearInterval(streamInterval);

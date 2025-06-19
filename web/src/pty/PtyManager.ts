@@ -18,6 +18,8 @@ import {
   SessionInput,
   SpecialKey,
   PtyError,
+  ResizeControlMessage,
+  KillControlMessage,
 } from './types.js';
 import { AsciinemaWriter } from './AsciinemaWriter.js';
 import { SessionManager } from './SessionManager.js';
@@ -312,6 +314,31 @@ export class PtyManager {
   }
 
   /**
+   * Send a control message to an external session
+   */
+  private sendControlMessage(
+    sessionId: string,
+    message: ResizeControlMessage | KillControlMessage
+  ): boolean {
+    const diskSession = this.sessionManager.getSession(sessionId);
+    if (!diskSession || !diskSession['control-pipe']) {
+      return false;
+    }
+
+    const controlPipe = diskSession['control-pipe'];
+    try {
+      if (fs.existsSync(controlPipe)) {
+        const messageStr = JSON.stringify(message) + '\n';
+        fs.writeFileSync(controlPipe, messageStr);
+        return true;
+      }
+    } catch (error) {
+      console.warn(`Failed to send control message to session ${sessionId}:`, error);
+    }
+    return false;
+  }
+
+  /**
    * Convert special key names to escape sequences
    */
   private convertSpecialKey(key: SpecialKey): string {
@@ -353,11 +380,19 @@ export class PtyManager {
         memorySession.ptyProcess.resize(cols, rows);
         memorySession.asciinemaWriter?.writeResize(cols, rows);
       } else {
-        // For external sessions, we can't directly resize the PTY
-        // but we don't throw an error - the session should handle SIGWINCH automatically
-        console.log(
-          `Cannot resize external session ${sessionId} directly, PTY should handle SIGWINCH automatically`
-        );
+        // For external sessions, try to send resize via control pipe
+        const resizeMessage: ResizeControlMessage = {
+          cmd: 'resize',
+          cols,
+          rows,
+        };
+
+        const sent = this.sendControlMessage(sessionId, resizeMessage);
+        if (sent) {
+          console.log(`Sent resize command to external session ${sessionId}: ${cols}x${rows}`);
+        } else {
+          console.log(`Cannot resize external session ${sessionId} - no control pipe available`);
+        }
       }
     } catch (error) {
       throw new PtyError(
@@ -397,7 +432,20 @@ export class PtyManager {
         // Start with SIGTERM and escalate if needed
         await this.killSessionWithEscalation(sessionId, memorySession);
       } else {
-        // For external sessions, kill by PID
+        // For external sessions, try control pipe first, then fall back to PID
+        const killMessage: KillControlMessage = {
+          cmd: 'kill',
+          signal,
+        };
+
+        const sentControl = this.sendControlMessage(sessionId, killMessage);
+        if (sentControl) {
+          console.log(`Sent kill command via control pipe to session ${sessionId}`);
+          // Wait a bit for the control message to be processed
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        // Check if process is still running, if so, use direct PID kill
         if (diskSession.pid && ProcessUtils.isProcessRunning(diskSession.pid)) {
           console.log(
             `Killing external session ${sessionId} (PID: ${diskSession.pid}) with ${signal}...`
