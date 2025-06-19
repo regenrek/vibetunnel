@@ -214,7 +214,7 @@ struct DashboardSettingsView: View {
                     }
                 } else {
                     // Just password change, no network mode switch
-                    await DashboardSettingsView.updateServerForPasswordChange(action: .apply, logger: logger)
+                    await Self.updateServerForPasswordChange(action: .apply, logger: logger)
                 }
             }
         } else {

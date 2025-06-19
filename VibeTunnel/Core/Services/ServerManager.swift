@@ -322,6 +322,9 @@ class ServerManager {
 
         // Update mode
         serverMode = mode
+        
+        // Update VT config file to match
+        await updateVTConfig(mode: mode)
 
         // Start new server
         await start()
@@ -551,6 +554,31 @@ class ServerManager {
         if serverMode == .hummingbird, let hummingbirdServer = currentServer as? HummingbirdServer {
             await hummingbirdServer.clearAuthCache()
             logger.info("Cleared authentication cache")
+        }
+    }
+    
+    /// Update VT config file with the preferred server
+    private func updateVTConfig(mode: ServerMode) async {
+        let configPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".vibetunnel")
+            .appendingPathComponent("config.json")
+        
+        // Ensure .vibetunnel directory exists
+        let vibetunnelDir = configPath.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: vibetunnelDir, withIntermediateDirectories: true)
+        
+        // Prepare config data
+        let serverValue = mode == .rust ? "rust" : "go" // Map hummingbird to go as well
+        let config = ["server": serverValue]
+        
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(config)
+            try data.write(to: configPath)
+            logger.info("Updated VT config to use \(serverValue) server")
+        } catch {
+            logger.error("Failed to update VT config: \(error)")
         }
     }
 }

@@ -637,4 +637,3 @@ enum GoServerError: LocalizedError {
         }
     }
 }
-

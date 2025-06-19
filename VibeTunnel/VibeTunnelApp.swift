@@ -306,8 +306,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
     
     // MARK: - UNUserNotificationCenterDelegate
     
-    func userNotificationCenter(_ center: UNUserNotificationCenter, 
-                                didReceive response: UNNotificationResponse, 
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         logger.info("Received notification response: \(response.actionIdentifier)")
         
@@ -322,8 +322,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
         completionHandler()
     }
     
-    func userNotificationCenter(_ center: UNUserNotificationCenter, 
-                                willPresent notification: UNNotification, 
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         // Show notifications even when app is in foreground
         completionHandler([.banner, .sound])

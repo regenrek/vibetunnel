@@ -58,11 +58,11 @@ struct ServerConsoleView: View {
                         Divider()
                             .frame(height: 20)
                         
-                        Button(action: {
+                        Button {
                             Task {
                                 await ServerManager.shared.manualRestart()
                             }
-                        }) {
+                        } label: {
                             Label("Restart", systemImage: "arrow.clockwise")
                         }
                         .buttonStyle(.borderedProminent)

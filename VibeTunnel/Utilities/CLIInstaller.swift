@@ -31,6 +31,9 @@ final class CLIInstaller {
     var isInstalled = false
     var isInstalling = false
     var lastError: String?
+    var installedVersion: String?
+    var bundledVersion: String?
+    var needsUpdate = false
 
     // MARK: - Public Interface
 
@@ -41,8 +44,87 @@ final class CLIInstaller {
 
         // Update state without animation
         isInstalled = installed
+        
+        if installed {
+            // Check version of installed tool
+            installedVersion = getInstalledVersion()
+        }
+        
+        // Get bundled version
+        bundledVersion = getBundledVersion()
+        
+        // Check if update is needed
+        needsUpdate = installed && installedVersion != bundledVersion
 
-        logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled)")
+        logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)")
+    }
+    
+    /// Gets the version of the installed vt tool
+    private func getInstalledVersion() -> String? {
+        let task = Process()
+        task.launchPath = "/usr/local/bin/vt"
+        task.arguments = ["--version"]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Parse version from output like "vt version 2.0.0"
+            if let output = output, output.contains("version") {
+                let components = output.components(separatedBy: " ")
+                if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
+                    return components[versionIndex + 1]
+                }
+            }
+            
+            return output
+        } catch {
+            logger.error("Failed to get installed vt version: \(error)")
+            return nil
+        }
+    }
+    
+    /// Gets the version of the bundled vt tool
+    private func getBundledVersion() -> String? {
+        guard let vtPath = Bundle.main.path(forResource: "vt", ofType: nil) else {
+            return nil
+        }
+        
+        let task = Process()
+        task.launchPath = vtPath
+        task.arguments = ["--version"]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Parse version from output like "vt version 2.0.0"
+            if let output = output, output.contains("version") {
+                let components = output.components(separatedBy: " ")
+                if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
+                    return components[versionIndex + 1]
+                }
+            }
+            
+            return output
+        } catch {
+            logger.error("Failed to get bundled vt version: \(error)")
+            return nil
+        }
     }
 
     /// Installs the CLI tool (async version for WelcomeView)
@@ -50,6 +132,36 @@ final class CLIInstaller {
         await MainActor.run {
             installCLITool()
         }
+    }
+    
+    /// Updates the CLI tool to the bundled version
+    func updateCLITool() {
+        logger.info("CLIInstaller: Starting CLI tool update...")
+        
+        // Show update confirmation dialog
+        let alert = NSAlert()
+        alert.messageText = "Update VT Command Line Tool"
+        alert.informativeText = """
+        A newer version of the 'vt' command line tool is available.
+        
+        Installed version: \(installedVersion ?? "unknown")
+        Available version: \(bundledVersion ?? "unknown")
+        
+        Would you like to update it now? Administrator privileges will be required.
+        """
+        alert.addButton(withTitle: "Update")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .informational
+        alert.icon = NSApp.applicationIconImage
+        
+        let response = alert.runModal()
+        if response != .alertFirstButtonReturn {
+            logger.info("CLIInstaller: User cancelled update")
+            return
+        }
+        
+        // Proceed with installation (which will replace the existing tool)
+        installCLITool()
     }
 
     /// Installs the vt CLI tool to /usr/local/bin with proper symlink

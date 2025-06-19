@@ -31,7 +31,7 @@ final class SparkleUserDriverDelegate: NSObject, @preconcurrency SPUStandardUser
     
     /// Required to eliminate the "no user driver delegate" warning for background apps
     var supportsGentleScheduledUpdateReminders: Bool {
-        return true
+        true
     }
     
     /// Called to determine if Sparkle should handle showing the update
@@ -156,11 +156,13 @@ final class SparkleUserDriverDelegate: NSObject, @preconcurrency SPUStandardUser
         content.userInfo = ["updateVersion": versionString]
         
         // Create unique identifier
-        notificationIdentifier = "vibetunnel-update-\(versionString)-\(Date().timeIntervalSince1970)"
+        let timestamp = Date().timeIntervalSince1970
+        let identifier = "vibetunnel-update-\(versionString)-\(timestamp)"
+        notificationIdentifier = identifier
         
         // Create the request
         let request = UNNotificationRequest(
-            identifier: notificationIdentifier!,
+            identifier: identifier,
             content: content,
             trigger: nil // Show immediately
         )
