@@ -127,17 +127,8 @@ export class VibeTunnelApp extends LitElement {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await this.loadSessions();
 
-      // Try to find by exact ID match first
-      let session = this.sessions.find((s) => s.id === sessionId);
-
-      // If not found by ID, find the most recently created session
-      // This works around tty-fwd potentially using different IDs internally
-      if (!session && this.sessions.length > 0) {
-        const sortedSessions = [...this.sessions].sort(
-          (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-        );
-        session = sortedSessions[0];
-      }
+      // Try to find by exact ID match
+      const session = this.sessions.find((s) => s.id === sessionId);
 
       if (session) {
         // Session found, switch to session view via URL

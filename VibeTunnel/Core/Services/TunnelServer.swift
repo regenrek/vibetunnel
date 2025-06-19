@@ -865,6 +865,35 @@ public final class TunnelServer {
                 return errorResponse(message: "Failed to create session - no session ID returned")
             }
 
+            // Wait for the session to appear in the list before returning
+            // This prevents a race condition where the frontend queries for the session
+            // before tty-fwd has fully registered it
+            let maxWaitAttempts = 20  // 2 seconds total
+            var sessionFound = false
+            
+            for _ in 0..<maxWaitAttempts {
+                do {
+                    let output = try await executeTtyFwd(args: ["--control-path", ttyFwdControlDir, "--list-sessions"])
+                    let sessionsData = output.data(using: .utf8) ?? Data()
+                    let sessions = try JSONDecoder().decode([String: TtyFwdSession].self, from: sessionsData)
+                    
+                    if sessions[finalSessionId] != nil {
+                        sessionFound = true
+                        break
+                    }
+                } catch {
+                    // Ignore errors during polling, we'll check sessionFound below
+                }
+                
+                // Wait 100ms before next attempt
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            
+            if !sessionFound {
+                logger.warning("Session \(finalSessionId) created but not found in list after waiting")
+                // Continue anyway - the session was created, just might have a slight delay
+            }
+
             let response = SessionCreatedResponse(
                 success: true,
                 message: "Session created successfully",
