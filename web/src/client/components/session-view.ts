@@ -40,6 +40,45 @@ export class SessionView extends LitElement {
   private keyboardHandler = (e: KeyboardEvent) => {
     if (!this.session) return;
 
+    // Allow important browser shortcuts to pass through
+    const isMacOS = navigator.platform.toLowerCase().includes('mac');
+
+    // Allow F12 and Ctrl+Shift+I (DevTools)
+    if (
+      e.key === 'F12' ||
+      (!isMacOS && e.ctrlKey && e.shiftKey && e.key === 'I') ||
+      (isMacOS && e.metaKey && e.altKey && e.key === 'I')
+    ) {
+      return;
+    }
+
+    // Allow Ctrl+A (select all), Ctrl+F (find), Ctrl+R (refresh), etc.
+    if (
+      !isMacOS &&
+      e.ctrlKey &&
+      !e.shiftKey &&
+      ['a', 'f', 'r', 'l', 't', 'w', 'n'].includes(e.key.toLowerCase())
+    ) {
+      return;
+    }
+
+    // Allow Cmd+A, Cmd+F, Cmd+R, etc. on macOS
+    if (
+      isMacOS &&
+      e.metaKey &&
+      !e.shiftKey &&
+      !e.altKey &&
+      ['a', 'f', 'r', 'l', 't', 'w', 'n'].includes(e.key.toLowerCase())
+    ) {
+      return;
+    }
+
+    // Allow Alt+Tab, Cmd+Tab (window switching)
+    if ((e.altKey || e.metaKey) && e.key === 'Tab') {
+      return;
+    }
+
+    // Only prevent default for keys we're actually going to handle
     e.preventDefault();
     e.stopPropagation();
 
@@ -450,7 +489,7 @@ export class SessionView extends LitElement {
           const response = await fetch(`/api/sessions/${this.session.id}/resize`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ width: cols, height: rows }),
+            body: JSON.stringify({ cols: cols, rows: rows }),
           });
 
           if (response.ok) {
