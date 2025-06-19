@@ -32,7 +32,15 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware where 
         }
 
         // Check if password protection is enabled
-        guard UserDefaults.standard.bool(forKey: "dashboardPasswordEnabled") else {
+        let passwordEnabled = UserDefaults.standard.bool(forKey: "dashboardPasswordEnabled")
+
+        // Check if enabled state changed and clear cache if needed
+        if await passwordCache.shouldRecache(currentEnabledState: passwordEnabled) {
+            await passwordCache.clear()
+            logger.info("Password enabled state changed, cleared cache")
+        }
+
+        guard passwordEnabled else {
             // No password protection, allow request
             return try await next(request, context)
         }
@@ -112,6 +120,7 @@ struct LazyBasicAuthMiddleware<Context: RequestContext>: RouterMiddleware where 
 /// Actor to manage password caching in a thread-safe way
 private actor PasswordCache {
     private var cachedPassword: String?
+    private var lastEnabledState: Bool?
 
     func getPassword() -> String? {
         cachedPassword
@@ -123,5 +132,14 @@ private actor PasswordCache {
 
     func clear() {
         cachedPassword = nil
+        lastEnabledState = nil
+    }
+
+    func shouldRecache(currentEnabledState: Bool) -> Bool {
+        if lastEnabledState != currentEnabledState {
+            lastEnabledState = currentEnabledState
+            return true
+        }
+        return false
     }
 }

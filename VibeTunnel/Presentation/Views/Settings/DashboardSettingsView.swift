@@ -43,6 +43,34 @@ struct DashboardSettingsView: View {
         DashboardAccessMode(rawValue: accessModeString) ?? .localhost
     }
 
+    // MARK: - Helper Methods
+
+    /// Handles server-specific password updates (adding, changing, or removing passwords)
+    static func updateServerForPasswordChange(action: PasswordAction, logger: Logger) async {
+        let serverManager = ServerManager.shared
+
+        if serverManager.serverMode == .rust {
+            // Rust server requires restart to apply password changes
+            logger.info("Restarting Rust server to \(action.logMessage)")
+            await serverManager.restart()
+        } else {
+            // Hummingbird server just needs cache clear
+            await serverManager.clearAuthCache()
+        }
+    }
+
+    enum PasswordAction {
+        case apply
+        case remove
+
+        var logMessage: String {
+            switch self {
+            case .apply: "apply new password"
+            case .remove: "remove password protection"
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -54,7 +82,8 @@ struct DashboardSettingsView: View {
                     passwordError: $passwordError,
                     passwordSaved: $passwordSaved,
                     dashboardKeychain: dashboardKeychain,
-                    savePassword: savePassword
+                    savePassword: savePassword,
+                    logger: logger
                 )
 
                 ServerConfigurationSection(
@@ -156,15 +185,37 @@ struct DashboardSettingsView: View {
             password = ""
             confirmPassword = ""
 
-            // Clear cached password in LazyBasicAuthMiddleware
-            Task {
-                await ServerManager.shared.clearAuthCache()
+            // Check if we need to switch to network mode
+            let needsNetworkModeSwitch = accessMode == .localhost
+
+            if needsNetworkModeSwitch {
+                // Switch to network mode first (this updates ServerManager.bindAddress)
+                accessModeString = DashboardAccessMode.network.rawValue
             }
 
-            // When password is set for the first time, automatically switch to network mode
-            if accessMode == .localhost {
-                accessModeString = DashboardAccessMode.network.rawValue
-                restartServerWithNewBindAddress()
+            // Handle server-specific password update
+            Task {
+                let serverManager = ServerManager.shared
+
+                if needsNetworkModeSwitch {
+                    // If switching to network mode, update bind address before restart
+                    serverManager.bindAddress = DashboardAccessMode.network.bindAddress
+
+                    // Always restart when switching to network mode (both server types need it)
+                    logger.info("Restarting server to apply new password and network mode")
+                    await serverManager.restart()
+
+                    // Wait for server to be ready
+                    try? await Task.sleep(for: .seconds(1))
+
+                    await MainActor.run {
+                        SessionMonitor.shared.stopMonitoring()
+                        SessionMonitor.shared.startMonitoring()
+                    }
+                } else {
+                    // Just password change, no network mode switch
+                    await DashboardSettingsView.updateServerForPasswordChange(action: .apply, logger: logger)
+                }
             }
         } else {
             passwordError = "Failed to save password to keychain"
@@ -302,6 +353,7 @@ private struct SecuritySection: View {
     @Binding var passwordSaved: Bool
     let dashboardKeychain: DashboardKeychain
     let savePassword: () -> Void
+    let logger: Logger
 
     var body: some View {
         Section {
@@ -315,9 +367,13 @@ private struct SecuritySection: View {
                             _ = dashboardKeychain.deletePassword()
                             showPasswordFields = false
                             passwordSaved = false
-                            // Clear cached password in LazyBasicAuthMiddleware
+
+                            // Handle server-specific password removal
                             Task {
-                                await ServerManager.shared.clearAuthCache()
+                                await DashboardSettingsView.updateServerForPasswordChange(
+                                    action: .remove,
+                                    logger: logger
+                                )
                             }
                         }
                     }
@@ -546,12 +602,12 @@ private struct AccessModeView: View {
 private struct PortConfigurationView: View {
     @Binding var serverPort: String
     let restartServerWithNewPort: (Int) -> Void
-    
+
     @State private var portNumber: Int = 4_020
     @State private var portConflict: PortConflict?
     @State private var isCheckingPort = false
     @State private var alternativePorts: [Int] = []
-    
+
     private let serverManager = ServerManager.shared
     private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "PortConfiguration")
 
@@ -619,7 +675,7 @@ private struct PortConfigurationView: View {
                     }
                 }
             }
-            
+
             // Port conflict warning
             if let conflict = portConflict {
                 VStack(alignment: .leading, spacing: 6) {
@@ -627,18 +683,18 @@ private struct PortConfigurationView: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
                             .font(.caption)
-                        
+
                         Text("Port \(conflict.port) is used by \(conflict.process.name)")
                             .font(.caption)
                             .foregroundColor(.orange)
                     }
-                    
+
                     if !conflict.alternativePorts.isEmpty {
                         HStack(spacing: 4) {
                             Text("Try port:")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            
+
                             ForEach(conflict.alternativePorts.prefix(3), id: \.self) { port in
                                 Button(String(port)) {
                                     serverPort = String(port)
@@ -648,7 +704,7 @@ private struct PortConfigurationView: View {
                                 .buttonStyle(.link)
                                 .font(.caption)
                             }
-                            
+
                             Button("Choose...") {
                                 showPortPicker()
                             }
@@ -668,7 +724,7 @@ private struct PortConfigurationView: View {
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundColor(.red)
                         .font(.caption)
-                    
+
                     Text("Server failed to start")
                         .font(.caption)
                         .foregroundColor(.red)
@@ -680,17 +736,17 @@ private struct PortConfigurationView: View {
             }
         }
     }
-    
+
     private func checkPortAvailability(_ port: Int) async {
         isCheckingPort = true
         defer { isCheckingPort = false }
-        
+
         // Only check if it's not the port we're already successfully using
         if serverManager.isRunning && Int(serverManager.port) == port {
             portConflict = nil
             return
         }
-        
+
         if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
             // Only show warning for non-VibeTunnel processes
             // tty-fwd and other VibeTunnel instances will be auto-killed by ServerManager
@@ -707,7 +763,7 @@ private struct PortConfigurationView: View {
             alternativePorts = []
         }
     }
-    
+
     private func forceQuitConflictingProcess(_ conflict: PortConflict) async {
         do {
             try await PortConflictResolver.shared.resolveConflict(conflict)
@@ -719,7 +775,7 @@ private struct PortConfigurationView: View {
             logger.error("Failed to force quit: \(error)")
         }
     }
-    
+
     private func showPortPicker() {
         // TODO: Implement port picker dialog
         // For now, just cycle through alternatives

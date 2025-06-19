@@ -143,7 +143,7 @@ final class RustServer: ServerProtocol {
             if let fileSize = attributes[.size] as? NSNumber {
                 logger.info("tty-fwd binary size: \(fileSize.intValue) bytes")
             }
-            
+
             // Log binary architecture info
             logContinuation?.yield(ServerLogEntry(
                 level: .debug,
@@ -175,7 +175,7 @@ final class RustServer: ServerProtocol {
         let webPublicPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/public")
         let webPublicExists = FileManager.default.fileExists(atPath: webPublicPath.path)
         logger.info("Web public directory at \(webPublicPath.path) exists: \(webPublicExists)")
-        
+
         if !webPublicExists {
             logger.error("Web public directory NOT FOUND at: \(webPublicPath.path)")
             logContinuation?.yield(ServerLogEntry(
@@ -242,21 +242,21 @@ final class RustServer: ServerProtocol {
         do {
             // Start the process (this just launches it and returns immediately)
             try await processHandler.runProcess(process)
-            
+
             // Mark server as running
             isRunning = true
-            
+
             logger.info("Rust server process started")
-            
+
             // Give the process a moment to start before checking for early failures
             try await Task.sleep(for: .milliseconds(100))
-            
+
             // Check if process exited immediately (indicating failure)
             if !process.isRunning {
                 isRunning = false
                 let exitCode = process.terminationStatus
                 logger.error("Process exited immediately with code: \(exitCode)")
-                
+
                 // Try to read any error output
                 var errorDetails = "Exit code: \(exitCode)"
                 if let stderrPipe = self.stderrPipe {
@@ -265,16 +265,16 @@ final class RustServer: ServerProtocol {
                         errorDetails += "\nError: \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))"
                     }
                 }
-                
+
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,
                     message: "Server failed to start: \(errorDetails)",
                     source: .rust
                 ))
-                
+
                 throw RustServerError.processFailedToStart
             }
-            
+
             logger.info("Rust server process started, performing health check...")
             logContinuation?.yield(ServerLogEntry(level: .info, message: "Performing health check...", source: .rust))
 
@@ -318,7 +318,7 @@ final class RustServer: ServerProtocol {
             }
         } catch {
             isRunning = false
-            
+
             // Log more detailed error information
             let errorMessage: String
             if let rustError = error as? RustServerError {
@@ -331,7 +331,7 @@ final class RustServer: ServerProtocol {
             } else {
                 errorMessage = String(describing: error)
             }
-            
+
             logger.error("Failed to start Rust server: \(errorMessage)")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
