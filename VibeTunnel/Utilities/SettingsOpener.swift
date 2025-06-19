@@ -113,7 +113,10 @@ struct HiddenWindowView: View {
         Color.clear
             .frame(width: 1, height: 1)
             .onReceive(NotificationCenter.default.publisher(for: .openSettingsRequest)) { _ in
-                openSettings()
+                // Another hack, if we don't wait a runloop we crash in some toolbar logic on macOS Tahoe b1.
+                Task { @MainActor in
+                    openSettings()
+                }
             }
     }
 }
