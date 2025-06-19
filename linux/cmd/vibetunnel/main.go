@@ -241,12 +241,10 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func startServer(cfg *config.Config, manager *session.Manager) error {
-	// Start terminal socket server
+	// Start terminal socket server (just for receiving requests - Mac app handles spawning)
 	termServer := termsocket.NewServer("")
-	termServer.RegisterDefaultHandler(func(req *termsocket.SpawnRequest) error {
-		return handleTerminalSpawn(req)
-	})
-
+	// Don't register any handler - the Mac app will handle the actual spawning
+	
 	if err := termServer.Start(); err != nil {
 		log.Printf("Warning: Failed to start terminal socket server: %v", err)
 		// Don't fail server startup if terminal socket fails
@@ -392,21 +390,6 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 	return server.Start(fmt.Sprintf("%s:%s", bindAddress, port))
 }
 
-// handleTerminalSpawn handles terminal spawn requests from the Unix socket
-func handleTerminalSpawn(req *termsocket.SpawnRequest) error {
-	log.Printf("[INFO] Handling terminal spawn request: %+v", req)
-
-	// Create a terminal spawner
-	spawner := termsocket.NewTerminalSpawner()
-
-	// Spawn the terminal
-	if err := spawner.Spawn(req); err != nil {
-		log.Printf("[ERROR] Failed to spawn terminal: %v", err)
-		return err
-	}
-
-	return nil
-}
 
 func determineBind(cfg *config.Config) string {
 	// CLI flags take precedence
