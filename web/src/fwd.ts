@@ -92,7 +92,7 @@ async function main() {
       throw new Error('Session not found after creation');
     }
 
-    // Get direct access to PTY process for faster input (if using node-pty)
+    // Get direct access to PTY process for faster input and exit detection (if using node-pty)
     let directPtyProcess: any = null;
     if (ptyService.isUsingNodePty()) {
       try {
@@ -100,7 +100,32 @@ async function main() {
         const internalSession = ptyManager?.sessions?.get(result.sessionId);
         directPtyProcess = internalSession?.ptyProcess;
         if (directPtyProcess) {
-          console.log('Got direct PTY process access for faster input');
+          console.log('Got direct PTY process access for faster input and exit detection');
+
+          // Listen for PTY process exit directly for immediate response
+          directPtyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+            console.log(`\n\nPTY process exited with code ${exitCode}, signal ${signal}`);
+
+            // Clean up all intervals and streams immediately
+            intervals.forEach((interval) => clearInterval(interval));
+            streams.forEach((stream) => {
+              try {
+                stream.destroy?.();
+              } catch (_e) {
+                // Ignore cleanup errors
+              }
+            });
+
+            // Restore terminal settings
+            if (!monitorOnly && process.stdin.isTTY) {
+              process.stdin.setRawMode(false);
+            }
+            if (!monitorOnly) {
+              process.stdin.pause();
+            }
+
+            process.exit(exitCode || 0);
+          });
         }
       } catch (error) {
         console.warn('Could not get direct PTY access, using fallback:', error);
@@ -377,33 +402,9 @@ async function main() {
               if (line.trim()) {
                 try {
                   const record = JSON.parse(line);
-                  if (Array.isArray(record) && record.length >= 3) {
-                    if (record[1] === 'o') {
-                      // This is an output record: [timestamp, 'o', text]
-                      process.stdout.write(record[2]);
-                    } else if (record[0] === 'exit') {
-                      // This is an exit event: ['exit', exitCode, sessionId]
-                      console.log(`\n\nDetected exit event with code: ${record[1]}`);
-                      // Clean up all intervals and streams immediately
-                      intervals.forEach((interval) => clearInterval(interval));
-                      streams.forEach((stream) => {
-                        try {
-                          stream.destroy?.();
-                        } catch (_e) {
-                          // Ignore cleanup errors
-                        }
-                      });
-
-                      // Restore terminal settings
-                      if (!monitorOnly && process.stdin.isTTY) {
-                        process.stdin.setRawMode(false);
-                      }
-                      if (!monitorOnly) {
-                        process.stdin.pause();
-                      }
-
-                      process.exit(record[1] || 0);
-                    }
+                  if (Array.isArray(record) && record.length >= 3 && record[1] === 'o') {
+                    // This is an output record: [timestamp, 'o', text]
+                    process.stdout.write(record[2]);
                   }
                 } catch (_e) {
                   // If JSON parse fails, might be partial line, skip it
@@ -459,17 +460,40 @@ async function main() {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // Monitor session status with faster polling and better exit detection
-    const checkInterval = setInterval(() => {
-      try {
-        const currentSession = ptyService.getSession(result.sessionId);
-        if (!currentSession || currentSession.status === 'exited') {
-          console.log('\n\nSession has exited.');
-          if (currentSession?.exit_code !== undefined) {
-            console.log(`Exit code: ${currentSession.exit_code}`);
-          }
+    // Fallback session status monitoring (only needed if we don't have direct PTY access)
+    if (!directPtyProcess) {
+      const checkInterval = setInterval(() => {
+        try {
+          const currentSession = ptyService.getSession(result.sessionId);
+          if (!currentSession || currentSession.status === 'exited') {
+            console.log('\n\nSession has exited (detected via status polling).');
+            if (currentSession?.exit_code !== undefined) {
+              console.log(`Exit code: ${currentSession.exit_code}`);
+            }
 
-          // Clean up all intervals and streams
+            // Clean up all intervals and streams
+            intervals.forEach((interval) => clearInterval(interval));
+            streams.forEach((stream) => {
+              try {
+                stream.destroy?.();
+              } catch (_e) {
+                // Ignore cleanup errors
+              }
+            });
+
+            // Restore terminal settings before exit (only if we were in interactive mode)
+            if (!monitorOnly && process.stdin.isTTY) {
+              process.stdin.setRawMode(false);
+            }
+            if (!monitorOnly) {
+              process.stdin.pause();
+            }
+
+            process.exit(currentSession?.exit_code || 0);
+          }
+        } catch (error) {
+          console.error('Error monitoring session:', error);
+          // Clean up all intervals and streams on error too
           intervals.forEach((interval) => clearInterval(interval));
           streams.forEach((stream) => {
             try {
@@ -478,33 +502,12 @@ async function main() {
               // Ignore cleanup errors
             }
           });
-
-          // Restore terminal settings before exit (only if we were in interactive mode)
-          if (!monitorOnly && process.stdin.isTTY) {
-            process.stdin.setRawMode(false);
-          }
-          if (!monitorOnly) {
-            process.stdin.pause();
-          }
-
-          process.exit(currentSession?.exit_code || 0);
+          process.exit(1);
         }
-      } catch (error) {
-        console.error('Error monitoring session:', error);
-        // Clean up all intervals and streams on error too
-        intervals.forEach((interval) => clearInterval(interval));
-        streams.forEach((stream) => {
-          try {
-            stream.destroy?.();
-          } catch (_e) {
-            // Ignore cleanup errors
-          }
-        });
-        process.exit(1);
-      }
-    }, 500); // Check every 500ms for faster exit detection
+      }, 1000); // Check every second (slower since it's fallback)
 
-    intervals.push(checkInterval);
+      intervals.push(checkInterval);
+    }
 
     // Keep the process alive
     await new Promise<void>((resolve) => {
