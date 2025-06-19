@@ -166,7 +166,6 @@ create_appcast_item() {
     # Extract fields with proper fallbacks
     local tag=$(echo "$release_json" | jq -r '.tag_name // "unknown"')
     local title=$(echo "$release_json" | jq -r '.name // .tag_name // "Release"')
-    local body=$(echo "$release_json" | jq -r '.body // "Release notes not available"')
     local published_at=$(echo "$release_json" | jq -r '.published_at // ""')
     
     # Validate critical fields
@@ -290,19 +289,14 @@ create_appcast_item() {
         fi
     fi
     
-    # Use changelog if available, otherwise fall back to GitHub release body
-    if [ -n "$changelog_html" ]; then
+    # Always use local changelog - it's the source of truth
+    if [ -n "$changelog_html" ] && [[ "$changelog_html" != *"Latest version of VibeTunnel"* ]]; then
         description+="<div>$changelog_html</div>"
     else
-        # Fall back to GitHub release body (escaped for XML safety)
-        local clean_body
-        clean_body=$(echo "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g')
-        if [ -n "$clean_body" ] && [ "$clean_body" != "Release notes not available" ]; then
-            local formatted_body=$(echo "$clean_body" | head -5 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; /^$/d' | sed 's/^/<p>/; s/$/<\/p>/')
-            description+="<div>$formatted_body</div>"
-        else
-            description+="<p>Release notes not available</p>"
-        fi
+        # Version not found in CHANGELOG.md
+        print_warning "Version $version_for_changelog not found in CHANGELOG.md"
+        description+="<div><p>⚠️ Release notes not found in CHANGELOG.md for version $version_for_changelog</p>"
+        description+="<p>Please update CHANGELOG.md with release notes for this version.</p></div>"
     fi
     
     # Generate the item XML
