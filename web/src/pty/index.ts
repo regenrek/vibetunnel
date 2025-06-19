@@ -15,6 +15,7 @@ export { PtyService } from './PtyService.js';
 export { PtyManager } from './PtyManager.js';
 export { AsciinemaWriter } from './AsciinemaWriter.js';
 export { SessionManager } from './SessionManager.js';
+export { ProcessUtils } from './ProcessUtils.js';
 
 // Re-export for convenience
 export { PtyError } from './types.js';

@@ -21,6 +21,7 @@ import {
 } from './types.js';
 import { AsciinemaWriter } from './AsciinemaWriter.js';
 import { SessionManager } from './SessionManager.js';
+import { ProcessUtils } from './ProcessUtils.js';
 
 export class PtyManager {
   private sessions = new Map<string, PtySession>();
@@ -408,11 +409,7 @@ export class PtyManager {
         await new Promise((resolve) => setTimeout(resolve, checkInterval));
 
         // Check if process is still alive
-        try {
-          process.kill(pid, 0); // Signal 0 just checks if process exists
-          // Process still exists, continue waiting
-          console.log(`Session ${sessionId} still alive after ${(i + 1) * checkInterval}ms...`);
-        } catch (_error) {
+        if (!ProcessUtils.isProcessRunning(pid)) {
           // Process no longer exists - it terminated gracefully
           console.log(
             `Session ${sessionId} terminated gracefully after ${(i + 1) * checkInterval}ms`
@@ -420,6 +417,9 @@ export class PtyManager {
           this.sessions.delete(sessionId);
           return;
         }
+
+        // Process still exists, continue waiting
+        console.log(`Session ${sessionId} still alive after ${(i + 1) * checkInterval}ms...`);
       }
 
       // Process didn't terminate gracefully within 3 seconds, force kill

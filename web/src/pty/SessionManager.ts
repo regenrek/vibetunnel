@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { SessionInfo, SessionEntryWithId, PtyError } from './types.js';
+import { ProcessUtils } from './ProcessUtils.js';
 
 export class SessionManager {
   private controlPath: string;
@@ -325,15 +326,10 @@ export class SessionManager {
 
   /**
    * Check if a process is still running
+   * Uses cross-platform process detection for reliability
    */
   isProcessRunning(pid: number): boolean {
-    try {
-      // Send signal 0 to check if process exists
-      process.kill(pid, 0);
-      return true;
-    } catch (_error) {
-      return false;
-    }
+    return ProcessUtils.isProcessRunning(pid);
   }
 
   /**
@@ -341,10 +337,17 @@ export class SessionManager {
    */
   getProcessStatus(pid: number): { isAlive: boolean; isWaiting: boolean } {
     try {
-      // First check if process exists
-      process.kill(pid, 0);
+      // First check if process exists using cross-platform method
+      if (!ProcessUtils.isProcessRunning(pid)) {
+        return { isAlive: false, isWaiting: false };
+      }
 
-      // Use ps command to get process state like tty-fwd does
+      // Use ps command to get process state like tty-fwd does (Unix only)
+      if (process.platform === 'win32') {
+        // On Windows, we can't easily get process state, so assume running
+        return { isAlive: true, isWaiting: false };
+      }
+
       const { spawnSync } = require('child_process');
       const result = spawnSync('ps', ['-p', pid.toString(), '-o', 'stat='], {
         encoding: 'utf8',

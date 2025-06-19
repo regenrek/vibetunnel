@@ -18,6 +18,7 @@ import {
   PtyError,
 } from './types.js';
 import { PtyManager } from './PtyManager.js';
+import { ProcessUtils } from './ProcessUtils.js';
 
 export class PtyService {
   private config: PtyConfig;
@@ -301,17 +302,16 @@ export class PtyService {
         await new Promise((resolve) => setTimeout(resolve, checkInterval));
 
         // Check if process is still alive
-        try {
-          process.kill(pid, 0); // Signal 0 just checks if process exists
-          // Process still exists, continue waiting
-          console.log(`Session ${sessionId} still alive after ${(i + 1) * checkInterval}ms...`);
-        } catch (_error) {
+        if (!ProcessUtils.isProcessRunning(pid)) {
           // Process no longer exists - it terminated gracefully
           console.log(
             `Session ${sessionId} terminated gracefully after ${(i + 1) * checkInterval}ms`
           );
           return;
         }
+
+        // Process still exists, continue waiting
+        console.log(`Session ${sessionId} still alive after ${(i + 1) * checkInterval}ms...`);
       }
 
       // Process didn't terminate gracefully within 3 seconds, force kill
