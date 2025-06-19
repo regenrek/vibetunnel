@@ -43,6 +43,88 @@ use tempfile::NamedTempFile;
 
 pub const DEFAULT_TERM: &str = "xterm-256color";
 
+/// Spawn a command with PTY using TtySpawn builder - used as fallback when socket spawn fails
+pub fn spawn_with_pty_fallback(
+    command: &[String], 
+    working_dir: Option<&str>
+) -> Result<String, Error> {
+    use uuid::Uuid;
+    
+    let session_id = Uuid::new_v4().to_string();
+    
+    // Get session control directory
+    let control_dir = env::var("TTY_FWD_CONTROL_DIR").unwrap_or_else(|_| {
+        format!(
+            "{}/.vibetunnel/control",
+            env::var("HOME").unwrap_or_default()
+        )
+    });
+    
+    let session_dir = format!("{control_dir}/{session_id}");
+    std::fs::create_dir_all(&session_dir)?;
+    
+    // Save current working directory to restore later (to avoid affecting server)
+    let original_dir = std::env::current_dir().ok();
+    
+    // Set working directory if specified
+    if let Some(dir) = working_dir {
+        let expanded_dir = if dir == "~/" || dir == "~" {
+            std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
+        } else if let Some(stripped) = dir.strip_prefix("~/") {
+            format!(
+                "{}/{}",
+                std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
+                stripped
+            )
+        } else {
+            dir.to_string()
+        };
+        std::env::set_current_dir(&expanded_dir)?;
+    }
+    
+    // Build command vector for TtySpawn
+    let cmdline = if command.is_empty() {
+        vec!["zsh".to_string()]
+    } else {
+        command.iter().map(|s| s.to_string()).collect()
+    };
+    
+    let session_name = if command.is_empty() {
+        "Terminal".to_string()
+    } else {
+        format!("{} (PTY)", command[0])
+    };
+    
+    // Use TtySpawn to create the session
+    let mut tty_spawn = TtySpawn::new_cmdline(
+        cmdline.iter().map(|s| std::ffi::OsString::from(s))
+    );
+    
+    let session_json_path = std::path::PathBuf::from(&session_dir).join("session.json");
+    let stdin_path = std::path::PathBuf::from(&session_dir).join("stdin");
+    let stdout_path = std::path::PathBuf::from(&session_dir).join("stream-out");
+    
+    // Configure the TTY spawn
+    tty_spawn
+        .detached(true)
+        .session_json_path(&session_json_path)
+        .session_name(&session_name)
+        .stdin_path(&stdin_path)?
+        .stdout_path(&stdout_path, true)?;
+    
+    // Spawn the session
+    let spawn_result = tty_spawn.spawn();
+    
+    // Restore original working directory to avoid affecting the server
+    if let Some(original) = original_dir {
+        let _ = std::env::set_current_dir(original);
+    }
+    
+    let _exit_code = spawn_result?;
+    
+    Ok(session_id)
+}
+
 /// Cross-platform implementation of `login_tty`
 /// On systems with `login_tty`, use it directly. Otherwise, implement manually.
 #[cfg(any(
@@ -559,7 +641,8 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
             let session_id = opts
                 .session_json_path
                 .as_ref()
-                .and_then(|p| p.file_stem())
+                .and_then(|p| p.parent())
+                .and_then(|p| p.file_name())
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown");
             let exit_event = serde_json::json!(["exit", exit_code, session_id]);
@@ -985,7 +1068,8 @@ fn monitor_detached_session(
     // Send exit event to stream before updating session status
     if let Some(ref mut stream_writer) = stream_writer {
         let session_id = session_json_path
-            .and_then(|p| p.file_stem())
+            .and_then(|p| p.parent())
+            .and_then(|p| p.file_name())
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
         let exit_event = serde_json::json!(["exit", 0, session_id]);

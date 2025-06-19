@@ -584,7 +584,8 @@ fn handle_create_session(
     std::thread::Builder::new()
         .name(format!("session-{session_id_clone}"))
         .spawn(move || {
-            // Change to the specified working directory before spawning
+            // Change to the specified working directory in this thread only
+            // This won't affect the main server thread
             let original_dir = std::env::current_dir().ok();
             if let Err(e) = std::env::set_current_dir(&working_dir_clone) {
                 eprintln!("Failed to change to working directory {working_dir_clone}: {e}");
@@ -642,7 +643,7 @@ fn handle_create_session(
                 }
             }
 
-            // Restore original directory
+            // Restore original directory in this thread
             if let Some(original) = original_dir {
                 let _ = std::env::set_current_dir(original);
             }
