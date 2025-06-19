@@ -193,21 +193,8 @@ export class SessionView extends LitElement {
       this.handleTerminalResize.bind(this) as unknown as EventListener
     );
 
-    // Wait a moment for freshly created sessions before connecting
-    const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
-    const delay = sessionAge < 5000 ? 2000 : 0; // 2 second delay if session is less than 5 seconds old
-
-    if (delay > 0) {
-      // Show loading animation during delay for fresh sessions
-      this.startLoading();
-    }
-
-    setTimeout(() => {
-      if (this.terminal && this.session) {
-        this.stopLoading(); // Stop loading before connecting
-        this.connectToStream();
-      }
-    }, delay);
+    // Connect to stream directly without artificial delays
+    this.connectToStream();
   }
 
   private connectToStream() {
