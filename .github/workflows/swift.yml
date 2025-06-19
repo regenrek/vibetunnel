@@ -22,7 +22,7 @@ jobs:
     
     - name: Setup Xcode
       run: |
-        sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+        # DEVELOPER_DIR is already set in env, so no need for xcode-select
         xcodebuild -version
         swift --version
     
@@ -115,7 +115,7 @@ jobs:
       
     - name: Setup Xcode
       run: |
-        sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+        # DEVELOPER_DIR is already set in env, so no need for xcode-select
         xcodebuild -version
         swift --version
         
