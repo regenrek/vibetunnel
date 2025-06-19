@@ -19,6 +19,11 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
         subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel",
         category: "SparkleUpdater"
     )
+    
+    nonisolated private static let staticLogger = os.Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel",
+        category: "SparkleUpdater"
+    )
 
     override public init() {
         super.init()
