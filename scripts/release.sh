@@ -152,7 +152,8 @@ echo ""
 echo -e "${BLUE}📋 Step 2/8: Cleaning build directory...${NC}"
 rm -rf "$PROJECT_ROOT/build"
 rm -rf "$PROJECT_ROOT/DerivedData"
-rm -rf "$PROJECT_ROOT/.build"
+# Don't remove .build as it contains SPM dependencies
+# rm -rf "$PROJECT_ROOT/.build"
 rm -rf ~/Library/Developer/Xcode/DerivedData/VibeTunnel-*
 echo "✓ Cleaned all build artifacts"
 
