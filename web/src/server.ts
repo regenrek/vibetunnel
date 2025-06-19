@@ -1,12 +1,12 @@
 import express from 'express';
-import type { Response } from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { spawn, ChildProcess } from 'child_process';
 import { PtyService, PtyError } from './pty/index.js';
+import { TerminalManager } from './terminal-manager.js';
+import { StreamWatcher } from './stream-watcher.js';
 
 const app = express();
 const server = createServer(app);
@@ -44,6 +44,12 @@ const ptyService = new PtyService({
   fallbackToTtyFwd: process.env.PTY_FALLBACK_TTY_FWD !== 'false',
   ttyFwdPath: TTY_FWD_PATH || undefined,
 });
+
+// Initialize Terminal Manager for server-side terminal state
+const terminalManager = new TerminalManager(TTY_FWD_CONTROL_DIR);
+
+// Initialize Stream Watcher for efficient file streaming
+const streamWatcher = new StreamWatcher();
 
 // Ensure control directory exists
 if (!fs.existsSync(TTY_FWD_CONTROL_DIR)) {
@@ -101,7 +107,9 @@ app.get('/api/sessions', async (req, res) => {
 
       return {
         id: sessionInfo.session_id,
-        command: sessionInfo.cmdline.join(' '),
+        command: Array.isArray(sessionInfo.cmdline)
+          ? sessionInfo.cmdline.join(' ')
+          : sessionInfo.cmdline || '',
         workingDir: sessionInfo.cwd,
         name: sessionInfo.name,
         status: sessionInfo.status,
@@ -225,16 +233,6 @@ app.post('/api/cleanup-exited', async (req, res) => {
 
 // === TERMINAL I/O ===
 
-// Track active streams per session to avoid multiple tail processes
-const activeStreams = new Map<
-  string,
-  {
-    clients: Set<Response>;
-    tailProcess: ChildProcess;
-    lastPosition: number;
-  }
->();
-
 // Live streaming cast file for XTerm renderer
 app.get('/api/sessions/:sessionId/stream', async (req, res) => {
   const sessionId = req.params.sessionId;
@@ -247,9 +245,6 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
   console.log(
     `[STREAM] New SSE client connected to session ${sessionId} from ${req.get('User-Agent')?.substring(0, 50) || 'unknown'}`
   );
-  console.log(
-    `[STREAM] Stream file exists: ${fs.existsSync(streamOutPath)}, path: ${streamOutPath}`
-  );
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -259,239 +254,19 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
     'Access-Control-Allow-Headers': 'Cache-Control',
   });
 
-  const startTime = Date.now() / 1000;
-  let headerSent = false;
-
-  // Send existing content first
-  try {
-    const content = fs.readFileSync(streamOutPath, 'utf8');
-    const lines = content.trim().split('\n');
-    console.log(`[STREAM] Reading existing content: ${lines.length} lines from ${streamOutPath}`);
-
-    let exitEventFound = false;
-    for (const line of lines) {
-      if (line.trim()) {
-        try {
-          const parsed = JSON.parse(line);
-          if (parsed.version && parsed.width && parsed.height) {
-            res.write(`data: ${line}\n\n`);
-            headerSent = true;
-          } else if (Array.isArray(parsed) && parsed.length >= 3) {
-            // Check if this is an exit event (format: ['exit', exitCode, sessionId])
-            if (parsed[0] === 'exit') {
-              console.log(
-                `[STREAM] Found exit event in existing content: ${JSON.stringify(parsed)}`
-              );
-              exitEventFound = true;
-              // Exit events should preserve their original format
-              res.write(`data: ${line}\n\n`);
-            } else {
-              // Regular asciinema events get timestamp set to 0 for existing content
-              const instantEvent = [0, parsed[1], parsed[2]];
-              res.write(`data: ${JSON.stringify(instantEvent)}\n\n`);
-            }
-          }
-        } catch (_e) {
-          console.log(`[STREAM] Skipping invalid line: ${line.substring(0, 100)}`);
-        }
-      }
-    }
-
-    if (exitEventFound) {
-      console.log(
-        `[STREAM] Session ${sessionId} already has exit event, closing connection immediately`
-      );
-      res.end();
-      return;
-    }
-  } catch (error) {
-    console.error(`[STREAM] Error reading existing content for session ${sessionId}:`, error);
-  }
-
-  // Send default header if none found
-  if (!headerSent) {
-    const defaultHeader = {
-      version: 2,
-      width: 80,
-      height: 24,
-      timestamp: Math.floor(startTime),
-      env: { TERM: 'xterm-256color' },
-    };
-    res.write(`data: ${JSON.stringify(defaultHeader)}\n\n`);
-  }
-
-  // Get or create shared stream for this session
-  let streamInfo = activeStreams.get(sessionId);
-
-  if (!streamInfo) {
-    console.log(`[STREAM] Creating new shared tail process for session ${sessionId}`);
-    console.log(`[STREAM] Tail command: tail -f ${streamOutPath}`);
-
-    // Create new tail process for this session
-    const tailProcess = spawn('tail', ['-f', streamOutPath]);
-    let buffer = '';
-
-    streamInfo = {
-      clients: new Set(),
-      tailProcess,
-      lastPosition: 0,
-    };
-
-    activeStreams.set(sessionId, streamInfo);
-    console.log(`[STREAM] Tail process created with PID: ${tailProcess.pid}`);
-
-    // Handle tail output - broadcast to all clients
-    tailProcess.stdout.on('data', (chunk) => {
-      console.log(
-        `[STREAM] Tail received data for session ${sessionId}: ${chunk.toString().length} bytes`
-      );
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
-          let eventData;
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.version && parsed.width && parsed.height) {
-              continue; // Skip duplicate headers
-            }
-            if (Array.isArray(parsed) && parsed.length >= 3) {
-              // Check if this is an exit event (format: ['exit', exitCode, sessionId])
-              if (parsed[0] === 'exit') {
-                console.log(
-                  `[STREAM] Exit event detected in live stream: ${JSON.stringify(parsed)}`
-                );
-                // Exit events should preserve their original format without timestamp modification
-                eventData = `data: ${JSON.stringify(parsed)}\n\n`;
-              } else {
-                // Regular asciinema events get relative timestamp
-                const currentTime = Date.now() / 1000;
-                const realTimeEvent = [currentTime - startTime, parsed[1], parsed[2]];
-                eventData = `data: ${JSON.stringify(realTimeEvent)}\n\n`;
-              }
-            }
-          } catch (_e) {
-            console.log(`[STREAM] Non-JSON line, treating as raw output`);
-            // Handle non-JSON as raw output
-            const currentTime = Date.now() / 1000;
-            const castEvent = [currentTime - startTime, 'o', line];
-            eventData = `data: ${JSON.stringify(castEvent)}\n\n`;
-          }
-
-          if (eventData && streamInfo) {
-            // Broadcast to all connected clients
-            streamInfo.clients.forEach((client) => {
-              try {
-                client.write(eventData);
-              } catch (error) {
-                console.error(`[STREAM] Error writing to client:`, error);
-                if (streamInfo) {
-                  streamInfo.clients.delete(client);
-                  console.log(
-                    `[STREAM] Removed failed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`
-                  );
-                }
-              }
-            });
-
-            // If this was an exit event, close the tail process
-            if (eventData.includes('"exit"')) {
-              console.log(
-                `[STREAM] Exit event sent, cleaning up tail process for session ${sessionId}`
-              );
-              setTimeout(() => {
-                if (streamInfo && streamInfo.tailProcess) {
-                  streamInfo.tailProcess.kill('SIGTERM');
-                }
-              }, 100);
-            }
-          }
-        }
-      }
-    });
-
-    tailProcess.on('error', (error) => {
-      console.error(`[STREAM] Shared tail process error for session ${sessionId}:`, error);
-      // Cleanup all clients
-      const currentStreamInfo = activeStreams.get(sessionId);
-      if (currentStreamInfo) {
-        console.log(
-          `[STREAM] Cleaning up ${currentStreamInfo.clients.size} clients due to tail error`
-        );
-        currentStreamInfo.clients.forEach((client) => {
-          try {
-            client.end();
-          } catch (_e) {}
-        });
-      }
-      activeStreams.delete(sessionId);
-    });
-
-    tailProcess.on('exit', (code) => {
-      console.log(`[STREAM] Shared tail process exited for session ${sessionId} with code ${code}`);
-      // Cleanup all clients
-      const currentStreamInfo = activeStreams.get(sessionId);
-      if (currentStreamInfo) {
-        console.log(
-          `[STREAM] Cleaning up ${currentStreamInfo.clients.size} clients due to tail exit`
-        );
-        currentStreamInfo.clients.forEach((client) => {
-          try {
-            client.end();
-          } catch (_e) {}
-        });
-      }
-      activeStreams.delete(sessionId);
-    });
-  }
-
-  // Add this client to the shared stream
-  streamInfo.clients.add(res);
-  console.log(
-    `[STREAM] Added client to session ${sessionId}, total clients: ${streamInfo.clients.size}`
-  );
+  // Add client to stream watcher
+  streamWatcher.addClient(sessionId, streamOutPath, res);
 
   // Cleanup when client disconnects
   const cleanup = () => {
-    if (streamInfo && streamInfo.clients.has(res)) {
-      streamInfo.clients.delete(res);
-      console.log(
-        `[STREAM] Removed client from session ${sessionId}, remaining clients: ${streamInfo.clients.size}`
-      );
-
-      // If no more clients, cleanup the tail process
-      if (streamInfo.clients.size === 0) {
-        console.log(`[STREAM] No more clients for session ${sessionId}, cleaning up tail process`);
-        try {
-          streamInfo.tailProcess.kill('SIGTERM');
-        } catch (_e) {}
-        activeStreams.delete(sessionId);
-      }
-    }
+    streamWatcher.removeClient(sessionId, res);
   };
 
-  req.on('close', () => {
-    console.log(`[STREAM] Request closed for session ${sessionId}`);
-    cleanup();
-  });
-  req.on('aborted', () => {
-    console.log(`[STREAM] Request aborted for session ${sessionId}`);
-    cleanup();
-  });
-  req.on('error', (error) => {
-    console.log(`[STREAM] Request error for session ${sessionId}:`, error);
-    cleanup();
-  });
-  res.on('close', () => {
-    console.log(`[STREAM] Response closed for session ${sessionId}`);
-    cleanup();
-  });
-  res.on('finish', () => {
-    console.log(`[STREAM] Response finished for session ${sessionId}`);
-    cleanup();
-  });
+  req.on('close', cleanup);
+  req.on('aborted', cleanup);
+  req.on('error', cleanup);
+  res.on('close', cleanup);
+  res.on('finish', cleanup);
 });
 
 // Get session snapshot (optimized cast with only content after last clear)
@@ -614,6 +389,41 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
   } catch (_error) {
     console.error('Error reading session snapshot:', _error);
     res.status(500).json({ error: 'Failed to read session snapshot' });
+  }
+});
+
+// Get session buffer in binary format
+app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
+  const sessionId = req.params.sessionId;
+  const viewportY = parseInt(req.query.viewportY as string) || 0;
+  const lines = parseInt(req.query.lines as string) || 24;
+
+  try {
+    // Validate session exists
+    const session = ptyService.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Check if stream file exists
+    const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
+    if (!fs.existsSync(streamOutPath)) {
+      return res.status(404).json({ error: 'Session stream not found' });
+    }
+
+    // Get buffer snapshot
+    const snapshot = await terminalManager.getBufferSnapshot(sessionId, viewportY, lines);
+
+    // Encode to binary format
+    const binaryData = terminalManager.encodeSnapshot(snapshot);
+
+    // Send binary response
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', binaryData.length.toString());
+    res.send(binaryData);
+  } catch (error) {
+    console.error('Error getting session buffer:', error);
+    res.status(500).json({ error: 'Failed to get session buffer' });
   }
 });
 
@@ -908,6 +718,14 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`VibeTunnel New Server running on http://localhost:${PORT}`);
     console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
   });
+
+  // Cleanup old terminals every 5 minutes
+  setInterval(
+    () => {
+      terminalManager.cleanup(30 * 60 * 1000); // 30 minutes
+    },
+    5 * 60 * 1000
+  );
 }
 
 // Export for testing
