@@ -10,7 +10,13 @@ enum WindowCenteringHelper {
     /// - Parameter window: The NSWindow to center
     @MainActor
     static func centerOnActiveScreen(_ window: NSWindow) {
-        if let screen = NSScreen.main ?? NSScreen.screens.first {
+        // Get the screen that contains the mouse cursor
+        let mouseLocation = NSEvent.mouseLocation
+        let activeScreen = NSScreen.screens.first { screen in
+            screen.frame.contains(mouseLocation)
+        } ?? NSScreen.main ?? NSScreen.screens.first
+        
+        if let screen = activeScreen {
             let screenFrame = screen.visibleFrame
             let windowFrame = window.frame
 
