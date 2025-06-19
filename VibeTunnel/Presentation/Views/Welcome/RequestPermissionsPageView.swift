@@ -54,7 +54,7 @@ struct RequestPermissionsPageView: View {
                 // Permissions buttons
                 VStack(spacing: 16) {
                     // Automation permission
-                    if appleScriptManager.hasPermission {
+                    if appleScriptManager.checkPermissionStatus() {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
@@ -97,12 +97,13 @@ struct RequestPermissionsPageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
-        .task {
-            _ = await appleScriptManager.checkPermission()
-        }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             // Force a re-render to check accessibility permission
             accessibilityUpdateTrigger += 1
+        }
+        .task {
+            // Perform a silent check that won't trigger dialog
+            _ = await appleScriptManager.silentPermissionCheck()
         }
     }
 }

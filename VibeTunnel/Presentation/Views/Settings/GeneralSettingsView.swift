@@ -152,7 +152,7 @@ private struct PermissionsSection: View {
 
                     Spacer()
 
-                    if appleScriptManager.hasPermission {
+                    if appleScriptManager.checkPermissionStatus() {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
@@ -210,7 +210,7 @@ private struct PermissionsSection: View {
             Text("Permissions")
                 .font(.headline)
         } footer: {
-            if appleScriptManager.hasPermission && hasAccessibilityPermission {
+            if appleScriptManager.checkPermissionStatus() && hasAccessibilityPermission {
                 Text(
                     "All permissions granted. New sessions will spawn new terminal windows."
                 )
@@ -227,12 +227,13 @@ private struct PermissionsSection: View {
                 .multilineTextAlignment(.center)
             }
         }
-        .task {
-            _ = await appleScriptManager.checkPermission()
-        }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             // Force a re-render to check accessibility permission
             accessibilityUpdateTrigger += 1
+        }
+        .task {
+            // Perform a silent check that won't trigger dialog
+            _ = await appleScriptManager.silentPermissionCheck()
         }
     }
 }

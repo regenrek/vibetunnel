@@ -22,8 +22,11 @@ final class AppleScriptPermissionManager: ObservableObject {
     private var monitoringTask: Task<Void, Never>?
 
     private init() {
-        // Start monitoring immediately
-        startMonitoring()
+        // Don't start monitoring automatically to avoid triggering permission dialog
+        // Monitoring will start when user explicitly requests permission
+        
+        // Try to load cached permission status from UserDefaults
+        hasPermission = UserDefaults.standard.bool(forKey: "cachedAppleScriptPermission")
     }
 
     deinit {
@@ -31,18 +34,57 @@ final class AppleScriptPermissionManager: ObservableObject {
     }
 
     /// Checks if we have AppleScript automation permissions.
+    /// Warning: This will trigger the permission dialog if not already granted.
+    /// Use checkPermissionStatus() for a non-triggering check.
     func checkPermission() async -> Bool {
         isChecking = true
         defer { isChecking = false }
 
         let permitted = await AppleScriptExecutor.shared.checkPermission()
         hasPermission = permitted
+        
+        // Cache the result
+        UserDefaults.standard.set(permitted, forKey: "cachedAppleScriptPermission")
+        
         return permitted
+    }
+    
+    /// Checks permission status without triggering the dialog.
+    /// This returns the cached state which may not be 100% accurate if user changed
+    /// permissions in System Preferences, but avoids triggering the dialog.
+    func checkPermissionStatus() -> Bool {
+        return hasPermission
+    }
+    
+    /// Performs a silent permission check that won't trigger the dialog.
+    /// This uses a minimal AppleScript that shouldn't require automation permission.
+    func silentPermissionCheck() async -> Bool {
+        // Try a very simple AppleScript that doesn't target any application
+        // If we have general AppleScript permission issues, this will fail
+        let testScript = "return \"test\""
+        
+        do {
+            _ = try await AppleScriptExecutor.shared.executeAsync(testScript, timeout: 1.0)
+            // If this succeeds, we likely have some level of permission
+            // Cache this positive result
+            hasPermission = true
+            UserDefaults.standard.set(true, forKey: "cachedAppleScriptPermission")
+            return true
+        } catch {
+            // Can't determine for sure without potentially triggering dialog
+            // Return cached value
+            return hasPermission
+        }
     }
 
     /// Requests AppleScript automation permissions by triggering the permission dialog.
     func requestPermission() {
         logger.info("Requesting AppleScript automation permissions")
+        
+        // Start monitoring when user explicitly requests permission
+        if monitoringTask == nil {
+            startMonitoring()
+        }
 
         // First, execute an AppleScript to trigger the automation permission dialog
         // This ensures VibeTunnel appears in the Automation settings
