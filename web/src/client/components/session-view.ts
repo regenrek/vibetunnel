@@ -551,6 +551,9 @@ export class SessionView extends LitElement {
           textareaWithCleanup._viewportCleanup();
         }
       }
+
+      // Refresh terminal scroll position after closing mobile input
+      this.refreshTerminalAfterMobileInput();
     }
   }
 
@@ -663,6 +666,9 @@ export class SessionView extends LitElement {
 
       // Hide the input overlay after sending
       this.showMobileInput = false;
+
+      // Refresh terminal scroll position after closing mobile input
+      this.refreshTerminalAfterMobileInput();
     } catch (error) {
       console.error('Error sending mobile input:', error);
       // Don't hide the overlay if there was an error
@@ -692,6 +698,9 @@ export class SessionView extends LitElement {
 
       // Hide the input overlay after sending
       this.showMobileInput = false;
+
+      // Refresh terminal scroll position after closing mobile input
+      this.refreshTerminalAfterMobileInput();
     } catch (error) {
       console.error('Error sending mobile input:', error);
       // Don't hide the overlay if there was an error
@@ -857,6 +866,20 @@ export class SessionView extends LitElement {
     } catch (error) {
       console.error('Error sending input:', error);
     }
+  }
+
+  private refreshTerminalAfterMobileInput() {
+    // After closing mobile input, the viewport changes and the terminal
+    // needs to recalculate its scroll position to avoid getting stuck
+    if (!this.terminal) return;
+
+    // Give the viewport time to settle after keyboard disappears
+    setTimeout(() => {
+      if (this.terminal) {
+        // Force the terminal to recalculate its scroll position
+        this.terminal.scrollToBottom();
+      }
+    }, 300); // Wait for viewport to settle
   }
 
   private startLoading() {
