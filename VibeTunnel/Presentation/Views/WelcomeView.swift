@@ -127,7 +127,7 @@ struct WelcomeView: View {
             welcomeVersion = AppConstants.currentWelcomeVersion
             
             // Close the window properly through the window controller
-            if let window = NSApp.windows.first(where: { $0.contentViewController is NSHostingController<WelcomeView> }) {
+            if let window = NSApp.windows.first(where: { $0.contentViewController is NSHostingController<Self> }) {
                 window.close()
             }
             

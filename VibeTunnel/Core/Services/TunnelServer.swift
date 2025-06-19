@@ -1857,20 +1857,18 @@ public final class TunnelServer {
                        let sessions = try? JSONDecoder().decode([String: TtyFwdSession].self, from: sessionData)
                     {
                         // Start streaming for new sessions
-                        for (sessionId, _) in sessions {
-                            if !activeSessions.contains(sessionId) {
-                                activeSessions.insert(sessionId)
-                                logger.info("Starting stream for new session: \(sessionId)")
+                        for (sessionId, _) in sessions where !activeSessions.contains(sessionId) {
+                            activeSessions.insert(sessionId)
+                            logger.info("Starting stream for new session: \(sessionId)")
 
-                                // Create task for this session
-                                let task = Task {
-                                    await self.streamSessionForMultiplex(
-                                        sessionId: sessionId,
-                                        continuation: continuation
-                                    )
-                                }
-                                await sessionTasks.add(sessionId: sessionId, task: task)
+                            // Create task for this session
+                            let task = Task {
+                                await self.streamSessionForMultiplex(
+                                    sessionId: sessionId,
+                                    continuation: continuation
+                                )
                             }
+                            await sessionTasks.add(sessionId: sessionId, task: task)
                         }
 
                         // Clean up completed sessions

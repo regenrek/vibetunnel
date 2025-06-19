@@ -243,11 +243,14 @@ final class RustServer: ServerProtocol {
         do {
             try await processHandler.runProcess(process)
 
-            isRunning = true
+            await MainActor.run {
+                self.isRunning = true
+            }
 
-            // Immediately check for early exit (e.g., port binding failure)
-            try await Task.sleep(for: .milliseconds(100))
-            
+            // Check for early exit on background thread
+            try await Task.detached(priority: .userInitiated) {
+                try await Task.sleep(for: .milliseconds(100))
+            }.value
             // Try to read any immediate error output
             if let stderrPipe = self.stderrPipe {
                 let errorHandle = stderrPipe.fileHandleForReading
@@ -261,7 +264,7 @@ final class RustServer: ServerProtocol {
                         // Extract port number if possible
                         let portPattern = #"Address already in use.*?(\d+)"#
                         if let regex = try? NSRegularExpression(pattern: portPattern),
-                           let match = regex.firstMatch(in: errorString, range: NSRange(errorString.startIndex..., in: errorString)) {
+                           regex.firstMatch(in: errorString, range: NSRange(errorString.startIndex..., in: errorString)) != nil {
                             // Port conflict detected
                             logContinuation?.yield(ServerLogEntry(
                                 level: .error,
@@ -282,9 +285,11 @@ final class RustServer: ServerProtocol {
                     }
                 }
             }
-
-            // Give the server more time to fully start
-            try await Task.sleep(for: .milliseconds(900))
+            
+            // Give the server more time to fully start on background thread
+            try await Task.detached(priority: .userInitiated) {
+                try await Task.sleep(for: .milliseconds(900))
+            }.value
 
             // Check if process is still running
             if !process.isRunning {
@@ -315,10 +320,6 @@ final class RustServer: ServerProtocol {
                         errorDetails += "\nLast output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))"
                     }
                 }
-                
-                // Log command that failed
-                logger.error("Failed command: /bin/zsh -l -c \"\(ttyFwdCommand)\"")
-                errorDetails += "\nCommand: \(ttyFwdCommand)"
                 
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,

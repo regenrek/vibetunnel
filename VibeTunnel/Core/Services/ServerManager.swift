@@ -557,7 +557,7 @@ class ServerManager {
 
 extension PortConflictError {
     static func portInUseByApp(appName: String, port: Int, alternatives: [Int]) -> Error {
-        return NSError(
+        NSError(
             domain: "com.steipete.VibeTunnel.ServerManager",
             code: 1001,
             userInfo: [

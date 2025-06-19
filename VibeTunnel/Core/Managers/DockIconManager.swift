@@ -12,13 +12,13 @@ final class DockIconManager: NSObject {
     private static let _shared = DockIconManager()
     
     static var shared: DockIconManager {
-        return _shared
+        _shared
     }
     
     private var windowsObservation: NSKeyValueObservation?
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel", category: "DockIconManager")
     
-    private override init() {
+    override private init() {
         super.init()
         setupObservers()
         // Initial update after a small delay to ensure app state is ready

@@ -89,7 +89,6 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
             try? await Task.sleep(for: .milliseconds(100))
         }
     }
-
 }
 
 // MARK: - Notification Extension

@@ -53,7 +53,7 @@ final class AppleScriptPermissionManager: ObservableObject {
     /// This returns the cached state which may not be 100% accurate if user changed
     /// permissions in System Preferences, but avoids triggering the dialog.
     func checkPermissionStatus() -> Bool {
-        return hasPermission
+        hasPermission
     }
     
     /// Performs a silent permission check that won't trigger the dialog.
