@@ -188,7 +188,7 @@ enum Terminal: String, CaseIterable {
         switch self {
         case .terminal: "Terminal"
         case .iTerm2: "iTerm"
-        case .ghostty: "Ghostty"
+        case .ghostty: "ghostty"  // lowercase for System Events
         case .warp: "Warp"
         case .alacritty: "Alacritty"
         case .hyper: "Hyper"
@@ -272,9 +272,6 @@ final class TerminalLauncher {
 
     private let logger = Logger(subsystem: "sh.vibetunnel.VibeTunnel", category: "TerminalLauncher")
 
-    @AppStorage("preferredTerminal")
-    private var preferredTerminal = Terminal.terminal.rawValue
-
     private init() {
         logger.info("TerminalLauncher initializing...")
         performFirstRunAutoDetection()
@@ -288,9 +285,10 @@ final class TerminalLauncher {
     }
 
     func verifyPreferredTerminal() {
-        let terminal = Terminal(rawValue: preferredTerminal) ?? .terminal
+        let currentPreference = UserDefaults.standard.string(forKey: "preferredTerminal") ?? Terminal.terminal.rawValue
+        let terminal = Terminal(rawValue: currentPreference) ?? .terminal
         if !terminal.isInstalled {
-            preferredTerminal = Terminal.terminal.rawValue
+            UserDefaults.standard.set(Terminal.terminal.rawValue, forKey: "preferredTerminal")
         }
     }
 
@@ -304,13 +302,13 @@ final class TerminalLauncher {
             logger.info("First run detected, auto-detecting preferred terminal from running processes")
 
             if let detectedTerminal = detectRunningTerminals() {
-                preferredTerminal = detectedTerminal.rawValue
+                UserDefaults.standard.set(detectedTerminal.rawValue, forKey: "preferredTerminal")
                 logger.info("Auto-detected and set preferred terminal to: \(detectedTerminal.rawValue)")
             } else {
                 // No terminals detected in running processes, check installed terminals
                 let installedTerminals = Terminal.installed.filter { $0 != .terminal }
                 if let bestTerminal = installedTerminals.max(by: { $0.detectionPriority < $1.detectionPriority }) {
-                    preferredTerminal = bestTerminal.rawValue
+                    UserDefaults.standard.set(bestTerminal.rawValue, forKey: "preferredTerminal")
                     logger
                         .info(
                             "No running terminals found, set preferred terminal to most popular installed: \(bestTerminal.rawValue)"
@@ -339,12 +337,15 @@ final class TerminalLauncher {
     }
 
     private func getValidTerminal() -> Terminal {
-        let terminal = Terminal(rawValue: preferredTerminal) ?? .terminal
+        // Read the current preference directly from UserDefaults
+        // @AppStorage doesn't work properly in non-View contexts
+        let currentPreference = UserDefaults.standard.string(forKey: "preferredTerminal") ?? Terminal.terminal.rawValue
+        let terminal = Terminal(rawValue: currentPreference) ?? .terminal
         let actualTerminal = terminal.isInstalled ? terminal : .terminal
 
         if actualTerminal != terminal {
             // Update preference to fallback
-            preferredTerminal = actualTerminal.rawValue
+            UserDefaults.standard.set(actualTerminal.rawValue, forKey: "preferredTerminal")
             logger
                 .warning(
                     "Preferred terminal \(terminal.rawValue) not installed, falling back to \(actualTerminal.rawValue)"
