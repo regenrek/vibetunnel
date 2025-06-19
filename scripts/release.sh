@@ -338,7 +338,7 @@ SPARKLE_OK=true
 
 # Check each Sparkle component for proper signing with timestamps
 if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -q "timestamp"; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
         echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
         SPARKLE_OK=false
     else
@@ -347,7 +347,7 @@ if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/
 fi
 
 if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" 2>&1 | grep -q "timestamp"; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
         echo -e "${RED}❌ Downloader.xpc missing timestamp signature${NC}"
         SPARKLE_OK=false
     else
@@ -356,7 +356,7 @@ if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/
 fi
 
 if [ -f "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 2>&1 | grep -q "timestamp"; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
         echo -e "${RED}❌ Autoupdate missing timestamp signature${NC}"
         SPARKLE_OK=false
     else
@@ -365,7 +365,7 @@ if [ -f "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 
 fi
 
 if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" ]; then
-    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" 2>&1 | grep -q "timestamp"; then
+    if ! codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
         echo -e "${RED}❌ Updater.app missing timestamp signature${NC}"
         SPARKLE_OK=false
     else
@@ -459,7 +459,7 @@ if hdiutil attach "$DMG_PATH" -mountpoint "$DMG_MOUNT" -nobrowse -quiet; then
     fi
     
     # Check Sparkle components in DMG
-    if codesign -dv "$DMG_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -q "timestamp"; then
+    if codesign -dv "$DMG_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1 | grep -qE "(Timestamp|timestamp)"; then
         echo "✅ Sparkle components in DMG properly signed"
     else
         echo -e "${YELLOW}⚠️  Warning: Sparkle components in DMG may not have timestamp signatures${NC}"
