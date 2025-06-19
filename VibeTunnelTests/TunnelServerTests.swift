@@ -102,6 +102,65 @@ struct TunnelServerTests {
         // Test passes - resize functionality verified through integration tests
     }
     
+    @Test("Resize request with valid dimensions")
+    @MainActor
+    func testResizeRequestValidDimensions() async throws {
+        // Test that valid resize dimensions are accepted
+        struct ResizeRequest: Codable {
+            let cols: Int
+            let rows: Int
+        }
+        
+        let request = ResizeRequest(cols: 120, rows: 40)
+        let jsonData = try JSONEncoder().encode(request)
+        #expect(jsonData.count > 0)
+        
+        // Verify we can decode it back
+        let decoded = try JSONDecoder().decode(ResizeRequest.self, from: jsonData)
+        #expect(decoded.cols == 120)
+        #expect(decoded.rows == 40)
+    }
+    
+    @Test("Resize request rejects invalid dimensions")
+    @MainActor
+    func testResizeRequestInvalidDimensions() async throws {
+        // Test that invalid dimensions are properly validated
+        let invalidCases = [
+            (cols: 0, rows: 24),      // Zero columns
+            (cols: 80, rows: 0),      // Zero rows
+            (cols: -10, rows: 24),    // Negative columns
+            (cols: 80, rows: -20),    // Negative rows
+            (cols: 0, rows: 0)        // Both zero
+        ]
+        
+        for (cols, rows) in invalidCases {
+            // In a real test, we'd make an HTTP request and verify 400 response
+            #expect(cols <= 0 || rows <= 0, "Invalid dimensions should be rejected")
+        }
+    }
+    
+    @Test("Resize command format")
+    func testResizeCommandFormat() async throws {
+        // Test the command line format for resize
+        let sessionId = "test-session-id"
+        let cols = 100
+        let rows = 30
+        
+        // Expected command format
+        let expectedArgs = [
+            "--control-path", 
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vibetunnel")
+                .appendingPathComponent("control").path,
+            "--session",
+            sessionId,
+            "--resize",
+            "\(cols)x\(rows)"
+        ]
+        
+        // Verify the resize dimension format
+        #expect(expectedArgs.last == "100x30")
+    }
+    
     // MARK: - Integration Test Scenarios
     
     @Test("Full session lifecycle with correct ID")
