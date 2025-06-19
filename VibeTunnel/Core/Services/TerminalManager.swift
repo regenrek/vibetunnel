@@ -45,7 +45,7 @@ actor TerminalManager {
         }
 
         if let environment = request.environment {
-            process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+            process.environment = Foundation.ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
         }
 
         // Start the process
