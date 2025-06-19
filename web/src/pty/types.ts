@@ -50,7 +50,7 @@ export interface SessionEntryWithId {
   'stream-out': string;
   stdin: string;
   'notification-stream': string;
-  'control-pipe'?: string;
+  control?: string;
   waiting: boolean;
 }
 

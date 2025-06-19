@@ -324,7 +324,7 @@ export class PtyManager {
 
     try {
       // Create control pipe in the same directory as stdin
-      const controlPipePath = path.join(path.dirname(diskSession.stdin), 'control-pipe');
+      const controlPipePath = path.join(path.dirname(diskSession.stdin), 'control');
 
       // Create the control pipe file if it doesn't exist
       if (!fs.existsSync(controlPipePath)) {
@@ -337,7 +337,7 @@ export class PtyManager {
 
       if (fs.existsSync(sessionInfoPath)) {
         const sessionInfo = JSON.parse(fs.readFileSync(sessionInfoPath, 'utf8'));
-        sessionInfo['control-pipe'] = controlPipePath;
+        sessionInfo.control = controlPipePath;
         fs.writeFileSync(sessionInfoPath, JSON.stringify(sessionInfo, null, 2));
 
         console.log(`Created control pipe for external session ${sessionId}: ${controlPipePath}`);
@@ -362,7 +362,7 @@ export class PtyManager {
       return false;
     }
 
-    let controlPipe = diskSession['control-pipe'];
+    let controlPipe = diskSession.control;
 
     // If no control pipe exists, try to create one for external sessions
     if (!controlPipe) {

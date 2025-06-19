@@ -93,57 +93,54 @@ async function main() {
     console.log(`Stream output: ${session['stream-out']}`);
     console.log(`Input pipe: ${session.stdin}`);
 
-    // Set up control pipe for external commands (resize, etc.)
-    const controlPipePath = path.join(path.dirname(session.stdin), 'control-pipe');
+    // Set up control FIFO for external commands (resize, etc.)
+    const controlPath = path.join(path.dirname(session.stdin), 'control');
     try {
-      // Create control pipe as a regular file (not FIFO) for simplicity
-      if (!fs.existsSync(controlPipePath)) {
-        fs.writeFileSync(controlPipePath, '');
+      // Create control FIFO (like stdin)
+      if (!fs.existsSync(controlPath)) {
+        const { spawnSync } = require('child_process');
+        const result = spawnSync('mkfifo', [controlPath], { stdio: 'ignore' });
+        if (result.status !== 0) {
+          // Fallback to regular file if mkfifo fails
+          fs.writeFileSync(controlPath, '');
+        }
       }
 
       // Update session info to include control pipe
       const sessionInfoPath = path.join(path.dirname(session.stdin), 'session.json');
       if (fs.existsSync(sessionInfoPath)) {
         const sessionInfo = JSON.parse(fs.readFileSync(sessionInfoPath, 'utf8'));
-        sessionInfo['control-pipe'] = controlPipePath;
+        sessionInfo.control = controlPath;
         fs.writeFileSync(sessionInfoPath, JSON.stringify(sessionInfo, null, 2));
       }
 
-      console.log(`Control pipe: ${controlPipePath}`);
+      console.log(`Control FIFO: ${controlPath}`);
 
-      // Watch for control messages
-      let lastControlPosition = 0;
-      const watchControl = () => {
-        try {
-          if (fs.existsSync(controlPipePath)) {
-            const stats = fs.statSync(controlPipePath);
-            if (stats.size > lastControlPosition) {
-              const fd = fs.openSync(controlPipePath, 'r');
-              const buffer = Buffer.allocUnsafe(stats.size - lastControlPosition);
-              fs.readSync(fd, buffer, 0, buffer.length, lastControlPosition);
-              fs.closeSync(fd);
-              const newData = buffer.toString('utf8');
+      // Open control FIFO for both read and write (like stdin) to keep it open
+      const controlFd = fs.openSync(controlPath, 'r+');
+      const controlStream = fs.createReadStream('', { fd: controlFd, encoding: 'utf8' });
 
-              const lines = newData.split('\n').filter((line) => line.trim());
-              for (const line of lines) {
-                try {
-                  const message = JSON.parse(line);
-                  handleControlMessage(message);
-                } catch (_e) {
-                  console.warn('Invalid control message:', line);
-                }
-              }
-
-              lastControlPosition = stats.size;
+      controlStream.on('data', (data: string) => {
+        const lines = data.split('\n');
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const message = JSON.parse(line);
+              handleControlMessage(message);
+            } catch (_e) {
+              console.warn('Invalid control message:', line);
             }
           }
-        } catch (_error) {
-          // Control file might be temporarily unavailable
         }
-      };
+      });
 
-      // Check for control messages every 200ms
-      const controlInterval = setInterval(watchControl, 200);
+      controlStream.on('error', (error) => {
+        console.warn('Control FIFO stream error:', error);
+      });
+
+      controlStream.on('end', () => {
+        console.log('Control FIFO stream ended');
+      });
 
       // Handle control messages
       const handleControlMessage = (message: Record<string, unknown>) => {
@@ -166,12 +163,13 @@ async function main() {
         }
       };
 
-      // Clean up control interval on exit
+      // Clean up control stream on exit
       process.on('exit', () => {
-        clearInterval(controlInterval);
         try {
-          if (fs.existsSync(controlPipePath)) {
-            fs.unlinkSync(controlPipePath);
+          controlStream.destroy();
+          fs.closeSync(controlFd);
+          if (fs.existsSync(controlPath)) {
+            fs.unlinkSync(controlPath);
           }
         } catch (_e) {
           // Ignore cleanup errors
