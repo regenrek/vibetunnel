@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/vibetunnel/linux/pkg/ngrok"
 	"github.com/vibetunnel/linux/pkg/session"
+	"github.com/vibetunnel/linux/pkg/termsocket"
 )
 
 type Server struct {
@@ -54,12 +55,13 @@ func (s *Server) createHandler() http.Handler {
 	api.HandleFunc("/sessions/{id}/input", s.handleSendInput).Methods("POST")
 	api.HandleFunc("/sessions/{id}", s.handleKillSession).Methods("DELETE")
 	api.HandleFunc("/sessions/{id}/cleanup", s.handleCleanupSession).Methods("DELETE")
+	api.HandleFunc("/sessions/{id}/cleanup", s.handleCleanupSession).Methods("POST") // Alternative method
 	api.HandleFunc("/sessions/{id}/resize", s.handleResizeSession).Methods("POST")
 	api.HandleFunc("/sessions/multistream", s.handleMultistream).Methods("GET")
 	api.HandleFunc("/cleanup-exited", s.handleCleanupExited).Methods("POST")
 	api.HandleFunc("/fs/browse", s.handleBrowseFS).Methods("GET")
 	api.HandleFunc("/mkdir", s.handleMkdir).Methods("POST")
-	
+
 	// Ngrok endpoints
 	api.HandleFunc("/ngrok/start", s.handleNgrokStart).Methods("POST")
 	api.HandleFunc("/ngrok/stop", s.handleNgrokStop).Methods("POST")
@@ -125,11 +127,13 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name       string   `json:"name"`
-		Command    []string `json:"command"`    // Rust API format
-		WorkingDir string   `json:"workingDir"` // Rust API format
-		Cols       int      `json:"cols"`       // Terminal columns
-		Rows       int      `json:"rows"`       // Terminal rows
+		Name          string   `json:"name"`
+		Command       []string `json:"command"`        // Rust API format
+		WorkingDir    string   `json:"workingDir"`     // Rust API format
+		Cols          int      `json:"cols"`           // Terminal columns
+		Rows          int      `json:"rows"`           // Terminal rows
+		SpawnTerminal bool     `json:"spawn_terminal"` // Open in native terminal
+		Term          string   `json:"term"`           // Terminal type (e.g., "ghostty")
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -169,6 +173,57 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check if we should spawn in a terminal
+	if req.SpawnTerminal {
+		// Try to use the terminal spawn service
+		if conn, err := termsocket.TryConnect(""); err == nil {
+			defer conn.Close()
+
+			// Create session first to get the ID
+			sess, err := s.manager.CreateSession(session.Config{
+				Name:    req.Name,
+				Cmdline: cmdline,
+				Cwd:     cwd,
+				Width:   cols,
+				Height:  rows,
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			// Get vibetunnel path
+			vibetunnelPath, _ := os.Executable()
+
+			// Format spawn request
+			spawnReq := &termsocket.SpawnRequest{
+				Command:    termsocket.FormatCommand(sess.ID, vibetunnelPath, cmdline),
+				WorkingDir: cwd,
+				SessionID:  sess.ID,
+				TTYFwdPath: vibetunnelPath,
+				Terminal:   req.Term,
+			}
+
+			// Send spawn request
+			if resp, err := termsocket.SendSpawnRequest(conn, spawnReq); err != nil || !resp.Success {
+				log.Printf("[WARN] Terminal spawn failed: %v", err)
+				// Continue with regular session
+			} else {
+				log.Printf("[INFO] Session spawned in terminal: %s", sess.ID)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":   true,
+				"message":   "Session created successfully",
+				"error":     nil,
+				"sessionId": sess.ID,
+			})
+			return
+		}
+	}
+
+	// Regular session creation
 	sess, err := s.manager.CreateSession(session.Config{
 		Name:    req.Name,
 		Cmdline: cmdline,
@@ -245,7 +300,7 @@ func (s *Server) handleSendInput(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Input string `json:"input"`
-		Text  string `json:"text"`  // Alternative field name
+		Text  string `json:"text"` // Alternative field name
 		Type  string `json:"type"`
 	}
 
@@ -264,12 +319,12 @@ func (s *Server) handleSendInput(w http.ResponseWriter, r *http.Request) {
 	// Define special keys exactly as in Swift/macOS version
 	specialKeys := map[string]string{
 		"arrow_up":    "\x1b[A",
-		"arrow_down":  "\x1b[B", 
+		"arrow_down":  "\x1b[B",
 		"arrow_right": "\x1b[C",
 		"arrow_left":  "\x1b[D",
 		"escape":      "\x1b",
-		"enter":       "\r",        // CR, not LF (to match Swift)
-		"ctrl_enter":  "\r",        // CR for ctrl+enter
+		"enter":       "\r",       // CR, not LF (to match Swift)
+		"ctrl_enter":  "\r",       // CR for ctrl+enter
 		"shift_enter": "\x1b\x0d", // ESC + CR for shift+enter
 	}
 
@@ -476,7 +531,7 @@ func (s *Server) handleNgrokStop(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleNgrokStatus(w http.ResponseWriter, r *http.Request) {
 	status := s.ngrokService.GetStatus()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,

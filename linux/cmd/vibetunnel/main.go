@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,29 +11,31 @@ import (
 	"github.com/vibetunnel/linux/pkg/api"
 	"github.com/vibetunnel/linux/pkg/config"
 	"github.com/vibetunnel/linux/pkg/session"
+	"github.com/vibetunnel/linux/pkg/termsocket"
 )
 
 var (
 	// Session management flags
-	controlPath   string
-	sessionName   string
-	listSessions  bool
-	sendKey       string
-	sendText      string
-	signalCmd     string
-	stopSession   bool
-	killSession   bool
-	cleanupExited bool
+	controlPath       string
+	sessionName       string
+	listSessions      bool
+	sendKey           string
+	sendText          string
+	signalCmd         string
+	stopSession       bool
+	killSession       bool
+	cleanupExited     bool
+	detachedSessionID string
 
 	// Server flags
 	serve      bool
 	staticPath string
 
 	// Network and access configuration
-	port       string
-	bindAddr   string
-	localhost  bool
-	network    bool
+	port      string
+	bindAddr  string
+	localhost bool
+	network   bool
 
 	// Security flags
 	password        string
@@ -52,10 +55,10 @@ var (
 	ngrokToken   string
 
 	// Advanced options
-	debugMode       bool
-	cleanupStartup  bool
-	serverMode      string
-	updateChannel   string
+	debugMode      bool
+	cleanupStartup bool
+	serverMode     string
+	updateChannel  string
 
 	// Configuration file
 	configFile string
@@ -84,6 +87,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&stopSession, "stop", false, "Stop session (SIGTERM)")
 	rootCmd.Flags().BoolVar(&killSession, "kill", false, "Kill session (SIGKILL)")
 	rootCmd.Flags().BoolVar(&cleanupExited, "cleanup-exited", false, "Clean up exited sessions")
+	rootCmd.Flags().StringVar(&detachedSessionID, "detached-session", "", "Run as detached session with given ID")
 
 	// Server flags
 	rootCmd.Flags().BoolVar(&serve, "serve", false, "Start HTTP server")
@@ -153,6 +157,13 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	if cfg.Server.Port != "" {
 		port = cfg.Server.Port
+	}
+
+	// Handle detached session mode
+	if detachedSessionID != "" {
+		// We're running as a detached session
+		// TODO: Implement RunDetachedSession
+		return fmt.Errorf("detached session mode not yet implemented")
 	}
 
 	manager := session.NewManager(controlPath)
@@ -230,6 +241,19 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func startServer(cfg *config.Config, manager *session.Manager) error {
+	// Start terminal socket server
+	termServer := termsocket.NewServer("")
+	termServer.RegisterDefaultHandler(func(req *termsocket.SpawnRequest) error {
+		return handleTerminalSpawn(req)
+	})
+
+	if err := termServer.Start(); err != nil {
+		log.Printf("Warning: Failed to start terminal socket server: %v", err)
+		// Don't fail server startup if terminal socket fails
+	} else {
+		defer termServer.Stop()
+		log.Printf("Terminal socket server started at %s", termsocket.DefaultSocketPath)
+	}
 	// Determine static path
 	if staticPath == "" && cfg.Server.StaticPath == "" {
 		execPath, err := os.Executable()
@@ -239,7 +263,7 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 		// Try dist first, fallback to public
 		distPath := filepath.Join(filepath.Dir(execPath), "..", "web", "dist")
 		publicPath := filepath.Join(filepath.Dir(execPath), "..", "web", "public")
-		
+
 		if _, err := os.Stat(distPath); err == nil {
 			staticPath = distPath
 		} else if _, err := os.Stat(publicPath); err == nil {
@@ -259,16 +283,16 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 
 	// Determine bind address
 	bindAddress := determineBind(cfg)
-	
+
 	// Convert port to int
 	portInt, err := strconv.Atoi(port)
 	if err != nil {
 		return fmt.Errorf("invalid port: %w", err)
 	}
-	
+
 	// Create and configure server
 	server := api.NewServer(manager, staticPath, serverPassword, portInt)
-	
+
 	// Configure ngrok if enabled
 	var ngrokURL string
 	if cfg.Ngrok.Enabled || ngrokEnabled {
@@ -309,7 +333,7 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 
 		// Create TLS server
 		tlsServer := api.NewTLSServer(server, tlsConfig)
-		
+
 		// Print startup information for TLS
 		fmt.Printf("Starting VibeTunnel HTTPS server on %s:%s\n", bindAddress, tlsPort)
 		if tlsAutoRedirect {
@@ -317,7 +341,7 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 		}
 		fmt.Printf("Serving web UI from: %s\n", staticPath)
 		fmt.Printf("Control directory: %s\n", controlPath)
-		
+
 		if tlsSelfSigned {
 			fmt.Printf("TLS: Using self-signed certificates for localhost\n")
 		} else if tlsDomain != "" {
@@ -325,15 +349,15 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 		} else if tlsCertPath != "" && tlsKeyPath != "" {
 			fmt.Printf("TLS: Using custom certificates\n")
 		}
-		
+
 		if serverPassword != "" {
 			fmt.Printf("Basic auth enabled with username: admin\n")
 		}
-		
+
 		if ngrokURL != "" {
 			fmt.Printf("ngrok tunnel: %s\n", ngrokURL)
 		}
-		
+
 		if cfg.Advanced.DebugMode || debugMode {
 			fmt.Printf("Debug mode enabled\n")
 		}
@@ -344,7 +368,7 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 			httpAddr = fmt.Sprintf("%s:%s", bindAddress, port)
 		}
 		httpsAddr := fmt.Sprintf("%s:%s", bindAddress, tlsPort)
-		
+
 		return tlsServer.StartTLS(httpAddr, httpsAddr)
 	}
 
@@ -352,20 +376,36 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 	fmt.Printf("Starting VibeTunnel server on %s:%s\n", bindAddress, port)
 	fmt.Printf("Serving web UI from: %s\n", staticPath)
 	fmt.Printf("Control directory: %s\n", controlPath)
-	
+
 	if serverPassword != "" {
 		fmt.Printf("Basic auth enabled with username: admin\n")
 	}
-	
+
 	if ngrokURL != "" {
 		fmt.Printf("ngrok tunnel: %s\n", ngrokURL)
 	}
-	
+
 	if cfg.Advanced.DebugMode || debugMode {
 		fmt.Printf("Debug mode enabled\n")
 	}
 
 	return server.Start(fmt.Sprintf("%s:%s", bindAddress, port))
+}
+
+// handleTerminalSpawn handles terminal spawn requests from the Unix socket
+func handleTerminalSpawn(req *termsocket.SpawnRequest) error {
+	log.Printf("[INFO] Handling terminal spawn request: %+v", req)
+
+	// Create a terminal spawner
+	spawner := termsocket.NewTerminalSpawner()
+
+	// Spawn the terminal
+	if err := spawner.Spawn(req); err != nil {
+		log.Printf("[ERROR] Failed to spawn terminal: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func determineBind(cfg *config.Config) string {
@@ -376,7 +416,7 @@ func determineBind(cfg *config.Config) string {
 	if network {
 		return "0.0.0.0"
 	}
-	
+
 	// Check configuration
 	switch cfg.Server.AccessMode {
 	case "localhost":
@@ -388,7 +428,6 @@ func determineBind(cfg *config.Config) string {
 		return "127.0.0.1"
 	}
 }
-
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {

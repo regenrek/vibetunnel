@@ -358,6 +358,8 @@ class ServerManager {
             HummingbirdServer()
         case .rust:
             RustServer()
+        case .go:
+            GoServer()
         }
     }
 

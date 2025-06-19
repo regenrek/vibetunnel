@@ -37,9 +37,9 @@ func (s *SSEStreamer) Stream() {
 	s.w.Header().Set("X-Accel-Buffering", "no")
 
 	streamPath := s.session.StreamOutPath()
-	
+
 	log.Printf("[DEBUG] SSE: Starting live stream for session %s", s.session.ID[:8])
-	
+
 	// Create file watcher for high-performance event detection
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -48,7 +48,7 @@ func (s *SSEStreamer) Stream() {
 		return
 	}
 	defer watcher.Close()
-	
+
 	// Add the stream file to the watcher
 	err = watcher.Add(streamPath)
 	if err != nil {
@@ -56,16 +56,16 @@ func (s *SSEStreamer) Stream() {
 		s.sendError(fmt.Sprintf("Failed to watch file: %v", err))
 		return
 	}
-	
+
 	headerSent := false
 	seenBytes := int64(0)
-	
+
 	// Send initial content immediately and check for client disconnect
 	if err := s.processNewContent(streamPath, &headerSent, &seenBytes); err != nil {
 		log.Printf("[DEBUG] SSE: Client disconnected during initial content: %v", err)
 		return
 	}
-	
+
 	// Watch for file changes
 	for {
 		select {
@@ -73,7 +73,7 @@ func (s *SSEStreamer) Stream() {
 			if !ok {
 				return
 			}
-			
+
 			// Process file writes (new content) and check for client disconnect
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				if err := s.processNewContent(streamPath, &headerSent, &seenBytes); err != nil {
@@ -81,13 +81,13 @@ func (s *SSEStreamer) Stream() {
 					return
 				}
 			}
-			
+
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
 			}
 			log.Printf("[ERROR] SSE: File watcher error: %v", err)
-			
+
 		case <-time.After(1 * time.Second):
 			// Check if session is still alive less frequently for better performance
 			if !s.session.IsAlive() {
@@ -109,44 +109,44 @@ func (s *SSEStreamer) processNewContent(streamPath string, headerSent *bool, see
 		return err
 	}
 	defer file.Close()
-	
+
 	// Get current file size
 	fileInfo, err := file.Stat()
 	if err != nil {
 		log.Printf("[ERROR] SSE: Failed to stat stream file: %v", err)
 		return err
 	}
-	
+
 	currentSize := fileInfo.Size()
-	
+
 	// If file hasn't grown, nothing to do
 	if currentSize <= *seenBytes {
 		return nil
 	}
-	
+
 	// Seek to the position we last read
 	if _, err := file.Seek(*seenBytes, 0); err != nil {
 		log.Printf("[ERROR] SSE: Failed to seek to position %d: %v", *seenBytes, err)
 		return err
 	}
-	
+
 	// Read only the new content
 	newContentSize := currentSize - *seenBytes
 	newContent := make([]byte, newContentSize)
-	
+
 	bytesRead, err := file.Read(newContent)
 	if err != nil {
 		log.Printf("[ERROR] SSE: Failed to read new content: %v", err)
 		return err
 	}
-	
+
 	// Update seen bytes
 	*seenBytes = currentSize
-	
+
 	// Process the new content line by line
 	content := string(newContent[:bytesRead])
 	lines := strings.Split(content, "\n")
-	
+
 	// Handle the case where the last line might be incomplete
 	// If the content doesn't end with a newline, don't process the last line yet
 	endIndex := len(lines)
@@ -156,14 +156,14 @@ func (s *SSEStreamer) processNewContent(streamPath string, headerSent *bool, see
 		*seenBytes -= incompleteLineBytes
 		endIndex = len(lines) - 1
 	}
-	
+
 	// Process complete lines
 	for i := 0; i < endIndex; i++ {
 		line := lines[i]
 		if line == "" {
 			continue
 		}
-		
+
 		// Try to parse as header first
 		if !*headerSent {
 			var header protocol.AsciinemaHeader
@@ -174,14 +174,14 @@ func (s *SSEStreamer) processNewContent(streamPath string, headerSent *bool, see
 				continue
 			}
 		}
-		
+
 		// Try to parse as event array [timestamp, type, data]
 		var eventArray []interface{}
 		if err := json.Unmarshal([]byte(line), &eventArray); err == nil && len(eventArray) == 3 {
 			timestamp, ok1 := eventArray[0].(float64)
 			eventType, ok2 := eventArray[1].(string)
 			data, ok3 := eventArray[2].(string)
-			
+
 			if ok1 && ok2 && ok3 {
 				event := &protocol.StreamEvent{
 					Type: "event",
@@ -191,7 +191,7 @@ func (s *SSEStreamer) processNewContent(streamPath string, headerSent *bool, see
 						Data: data,
 					},
 				}
-				
+
 				log.Printf("[DEBUG] SSE: Sending event type=%s", event.Type)
 				if err := s.sendRawEvent(event); err != nil {
 					log.Printf("[ERROR] SSE: Failed to send event: %v", err)
@@ -228,7 +228,7 @@ func (s *SSEStreamer) sendEvent(event *protocol.StreamEvent) error {
 
 func (s *SSEStreamer) sendRawEvent(event *protocol.StreamEvent) error {
 	var data interface{}
-	
+
 	if event.Type == "header" {
 		// For header events, we can skip them since the frontend might not expect them
 		// Or send them in a compatible format if needed

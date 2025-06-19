@@ -35,23 +35,23 @@ type AsciinemaEvent struct {
 }
 
 type StreamEvent struct {
-	Type    string          `json:"type"`
+	Type    string           `json:"type"`
 	Header  *AsciinemaHeader `json:"header,omitempty"`
 	Event   *AsciinemaEvent  `json:"event,omitempty"`
-	Message string          `json:"message,omitempty"`
+	Message string           `json:"message,omitempty"`
 }
 
 type StreamWriter struct {
-	writer        io.Writer
-	header        *AsciinemaHeader
-	startTime     time.Time
-	mutex         sync.Mutex
-	closed        bool
-	buffer        []byte
-	lastWrite     time.Time
-	flushTimer    *time.Timer
-	syncTimer     *time.Timer
-	needsSync     bool
+	writer     io.Writer
+	header     *AsciinemaHeader
+	startTime  time.Time
+	mutex      sync.Mutex
+	closed     bool
+	buffer     []byte
+	lastWrite  time.Time
+	flushTimer *time.Timer
+	syncTimer  *time.Timer
+	needsSync  bool
 }
 
 func NewStreamWriter(writer io.Writer, header *AsciinemaHeader) *StreamWriter {
@@ -122,7 +122,7 @@ func (w *StreamWriter) writeEvent(eventType EventType, data []byte) error {
 
 	elapsed := time.Since(w.startTime).Seconds()
 	event := []interface{}{elapsed, string(eventType), string(completeData)}
-	
+
 	eventData, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -132,10 +132,10 @@ func (w *StreamWriter) writeEvent(eventType EventType, data []byte) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Schedule sync instead of immediate sync for better performance
 	w.scheduleBatchSync()
-	
+
 	return nil
 }
 
@@ -145,30 +145,30 @@ func (w *StreamWriter) scheduleFlush() {
 	if w.flushTimer != nil {
 		w.flushTimer.Stop()
 	}
-	
+
 	// Set up new timer for 5ms flush delay
 	w.flushTimer = time.AfterFunc(5*time.Millisecond, func() {
 		w.mutex.Lock()
 		defer w.mutex.Unlock()
-		
+
 		if w.closed || len(w.buffer) == 0 {
 			return
 		}
-		
+
 		// Force flush incomplete UTF-8 data for real-time streaming
 		elapsed := time.Since(w.startTime).Seconds()
 		event := []interface{}{elapsed, string(EventOutput), string(w.buffer)}
-		
+
 		eventData, err := json.Marshal(event)
 		if err != nil {
 			return
 		}
-		
+
 		fmt.Fprintf(w.writer, "%s\n", eventData)
-		
+
 		// Schedule sync instead of immediate sync for better performance
 		w.scheduleBatchSync()
-		
+
 		// Clear buffer after flushing
 		w.buffer = w.buffer[:0]
 	})
@@ -177,12 +177,12 @@ func (w *StreamWriter) scheduleFlush() {
 // scheduleBatchSync batches sync operations to reduce I/O overhead
 func (w *StreamWriter) scheduleBatchSync() {
 	w.needsSync = true
-	
+
 	// Cancel existing sync timer if any
 	if w.syncTimer != nil {
 		w.syncTimer.Stop()
 	}
-	
+
 	// Schedule sync after 5ms to batch multiple writes
 	w.syncTimer = time.AfterFunc(5*time.Millisecond, func() {
 		if w.needsSync {
@@ -201,7 +201,7 @@ func (w *StreamWriter) Close() error {
 	if w.closed {
 		return nil
 	}
-	
+
 	// Cancel timers
 	if w.flushTimer != nil {
 		w.flushTimer.Stop()
@@ -244,7 +244,7 @@ func extractCompleteUTF8(data []byte) (complete, remaining []byte) {
 			} else if data[i]&0xF8 == 0xF0 {
 				expectedLen = 4
 			}
-			
+
 			if i+expectedLen > len(data) {
 				lastValid = i
 			}
@@ -256,9 +256,9 @@ func extractCompleteUTF8(data []byte) (complete, remaining []byte) {
 }
 
 type StreamReader struct {
-	reader    io.Reader
-	decoder   *json.Decoder
-	header    *AsciinemaHeader
+	reader     io.Reader
+	decoder    *json.Decoder
+	header     *AsciinemaHeader
 	headerRead bool
 }
 

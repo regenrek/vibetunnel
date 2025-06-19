@@ -10,9 +10,9 @@ import (
 )
 
 type Manager struct {
-	controlPath    string
+	controlPath     string
 	runningSessions map[string]*Session
-	mutex          sync.RWMutex
+	mutex           sync.RWMutex
 }
 
 func NewManager(controlPath string) *Manager {

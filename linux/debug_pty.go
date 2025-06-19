@@ -15,7 +15,7 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	
+
 	// Test different shell configurations
 	tests := []struct {
 		name    string
@@ -49,7 +49,7 @@ func testShellSpawn(cmdline []string, workDir string) {
 	// Create command
 	cmd := exec.Command(cmdline[0], cmdline[1:]...)
 	cmd.Dir = workDir
-	
+
 	// Set up environment
 	env := os.Environ()
 	env = append(env, "TERM=xterm-256color")
@@ -90,7 +90,7 @@ func testShellSpawn(cmdline []string, workDir string) {
 		defer func() { outputDone <- true }()
 		buf := make([]byte, 1024)
 		timeout := time.After(3 * time.Second)
-		
+
 		for {
 			select {
 			case <-timeout:

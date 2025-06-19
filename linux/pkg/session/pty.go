@@ -17,19 +17,23 @@ import (
 	"golang.org/x/term"
 )
 
+// useSelectPolling determines whether to use select-based polling
+// Enable this for better control FIFO integration
+const useSelectPolling = true
+
 type PTY struct {
-	session *Session
-	cmd     *exec.Cmd
-	pty     *os.File
-	oldState *term.State
+	session      *Session
+	cmd          *exec.Cmd
+	pty          *os.File
+	oldState     *term.State
 	streamWriter *protocol.StreamWriter
-	stdinPipe *os.File
-	resizeMutex sync.Mutex
+	stdinPipe    *os.File
+	resizeMutex  sync.Mutex
 }
 
 func NewPTY(session *Session) (*PTY, error) {
 	log.Printf("[DEBUG] NewPTY: Starting PTY creation for session %s", session.ID[:8])
-	
+
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/bash"
@@ -50,9 +54,9 @@ func NewPTY(session *Session) (*PTY, error) {
 		session.info.Cmdline = strings.Join(cmdline, " ")
 		log.Printf("[DEBUG] NewPTY: Added -i flag, cmdline now: %v", cmdline)
 	}
-	
+
 	cmd := exec.Command(cmdline[0], cmdline[1:]...)
-	
+
 	// Set working directory, ensuring it's valid
 	if session.info.Cwd != "" {
 		// Verify the directory exists and is accessible
@@ -63,7 +67,7 @@ func NewPTY(session *Session) (*PTY, error) {
 		cmd.Dir = session.info.Cwd
 		log.Printf("[DEBUG] NewPTY: Set working directory to: %s", session.info.Cwd)
 	}
-	
+
 	// Set up environment with proper terminal settings
 	env := os.Environ()
 	env = append(env, "TERM="+session.info.Term)
@@ -122,6 +126,12 @@ func NewPTY(session *Session) (*PTY, error) {
 		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
+	// Create control FIFO
+	if err := session.createControlFIFO(); err != nil {
+		log.Printf("[ERROR] NewPTY: Failed to create control FIFO: %v", err)
+		// Don't fail if control FIFO creation fails - it's optional
+	}
+
 	return &PTY{
 		session:      session,
 		cmd:          cmd,
@@ -152,12 +162,18 @@ func (p *PTY) Run() error {
 
 	log.Printf("[DEBUG] PTY.Run: Stdin pipe opened successfully")
 
+	// Use select-based polling if available
+	if useSelectPolling {
+		return p.pollWithSelect()
+	}
+
+	// Fallback to goroutine-based implementation
 	errCh := make(chan error, 3)
 
 	go func() {
 		log.Printf("[DEBUG] PTY.Run: Starting output reading goroutine")
 		buf := make([]byte, 32*1024)
-		
+
 		for {
 			// Use a timeout-based approach for cross-platform compatibility
 			// This avoids the complexity of non-blocking I/O syscalls
@@ -233,7 +249,7 @@ func (p *PTY) Run() error {
 		log.Printf("[DEBUG] PTY.Run: Starting process wait goroutine for PID %d", p.cmd.Process.Pid)
 		err := p.cmd.Wait()
 		log.Printf("[DEBUG] PTY.Run: Process wait completed for PID %d, error: %v", p.cmd.Process.Pid, err)
-		
+
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
@@ -328,18 +344,18 @@ func (p *PTY) Resize(width, height int) error {
 	defer p.resizeMutex.Unlock()
 
 	log.Printf("[DEBUG] PTY.Resize: Resizing PTY to %dx%d for session %s", width, height, p.session.ID[:8])
-	
+
 	// Resize the actual PTY
 	err := pty.Setsize(p.pty, &pty.Winsize{
 		Rows: uint16(height),
 		Cols: uint16(width),
 	})
-	
+
 	if err != nil {
 		log.Printf("[ERROR] PTY.Resize: Failed to resize PTY: %v", err)
 		return fmt.Errorf("failed to resize PTY: %w", err)
 	}
-	
+
 	// Write resize event to stream if streamWriter is available
 	if p.streamWriter != nil {
 		if err := p.streamWriter.WriteResize(uint32(width), uint32(height)); err != nil {
@@ -347,7 +363,7 @@ func (p *PTY) Resize(width, height int) error {
 			// Don't fail the resize operation if we can't write the event
 		}
 	}
-	
+
 	log.Printf("[DEBUG] PTY.Resize: Successfully resized PTY to %dx%d", width, height)
 	return nil
 }

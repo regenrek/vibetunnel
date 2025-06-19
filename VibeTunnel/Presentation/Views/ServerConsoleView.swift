@@ -52,6 +52,21 @@ struct ServerConsoleView: View {
                         Label("Export", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderless)
+                    
+                    // Show restart button for all modes except Swift/Hummingbird
+                    if ServerManager.shared.serverMode != .hummingbird {
+                        Divider()
+                            .frame(height: 20)
+                        
+                        Button(action: {
+                            Task {
+                                await ServerManager.shared.manualRestart()
+                            }
+                        }) {
+                            Label("Restart", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
             }
             .padding()
@@ -240,6 +255,7 @@ extension ServerMode {
         switch self {
         case .hummingbird: .blue
         case .rust: .orange
+        case .go: .cyan
         }
     }
 }

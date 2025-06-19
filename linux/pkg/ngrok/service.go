@@ -77,8 +77,6 @@ func (s *Service) startTunnel(authToken string, localPort int) error {
 	return forwarder.Wait()
 }
 
-
-
 // Stop terminates the ngrok tunnel
 func (s *Service) Stop() error {
 	s.mu.Lock()

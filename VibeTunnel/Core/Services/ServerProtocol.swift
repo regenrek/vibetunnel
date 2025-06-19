@@ -37,6 +37,7 @@ protocol ServerProtocol: AnyObject {
 enum ServerMode: String, CaseIterable {
     case hummingbird
     case rust
+    case go
 
     var displayName: String {
         switch self {
@@ -44,6 +45,8 @@ enum ServerMode: String, CaseIterable {
             "Hummingbird"
         case .rust:
             "Rust"
+        case .go:
+            "Go"
         }
     }
 
@@ -53,6 +56,8 @@ enum ServerMode: String, CaseIterable {
             "Built-in Swift server"
         case .rust:
             "External tty-fwd binary"
+        case .go:
+            "External Go binary"
         }
     }
 }

@@ -91,6 +91,25 @@ else
     exit 1
 fi
 
+# Build Go vibetunnel universal binary
+echo "🔨 Building Go vibetunnel universal binary..."
+if [[ -x "$PROJECT_DIR/linux/build-universal.sh" ]]; then
+    cd "$PROJECT_DIR/linux"
+    ./build-universal.sh
+    
+    # Verify the binary was built
+    if [[ -f "$PROJECT_DIR/linux/build/vibetunnel-universal" ]]; then
+        echo "✓ Go vibetunnel universal binary built successfully"
+        # Note: The Xcode build phase will copy this to the app bundle
+    else
+        echo "Error: Failed to build Go vibetunnel universal binary"
+        exit 1
+    fi
+else
+    echo "Error: Go build script not found at $PROJECT_DIR/linux/build-universal.sh"
+    exit 1
+fi
+
 # Build the app
 cd "$PROJECT_DIR"
 

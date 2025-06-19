@@ -104,6 +104,7 @@
 				788687EF2DFF4FCB00B22C15 /* Resources */,
 				B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */,
 				A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */,
+				C2D3E4F5A6B7C8D9E0F1A234 /* Build Go vibetunnel Universal Binary */,
 			);
 			buildRules = (
 			);
@@ -255,6 +256,32 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
 			shellScript = "# Build web frontend\necho \"Building web frontend...\"\n\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nWEB_DIR=\"${PROJECT_DIR}/web\"\nPUBLIC_DIR=\"${WEB_DIR}/public\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/web/public\"\n\n# Export CI environment variable to prevent interactive prompts\nexport CI=true\n\n# Check if npm is available\nif ! command -v npm &> /dev/null; then\n    echo \"error: npm could not be found in PATH\"\n    echo \"PATH is: $PATH\"\n    echo \"Please ensure Node.js is installed and available in your shell configuration\"\n    exit 1\nfi\n\n# Print npm version for debugging\necho \"Using npm version: $(npm --version)\"\necho \"Using node version: $(node --version)\"\necho \"PATH: $PATH\"\n\n# Check if web directory exists\nif [ ! -d \"${WEB_DIR}\" ]; then\n    echo \"error: Web directory not found at ${WEB_DIR}\"\n    exit 1\nfi\n\n# Change to web directory\ncd \"${WEB_DIR}\"\n\n# Install dependencies\necho \"Installing npm dependencies...\"\nnpm install --no-progress --no-audit\nif [ $? -ne 0 ]; then\n    echo \"error: npm install failed\"\n    exit 1\nfi\n\n# Fix permissions for tailwindcss executable\nif [ -f \"node_modules/.bin/tailwindcss\" ]; then\n    chmod +x \"node_modules/.bin/tailwindcss\"\nfi\nif [ -f \"node_modules/tailwindcss/lib/cli.js\" ]; then\n    chmod +x \"node_modules/tailwindcss/lib/cli.js\"\nfi\n\n# Clean up any existing output.css directory/file conflicts\nif [ -d \"public/output.css\" ]; then\n    rm -rf \"public/output.css\"\nfi\n\n# Build the web frontend\necho \"Running npm bundle...\"\nnpm run bundle\nif [ $? -ne 0 ]; then\n    echo \"error: npm run bundle failed\"\n    exit 1\nfi\n\n# Create destination directory\nmkdir -p \"${DEST_DIR}\"\n\n# Copy built files to Resources\necho \"Copying web files to app bundle...\"\nif [ -d \"${PUBLIC_DIR}\" ]; then\n    # Copy all files from public directory\n    cp -R \"${PUBLIC_DIR}/\"* \"${DEST_DIR}/\"\n    echo \"Web frontend files copied to ${DEST_DIR}\"\nelse\n    echo \"error: Public directory not found at ${PUBLIC_DIR}\"\n    exit 1\nfi\n";
+		};
+		C2D3E4F5A6B7C8D9E0F1A234 /* Build Go vibetunnel Universal Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/linux/cmd/vibetunnel/main.go",
+				"$(SRCROOT)/linux/pkg/api/server.go",
+				"$(SRCROOT)/linux/pkg/session/manager.go",
+				"$(SRCROOT)/linux/pkg/session/session.go",
+				"$(SRCROOT)/linux/go.mod",
+				"$(SRCROOT)/linux/build-universal.sh",
+			);
+			name = "Build Go vibetunnel Universal Binary";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/vibetunnel",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Build Go vibetunnel universal binary\necho \"Building Go vibetunnel universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nLINUX_DIR=\"${PROJECT_DIR}/linux\"\nBUILD_SCRIPT=\"${LINUX_DIR}/build-universal.sh\"\n\n# Source Go environment\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Check if go is available\nif ! command -v go &> /dev/null; then\n    echo \"warning: go could not be found in PATH. Skipping Go binary build.\"\n    echo \"PATH is: $PATH\"\n    echo \"To enable Go server support, please install Go and ensure it's in your PATH\"\n    # Create a dummy file so the build doesn't fail\n    mkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n    touch \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel.disabled\"\n    exit 0\nfi\n\nSOURCE_BINARY=\"${LINUX_DIR}/build/vibetunnel-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to linux directory and run build\ncd \"${LINUX_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing Go vibetunnel binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"Go vibetunnel universal binary copied and signed to ${DEST_BINARY}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

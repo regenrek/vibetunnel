@@ -23,11 +23,11 @@ import (
 type TLSConfig struct {
 	Enabled      bool   `json:"enabled"`
 	Port         int    `json:"port"`
-	Domain       string `json:"domain,omitempty"`       // Optional domain for Let's Encrypt
-	SelfSigned   bool   `json:"self_signed"`           // Use self-signed certificates
-	CertPath     string `json:"cert_path,omitempty"`   // Custom cert path
-	KeyPath      string `json:"key_path,omitempty"`    // Custom key path
-	AutoRedirect bool   `json:"auto_redirect"`         // Redirect HTTP to HTTPS
+	Domain       string `json:"domain,omitempty"`    // Optional domain for Let's Encrypt
+	SelfSigned   bool   `json:"self_signed"`         // Use self-signed certificates
+	CertPath     string `json:"cert_path,omitempty"` // Custom cert path
+	KeyPath      string `json:"key_path,omitempty"`  // Custom key path
+	AutoRedirect bool   `json:"auto_redirect"`       // Redirect HTTP to HTTPS
 }
 
 // TLSServer wraps the regular server with TLS capabilities
@@ -63,9 +63,9 @@ func (s *TLSServer) StartTLS(httpAddr, httpsAddr string) error {
 
 	// Start HTTPS server
 	httpsServer := &http.Server{
-		Addr:      httpsAddr,
-		Handler:   handler,
-		TLSConfig: tlsConfig,
+		Addr:         httpsAddr,
+		Handler:      handler,
+		TLSConfig:    tlsConfig,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -138,7 +138,7 @@ func (s *TLSServer) setupCertMagicTLS() (*tls.Config, error) {
 	// Set up CertMagic for automatic HTTPS
 	certmagic.DefaultACME.Agreed = true
 	certmagic.DefaultACME.Email = "admin@" + s.tlsConfig.Domain
-	
+
 	// Configure storage path
 	certmagic.Default.Storage = &certmagic.FileStorage{
 		Path: filepath.Join("/tmp", "vibetunnel-certs"),
@@ -176,12 +176,12 @@ func (s *TLSServer) generateSelfSignedCert() (tls.Certificate, error) {
 			StreetAddress: []string{""},
 			PostalCode:    []string{""},
 		},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour), // Valid for 1 year
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-		DNSNames:     []string{"localhost"},
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().Add(365 * 24 * time.Hour), // Valid for 1 year
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		DNSNames:    []string{"localhost"},
 	}
 
 	// Generate certificate
@@ -217,7 +217,7 @@ func (s *TLSServer) startHTTPRedirect(httpAddr, httpsAddr string) {
 		if host == "" {
 			host = "localhost"
 		}
-		
+
 		// Remove port if present and add HTTPS port
 		if colonIndex := len(host) - 1; host[colonIndex] == ':' {
 			// Remove existing port
@@ -228,7 +228,7 @@ func (s *TLSServer) startHTTPRedirect(httpAddr, httpsAddr string) {
 				}
 			}
 		}
-		
+
 		// Add HTTPS port
 		if s.tlsConfig.Port != 443 {
 			host = fmt.Sprintf("%s:%d", host, s.tlsConfig.Port)

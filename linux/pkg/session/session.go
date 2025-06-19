@@ -54,13 +54,14 @@ type Session struct {
 	pty         *PTY
 	stdinPipe   *os.File
 	stdinMutex  sync.Mutex
+	mu          sync.RWMutex
 }
 
 func newSession(controlPath string, config Config) (*Session, error) {
 	id := uuid.New().String()
 	sessionPath := filepath.Join(controlPath, id)
 
-	log.Printf("[DEBUG] Creating new session %s with config: Name=%s, Cmdline=%v, Cwd=%s", 
+	log.Printf("[DEBUG] Creating new session %s with config: Name=%s, Cmdline=%v, Cwd=%s",
 		id[:8], config.Name, config.Cmdline, config.Cwd)
 
 	if err := os.MkdirAll(sessionPath, 0755); err != nil {
@@ -150,7 +151,7 @@ func loadSession(controlPath, id string) (*Session, error) {
 
 	// If session is running, we need to reconnect to the PTY for operations like resize
 	// For now, we'll handle this by checking if we need PTY access in individual methods
-	
+
 	return session, nil
 }
 
@@ -192,10 +193,13 @@ func (s *Session) Start() error {
 			log.Printf("[DEBUG] Session %s: PTY.Run() exited normally", s.ID[:8])
 		}
 	}()
-	
+
+	// Start control listener
+	s.startControlListener()
+
 	// Process status will be checked on first access - no artificial delay needed
 	log.Printf("[DEBUG] Session %s: Started successfully", s.ID[:8])
-	
+
 	return nil
 }
 
@@ -271,7 +275,7 @@ func (s *Session) Kill() error {
 func (s *Session) cleanup() {
 	s.stdinMutex.Lock()
 	defer s.stdinMutex.Unlock()
-	
+
 	if s.stdinPipe != nil {
 		s.stdinPipe.Close()
 		s.stdinPipe = nil
@@ -296,7 +300,7 @@ func (s *Session) Resize(width, height int) error {
 	// Update session info
 	s.info.Width = width
 	s.info.Height = height
-	
+
 	// Save updated session info
 	if err := s.info.Save(s.Path()); err != nil {
 		log.Printf("[ERROR] Failed to save session info after resize: %v", err)
