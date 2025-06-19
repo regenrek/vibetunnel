@@ -209,11 +209,9 @@ async function main() {
       console.log(`Monitoring stdin pipe: ${stdinPath}`);
 
       try {
-        // Open the FIFO for reading (non-blocking)
-        const stdinStream = fs.createReadStream(stdinPath, {
-          encoding: 'utf8',
-          flags: 'r',
-        });
+        // Open FIFO for both read and write (like tty-fwd) to keep it open
+        const stdinFd = fs.openSync(stdinPath, 'r+'); // r+ = read/write
+        const stdinStream = fs.createReadStream('', { fd: stdinFd, encoding: 'utf8' });
 
         stdinStream.on('data', (data: string) => {
           try {
@@ -228,9 +226,18 @@ async function main() {
           console.warn('Stdin FIFO stream error:', error);
         });
 
+        stdinStream.on('end', () => {
+          console.log('Stdin FIFO stream ended');
+        });
+
         // Clean up on exit
         process.on('exit', () => {
-          stdinStream.destroy();
+          try {
+            stdinStream.destroy();
+            fs.closeSync(stdinFd);
+          } catch (_e) {
+            // Ignore cleanup errors
+          }
         });
       } catch (error) {
         console.warn('Failed to set up stdin FIFO monitoring:', error);
