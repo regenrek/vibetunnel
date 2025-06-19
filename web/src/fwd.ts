@@ -82,6 +82,10 @@ async function main() {
     console.log(`Session created with ID: ${result.sessionId}`);
     console.log(`Implementation: ${ptyService.getCurrentImplementation()}`);
 
+    // Track all intervals and streams for cleanup
+    const intervals: NodeJS.Timeout[] = [];
+    const streams: any[] = [];
+
     // Get session info
     const session = ptyService.getSession(result.sessionId);
     if (!session) {
@@ -152,6 +156,7 @@ async function main() {
         // Unix FIFO approach
         const controlFd = fs.openSync(controlPath, 'r+');
         const controlStream = fs.createReadStream('', { fd: controlFd, encoding: 'utf8' });
+        streams.push(controlStream);
 
         controlStream.on('data', (chunk: string | Buffer) => {
           const data = chunk.toString('utf8');
@@ -224,18 +229,7 @@ async function main() {
 
         // Poll every 100ms on Windows
         const controlInterval = setInterval(pollControl, 100);
-
-        // Clean up control polling on exit
-        process.on('exit', () => {
-          clearInterval(controlInterval);
-          try {
-            if (fs.existsSync(controlPath)) {
-              fs.unlinkSync(controlPath);
-            }
-          } catch (_e) {
-            // Ignore cleanup errors
-          }
-        });
+        intervals.push(controlInterval);
       }
 
       // Handle control messages
@@ -307,6 +301,7 @@ async function main() {
         // Open FIFO for both read and write (like tty-fwd) to keep it open
         const stdinFd = fs.openSync(stdinPath, 'r+'); // r+ = read/write
         const stdinStream = fs.createReadStream('', { fd: stdinFd, encoding: 'utf8' });
+        streams.push(stdinStream);
 
         stdinStream.on('data', (chunk: string | Buffer) => {
           const data = chunk.toString('utf8');
@@ -382,9 +377,33 @@ async function main() {
               if (line.trim()) {
                 try {
                   const record = JSON.parse(line);
-                  if (Array.isArray(record) && record.length >= 3 && record[1] === 'o') {
-                    // This is an output record: [timestamp, 'o', text]
-                    process.stdout.write(record[2]);
+                  if (Array.isArray(record) && record.length >= 3) {
+                    if (record[1] === 'o') {
+                      // This is an output record: [timestamp, 'o', text]
+                      process.stdout.write(record[2]);
+                    } else if (record[0] === 'exit') {
+                      // This is an exit event: ['exit', exitCode, sessionId]
+                      console.log(`\n\nDetected exit event with code: ${record[1]}`);
+                      // Clean up all intervals and streams immediately
+                      intervals.forEach((interval) => clearInterval(interval));
+                      streams.forEach((stream) => {
+                        try {
+                          stream.destroy?.();
+                        } catch (_e) {
+                          // Ignore cleanup errors
+                        }
+                      });
+
+                      // Restore terminal settings
+                      if (!monitorOnly && process.stdin.isTTY) {
+                        process.stdin.setRawMode(false);
+                      }
+                      if (!monitorOnly) {
+                        process.stdin.pause();
+                      }
+
+                      process.exit(record[1] || 0);
+                    }
                   }
                 } catch (_e) {
                   // If JSON parse fails, might be partial line, skip it
@@ -401,11 +420,7 @@ async function main() {
 
       // Start monitoring
       const streamInterval = setInterval(readNewData, 50);
-
-      // Clean up on exit
-      process.on('exit', () => {
-        clearInterval(streamInterval);
-      });
+      intervals.push(streamInterval);
     }
 
     // Set up signal handlers for graceful shutdown
@@ -444,11 +459,26 @@ async function main() {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // Monitor session status
+    // Monitor session status with faster polling and better exit detection
     const checkInterval = setInterval(() => {
       try {
         const currentSession = ptyService.getSession(result.sessionId);
         if (!currentSession || currentSession.status === 'exited') {
+          console.log('\n\nSession has exited.');
+          if (currentSession?.exit_code !== undefined) {
+            console.log(`Exit code: ${currentSession.exit_code}`);
+          }
+
+          // Clean up all intervals and streams
+          intervals.forEach((interval) => clearInterval(interval));
+          streams.forEach((stream) => {
+            try {
+              stream.destroy?.();
+            } catch (_e) {
+              // Ignore cleanup errors
+            }
+          });
+
           // Restore terminal settings before exit (only if we were in interactive mode)
           if (!monitorOnly && process.stdin.isTTY) {
             process.stdin.setRawMode(false);
@@ -457,19 +487,24 @@ async function main() {
             process.stdin.pause();
           }
 
-          console.log('\n\nSession has exited.');
-          if (currentSession?.exit_code !== undefined) {
-            console.log(`Exit code: ${currentSession.exit_code}`);
-          }
-          clearInterval(checkInterval);
           process.exit(currentSession?.exit_code || 0);
         }
       } catch (error) {
         console.error('Error monitoring session:', error);
-        clearInterval(checkInterval);
+        // Clean up all intervals and streams on error too
+        intervals.forEach((interval) => clearInterval(interval));
+        streams.forEach((stream) => {
+          try {
+            stream.destroy?.();
+          } catch (_e) {
+            // Ignore cleanup errors
+          }
+        });
         process.exit(1);
       }
-    }, 1000); // Check every second
+    }, 500); // Check every 500ms for faster exit detection
+
+    intervals.push(checkInterval);
 
     // Keep the process alive
     await new Promise<void>((resolve) => {

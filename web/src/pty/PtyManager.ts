@@ -309,43 +309,6 @@ export class PtyManager {
   }
 
   /**
-   * Try to create a control pipe for an existing external session
-   */
-  private createControlPipeForExternalSession(sessionId: string): string | null {
-    const diskSession = this.sessionManager.getSession(sessionId);
-    if (!diskSession || !diskSession.stdin) {
-      return null;
-    }
-
-    try {
-      // Create control pipe in the same directory as stdin
-      const controlPipePath = path.join(path.dirname(diskSession.stdin), 'control');
-
-      // Create the control pipe file if it doesn't exist
-      if (!fs.existsSync(controlPipePath)) {
-        fs.writeFileSync(controlPipePath, '');
-      }
-
-      // Update session.json to include the control pipe
-      const sessionDir = path.dirname(diskSession.stdin);
-      const sessionInfoPath = path.join(sessionDir, 'session.json');
-
-      if (fs.existsSync(sessionInfoPath)) {
-        const sessionInfo = JSON.parse(fs.readFileSync(sessionInfoPath, 'utf8'));
-        sessionInfo.control = controlPipePath;
-        fs.writeFileSync(sessionInfoPath, JSON.stringify(sessionInfo, null, 2));
-
-        console.log(`Created control pipe for external session ${sessionId}: ${controlPipePath}`);
-        return controlPipePath;
-      }
-    } catch (error) {
-      console.warn(`Failed to create control pipe for session ${sessionId}:`, error);
-    }
-
-    return null;
-  }
-
-  /**
    * Send a control message to an external session
    */
   private sendControlMessage(
@@ -357,15 +320,14 @@ export class PtyManager {
       return false;
     }
 
-    let controlPipe = diskSession.control;
+    const controlPipe = diskSession.control;
 
-    // If no control pipe exists, try to create one for external sessions
+    // External sessions should already have control pipe created by fwd.ts
     if (!controlPipe) {
-      const createdPipe = this.createControlPipeForExternalSession(sessionId);
-      if (!createdPipe) {
-        return false;
-      }
-      controlPipe = createdPipe;
+      console.warn(
+        `No control pipe found for session ${sessionId} - external session should create its own control pipe`
+      );
+      return false;
     }
 
     try {
