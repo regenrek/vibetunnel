@@ -120,7 +120,8 @@ async function main() {
       const controlFd = fs.openSync(controlPath, 'r+');
       const controlStream = fs.createReadStream('', { fd: controlFd, encoding: 'utf8' });
 
-      controlStream.on('data', (data: string) => {
+      controlStream.on('data', (chunk: string | Buffer) => {
+        const data = chunk.toString('utf8');
         const lines = data.split('\n');
         for (const line of lines) {
           if (line.trim()) {
@@ -144,7 +145,7 @@ async function main() {
 
       // Handle control messages
       const handleControlMessage = (message: Record<string, unknown>) => {
-        if (message.cmd === 'resize' && message.cols && message.rows) {
+        if (message.cmd === 'resize' && typeof message.cols === 'number' && typeof message.rows === 'number') {
           console.log(`Received resize command: ${message.cols}x${message.rows}`);
           // Get current session from PTY service and resize if possible
           try {
@@ -153,10 +154,11 @@ async function main() {
             console.warn('Failed to resize session:', error);
           }
         } else if (message.cmd === 'kill') {
-          console.log(`Received kill command: ${message.signal || 'SIGTERM'}`);
+          const signal = typeof message.signal === 'string' || typeof message.signal === 'number' ? message.signal : 'SIGTERM';
+          console.log(`Received kill command: ${signal}`);
           // The session monitoring will detect the exit and handle cleanup
           try {
-            ptyService.killSession(result.sessionId, message.signal || 'SIGTERM');
+            ptyService.killSession(result.sessionId, signal);
           } catch (error) {
             console.warn('Failed to kill session:', error);
           }
@@ -211,7 +213,8 @@ async function main() {
         const stdinFd = fs.openSync(stdinPath, 'r+'); // r+ = read/write
         const stdinStream = fs.createReadStream('', { fd: stdinFd, encoding: 'utf8' });
 
-        stdinStream.on('data', (data: string) => {
+        stdinStream.on('data', (chunk: string | Buffer) => {
+          const data = chunk.toString('utf8');
           try {
             // Forward data from web server to PTY
             ptyService.sendInput(result.sessionId, { text: data });

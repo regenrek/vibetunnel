@@ -366,10 +366,11 @@ export class PtyManager {
 
     // If no control pipe exists, try to create one for external sessions
     if (!controlPipe) {
-      controlPipe = this.createControlPipeForExternalSession(sessionId);
-      if (!controlPipe) {
+      const createdPipe = this.createControlPipeForExternalSession(sessionId);
+      if (!createdPipe) {
         return false;
       }
+      controlPipe = createdPipe;
     }
 
     try {
