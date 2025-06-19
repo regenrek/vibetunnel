@@ -105,3 +105,9 @@ Workspace.xcworkspace/
 
 # Sparkle private keys - NEVER commit these
 private/
+
+# Built binaries (should be built during build process)
+linux/vibetunnel
+linux/vt
+VibeTunnel/Resources/vt
+VibeTunnel/Resources/vibetunnel
