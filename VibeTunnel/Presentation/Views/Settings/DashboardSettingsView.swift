@@ -546,8 +546,13 @@ private struct AccessModeView: View {
 private struct PortConfigurationView: View {
     @Binding var serverPort: String
     let restartServerWithNewPort: (Int) -> Void
-
+    
     @State private var portNumber: Int = 4_020
+    @State private var portConflict: PortConflict?
+    @State private var isCheckingPort = false
+    @State private var alternativePorts: [Int] = []
+    
+    private let serverManager = ServerManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -563,6 +568,9 @@ private struct PortConfigurationView: View {
                             // Validate port number
                             if let port = Int(newValue), port > 0, port < 65_536 {
                                 portNumber = port
+                                Task {
+                                    await checkPortAvailability(port)
+                                }
                                 restartServerWithNewPort(port)
                             }
                         }
@@ -605,11 +613,122 @@ private struct PortConfigurationView: View {
                 }
                 .onAppear {
                     portNumber = Int(serverPort) ?? 4_020
+                    Task {
+                        await checkPortAvailability(portNumber)
+                    }
                 }
             }
-            Text("The server will automatically restart when the port is changed.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            
+            // Port conflict warning
+            if let conflict = portConflict {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        
+                        Text("Port \(conflict.port) is used by \(conflict.process.name)")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                    
+                    if !conflict.alternativePorts.isEmpty {
+                        HStack(spacing: 4) {
+                            Text("Try port:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            ForEach(conflict.alternativePorts.prefix(3), id: \.self) { port in
+                                Button(String(port)) {
+                                    serverPort = String(port)
+                                    portNumber = port
+                                    restartServerWithNewPort(port)
+                                }
+                                .buttonStyle(.link)
+                                .font(.caption)
+                            }
+                            
+                            Button("Choose...") {
+                                showPortPicker()
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
+                    }
+                    
+                    // If it's our instance, offer to force quit
+                    if case .killOurInstance(let pid, let processName) = conflict.suggestedAction {
+                        Button("Force Quit \(processName)") {
+                            Task {
+                                await forceQuitConflictingProcess(conflict)
+                            }
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    }
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(6)
+            } else if !serverManager.isRunning && serverManager.lastError != nil {
+                // Show general server error if no specific port conflict
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.red)
+                        .font(.caption)
+                    
+                    Text("Server failed to start")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            } else {
+                Text("The server will automatically restart when the port is changed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private func checkPortAvailability(_ port: Int) async {
+        isCheckingPort = true
+        defer { isCheckingPort = false }
+        
+        // Only check if it's not the port we're already successfully using
+        if serverManager.isRunning && Int(serverManager.port) == port {
+            portConflict = nil
+            return
+        }
+        
+        if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
+            portConflict = conflict
+            alternativePorts = conflict.alternativePorts
+        } else {
+            portConflict = nil
+            alternativePorts = []
+        }
+    }
+    
+    private func forceQuitConflictingProcess(_ conflict: PortConflict) async {
+        do {
+            try await PortConflictResolver.shared.resolveConflict(conflict)
+            portConflict = nil
+            // Restart server after clearing conflict
+            restartServerWithNewPort(portNumber)
+        } catch {
+            // Handle error - maybe show alert
+            print("Failed to force quit: \(error)")
+        }
+    }
+    
+    private func showPortPicker() {
+        // TODO: Implement port picker dialog
+        // For now, just cycle through alternatives
+        if let firstAlt = alternativePorts.first {
+            serverPort = String(firstAlt)
+            portNumber = firstAlt
+            restartServerWithNewPort(firstAlt)
         }
     }
 }

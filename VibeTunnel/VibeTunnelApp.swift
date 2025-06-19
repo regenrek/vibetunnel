@@ -140,23 +140,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 logger.info("Attempting to start HTTP server using ServerManager...")
                 await serverManager.start()
 
-                logger.info("HTTP server started successfully on port \(self.serverManager.port)")
-                logger.info("Server is running: \(self.serverManager.isRunning)")
-                logger.info("Server mode: \(self.serverManager.serverMode.displayName)")
+                // Check if server actually started
+                if serverManager.isRunning {
+                    logger.info("HTTP server started successfully on port \(self.serverManager.port)")
+                    logger.info("Server mode: \(self.serverManager.serverMode.displayName)")
 
-                // Start monitoring sessions after server starts
-                sessionMonitor.startMonitoring()
+                    // Start monitoring sessions after server starts
+                    sessionMonitor.startMonitoring()
 
-                // Test the server after a short delay
-                try await Task.sleep(for: .milliseconds(500))
-                if let url = URL(string: "http://127.0.0.1:\(serverManager.port)/api/health") {
-                    let (_, response) = try await URLSession.shared.data(from: url)
-                    if let httpResponse = response as? HTTPURLResponse {
-                        logger.info("Server health check response: \(httpResponse.statusCode)")
+                    // Test the server after a short delay
+                    try await Task.sleep(for: .milliseconds(500))
+                    if let url = URL(string: "http://127.0.0.1:\(serverManager.port)/api/health") {
+                        let (_, response) = try await URLSession.shared.data(from: url)
+                        if let httpResponse = response as? HTTPURLResponse {
+                            logger.info("Server health check response: \(httpResponse.statusCode)")
+                        }
+                    }
+                } else {
+                    logger.error("HTTP server failed to start")
+                    if let error = serverManager.lastError {
+                        logger.error("Server start error: \(error.localizedDescription)")
                     }
                 }
             } catch {
-                logger.error("Failed to start HTTP server: \(error)")
+                logger.error("Failed during server startup: \(error)")
                 logger.error("Error type: \(type(of: error))")
                 logger.error("Error description: \(error.localizedDescription)")
                 if let nsError = error as NSError? {

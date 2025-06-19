@@ -122,16 +122,67 @@ class ServerManager {
             // Log for clarity
             logContinuation?.yield(ServerLogEntry(
                 level: .info,
-                message: "\(serverMode.displayName) server already running on port \(port)",
+                message: "\(serverMode.displayName) server already running on port \(self.port)",
                 source: serverMode
             ))
             return
+        }
+        
+        // Check for port conflicts before starting
+        if let conflict = await PortConflictResolver.shared.detectConflict(on: Int(self.port) ?? 4020) {
+            logger.warning("Port \(self.port) is in use by \(conflict.process.name) (PID: \(conflict.process.pid))")
+            
+            // Handle based on conflict type
+            switch conflict.suggestedAction {
+            case .killOurInstance(let pid, let processName):
+                logger.info("Attempting to kill conflicting process: \(processName) (PID: \(pid))")
+                logContinuation?.yield(ServerLogEntry(
+                    level: .warning,
+                    message: "Port \(self.port) is used by another instance. Terminating conflicting process...",
+                    source: serverMode
+                ))
+                
+                do {
+                    try await PortConflictResolver.shared.resolveConflict(conflict)
+                    logContinuation?.yield(ServerLogEntry(
+                        level: .info,
+                        message: "Conflicting process terminated successfully",
+                        source: serverMode
+                    ))
+                    
+                    // Wait a moment for port to be fully released
+                    try await Task.sleep(for: .milliseconds(500))
+                } catch {
+                    logger.error("Failed to resolve port conflict: \(error)")
+                    lastError = PortConflictError.failedToKillProcess(pid: pid)
+                    logContinuation?.yield(ServerLogEntry(
+                        level: .error,
+                        message: "Failed to terminate conflicting process. Please try a different port.",
+                        source: serverMode
+                    ))
+                    return
+                }
+                
+            case .reportExternalApp(let appName):
+                logger.error("Port \(self.port) is used by external app: \(appName)")
+                lastError = PortConflictError.portInUseByApp(appName: appName, port: Int(self.port) ?? 4020, alternatives: conflict.alternativePorts)
+                logContinuation?.yield(ServerLogEntry(
+                    level: .error,
+                    message: "Port \(self.port) is used by \(appName). Please choose a different port.",
+                    source: serverMode
+                ))
+                return
+                
+            case .suggestAlternativePort:
+                // This shouldn't happen in our case
+                logger.warning("Port conflict requires alternative port")
+            }
         }
 
         // Log that we're starting a server
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Starting \(serverMode.displayName) server on port \(port)...",
+            message: "Starting \(serverMode.displayName) server on port \(self.port)...",
             source: serverMode
         ))
 
@@ -325,7 +376,7 @@ class ServerManager {
 
         do {
             // Create URL for cleanup endpoint
-            guard let url = URL(string: "http://localhost:\(port)/api/cleanup-exited") else {
+            guard let url = URL(string: "http://localhost:\(self.port)/api/cleanup-exited") else {
                 logger.warning("Failed to create cleanup URL")
                 return
             }
@@ -401,7 +452,7 @@ class ServerManager {
 
     /// Check if the server is healthy
     private func checkServerHealth() async -> Bool {
-        guard let url = URL(string: "http://localhost:\(port)/api/health") else {
+        guard let url = URL(string: "http://localhost:\(self.port)/api/health") else {
             return false
         }
 
@@ -499,5 +550,24 @@ class ServerManager {
             await hummingbirdServer.clearAuthCache()
             logger.info("Cleared authentication cache")
         }
+    }
+}
+
+// MARK: - Port Conflict Error Extension
+
+extension PortConflictError {
+    static func portInUseByApp(appName: String, port: Int, alternatives: [Int]) -> Error {
+        return NSError(
+            domain: "com.steipete.VibeTunnel.ServerManager",
+            code: 1001,
+            userInfo: [
+                NSLocalizedDescriptionKey: "Port \(port) is in use by \(appName)",
+                NSLocalizedFailureReasonErrorKey: "The port is being used by another application",
+                NSLocalizedRecoverySuggestionErrorKey: "Try one of these ports: \(alternatives.map(String.init).joined(separator: ", "))",
+                "appName": appName,
+                "port": port,
+                "alternatives": alternatives
+            ]
+        )
     }
 }
