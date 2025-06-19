@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to VibeTunnel will be documented in this file.
+## [1.0.0-beta.2] - 2025-06-19
+
+### 🎨 Improvements
+- Redesigned slick new web frontend
+- Faster terminal rendering in the web frontend
+- New Sessions spawn new Terminal windows. (This needs Applescript and Accessibility permissions)
+- Enhanced font handling with system font priority
+- Better async operations in PTY service for improved performance
+- Improved window activation when showing the welcome and settings windows
+- Preparations for Linux support
+
+### 🐛 Bug Fixes
+- Fixed window front order when dock icon is hidden
+- Fixed PTY service enhancements with proper async operations
 
 ## [1.0.0-beta.1] - 2025-06-17
 
