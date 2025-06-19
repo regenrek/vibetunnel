@@ -689,28 +689,48 @@ private struct PortConfigurationView: View {
                             .foregroundColor(.orange)
                     }
 
-                    if !conflict.alternativePorts.isEmpty {
-                        HStack(spacing: 4) {
-                            Text("Try port:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        if !conflict.alternativePorts.isEmpty {
+                            HStack(spacing: 4) {
+                                Text("Try port:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
 
-                            ForEach(conflict.alternativePorts.prefix(3), id: \.self) { port in
-                                Button(String(port)) {
-                                    serverPort = String(port)
-                                    portNumber = port
-                                    restartServerWithNewPort(port)
+                                ForEach(conflict.alternativePorts.prefix(3), id: \.self) { port in
+                                    Button(String(port)) {
+                                        serverPort = String(port)
+                                        portNumber = port
+                                        restartServerWithNewPort(port)
+                                    }
+                                    .buttonStyle(.link)
+                                    .font(.caption)
+                                }
+
+                                Button("Choose...") {
+                                    showPortPicker()
                                 }
                                 .buttonStyle(.link)
                                 .font(.caption)
                             }
-
-                            Button("Choose...") {
-                                showPortPicker()
-                            }
-                            .buttonStyle(.link)
-                            .font(.caption)
                         }
+                        
+                        Spacer()
+                        
+                        Button {
+                            Task {
+                                await forceQuitConflictingProcess(conflict)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption)
+                                Text("Kill Process")
+                                    .font(.caption)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.red)
                     }
                 }
                 .padding(.vertical, 8)
