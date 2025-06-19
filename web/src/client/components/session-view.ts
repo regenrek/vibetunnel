@@ -94,11 +94,6 @@ export class SessionView extends LitElement {
       navigator.userAgent
     );
 
-    // Hide mobile address bar when entering session view
-    if (this.isMobile) {
-      this.hideAddressBar();
-    }
-
     // Only add listeners if not already added
     if (!this.isMobile && !this.keyboardListenerAdded) {
       document.addEventListener('keydown', this.keyboardHandler);
@@ -165,19 +160,7 @@ export class SessionView extends LitElement {
       const terminalElement = this.querySelector('vibe-terminal') as Terminal;
       if (terminalElement) {
         this.initializeTerminal();
-
-        // Hide address bar again after terminal is ready
-        if (this.isMobile) {
-          setTimeout(() => this.hideAddressBar(), 200);
-        }
       }
-    }
-
-    // Adjust terminal height for mobile buttons after render
-    if (changedProperties.has('showMobileInput') || changedProperties.has('isMobile')) {
-      requestAnimationFrame(() => {
-        this.adjustTerminalForMobileButtons();
-      });
     }
   }
 
@@ -444,24 +427,6 @@ export class SessionView extends LitElement {
       }
     } catch (error) {
       console.error('Error sending input:', error);
-    }
-  }
-
-  private hideAddressBar() {
-    // Trigger address bar hiding on mobile
-    if (window.innerHeight !== window.outerHeight) {
-      // Multiple attempts with different timing to ensure it works
-      setTimeout(() => {
-        window.scrollTo(0, 1);
-        setTimeout(() => {
-          window.scrollTo(0, 0);
-          // Force another attempt after a brief delay
-          setTimeout(() => {
-            window.scrollTo(0, 1);
-            setTimeout(() => window.scrollTo(0, 0), 50);
-          }, 100) as unknown as number;
-        }, 50);
-      }, 100) as unknown as number;
     }
   }
 
@@ -892,11 +857,6 @@ export class SessionView extends LitElement {
     } catch (error) {
       console.error('Error sending input:', error);
     }
-  }
-
-  private adjustTerminalForMobileButtons() {
-    // Disabled for now to avoid viewport issues
-    // The mobile buttons will overlay the terminal
   }
 
   private startLoading() {
