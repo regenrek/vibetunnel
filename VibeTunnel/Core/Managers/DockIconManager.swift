@@ -56,19 +56,19 @@ final class DockIconManager: NSObject {
         
         let hasVisibleWindows = !visibleWindows.isEmpty
         
-        logger.info("Updating dock visibility - User wants hidden: \(userWantsDockHidden), Visible windows: \(visibleWindows.count)")
+        // logger.info("Updating dock visibility - User wants hidden: \(userWantsDockHidden), Visible windows: \(visibleWindows.count)")
         
         // Log window details for debugging
-        for window in visibleWindows {
-            logger.debug("  Visible window: \(window.title.isEmpty ? "(untitled)" : window.title, privacy: .public)")
-        }
+        // for window in visibleWindows {
+        //     logger.debug("  Visible window: \(window.title.isEmpty ? "(untitled)" : window.title, privacy: .public)")
+        // }
         
         // Show dock if user wants it shown OR if any windows are open
         if !userWantsDockHidden || hasVisibleWindows {
-            logger.info("Showing dock icon")
+            // logger.info("Showing dock icon")
             NSApp.setActivationPolicy(.regular)
         } else {
-            logger.info("Hiding dock icon")
+            // logger.info("Hiding dock icon")
             NSApp.setActivationPolicy(.accessory)
         }
     }
