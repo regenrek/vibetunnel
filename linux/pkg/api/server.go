@@ -128,8 +128,8 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Name       string   `json:"name"`
 		Command    []string `json:"command"`    // Rust API format
 		WorkingDir string   `json:"workingDir"` // Rust API format
-		Width      int      `json:"width"`      // Terminal width
-		Height     int      `json:"height"`     // Terminal height
+		Cols       int      `json:"cols"`       // Terminal columns
+		Rows       int      `json:"rows"`       // Terminal rows
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -146,13 +146,13 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	cwd := req.WorkingDir
 
 	// Set default terminal dimensions if not provided
-	width := req.Width
-	if width <= 0 {
-		width = 120 // Better default for modern terminals
+	cols := req.Cols
+	if cols <= 0 {
+		cols = 120 // Better default for modern terminals
 	}
-	height := req.Height
-	if height <= 0 {
-		height = 30 // Better default for modern terminals
+	rows := req.Rows
+	if rows <= 0 {
+		rows = 30 // Better default for modern terminals
 	}
 
 	// Expand ~ in working directory
@@ -173,8 +173,8 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Name:    req.Name,
 		Cmdline: cmdline,
 		Cwd:     cwd,
-		Width:   width,
-		Height:  height,
+		Width:   cols,
+		Height:  rows,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -385,8 +385,8 @@ func (s *Server) handleResizeSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Width  int `json:"width"`
-		Height int `json:"height"`
+		Cols int `json:"cols"`
+		Rows int `json:"rows"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -394,12 +394,12 @@ func (s *Server) handleResizeSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Width <= 0 || req.Height <= 0 {
-		http.Error(w, "Width and height must be positive integers", http.StatusBadRequest)
+	if req.Cols <= 0 || req.Rows <= 0 {
+		http.Error(w, "Cols and rows must be positive integers", http.StatusBadRequest)
 		return
 	}
 
-	if err := sess.Resize(req.Width, req.Height); err != nil {
+	if err := sess.Resize(req.Cols, req.Rows); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -408,8 +408,8 @@ func (s *Server) handleResizeSession(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Session resized successfully",
-		"width":   req.Width,
-		"height":  req.Height,
+		"cols":   req.Cols,
+		"rows":  req.Rows,
 	})
 }
 
