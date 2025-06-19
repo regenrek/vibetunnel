@@ -6,6 +6,39 @@
         <description>VibeTunnel pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>VibeTunnel 1.0.0-beta.2</title>
+            <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.2/VibeTunnel-1.0.0-beta.2.dmg</link>
+            <sparkle:version>105</sparkle:version>
+            <sparkle:shortVersionString>1.0.0-beta.2</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>VibeTunnel 1.0.0-beta.2</h2><p><strong>Pre-release version</strong></p><div><h3>🎨 Improvements</h3>
+<ul>
+<li>Redesigned slick new web frontend</li>
+<li>Faster terminal rendering in the web frontend</li>
+<li>New Sessions spawn new Terminal windows. (This needs Applescript and Accessibility permissions)</li>
+<li>Enhanced font handling with system font priority</li>
+<li>Better async operations in PTY service for improved performance</li>
+<li>Improved window activation when showing the welcome and settings windows</li>
+<li>Preparations for Linux support</li>
+</ul>
+<h3>🐛 Bug Fixes</h3>
+<ul>
+<li>Fixed window front order when dock icon is hidden</li>
+<li>Fixed PTY service enhancements with proper async operations</li>
+<li>Fixed race condition in session creation that caused frontend to open previous session</li>
+</ul>
+<p><a href="https://github.com/amantus-ai/vibetunnel/blob/main/CHANGELOG.md#100-beta2-20250619">View full changelog</a></p></div>
+            ]]></description>
+            <pubDate>Thu, 19 Jun 2025 02:40:16 +0200</pubDate>
+            <enclosure 
+                url="https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.2/VibeTunnel-1.0.0-beta.2.dmg"
+                length="22201465"
+                type="application/octet-stream"
+                sparkle:edSignature="TNrYDY8jH9PyJb3lRqvARthil/B5NfEC7RRB/s/Q5SARkgDZrKWSYHjKcbFnlHX6qDF1MdSx8czUN05bALGeDg=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>VibeTunnel 1.0-beta.1</title>
             <link>https://github.com/amantus-ai/vibetunnel/releases/download/v1.0-beta.1/VibeTunnel-1.0-beta.1.dmg</link>
             <sparkle:version>103</sparkle:version>
