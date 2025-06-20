@@ -12,6 +12,36 @@ struct SessionListView: View {
     @State private var showingCreateSession = false
     @State private var selectedSession: Session?
     @State private var showExitedSessions = true
+    @State private var showingFileBrowser = false
+    @State private var searchText = ""
+    
+    var filteredSessions: [Session] {
+        let sessions = viewModel.sessions.filter { showExitedSessions || $0.isRunning }
+        
+        if searchText.isEmpty {
+            return sessions
+        }
+        
+        return sessions.filter { session in
+            // Search in session name
+            if let name = session.name, name.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            // Search in command
+            if session.command.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            // Search in working directory
+            if session.cwd.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            // Search in PID
+            if let pid = session.pid, String(pid).contains(searchText) {
+                return true
+            }
+            return false
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,6 +56,8 @@ struct SessionListView: View {
                         .font(Theme.Typography.terminalSystem(size: 14))
                         .foregroundColor(Theme.Colors.terminalForeground)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if filteredSessions.isEmpty && !searchText.isEmpty {
+                    noSearchResultsView
                 } else if viewModel.sessions.isEmpty {
                     emptyStateView
                 } else {
@@ -49,14 +81,25 @@ struct SessionListView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        HapticFeedback.impact(.light)
-                        showingCreateSession = true
-                    }, label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(Theme.Colors.primaryAccent)
-                    })
+                    HStack(spacing: Theme.Spacing.medium) {
+                        Button(action: {
+                            HapticFeedback.impact(.light)
+                            showingFileBrowser = true
+                        }, label: {
+                            Image(systemName: "folder.fill")
+                                .font(.title3)
+                                .foregroundColor(Theme.Colors.primaryAccent)
+                        })
+                        
+                        Button(action: {
+                            HapticFeedback.impact(.light)
+                            showingCreateSession = true
+                        }, label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(Theme.Colors.primaryAccent)
+                        })
+                    }
                 }
             }
             .sheet(isPresented: $showingCreateSession) {
@@ -73,9 +116,15 @@ struct SessionListView: View {
             .sheet(item: $selectedSession) { session in
                 TerminalView(session: session)
             }
+            .sheet(isPresented: $showingFileBrowser) {
+                FileBrowserView(mode: .browseFiles) { path in
+                    // For browse mode, we don't need to handle path selection
+                }
+            }
             .refreshable {
                 await viewModel.loadSessions()
             }
+            .searchable(text: $searchText, prompt: "Search sessions")
             .onAppear {
                 viewModel.startAutoRefresh()
             }
@@ -136,6 +185,32 @@ struct SessionListView: View {
         }
         .padding()
     }
+    
+    private var noSearchResultsView: some View {
+        VStack(spacing: Theme.Spacing.extraLarge) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.3))
+            
+            VStack(spacing: Theme.Spacing.small) {
+                Text("No sessions found")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Colors.terminalForeground)
+                
+                Text("Try searching with different keywords")
+                    .font(Theme.Typography.terminalSystem(size: 14))
+                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+            }
+            
+            Button(action: { searchText = "" }) {
+                Label("Clear Search", systemImage: "xmark.circle.fill")
+                    .font(Theme.Typography.terminalSystem(size: 14))
+            }
+            .terminalButton()
+        }
+        .padding()
+    }
 
     private var sessionList: some View {
         ScrollView {
@@ -156,7 +231,7 @@ struct SessionListView: View {
                     GridItem(.flexible(), spacing: Theme.Spacing.medium),
                     GridItem(.flexible(), spacing: Theme.Spacing.medium)
                 ], spacing: Theme.Spacing.medium) {
-                    if showExitedSessions && viewModel.sessions.contains(where: { !$0.isRunning }) {
+                    if showExitedSessions && filteredSessions.contains(where: { !$0.isRunning }) {
                         CleanupAllButton {
                             Task {
                                 await viewModel.cleanupAllExited()
@@ -164,7 +239,7 @@ struct SessionListView: View {
                         }
                     }
 
-                    ForEach(viewModel.sessions.filter { showExitedSessions || $0.isRunning }) { session in
+                    ForEach(filteredSessions) { session in
                         SessionCardView(session: session) {
                             HapticFeedback.selection()
                             if session.isRunning {
@@ -271,15 +346,14 @@ class SessionListViewModel {
     }
 
     func killAllSessions() async {
-        let runningSessions = sessions.filter(\.isRunning)
-        for session in runningSessions {
-            do {
-                try await sessionService.killSession(session.id)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+        do {
+            try await sessionService.killAllSessions()
+            await loadSessions()
+            HapticFeedback.notification(.success)
+        } catch {
+            errorMessage = error.localizedDescription
+            HapticFeedback.notification(.error)
         }
-        await loadSessions()
     }
 }
 

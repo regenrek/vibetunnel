@@ -5,6 +5,7 @@ import SwiftUI
 /// Applies terminal-themed styling to text fields including
 /// monospace font, dark background, and subtle border.
 struct TerminalTextFieldStyle: TextFieldStyle {
+    // swiftlint:disable:next identifier_name
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .font(Theme.Typography.terminalSystem(size: 16))
@@ -29,7 +30,7 @@ struct SessionCreateView: View {
     @Binding var isPresented: Bool
     let onCreated: (String) -> Void
 
-    @State private var command = "claude"
+    @State private var command = "zsh"
     @State private var workingDirectory = "~"
     @State private var sessionName = ""
     @State private var isCreating = false
@@ -37,6 +38,7 @@ struct SessionCreateView: View {
     @State private var showFileBrowser = false
 
     @FocusState private var focusedField: Field?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     enum Field {
         case command
@@ -57,7 +59,7 @@ struct SessionCreateView: View {
                             // Command Field
                             VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                                 Label("Command", systemImage: "terminal")
-                                    .font(Theme.Typography.terminalSystem(size: 12))
+                                    .font(Theme.Typography.terminalSystem(size: 14))
                                     .foregroundColor(Theme.Colors.primaryAccent)
 
                                 TextField("zsh", text: $command)
@@ -70,7 +72,7 @@ struct SessionCreateView: View {
                             // Working Directory
                             VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                                 Label("Working Directory", systemImage: "folder")
-                                    .font(Theme.Typography.terminalSystem(size: 12))
+                                    .font(Theme.Typography.terminalSystem(size: 14))
                                     .foregroundColor(Theme.Colors.primaryAccent)
 
                                 HStack(spacing: Theme.Spacing.small) {
@@ -89,12 +91,8 @@ struct SessionCreateView: View {
                                             .foregroundColor(Theme.Colors.primaryAccent)
                                             .frame(width: 44, height: 44)
                                             .background(
-                                                RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
-                                                    .fill(Theme.Colors.cardBorder.opacity(0.1))
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
-                                                    .stroke(Theme.Colors.cardBorder.opacity(0.3), lineWidth: 1)
+                                                RoundedRectangle(cornerRadius: Theme.CornerRadius.medium)
+                                                    .fill(Theme.Colors.primaryAccent)
                                             )
                                     })
                                     .buttonStyle(PlainButtonStyle())
@@ -104,7 +102,7 @@ struct SessionCreateView: View {
                             // Session Name
                             VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                                 Label("Session Name (Optional)", systemImage: "tag")
-                                    .font(Theme.Typography.terminalSystem(size: 12))
+                                    .font(Theme.Typography.terminalSystem(size: 14))
                                     .foregroundColor(Theme.Colors.primaryAccent)
 
                                 TextField("My Session", text: $sessionName)
@@ -193,52 +191,51 @@ struct SessionCreateView: View {
                         }
 
                         // Quick Start Commands
-                        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
                             Text("QUICK START")
-                                .font(Theme.Typography.terminalSystem(size: 10))
-                                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
-                                .tracking(1)
+                                .font(Theme.Typography.terminalSystem(size: 11))
+                                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.4))
+                                .tracking(0.5)
                                 .padding(.horizontal)
 
                             LazyVGrid(columns: [
                                 GridItem(.flexible()),
                                 GridItem(.flexible())
                             ], spacing: Theme.Spacing.small) {
-                                ForEach(recentCommands, id: \.self) { cmd in
+                                ForEach(quickStartCommands, id: \.title) { item in
                                     Button(action: {
-                                        command = cmd
+                                        command = item.command
                                         HapticFeedback.selection()
                                     }, label: {
-                                        HStack {
-                                            Image(systemName: commandIcon(for: cmd))
-                                                .font(.system(size: 14))
-                                            Text(cmd)
-                                                .font(Theme.Typography.terminalSystem(size: 14))
+                                        HStack(spacing: Theme.Spacing.small) {
+                                            Image(systemName: item.icon)
+                                                .font(.system(size: 16))
+                                                .frame(width: 20)
+                                            Text(item.title)
+                                                .font(Theme.Typography.terminalSystem(size: 15))
                                             Spacer()
                                         }
-                                        .foregroundColor(command == cmd ? Theme.Colors.terminalBackground : Theme.Colors
+                                        .foregroundColor(command == item.command ? Theme.Colors.terminalBackground : Theme.Colors
                                             .terminalForeground
                                         )
                                         .padding(.horizontal, Theme.Spacing.medium)
-                                        .padding(.vertical, Theme.Spacing.small)
+                                        .padding(.vertical, 14)
                                         .background(
-                                            RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
-                                                .fill(command == cmd ? Theme.Colors.primaryAccent : Theme.Colors
-                                                    .cardBorder.opacity(0.3)
+                                            RoundedRectangle(cornerRadius: Theme.CornerRadius.medium)
+                                                .fill(command == item.command ? Theme.Colors.primaryAccent : Theme.Colors
+                                                    .cardBackground
                                                 )
                                         )
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
+                                            RoundedRectangle(cornerRadius: Theme.CornerRadius.medium)
                                                 .stroke(
-                                                    command == cmd ? Theme.Colors.primaryAccent : Theme.Colors
-                                                        .cardBorder,
+                                                    command == item.command ? Theme.Colors.primaryAccent : Theme.Colors
+                                                        .cardBorder.opacity(0.3),
                                                     lineWidth: 1
                                                 )
                                         )
                                     })
                                     .buttonStyle(PlainButtonStyle())
-                                    .scaleEffect(command == cmd ? 0.95 : 1.0)
-                                    .animation(Theme.Animation.quick, value: command == cmd)
                                 }
                             }
                             .padding(.horizontal)
@@ -246,6 +243,8 @@ struct SessionCreateView: View {
 
                         Spacer(minLength: 40)
                     }
+                    .frame(maxWidth: horizontalSizeClass == .regular ? 600 : .infinity)
+                    .frame(maxWidth: .infinity)
                 }
             }
             .navigationBarHidden(true)
@@ -296,8 +295,8 @@ struct SessionCreateView: View {
                         .buttonStyle(PlainButtonStyle())
                         .disabled(isCreating || command.isEmpty)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
                 .frame(height: 56) // Fixed height for the header
                 .overlay(
@@ -322,8 +321,21 @@ struct SessionCreateView: View {
         }
     }
 
-    private var recentCommands: [String] {
-        ["claude", "zsh", "bash", "python3", "node", "npm run dev"]
+    private struct QuickStartItem {
+        let title: String
+        let command: String
+        let icon: String
+    }
+    
+    private var quickStartCommands: [QuickStartItem] {
+        [
+            QuickStartItem(title: "claude", command: "claude", icon: "sparkle"),
+            QuickStartItem(title: "zsh", command: "zsh", icon: "terminal"),
+            QuickStartItem(title: "bash", command: "bash", icon: "terminal.fill"),
+            QuickStartItem(title: "python3", command: "python3", icon: "chevron.left.forwardslash.chevron.right"),
+            QuickStartItem(title: "node", command: "node", icon: "server.rack"),
+            QuickStartItem(title: "npm run dev", command: "npm run dev", icon: "play.circle")
+        ]
     }
 
     private var commonDirectories: [String] {
@@ -353,6 +365,9 @@ struct SessionCreateView: View {
         // Load last used values
         if let lastCommand = UserDefaults.standard.string(forKey: "lastCommand") {
             command = lastCommand
+        } else {
+            // Default to zsh
+            command = "zsh"
         }
         if let lastDir = UserDefaults.standard.string(forKey: "lastWorkingDir") {
             workingDirectory = lastDir

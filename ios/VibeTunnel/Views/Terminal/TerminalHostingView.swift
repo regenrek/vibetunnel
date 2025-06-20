@@ -8,6 +8,7 @@ import SwiftUI
 struct TerminalHostingView: UIViewRepresentable {
     let session: Session
     @Binding var fontSize: CGFloat
+    let theme: TerminalTheme
     let onInput: (String) -> Void
     let onResize: (Int, Int) -> Void
     var viewModel: TerminalViewModel
@@ -16,10 +17,36 @@ struct TerminalHostingView: UIViewRepresentable {
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let terminal = SwiftTerm.TerminalView()
 
-        // Configure terminal appearance
-        terminal.backgroundColor = UIColor(Theme.Colors.terminalBackground)
-        terminal.nativeForegroundColor = UIColor(Theme.Colors.terminalForeground)
-        terminal.nativeBackgroundColor = UIColor(Theme.Colors.terminalBackground)
+        // Configure terminal appearance with theme
+        terminal.backgroundColor = UIColor(theme.background)
+        terminal.nativeForegroundColor = UIColor(theme.foreground)
+        terminal.nativeBackgroundColor = UIColor(theme.background)
+        
+        // Set ANSI colors from theme
+        terminal.installColors([
+            UIColor(theme.black),      // 0 - Black
+            UIColor(theme.red),        // 1 - Red  
+            UIColor(theme.green),      // 2 - Green
+            UIColor(theme.yellow),     // 3 - Yellow
+            UIColor(theme.blue),       // 4 - Blue
+            UIColor(theme.magenta),    // 5 - Magenta
+            UIColor(theme.cyan),       // 6 - Cyan
+            UIColor(theme.white),      // 7 - White
+            UIColor(theme.brightBlack),    // 8 - Bright Black
+            UIColor(theme.brightRed),      // 9 - Bright Red
+            UIColor(theme.brightGreen),    // 10 - Bright Green
+            UIColor(theme.brightYellow),   // 11 - Bright Yellow
+            UIColor(theme.brightBlue),     // 12 - Bright Blue
+            UIColor(theme.brightMagenta),  // 13 - Bright Magenta
+            UIColor(theme.brightCyan),     // 14 - Bright Cyan
+            UIColor(theme.brightWhite)     // 15 - Bright White
+        ])
+        
+        // Set cursor color
+        terminal.caretColor = UIColor(theme.cursor)
+        
+        // Set selection color
+        terminal.selectedTextBackgroundColor = UIColor(theme.selection)
 
         // Set up delegates
         // SwiftTerm's TerminalView uses terminalDelegate, not delegate
@@ -46,6 +73,33 @@ struct TerminalHostingView: UIViewRepresentable {
 
     func updateUIView(_ terminal: SwiftTerm.TerminalView, context: Context) {
         updateFont(terminal, size: fontSize)
+        
+        // Update theme colors
+        terminal.backgroundColor = UIColor(theme.background)
+        terminal.nativeForegroundColor = UIColor(theme.foreground)
+        terminal.nativeBackgroundColor = UIColor(theme.background)
+        terminal.caretColor = UIColor(theme.cursor)
+        terminal.selectedTextBackgroundColor = UIColor(theme.selection)
+        
+        // Update ANSI colors
+        terminal.installColors([
+            UIColor(theme.black),      // 0 - Black
+            UIColor(theme.red),        // 1 - Red  
+            UIColor(theme.green),      // 2 - Green
+            UIColor(theme.yellow),     // 3 - Yellow
+            UIColor(theme.blue),       // 4 - Blue
+            UIColor(theme.magenta),    // 5 - Magenta
+            UIColor(theme.cyan),       // 6 - Cyan
+            UIColor(theme.white),      // 7 - White
+            UIColor(theme.brightBlack),    // 8 - Bright Black
+            UIColor(theme.brightRed),      // 9 - Bright Red
+            UIColor(theme.brightGreen),    // 10 - Bright Green
+            UIColor(theme.brightYellow),   // 11 - Bright Yellow
+            UIColor(theme.brightBlue),     // 12 - Bright Blue
+            UIColor(theme.brightMagenta),  // 13 - Bright Magenta
+            UIColor(theme.brightCyan),     // 14 - Bright Cyan
+            UIColor(theme.brightWhite)     // 15 - Bright White
+        ])
 
         // Update terminal content from viewModel
         context.coordinator.terminal = terminal

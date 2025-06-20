@@ -9,6 +9,8 @@ struct ServerConfigForm: View {
     @Binding var port: String
     @Binding var name: String
     @Binding var password: String
+    @Binding var authType: AuthType
+    @Binding var bearerToken: String
     let isConnecting: Bool
     let errorMessage: String?
     let onConnect: () -> Void
@@ -21,6 +23,7 @@ struct ServerConfigForm: View {
         case port
         case name
         case password
+        case bearerToken
     }
 
     var body: some View {
@@ -75,20 +78,66 @@ struct ServerConfigForm: View {
                         }
                 }
 
-                // Password Field (Optional)
+                // Authentication Type
                 VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Label("Password (Optional)", systemImage: "lock")
+                    Label("Authentication", systemImage: "lock.shield")
                         .font(Theme.Typography.terminalSystem(size: 12))
                         .foregroundColor(Theme.Colors.primaryAccent)
 
-                    SecureField("Enter password if required", text: $password)
-                        .textFieldStyle(TerminalTextFieldStyle())
-                        .focused($focusedField, equals: .password)
-                        .submitLabel(.done)
-                        .onSubmit {
-                            focusedField = nil
-                            onConnect()
+                    Picker("Auth Type", selection: $authType) {
+                        ForEach(AuthType.allCases, id: \.self) { type in
+                            Text(type.displayName).tag(type)
                         }
+                    }
+                    .pickerStyle(.segmented)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
+                            .stroke(Theme.Colors.cardBorder, lineWidth: 1)
+                    )
+                }
+                
+                // Password Field (for Basic Auth)
+                if authType == .basic {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                        Label("Password", systemImage: "lock")
+                            .font(Theme.Typography.terminalSystem(size: 12))
+                            .foregroundColor(Theme.Colors.primaryAccent)
+
+                        SecureField("Enter password", text: $password)
+                            .textFieldStyle(TerminalTextFieldStyle())
+                            .focused($focusedField, equals: .password)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                focusedField = nil
+                                onConnect()
+                            }
+                    }
+                    .transition(.asymmetric(
+                        insertion: .scale.combined(with: .opacity),
+                        removal: .scale.combined(with: .opacity)
+                    ))
+                }
+                
+                // Bearer Token Field
+                if authType == .bearer {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                        Label("Bearer Token", systemImage: "key")
+                            .font(Theme.Typography.terminalSystem(size: 12))
+                            .foregroundColor(Theme.Colors.primaryAccent)
+
+                        SecureField("Enter bearer token", text: $bearerToken)
+                            .textFieldStyle(TerminalTextFieldStyle())
+                            .focused($focusedField, equals: .bearerToken)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                focusedField = nil
+                                onConnect()
+                            }
+                    }
+                    .transition(.asymmetric(
+                        insertion: .scale.combined(with: .opacity),
+                        removal: .scale.combined(with: .opacity)
+                    ))
                 }
             }
             .padding(.horizontal)
@@ -165,6 +214,8 @@ struct ServerConfigForm: View {
                                     port = String(server.port)
                                     name = server.name ?? ""
                                     password = server.password ?? ""
+                                    authType = server.authType
+                                    bearerToken = server.bearerToken ?? ""
                                     HapticFeedback.selection()
                                 }, label: {
                                     VStack(alignment: .leading, spacing: 4) {

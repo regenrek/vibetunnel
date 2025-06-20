@@ -13,6 +13,10 @@ struct TerminalView: View {
     @State private var fontSize: CGFloat = 14
     @State private var showingFontSizeSheet = false
     @State private var showingRecordingSheet = false
+    @State private var showingTerminalWidthSheet = false
+    @State private var showingTerminalThemeSheet = false
+    @State private var selectedTerminalWidth: Int?
+    @State private var selectedTheme = TerminalTheme.selected
     @State private var keyboardHeight: CGFloat = 0
     @FocusState private var isInputFocused: Bool
 
@@ -25,7 +29,7 @@ struct TerminalView: View {
         NavigationStack {
             ZStack {
                 // Background
-                Theme.Colors.terminalBackground
+                selectedTheme.background
                     .ignoresSafeArea()
 
                 // Terminal content
@@ -60,6 +64,14 @@ struct TerminalView: View {
 
                         Button(action: { showingFontSizeSheet = true }, label: {
                             Label("Font Size", systemImage: "textformat.size")
+                        })
+
+                        Button(action: { showingTerminalWidthSheet = true }, label: {
+                            Label("Terminal Width", systemImage: "arrow.left.and.right")
+                        })
+
+                        Button(action: { showingTerminalThemeSheet = true }, label: {
+                            Label("Theme", systemImage: "paintbrush")
                         })
 
                         Button(action: { viewModel.copyBuffer() }, label: {
@@ -97,6 +109,15 @@ struct TerminalView: View {
             }
             .sheet(isPresented: $showingRecordingSheet) {
                 RecordingExportSheet(recorder: viewModel.castRecorder, sessionName: session.displayName)
+            }
+            .sheet(isPresented: $showingTerminalWidthSheet) {
+                TerminalWidthSheet(selectedWidth: $selectedTerminalWidth)
+                    .onAppear {
+                        selectedTerminalWidth = viewModel.terminalCols
+                    }
+            }
+            .sheet(isPresented: $showingTerminalThemeSheet) {
+                TerminalThemeSheet(selectedTheme: $selectedTheme)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
@@ -190,6 +211,14 @@ struct TerminalView: View {
                 keyboardHeight = 0
             }
         }
+        .onChange(of: selectedTerminalWidth) { oldValue, newValue in
+            if let width = newValue, width != viewModel.terminalCols {
+                // Calculate appropriate height based on aspect ratio
+                let aspectRatio = Double(viewModel.terminalRows) / Double(viewModel.terminalCols)
+                let newHeight = Int(Double(width) * aspectRatio)
+                viewModel.resize(cols: width, rows: newHeight)
+            }
+        }
     }
 
     private var loadingView: some View {
@@ -235,6 +264,7 @@ struct TerminalView: View {
             TerminalHostingView(
                 session: session,
                 fontSize: $fontSize,
+                theme: selectedTheme,
                 onInput: { text in
                     viewModel.sendInput(text)
                 },
@@ -246,7 +276,7 @@ struct TerminalView: View {
                 viewModel: viewModel
             )
             .id(viewModel.terminalViewId)
-            .background(Theme.Colors.terminalBackground)
+            .background(selectedTheme.background)
             .focused($isInputFocused)
 
             // Keyboard toolbar

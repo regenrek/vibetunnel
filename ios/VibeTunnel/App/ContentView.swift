@@ -10,16 +10,33 @@ struct ContentView: View {
     @State private var showingFilePicker = false
     @State private var showingCastPlayer = false
     @State private var selectedCastFile: URL?
+    @State private var isValidatingConnection = true
 
     var body: some View {
         Group {
-            if connectionManager.isConnected, connectionManager.serverConfig != nil {
+            if isValidatingConnection && connectionManager.isConnected {
+                // Show loading while validating restored connection
+                VStack(spacing: Theme.Spacing.large) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
+                        .scaleEffect(1.5)
+                    
+                    Text("Restoring connection...")
+                        .font(Theme.Typography.terminalSystem(size: 14))
+                        .foregroundColor(Theme.Colors.terminalForeground)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.Colors.terminalBackground)
+            } else if connectionManager.isConnected, connectionManager.serverConfig != nil {
                 SessionListView()
             } else {
                 ConnectionView()
             }
         }
         .animation(.default, value: connectionManager.isConnected)
+        .onAppear {
+            validateRestoredConnection()
+        }
         .onOpenURL { url in
             // Handle cast file opening
             if url.pathExtension == "cast" {
@@ -30,6 +47,32 @@ struct ContentView: View {
         .sheet(isPresented: $showingCastPlayer) {
             if let castFile = selectedCastFile {
                 CastPlayerView(castFileURL: castFile)
+            }
+        }
+    }
+    
+    private func validateRestoredConnection() {
+        guard connectionManager.isConnected,
+              let config = connectionManager.serverConfig else {
+            isValidatingConnection = false
+            return
+        }
+        
+        // Test the restored connection
+        Task {
+            do {
+                // Try to fetch sessions to validate connection
+                _ = try await APIClient.shared.getSessions()
+                // Connection is valid
+                await MainActor.run {
+                    isValidatingConnection = false
+                }
+            } catch {
+                // Connection failed, reset state
+                await MainActor.run {
+                    connectionManager.disconnect()
+                    isValidatingConnection = false
+                }
             }
         }
     }

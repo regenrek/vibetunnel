@@ -14,6 +14,24 @@ struct FileEntry: Codable, Identifiable {
     let modTime: Date
 
     var id: String { path }
+    
+    /// Creates a new FileEntry with the given parameters.
+    ///
+    /// - Parameters:
+    ///   - name: The file name
+    ///   - path: The full path to the file
+    ///   - isDir: Whether this entry represents a directory
+    ///   - size: The file size in bytes
+    ///   - mode: The file permissions mode string
+    ///   - modTime: The modification time
+    init(name: String, path: String, isDir: Bool, size: Int64, mode: String, modTime: Date) {
+        self.name = name
+        self.path = path
+        self.isDir = isDir
+        self.size = size
+        self.mode = mode
+        self.modTime = modTime
+    }
 
     enum CodingKeys: String, CodingKey {
         case name

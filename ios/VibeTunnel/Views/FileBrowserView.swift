@@ -8,12 +8,24 @@ import SwiftUI
 struct FileBrowserView: View {
     @State private var viewModel = FileBrowserViewModel()
     @Environment(\.dismiss) private var dismiss
+    @State private var showingFileEditor = false
+    @State private var showingNewFileAlert = false
+    @State private var newFileName = ""
+    @State private var selectedFile: FileEntry?
+    @State private var showingDeleteAlert = false
 
     let onSelect: (String) -> Void
     let initialPath: String
+    let mode: FileBrowserMode
 
-    init(initialPath: String = "~", onSelect: @escaping (String) -> Void) {
+    enum FileBrowserMode {
+        case selectDirectory
+        case browseFiles
+    }
+
+    init(initialPath: String = "~", mode: FileBrowserMode = .selectDirectory, onSelect: @escaping (String) -> Void) {
         self.initialPath = initialPath
+        self.mode = mode
         self.onSelect = onSelect
     }
 
@@ -67,10 +79,31 @@ struct FileBrowserView: View {
                                     onTap: {
                                         if entry.isDir {
                                             viewModel.navigate(to: entry.path)
+                                        } else if mode == .browseFiles {
+                                            // Open file editor for files in browse mode
+                                            selectedFile = entry
+                                            showingFileEditor = true
                                         }
                                     }
                                 )
                                 .transition(.opacity)
+                                .contextMenu {
+                                    if mode == .browseFiles && !entry.isDir {
+                                        Button(action: {
+                                            selectedFile = entry
+                                            showingFileEditor = true
+                                        }) {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                        
+                                        Button(role: .destructive, action: {
+                                            selectedFile = entry
+                                            showingDeleteAlert = true
+                                        }) {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                }
                             }
                         }
                         .padding(.vertical, 8)
@@ -124,29 +157,48 @@ struct FileBrowserView: View {
                                 .contentShape(Rectangle())
                         })
                         .buttonStyle(TerminalButtonStyle())
+                        
+                        // Create file button (only in browse mode)
+                        if mode == .browseFiles {
+                            Button(action: { showingNewFileAlert = true }, label: {
+                                Label("new file", systemImage: "doc.badge.plus")
+                                    .font(.custom("SF Mono", size: 14))
+                                    .foregroundColor(Theme.Colors.terminalAccent)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Theme.Colors.terminalAccent.opacity(0.5), lineWidth: 1)
+                                    )
+                                    .contentShape(Rectangle())
+                            })
+                            .buttonStyle(TerminalButtonStyle())
+                        }
 
-                        // Select button
-                        Button(action: {
-                            onSelect(viewModel.currentPath)
-                            dismiss()
-                        }, label: {
-                            Text("select")
-                                .font(.custom("SF Mono", size: 14))
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Theme.Colors.terminalAccent)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Theme.Colors.terminalAccent.opacity(0.3))
-                                        .blur(radius: 10)
-                                )
-                                .contentShape(Rectangle())
-                        })
-                        .buttonStyle(TerminalButtonStyle())
+                        // Select button (only in selectDirectory mode)
+                        if mode == .selectDirectory {
+                            Button(action: {
+                                onSelect(viewModel.currentPath)
+                                dismiss()
+                            }, label: {
+                                Text("select")
+                                    .font(.custom("SF Mono", size: 14))
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Theme.Colors.terminalAccent)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Theme.Colors.terminalAccent.opacity(0.3))
+                                            .blur(radius: 10)
+                                    )
+                                    .contentShape(Rectangle())
+                            })
+                            .buttonStyle(TerminalButtonStyle())
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
@@ -174,6 +226,54 @@ struct FileBrowserView: View {
                 Button("OK") {}
             } message: { error in
                 Text(error)
+            }
+            .alert("Create File", isPresented: $showingNewFileAlert) {
+                TextField("File name", text: $newFileName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                Button("Cancel", role: .cancel) {
+                    newFileName = ""
+                }
+
+                Button("Create") {
+                    let path = viewModel.currentPath + "/" + newFileName
+                    selectedFile = FileEntry(
+                        name: newFileName,
+                        path: path,
+                        isDir: false,
+                        size: 0,
+                        mode: "0644",
+                        modTime: Date()
+                    )
+                    showingFileEditor = true
+                    newFileName = ""
+                }
+                .disabled(newFileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text("Enter a name for the new file")
+            }
+            .alert("Delete File", isPresented: $showingDeleteAlert, presenting: selectedFile) { file in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await viewModel.deleteFile(path: file.path)
+                    }
+                }
+            } message: { file in
+                Text("Are you sure you want to delete '\(file.name)'? This action cannot be undone.")
+            }
+            .sheet(isPresented: $showingFileEditor) {
+                if let file = selectedFile {
+                    FileEditorView(
+                        path: file.path,
+                        isNewFile: !viewModel.entries.contains(where: { $0.path == file.path })
+                    )
+                    .onDisappear {
+                        // Reload directory to show any new files
+                        viewModel.loadDirectory(path: viewModel.currentPath)
+                    }
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -365,6 +465,20 @@ class FileBrowserViewModel {
         } catch {
             print("[FileBrowser] Failed to create folder: \(error)")
             errorMessage = "Failed to create folder: \(error.localizedDescription)"
+            showError = true
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
+    }
+    
+    func deleteFile(path: String) async {
+        do {
+            try await apiClient.deleteFile(path: path)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            // Reload directory to reflect deletion
+            await loadDirectoryAsync(path: currentPath)
+        } catch {
+            print("[FileBrowser] Failed to delete file: \(error)")
+            errorMessage = "Failed to delete file: \(error.localizedDescription)"
             showError = true
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         }

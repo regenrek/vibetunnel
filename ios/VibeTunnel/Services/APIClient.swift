@@ -73,6 +73,7 @@ protocol APIClientProtocol {
     func killSession(_ sessionId: String) async throws
     func cleanupSession(_ sessionId: String) async throws
     func cleanupAllExitedSessions() async throws -> [String]
+    func killAllSessions() async throws
     func sendInput(sessionId: String, text: String) async throws
     func resizeTerminal(sessionId: String, cols: Int, rows: Int) async throws
 }
@@ -232,6 +233,23 @@ class APIClient: APIClientProtocol {
             return []
         }
     }
+    
+    func killAllSessions() async throws {
+        // First get all sessions
+        let sessions = try await getSessions()
+        
+        // Filter running sessions
+        let runningSessions = sessions.filter { $0.isRunning }
+        
+        // Kill each running session concurrently
+        await withThrowingTaskGroup(of: Void.self) { group in
+            for session in runningSessions {
+                group.addTask { [weak self] in
+                    try await self?.killSession(session.id)
+                }
+            }
+        }
+    }
 
     // MARK: - Terminal I/O
 
@@ -315,9 +333,10 @@ class APIClient: APIClientProtocol {
     }
 
     private func addAuthenticationIfNeeded(_ request: inout URLRequest) {
-        // For now, we don't have authentication configured in the iOS app
-        // This is a placeholder for future authentication support
-        // The server might be running without password protection
+        // Add authorization header from server config
+        if let authHeader = ConnectionManager.shared.currentServerConfig?.authorizationHeader {
+            request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        }
     }
 
     // MARK: - File System Operations
@@ -387,6 +406,85 @@ class APIClient: APIClientProtocol {
         let requestBody = CreateDirectoryRequest(path: path)
         request.httpBody = try encoder.encode(requestBody)
 
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+    
+    // MARK: - File Operations
+    
+    /// Read a file's content
+    func readFile(path: String) async throws -> String {
+        guard let baseURL else { throw APIError.noServerConfigured }
+        
+        let url = baseURL.appendingPathComponent("api/files/read")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
+        
+        struct ReadFileRequest: Codable {
+            let path: String
+        }
+        
+        let requestBody = ReadFileRequest(path: path)
+        request.httpBody = try encoder.encode(requestBody)
+        
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        
+        struct ReadFileResponse: Codable {
+            let content: String
+        }
+        
+        let fileResponse = try decoder.decode(ReadFileResponse.self, from: data)
+        return fileResponse.content
+    }
+    
+    /// Create a new file with content
+    func createFile(path: String, content: String) async throws {
+        guard let baseURL else { throw APIError.noServerConfigured }
+        
+        let url = baseURL.appendingPathComponent("api/files/write")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
+        
+        struct WriteFileRequest: Codable {
+            let path: String
+            let content: String
+        }
+        
+        let requestBody = WriteFileRequest(path: path, content: content)
+        request.httpBody = try encoder.encode(requestBody)
+        
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+    
+    /// Update an existing file's content
+    func updateFile(path: String, content: String) async throws {
+        // For VibeTunnel, write operation handles both create and update
+        try await createFile(path: path, content: content)
+    }
+    
+    /// Delete a file
+    func deleteFile(path: String) async throws {
+        guard let baseURL else { throw APIError.noServerConfigured }
+        
+        let url = baseURL.appendingPathComponent("api/files/delete")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
+        
+        struct DeleteFileRequest: Codable {
+            let path: String
+        }
+        
+        let requestBody = DeleteFileRequest(path: path)
+        request.httpBody = try encoder.encode(requestBody)
+        
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
     }

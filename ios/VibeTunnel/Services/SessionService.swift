@@ -35,6 +35,10 @@ class SessionService {
     func cleanupAllExitedSessions() async throws -> [String] {
         try await apiClient.cleanupAllExitedSessions()
     }
+    
+    func killAllSessions() async throws {
+        try await apiClient.killAllSessions()
+    }
 
     func sendInput(to sessionId: String, text: String) async throws {
         try await apiClient.sendInput(sessionId: sessionId, text: text)
