@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"encoding/binary"
 	"testing"
 )
 
@@ -109,10 +110,94 @@ func TestBufferSerialization(t *testing.T) {
 	snapshot := buffer.GetSnapshot()
 	data := snapshot.SerializeToBinary()
 
-	// Binary format should contain:
-	// - 5 uint32s for dimensions (20 bytes)
-	// - 4 cells with char data and attributes
-	if len(data) < 20 {
-		t.Errorf("Serialized data too short: %d bytes", len(data))
+	// Check header
+	if len(data) < 32 {
+		t.Fatalf("Serialized data too short: %d bytes", len(data))
+	}
+
+	// Check magic bytes "VT" (0x5654)
+	if data[0] != 0x54 || data[1] != 0x56 { // Little endian
+		t.Errorf("Invalid magic bytes: %02x %02x", data[0], data[1])
+	}
+
+	// Check version
+	if data[2] != 0x01 {
+		t.Errorf("Invalid version: %02x", data[2])
+	}
+
+	// Check dimensions at correct offsets
+	cols := binary.LittleEndian.Uint32(data[4:8])
+	rows := binary.LittleEndian.Uint32(data[8:12])
+	if cols != 2 || rows != 2 {
+		t.Errorf("Invalid dimensions: %dx%d", cols, rows)
+	}
+}
+
+func TestBinaryFormatOptimizations(t *testing.T) {
+	// Test empty row optimization
+	buffer := NewTerminalBuffer(10, 3)
+	buffer.Write([]byte("Hello"))     // First row has content
+	buffer.Write([]byte("\r\n"))      // Second row empty
+	buffer.Write([]byte("\r\nWorld")) // Third row has content
+
+	snapshot := buffer.GetSnapshot()
+	data := snapshot.SerializeToBinary()
+
+	// Skip header (28 bytes - the Node.js comment says 32 but it's actually 28)
+	offset := 28
+
+	// First row should have content marker (0xfd)
+	if data[offset] != 0xfd {
+		t.Errorf("Expected row marker 0xfd at offset %d, got %02x (decimal %d)", offset, data[offset], data[offset])
+	}
+
+	// Find empty row marker (0xfe) - it should be somewhere in the data
+	foundEmptyRow := false
+	for i := offset; i < len(data)-1; i++ {
+		if data[i] == 0xfe {
+			foundEmptyRow = true
+			break
+		}
+	}
+	if !foundEmptyRow {
+		t.Error("Empty row marker not found in serialized data")
+	}
+
+	// Test ASCII character encoding with type byte
+	buffer3 := NewTerminalBuffer(5, 1)
+	buffer3.Write([]byte("A")) // Single ASCII character
+
+	snapshot3 := buffer3.GetSnapshot()
+	data3 := snapshot3.SerializeToBinary()
+
+	// Look for ASCII type byte (0x01) followed by 'A' (0x41)
+	foundAsciiEncoding := false
+	for i := 28; i < len(data3)-1; i++ {
+		if data3[i] == 0x01 && data3[i+1] == 0x41 {
+			foundAsciiEncoding = true
+			break
+		}
+	}
+	if !foundAsciiEncoding {
+		t.Error("ASCII encoding (type 0x01 + char) not found in serialized data")
+	}
+
+	// Test Unicode character encoding
+	buffer4 := NewTerminalBuffer(5, 1)
+	buffer4.Write([]byte("世")) // Unicode character
+
+	snapshot4 := buffer4.GetSnapshot()
+	data4 := snapshot4.SerializeToBinary()
+
+	// Look for Unicode type byte (bit 6 set = 0x40+)
+	foundUnicodeEncoding := false
+	for i := 32; i < len(data4); i++ {
+		if (data4[i] & 0x40) != 0 { // Unicode bit set
+			foundUnicodeEncoding = true
+			break
+		}
+	}
+	if !foundUnicodeEncoding {
+		t.Error("Unicode encoding (type with bit 6 set) not found in serialized data")
 	}
 }

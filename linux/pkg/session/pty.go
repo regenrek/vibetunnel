@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/vibetunnel/linux/pkg/protocol"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -175,6 +175,7 @@ func NewPTY(session *Session) (*PTY, error) {
 		log.Printf("[ERROR] NewPTY: Failed to configure PTY terminal: %v", err)
 		// Don't fail on terminal configuration errors, just log them
 	}
+	
 
 	// Set PTY size using our enhanced function
 	if err := setPTYSize(ptmx, uint16(session.info.Width), uint16(session.info.Height)); err != nil {
@@ -251,12 +252,23 @@ func NewPTY(session *Session) (*PTY, error) {
 		// Don't fail if control FIFO creation fails - it's optional
 	}
 
-	return &PTY{
+	ptyObj := &PTY{
 		session:      session,
 		cmd:          cmd,
 		pty:          ptmx,
 		streamWriter: streamWriter,
-	}, nil
+	}
+	
+	// For spawned sessions that will be attached, disable echo immediately
+	// to prevent race condition where output is processed before Attach() disables echo
+	if session.info.IsSpawned {
+		debugLog("[DEBUG] NewPTY: Spawned session detected, disabling PTY echo immediately")
+		if err := ptyObj.disablePTYEcho(); err != nil {
+			log.Printf("[ERROR] NewPTY: Failed to disable PTY echo for spawned session: %v", err)
+		}
+	}
+	
+	return ptyObj, nil
 }
 
 func (p *PTY) Pid() int {
@@ -350,7 +362,7 @@ func (p *PTY) Run() error {
 
 	go func() {
 		debugLog("[DEBUG] PTY.Run: Starting output reading goroutine")
-		buf := make([]byte, 4*1024) // 4KB buffer for more responsive output
+		buf := make([]byte, 1024) // 1KB buffer for maximum responsiveness
 
 		for {
 			// Use a timeout-based approach for cross-platform compatibility
@@ -483,6 +495,13 @@ func (p *PTY) Attach() error {
 	}
 	p.oldState = oldState
 
+	// When attaching to a PTY interactively, we need to disable ECHO on the PTY
+	// to prevent double-echoing (since the controlling terminal is in raw mode)
+	if err := p.disablePTYEcho(); err != nil {
+		log.Printf("[WARN] PTY.Attach: Failed to disable PTY echo: %v", err)
+		// Continue anyway - some programs might handle this themselves
+	}
+
 	defer func() {
 		if err := term.Restore(int(os.Stdin.Fd()), oldState); err != nil {
 			log.Printf("[ERROR] PTY.Attach: Failed to restore terminal: %v", err)
@@ -543,6 +562,28 @@ func (p *PTY) updateSize() error {
 		Rows: uint16(height),
 		Cols: uint16(width),
 	})
+}
+
+// disablePTYEcho disables echo on the PTY to prevent double-echoing
+// when the controlling terminal is in raw mode
+func (p *PTY) disablePTYEcho() error {
+	// Get current PTY termios
+	termios, err := unix.IoctlGetTermios(int(p.pty.Fd()), unix.TIOCGETA)
+	if err != nil {
+		return fmt.Errorf("failed to get PTY termios: %w", err)
+	}
+
+	// Disable echo flags to prevent double-echoing
+	// Keep other flags like ICANON for line processing
+	termios.Lflag &^= unix.ECHO | unix.ECHOE | unix.ECHOK | unix.ECHOKE | unix.ECHOCTL
+
+	// Apply the new settings
+	if err := unix.IoctlSetTermios(int(p.pty.Fd()), unix.TIOCSETA, termios); err != nil {
+		return fmt.Errorf("failed to set PTY termios: %w", err)
+	}
+
+	debugLog("[DEBUG] PTY.disablePTYEcho: Disabled echo on PTY")
+	return nil
 }
 
 func (p *PTY) Resize(width, height int) error {

@@ -70,7 +70,7 @@ func fdIsSet(set *syscall.FdSet, fd int) bool {
 // pollWithSelect polls multiple file descriptors using select
 func (p *PTY) pollWithSelect() error {
 	// Buffer for reading
-	buf := make([]byte, 4*1024) // 4KB buffer for more responsive output
+	buf := make([]byte, 1024) // 1KB buffer for maximum responsiveness
 
 	// Get file descriptors
 	ptyFd := int(p.pty.Fd())

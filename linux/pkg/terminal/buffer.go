@@ -1,7 +1,6 @@
 package terminal
 
 import (
-	"bytes"
 	"encoding/binary"
 	"sync"
 	"unicode/utf8"
@@ -151,38 +150,283 @@ func (tb *TerminalBuffer) Resize(cols, rows int) {
 
 // SerializeToBinary converts the buffer snapshot to the binary format expected by the web client
 func (snapshot *BufferSnapshot) SerializeToBinary() []byte {
-	var buf bytes.Buffer
+	// Pre-calculate actual data size for efficiency
+	dataSize := 28 // Header size (2 magic + 1 version + 1 flags + 4*6 for dimensions/cursor/reserved)
 
-	// Write dimensions (4 bytes each, little endian)
-	binary.Write(&buf, binary.LittleEndian, uint32(snapshot.Cols))
-	binary.Write(&buf, binary.LittleEndian, uint32(snapshot.Rows))
-	binary.Write(&buf, binary.LittleEndian, uint32(snapshot.ViewportY))
-	binary.Write(&buf, binary.LittleEndian, uint32(snapshot.CursorX))
-	binary.Write(&buf, binary.LittleEndian, uint32(snapshot.CursorY))
-
-	// Write cells
-	for y := 0; y < snapshot.Rows; y++ {
-		for x := 0; x < snapshot.Cols; x++ {
-			cell := snapshot.Cells[y][x]
-
-			// Encode character as UTF-8
-			charBytes := make([]byte, 4)
-			n := utf8.EncodeRune(charBytes, cell.Char)
-
-			// Write char length (1 byte)
-			buf.WriteByte(byte(n))
-			// Write char bytes
-			buf.Write(charBytes[:n])
-			// Write foreground color (4 bytes)
-			binary.Write(&buf, binary.LittleEndian, cell.Fg)
-			// Write background color (4 bytes)
-			binary.Write(&buf, binary.LittleEndian, cell.Bg)
-			// Write flags (1 byte)
-			buf.WriteByte(cell.Flags)
+	// First pass: calculate exact size needed
+	for row := 0; row < snapshot.Rows; row++ {
+		rowCells := snapshot.Cells[row]
+		if isEmptyRow(rowCells) {
+			// Empty row marker: 2 bytes
+			dataSize += 2
+		} else {
+			// Row header: 3 bytes (marker + length)
+			dataSize += 3
+			// Trim trailing blank cells
+			trimmedCells := trimRowCells(rowCells)
+			for _, cell := range trimmedCells {
+				dataSize += calculateCellSize(cell)
+			}
 		}
 	}
 
-	return buf.Bytes()
+	buffer := make([]byte, dataSize)
+	offset := 0
+
+	// Write header (32 bytes)
+	binary.LittleEndian.PutUint16(buffer[offset:], 0x5654) // Magic "VT"
+	offset += 2
+	buffer[offset] = 0x01 // Version 1
+	offset++
+	buffer[offset] = 0x00 // Flags
+	offset++
+	binary.LittleEndian.PutUint32(buffer[offset:], uint32(snapshot.Cols))
+	offset += 4
+	binary.LittleEndian.PutUint32(buffer[offset:], uint32(snapshot.Rows))
+	offset += 4
+	binary.LittleEndian.PutUint32(buffer[offset:], uint32(snapshot.ViewportY))
+	offset += 4
+	binary.LittleEndian.PutUint32(buffer[offset:], uint32(snapshot.CursorX))
+	offset += 4
+	binary.LittleEndian.PutUint32(buffer[offset:], uint32(snapshot.CursorY))
+	offset += 4
+	binary.LittleEndian.PutUint32(buffer[offset:], 0) // Reserved
+	offset += 4
+
+	// Write cells with optimized format
+	for row := 0; row < snapshot.Rows; row++ {
+		rowCells := snapshot.Cells[row]
+
+		if isEmptyRow(rowCells) {
+			// Empty row marker
+			buffer[offset] = 0xfe // Empty row marker
+			offset++
+			buffer[offset] = 1 // Count of empty rows (for now just 1)
+			offset++
+		} else {
+			// Row with content
+			buffer[offset] = 0xfd // Row marker
+			offset++
+			trimmedCells := trimRowCells(rowCells)
+			binary.LittleEndian.PutUint16(buffer[offset:], uint16(len(trimmedCells)))
+			offset += 2
+
+			// Write each cell
+			for _, cell := range trimmedCells {
+				offset = encodeCell(buffer, offset, cell)
+			}
+		}
+	}
+
+	// Return exact size buffer
+	return buffer[:offset]
+}
+
+// Helper functions for binary serialization
+
+// isEmptyRow checks if a row contains only empty cells
+func isEmptyRow(cells []BufferCell) bool {
+	if len(cells) == 0 {
+		return true
+	}
+	if len(cells) == 1 && cells[0].Char == ' ' && cells[0].Fg == 0 && cells[0].Bg == 0 && cells[0].Flags == 0 {
+		return true
+	}
+	for _, cell := range cells {
+		if cell.Char != ' ' || cell.Fg != 0 || cell.Bg != 0 || cell.Flags != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// trimRowCells removes trailing blank cells from a row
+func trimRowCells(cells []BufferCell) []BufferCell {
+	lastNonBlank := len(cells) - 1
+	for lastNonBlank >= 0 {
+		cell := cells[lastNonBlank]
+		if cell.Char != ' ' || cell.Fg != 0 || cell.Bg != 0 || cell.Flags != 0 {
+			break
+		}
+		lastNonBlank--
+	}
+	// Keep at least one cell
+	if lastNonBlank < 0 {
+		return cells[:1]
+	}
+	return cells[:lastNonBlank+1]
+}
+
+// calculateCellSize calculates the size needed to encode a cell
+func calculateCellSize(cell BufferCell) int {
+	isSpace := cell.Char == ' '
+	hasAttrs := cell.Flags != 0
+	hasFg := cell.Fg != 0
+	hasBg := cell.Bg != 0
+	isAscii := cell.Char <= 127
+
+	if isSpace && !hasAttrs && !hasFg && !hasBg {
+		return 1 // Just a space marker
+	}
+
+	size := 1 // Type byte
+
+	if isAscii {
+		size++ // ASCII character
+	} else {
+		charBytes := utf8.RuneLen(cell.Char)
+		size += 1 + charBytes // Length byte + UTF-8 bytes
+	}
+
+	// Attributes/colors byte
+	if hasAttrs || hasFg || hasBg {
+		size++ // Flags byte for attributes
+
+		if hasFg {
+			if cell.Fg > 255 {
+				size += 3 // RGB
+			} else {
+				size++ // Palette
+			}
+		}
+
+		if hasBg {
+			if cell.Bg > 255 {
+				size += 3 // RGB
+			} else {
+				size++ // Palette
+			}
+		}
+	}
+
+	return size
+}
+
+// encodeCell encodes a single cell into the buffer
+func encodeCell(buffer []byte, offset int, cell BufferCell) int {
+	isSpace := cell.Char == ' '
+	hasAttrs := cell.Flags != 0
+	hasFg := cell.Fg != 0
+	hasBg := cell.Bg != 0
+	isAscii := cell.Char <= 127
+
+	// Type byte format:
+	// Bit 7: Has extended data (attrs/colors)
+	// Bit 6: Is Unicode (vs ASCII)
+	// Bit 5: Has foreground color
+	// Bit 4: Has background color
+	// Bit 3: Is RGB foreground (vs palette)
+	// Bit 2: Is RGB background (vs palette)
+	// Bits 1-0: Character type (00=space, 01=ASCII, 10=Unicode)
+
+	if isSpace && !hasAttrs && !hasFg && !hasBg {
+		// Simple space - 1 byte
+		buffer[offset] = 0x00 // Type: space, no extended data
+		return offset + 1
+	}
+
+	var typeByte byte = 0
+
+	if hasAttrs || hasFg || hasBg {
+		typeByte |= 0x80 // Has extended data
+	}
+
+	if !isAscii {
+		typeByte |= 0x40 // Is Unicode
+		typeByte |= 0x02 // Character type: Unicode
+	} else if !isSpace {
+		typeByte |= 0x01 // Character type: ASCII
+	}
+
+	if hasFg {
+		typeByte |= 0x20 // Has foreground
+		if cell.Fg > 255 {
+			typeByte |= 0x08 // Is RGB
+		}
+	}
+
+	if hasBg {
+		typeByte |= 0x10 // Has background
+		if cell.Bg > 255 {
+			typeByte |= 0x04 // Is RGB
+		}
+	}
+
+	buffer[offset] = typeByte
+	offset++
+
+	// Write character
+	if !isAscii {
+		charBytes := make([]byte, 4)
+		n := utf8.EncodeRune(charBytes, cell.Char)
+		buffer[offset] = byte(n)
+		offset++
+		copy(buffer[offset:], charBytes[:n])
+		offset += n
+	} else if !isSpace {
+		buffer[offset] = byte(cell.Char)
+		offset++
+	}
+
+	// Write extended data if present
+	if typeByte&0x80 != 0 {
+		// Attributes byte (convert our flags to Node.js format)
+		var attrs byte = 0
+		if cell.Flags&0x01 != 0 { // Bold
+			attrs |= 0x01
+		}
+		if cell.Flags&0x02 != 0 { // Italic
+			attrs |= 0x02
+		}
+		if cell.Flags&0x04 != 0 { // Underline
+			attrs |= 0x04
+		}
+		if cell.Flags&0x08 != 0 { // Inverse/Dim - map inverse to dim in Node.js
+			attrs |= 0x08
+		}
+		// Note: Node.js has additional attributes we don't support yet
+		
+		if hasAttrs || hasFg || hasBg {
+			buffer[offset] = attrs
+			offset++
+		}
+
+		// Foreground color
+		if hasFg {
+			if cell.Fg > 255 {
+				// RGB
+				buffer[offset] = byte((cell.Fg >> 16) & 0xff)
+				offset++
+				buffer[offset] = byte((cell.Fg >> 8) & 0xff)
+				offset++
+				buffer[offset] = byte(cell.Fg & 0xff)
+				offset++
+			} else {
+				// Palette
+				buffer[offset] = byte(cell.Fg)
+				offset++
+			}
+		}
+
+		// Background color
+		if hasBg {
+			if cell.Bg > 255 {
+				// RGB
+				buffer[offset] = byte((cell.Bg >> 16) & 0xff)
+				offset++
+				buffer[offset] = byte((cell.Bg >> 8) & 0xff)
+				offset++
+				buffer[offset] = byte(cell.Bg & 0xff)
+				offset++
+			} else {
+				// Palette
+				buffer[offset] = byte(cell.Bg)
+				offset++
+			}
+		}
+	}
+
+	return offset
 }
 
 // handlePrint handles printable characters
