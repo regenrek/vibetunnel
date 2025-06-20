@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -466,7 +467,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				log.Printf("[ERROR] Failed to create session: %v", err)
-				
+
 				// Return structured error response for frontends to parse
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
@@ -475,7 +476,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 					"error":   err.Error(),
 					"details": fmt.Sprintf("Failed to create session with command '%s'", strings.Join(cmdline, " ")),
 				}
-				
+
 				// Extract more specific error information if available
 				if sessionErr, ok := err.(*session.SessionError); ok {
 					errorResponse["code"] = string(sessionErr.Code)
@@ -483,7 +484,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 						errorResponse["details"] = sessionErr.Message
 					}
 				}
-				
+
 				if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
 					log.Printf("Failed to encode error response: %v", err)
 				}
@@ -539,7 +540,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("[ERROR] Failed to create session: %v", err)
-		
+
 		// Return structured error response for frontends to parse
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -548,7 +549,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			"error":   err.Error(),
 			"details": fmt.Sprintf("Failed to create session with command '%s'", strings.Join(cmdline, " ")),
 		}
-		
+
 		// Extract more specific error information if available
 		if sessionErr, ok := err.(*session.SessionError); ok {
 			errorResponse["code"] = string(sessionErr.Code)
@@ -556,7 +557,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				errorResponse["details"] = sessionErr.Message
 			}
 		}
-		
+
 		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
 			log.Printf("Failed to encode error response: %v", err)
 		}
@@ -1159,7 +1160,7 @@ func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", fileInfo.MimeType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", fileInfo.Name))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size))
-	
+
 	// Add cache headers for static files
 	if strings.HasPrefix(fileInfo.MimeType, "image/") || strings.HasPrefix(fileInfo.MimeType, "application/pdf") {
 		w.Header().Set("Cache-Control", "public, max-age=3600")

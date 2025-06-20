@@ -245,7 +245,7 @@ func (m *Manager) monitorSession(sessionID string, sb *SessionBuffer) {
 				m.mu.Unlock()
 				return
 			}
-			
+
 		case <-m.shutdownCh:
 			// Manager is shutting down
 			return
@@ -265,7 +265,7 @@ func (m *Manager) monitorSessionPolling(sessionID string, sb *SessionBuffer) {
 			return
 		default:
 		}
-		
+
 		// Check if session is still alive
 		if !sb.Session.IsAlive() {
 			break
@@ -369,7 +369,7 @@ func readStreamContent(path string, lastPos int64) (*StreamUpdate, int64, error)
 		OutputData: []byte{},
 	}
 	decoder := json.NewDecoder(bytes.NewReader(newContent[:n]))
-	
+
 	// Skip header if at beginning of file
 	if lastPos == 0 {
 		var header map[string]interface{}
@@ -421,13 +421,13 @@ func readStreamContent(path string, lastPos int64) (*StreamUpdate, int64, error)
 // Shutdown gracefully shuts down the manager
 func (m *Manager) Shutdown() {
 	log.Println("Shutting down terminal buffer manager...")
-	
+
 	// Signal shutdown
 	close(m.shutdownCh)
-	
+
 	// Wait for all monitors to finish
 	m.wg.Wait()
-	
+
 	// Close all subscriber channels
 	m.subMu.Lock()
 	for _, subs := range m.subscribers {
@@ -437,11 +437,11 @@ func (m *Manager) Shutdown() {
 	}
 	m.subscribers = make(map[string][]chan *terminal.BufferSnapshot)
 	m.subMu.Unlock()
-	
+
 	// Clear buffers
 	m.mu.Lock()
 	m.buffers = make(map[string]*SessionBuffer)
 	m.mu.Unlock()
-	
+
 	log.Println("Terminal buffer manager shutdown complete")
 }

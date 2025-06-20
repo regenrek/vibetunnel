@@ -86,7 +86,7 @@ func GetFileInfo(path string) (*FileInfo, error) {
 	file, err := os.Open(absPath)
 	if err == nil {
 		defer file.Close()
-		
+
 		// Read first 512 bytes for content detection
 		buffer := make([]byte, 512)
 		n, _ := file.Read(buffer)

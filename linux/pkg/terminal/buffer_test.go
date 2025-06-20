@@ -45,7 +45,7 @@ func TestTerminalBuffer(t *testing.T) {
 	// Test ANSI escape sequences
 	buffer.Write([]byte("\x1b[2J")) // Clear screen
 	snapshot = buffer.GetSnapshot()
-	
+
 	// All cells should be spaces
 	for y := 0; y < snapshot.Rows; y++ {
 		for x := 0; x < snapshot.Cols; x++ {
@@ -65,36 +65,36 @@ func TestTerminalBuffer(t *testing.T) {
 
 func TestAnsiParser(t *testing.T) {
 	parser := NewAnsiParser()
-	
+
 	var printedChars []rune
 	var executedBytes []byte
 	var csiCalls []string
-	
+
 	parser.OnPrint = func(r rune) {
 		printedChars = append(printedChars, r)
 	}
-	
+
 	parser.OnExecute = func(b byte) {
 		executedBytes = append(executedBytes, b)
 	}
-	
+
 	parser.OnCsi = func(params []int, intermediate []byte, final byte) {
 		csiCalls = append(csiCalls, string(final))
 	}
-	
+
 	// Test simple text
 	parser.Parse([]byte("Hello"))
 	if string(printedChars) != "Hello" {
 		t.Errorf("Expected 'Hello', got '%s'", string(printedChars))
 	}
-	
+
 	// Test control characters
 	printedChars = nil
 	parser.Parse([]byte("\r\n"))
 	if len(executedBytes) != 2 || executedBytes[0] != '\r' || executedBytes[1] != '\n' {
 		t.Errorf("Control characters not properly executed")
 	}
-	
+
 	// Test CSI sequence
 	parser.Parse([]byte("\x1b[2J"))
 	if len(csiCalls) != 1 || csiCalls[0] != "J" {
@@ -105,10 +105,10 @@ func TestAnsiParser(t *testing.T) {
 func TestBufferSerialization(t *testing.T) {
 	buffer := NewTerminalBuffer(2, 2)
 	buffer.Write([]byte("AB\r\nCD"))
-	
+
 	snapshot := buffer.GetSnapshot()
 	data := snapshot.SerializeToBinary()
-	
+
 	// Binary format should contain:
 	// - 5 uint32s for dimensions (20 bytes)
 	// - 4 cells with char data and attributes
