@@ -92,8 +92,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
             processInfo.arguments.contains("-XCTest") ||
             NSClassFromString("XCTestCase") != nil
         let isRunningInPreview = processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        #if DEBUG
+        let isRunningInDebug = true
+        #else
         let isRunningInDebug = processInfo.environment["DYLD_INSERT_LIBRARIES"]?
-            .contains("libMainThreadChecker.dylib") ?? false
+            .contains("libMainThreadChecker.dylib") ?? false ||
+            processInfo.environment["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] != nil
+        #endif
 
         // Handle single instance check before doing anything else
         if !isRunningInPreview, !isRunningInTests, !isRunningInDebug {
@@ -274,8 +279,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
             processInfo.arguments.contains("-XCTest") ||
             NSClassFromString("XCTestCase") != nil
         let isRunningInPreview = processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        #if DEBUG
+        let isRunningInDebug = true
+        #else
         let isRunningInDebug = processInfo.environment["DYLD_INSERT_LIBRARIES"]?
-            .contains("libMainThreadChecker.dylib") ?? false
+            .contains("libMainThreadChecker.dylib") ?? false ||
+            processInfo.environment["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] != nil
+        #endif
 
         // Skip cleanup during tests
         if isRunningInTests {
