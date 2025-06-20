@@ -24,6 +24,7 @@ export class VibeTerminalBuffer extends LitElement {
   @state() private buffer: BufferSnapshot | null = null;
   @state() private error: string | null = null;
   @state() private displayedFontSize = 14;
+  @state() private visibleRows = 0;
 
   private container: HTMLElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -81,17 +82,31 @@ export class VibeTerminalBuffer extends LitElement {
     if (!this.container) return;
 
     const containerWidth = this.container.clientWidth;
+    const containerHeight = this.container.clientHeight;
 
-    // Always fit horizontally
-    // Step 1: Measure container width
-    // Step 2: Divide by cols to get target character width
+    // Step 1: Calculate font size to fit horizontally
     const cols = this.buffer?.cols || 80;
-    const targetCharWidth = containerWidth / cols;
 
-    // Step 3: Scale font size so we can fit cols characters into the container width
-    // Estimate font size needed (assuming monospace font with ~0.6 char/font ratio)
-    const calculatedFontSize = targetCharWidth / 0.6;
-    this.displayedFontSize = Math.max(4, Math.min(32, Math.floor(calculatedFontSize)));
+    // Measure actual character width at 14px font size
+    const testElement = document.createElement('div');
+    testElement.className = 'terminal-line';
+    testElement.style.position = 'absolute';
+    testElement.style.visibility = 'hidden';
+    testElement.style.fontSize = '14px';
+    testElement.textContent = '0'.repeat(cols);
+
+    document.body.appendChild(testElement);
+    const totalWidth = testElement.getBoundingClientRect().width;
+    document.body.removeChild(testElement);
+
+    // Calculate the exact font size needed to fit the container width
+    const calculatedFontSize = (containerWidth / totalWidth) * 14;
+    // Don't floor - keep the decimal for exact fit
+    this.displayedFontSize = Math.min(32, calculatedFontSize);
+
+    // Step 2: Calculate how many lines fit vertically with this font size
+    const lineHeight = this.displayedFontSize * 1.2;
+    this.visibleRows = Math.floor(containerHeight / lineHeight);
 
     // Always update when dimensions change
     if (this.buffer) {
@@ -161,22 +176,29 @@ export class VibeTerminalBuffer extends LitElement {
   }
 
   private updateBufferContent() {
-    if (!this.container || !this.buffer) return;
+    if (!this.container || !this.buffer || this.visibleRows === 0) return;
 
     const lineHeight = this.displayedFontSize * 1.2;
     let html = '';
 
-    // Render all cells from the buffer
-    // The buffer contains the bottom portion of the terminal, starting at viewportY
-    this.buffer.cells.forEach((row, index) => {
+    // Step 3: Show bottom N lines that fit
+    let startIndex = 0;
+    if (this.buffer.cells.length > this.visibleRows) {
+      // More content than visible rows - show bottom portion
+      startIndex = this.buffer.cells.length - this.visibleRows;
+    }
+
+    // Render only the visible rows
+    for (let i = startIndex; i < this.buffer.cells.length; i++) {
+      const row = this.buffer.cells[i];
+
       // Check if cursor is on this line
-      // cursorY is relative to the viewport (can be negative if cursor is above viewport)
-      const isCursorLine = index === this.buffer.cursorY;
+      const isCursorLine = i === this.buffer.cursorY;
       const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
       const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
 
       html += `<div class="terminal-line" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">${lineContent}</div>`;
-    });
+    }
 
     // Set innerHTML directly like terminal.ts does
     this.container.innerHTML = html;
