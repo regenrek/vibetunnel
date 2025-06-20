@@ -1,0 +1,107 @@
+name: iOS CI
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  lint:
+    name: Lint iOS Swift Code
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+
+    - name: Run SwiftLint
+      run: |
+        cd ios
+        if which swiftlint >/dev/null; then
+          swiftlint lint --reporter github-actions-logging
+        else
+          echo "warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint"
+        fi
+
+  build:
+    name: Build iOS App
+    runs-on: macos-15
+    needs: lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+
+    - name: Show build settings
+      run: |
+        cd ios
+        xcodebuild -showBuildSettings -project VibeTunnel.xcodeproj -scheme VibeTunnel -destination generic/platform=iOS
+
+    - name: Build iOS app
+      run: |
+        cd ios
+        xcodebuild build \
+          -project VibeTunnel.xcodeproj \
+          -scheme VibeTunnel \
+          -destination "generic/platform=iOS" \
+          -configuration Release \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          ONLY_ACTIVE_ARCH=NO \
+          -derivedDataPath build/DerivedData
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: ios-build-artifacts
+        path: ios/build/DerivedData/Build/Products/Release-iphoneos/
+        retention-days: 7
+
+  test:
+    name: Test iOS App
+    runs-on: macos-15
+    needs: lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+
+    - name: Build and test
+      run: |
+        cd ios
+        # Note: Currently no test targets in the iOS project
+        # When tests are added, use:
+        # xcodebuild test \
+        #   -project VibeTunnel.xcodeproj \
+        #   -scheme VibeTunnel \
+        #   -destination "platform=iOS Simulator,OS=18.0,name=iPhone 15" \
+        #   -resultBundlePath TestResults
+        echo "No test targets found in iOS project"
+
+    # Uncomment when tests are added:
+    # - name: Upload test results
+    #   uses: actions/upload-artifact@v4
+    #   if: failure()
+    #   with:
+    #     name: ios-test-results
+    #     path: ios/TestResults
+    #     retention-days: 7

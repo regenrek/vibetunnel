@@ -17,6 +17,10 @@ jobs:
     name: Swift CI
     uses: ./.github/workflows/swift.yml
     
+  ios:
+    name: iOS CI
+    uses: ./.github/workflows/ios.yml
+    
   rust:
     name: Rust CI
     uses: ./.github/workflows/rust.yml

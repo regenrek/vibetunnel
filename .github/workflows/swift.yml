@@ -8,21 +8,22 @@ permissions:
   pull-requests: write
   issues: write
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
-
 jobs:
   lint:
     name: Lint Swift Code
-    runs-on: self-hosted
+    runs-on: macos-15
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup Xcode
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+    
+    - name: Verify Xcode
       run: |
-        # DEVELOPER_DIR is already set in env, so no need for xcode-select
         xcodebuild -version
         swift --version
     
@@ -107,15 +108,19 @@ jobs:
 
   build-and-test:
     name: Build and Test macOS App
-    runs-on: self-hosted
+    runs-on: macos-15
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Xcode
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+      
+    - name: Verify Xcode
       run: |
-        # DEVELOPER_DIR is already set in env, so no need for xcode-select
         xcodebuild -version
         swift --version
         
@@ -131,8 +136,17 @@ jobs:
           echo "xcbeautify is already installed at: $(which xcbeautify)"
         fi
         
+        # Check if go is already installed, install if not
+        if ! which go >/dev/null 2>&1; then
+          echo "Installing go..."
+          brew install go || echo "Failed to install go"
+        else
+          echo "go is already installed at: $(which go)"
+        fi
+        
         # Show final status
         echo "xcbeautify: $(which xcbeautify || echo 'not found')"
+        echo "go: $(which go || echo 'not found')"
         
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -159,8 +173,10 @@ jobs:
           -scheme VibeTunnel \
           -configuration Debug \
           -destination "platform=macOS" \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="-" \
+          CODE_SIGNING_REQUIRED=YES \
+          CODE_SIGN_ENTITLEMENTS="" \
+          ENABLE_HARDENED_RUNTIME=NO \
           | xcbeautify
           
     - name: Build Release
@@ -172,8 +188,10 @@ jobs:
           -scheme VibeTunnel \
           -configuration Release \
           -destination "platform=macOS" \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="-" \
+          CODE_SIGNING_REQUIRED=YES \
+          CODE_SIGN_ENTITLEMENTS="" \
+          ENABLE_HARDENED_RUNTIME=NO \
           | xcbeautify
           
     - name: Run tests
@@ -186,8 +204,10 @@ jobs:
           -configuration Debug \
           -destination "platform=macOS" \
           -resultBundlePath TestResults \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="-" \
+          CODE_SIGNING_REQUIRED=YES \
+          CODE_SIGN_ENTITLEMENTS="" \
+          ENABLE_HARDENED_RUNTIME=NO \
           | xcbeautify
           
     - name: Upload test results
