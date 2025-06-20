@@ -299,10 +299,10 @@ final class WindowTracker {
         logger.warning("Could not find matching window in AXUIElement list")
     }
     
-    // MARK: - Permissions
+    // MARK: - Direct Permission Checks
     
-    /// Checks if we have the required permissions for window tracking.
-    private func checkPermissions() -> Bool {
+    /// Checks if we have the required permissions for window tracking using direct API calls.
+    private func checkPermissionsDirectly() -> Bool {
         // Check for Screen Recording permission (required for CGWindowListCopyWindowInfo)
         let options: CGWindowListOption = [.excludeDesktopElements]
         if let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]],
@@ -312,8 +312,8 @@ final class WindowTracker {
         return false
     }
     
-    /// Requests the required permissions.
-    private func requestPermissions() {
+    /// Requests the required permissions by opening System Preferences.
+    private func requestPermissionsDirectly() {
         logger.info("Requesting Screen Recording permission")
         
         // Open System Preferences to Privacy & Security > Screen Recording
