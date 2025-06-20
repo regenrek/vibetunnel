@@ -4,17 +4,15 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
-	"github.com/vibetunnel/linux/pkg/protocol"
 	"github.com/vibetunnel/linux/pkg/session"
+	"github.com/vibetunnel/linux/pkg/terminal"
+	"github.com/vibetunnel/linux/pkg/termsocket"
 )
 
 const (
@@ -38,12 +36,14 @@ var upgrader = websocket.Upgrader{
 }
 
 type BufferWebSocketHandler struct {
-	manager *session.Manager
+	manager       *session.Manager
+	bufferManager *termsocket.Manager
 }
 
 func NewBufferWebSocketHandler(manager *session.Manager) *BufferWebSocketHandler {
 	return &BufferWebSocketHandler{
-		manager: manager,
+		manager:       manager,
+		bufferManager: termsocket.NewManager(manager),
 	}
 }
 
@@ -150,8 +150,8 @@ func (h *BufferWebSocketHandler) handleTextMessage(conn *websocket.Conn, message
 			return
 		}
 
-		// Start streaming session data
-		go h.streamSession(sessionID, send, done)
+		// Subscribe to buffer updates
+		go h.subscribeToBuffer(sessionID, send, done)
 
 	case "unsubscribe":
 		// Currently we just close the connection when unsubscribing
@@ -159,218 +159,48 @@ func (h *BufferWebSocketHandler) handleTextMessage(conn *websocket.Conn, message
 	}
 }
 
-func (h *BufferWebSocketHandler) streamSession(sessionID string, send chan []byte, done chan struct{}) {
-	sess, err := h.manager.GetSession(sessionID)
+func (h *BufferWebSocketHandler) subscribeToBuffer(sessionID string, send chan []byte, done chan struct{}) {
+	// Send initial buffer state
+	snapshot, err := h.bufferManager.GetBufferSnapshot(sessionID)
 	if err != nil {
-		log.Printf("[WebSocket] Session not found: %v", err)
+		log.Printf("[WebSocket] Failed to get buffer snapshot: %v", err)
 		errorMsg, _ := json.Marshal(map[string]string{
 			"type":    "error",
-			"message": fmt.Sprintf("Session not found: %v", err),
+			"message": fmt.Sprintf("Failed to get session buffer: %v", err),
 		})
 		safeSend(send, errorMsg, done)
 		return
 	}
 
-	streamPath := sess.StreamOutPath()
-
-	// Check if stream file exists, wait a bit if it doesn't
-	maxRetries := 5
-	for i := 0; i < maxRetries; i++ {
-		if _, err := os.Stat(streamPath); err == nil {
-			break
-		}
-		if i == maxRetries-1 {
-			log.Printf("[WebSocket] Stream file not found after retries: %s", streamPath)
-			errorMsg, _ := json.Marshal(map[string]string{
-				"type":    "error",
-				"message": "Session stream not available",
-			})
-			safeSend(send, errorMsg, done)
-			return
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Create file watcher
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Printf("[WebSocket] Failed to create watcher: %v", err)
-		errorMsg, _ := json.Marshal(map[string]string{
-			"type":    "error",
-			"message": "Failed to create file watcher",
-		})
-		safeSend(send, errorMsg, done)
+	// Send initial snapshot
+	msg := h.createBinaryBufferMessage(sessionID, snapshot)
+	if !safeSend(send, msg, done) {
 		return
 	}
-	defer func() {
-		if err := watcher.Close(); err != nil {
-			log.Printf("[WebSocket] Failed to close watcher: %v", err)
-		}
-	}()
 
-	// Add the stream file to the watcher
-	err = watcher.Add(streamPath)
+	// Subscribe to buffer changes
+	unsubscribe, err := h.bufferManager.SubscribeToBufferChanges(sessionID, func(sid string, snapshot *terminal.BufferSnapshot) {
+		msg := h.createBinaryBufferMessage(sid, snapshot)
+		safeSend(send, msg, done)
+	})
+	
 	if err != nil {
-		log.Printf("[WebSocket] Failed to watch file: %v", err)
+		log.Printf("[WebSocket] Failed to subscribe to buffer changes: %v", err)
 		errorMsg, _ := json.Marshal(map[string]string{
 			"type":    "error",
-			"message": fmt.Sprintf("Failed to watch session stream: %v", err),
+			"message": fmt.Sprintf("Failed to subscribe to buffer changes: %v", err),
 		})
 		safeSend(send, errorMsg, done)
 		return
 	}
 
-	headerSent := false
-	seenBytes := int64(0)
-
-	// Send initial content
-	h.processAndSendContent(sessionID, streamPath, &headerSent, &seenBytes, send, done)
-
-	// Watch for changes
-	for {
-		select {
-		case <-done:
-			return
-
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return
-			}
-
-			if event.Op&fsnotify.Write == fsnotify.Write {
-				h.processAndSendContent(sessionID, streamPath, &headerSent, &seenBytes, send, done)
-			}
-
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
-			}
-			log.Printf("[WebSocket] Watcher error: %v", err)
-
-		case <-time.After(30 * time.Second):
-			// Check if session is still alive less frequently to reduce CPU usage
-			if !sess.IsAlive() {
-				// Send exit event
-				exitMsg := h.createBinaryMessage(sessionID, []byte(`{"type":"exit","code":0}`))
-				safeSend(send, exitMsg, done)
-				return
-			}
-		}
-	}
+	// Wait for done signal
+	<-done
+	
+	// Unsubscribe when done
+	unsubscribe()
 }
 
-func (h *BufferWebSocketHandler) processAndSendContent(sessionID, streamPath string, headerSent *bool, seenBytes *int64, send chan []byte, done chan struct{}) {
-	file, err := os.Open(streamPath)
-	if err != nil {
-		log.Printf("[WebSocket] Failed to open stream file %s: %v", streamPath, err)
-		// Don't panic, just return gracefully
-		return
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("[WebSocket] Failed to close file: %v", err)
-		}
-	}()
-
-	// Get current file size
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return
-	}
-
-	currentSize := fileInfo.Size()
-	if currentSize <= *seenBytes {
-		return
-	}
-
-	// Seek to last position
-	if _, err := file.Seek(*seenBytes, 0); err != nil {
-		return
-	}
-
-	// Create a reader for the remaining content
-	reader := io.LimitReader(file, currentSize-*seenBytes)
-	decoder := json.NewDecoder(reader)
-
-	// Update seen bytes to current position
-	*seenBytes = currentSize
-
-	// Process JSON objects as a stream
-	for {
-		// First, try to decode the header if not sent
-		if !*headerSent {
-			var header protocol.AsciinemaHeader
-			pos := decoder.InputOffset()
-			if err := decoder.Decode(&header); err == nil && header.Version > 0 {
-				*headerSent = true
-				// Send header as binary message
-				headerData, _ := json.Marshal(map[string]interface{}{
-					"type":   "header",
-					"width":  header.Width,
-					"height": header.Height,
-				})
-				msg := h.createBinaryMessage(sessionID, headerData)
-				if !safeSend(send, msg, done) {
-					return
-				}
-				continue
-			} else {
-				// Reset decoder position if header decode failed
-				file.Seek(*seenBytes-currentSize+pos, 1)
-				decoder = json.NewDecoder(io.LimitReader(file, currentSize-*seenBytes-pos))
-			}
-		}
-
-		// Try to decode as event array [timestamp, type, data]
-		var eventArray []interface{}
-		if err := decoder.Decode(&eventArray); err != nil {
-			if err == io.EOF {
-				// Update seenBytes to actual position read
-				actualRead, _ := file.Seek(0, 1)
-				*seenBytes = actualRead
-				return
-			}
-			// If JSON decode fails, we might have incomplete data
-			// Reset to last known good position
-			actualRead, _ := file.Seek(0, 1)
-			*seenBytes = actualRead
-			return
-		}
-
-		// Process the event
-		if len(eventArray) == 3 {
-			timestamp, ok1 := eventArray[0].(float64)
-			eventType, ok2 := eventArray[1].(string)
-			data, ok3 := eventArray[2].(string)
-
-			if ok1 && ok2 && ok3 && eventType == "o" {
-				// Create terminal output message
-				outputData, _ := json.Marshal(map[string]interface{}{
-					"type":      "output",
-					"timestamp": timestamp,
-					"data":      data,
-				})
-
-				msg := h.createBinaryMessage(sessionID, outputData)
-				if !safeSend(send, msg, done) {
-					return
-				}
-			} else if ok1 && ok2 && ok3 && eventType == "r" {
-				// Create resize message
-				resizeData, _ := json.Marshal(map[string]interface{}{
-					"type":       "resize",
-					"timestamp":  timestamp,
-					"dimensions": data,
-				})
-
-				msg := h.createBinaryMessage(sessionID, resizeData)
-				if !safeSend(send, msg, done) {
-					return
-				}
-			}
-		}
-	}
-}
 
 func (h *BufferWebSocketHandler) createBinaryMessage(sessionID string, data []byte) []byte {
 	// Binary message format:
@@ -398,6 +228,14 @@ func (h *BufferWebSocketHandler) createBinaryMessage(sessionID string, data []by
 	copy(msg[offset:], data)
 
 	return msg
+}
+
+func (h *BufferWebSocketHandler) createBinaryBufferMessage(sessionID string, snapshot *terminal.BufferSnapshot) []byte {
+	// Serialize the buffer snapshot to binary format
+	snapshotData := snapshot.SerializeToBinary()
+	
+	// Wrap it in our binary message format
+	return h.createBinaryMessage(sessionID, snapshotData)
 }
 
 func (h *BufferWebSocketHandler) writer(conn *websocket.Conn, send chan []byte, ticker *time.Ticker, done chan struct{}) {
