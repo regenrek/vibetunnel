@@ -117,7 +117,7 @@
 				B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */,
 				A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */,
 				C2D3E4F5A6B7C8D9E0F1A234 /* Build Go vibetunnel Universal Binary */,
-				D3E4F5A6B7C8D9E0F1A2B345 /* Build VT Universal Binary */,
+				E4F5A6B7C8D9E0F1A2B3C456 /* Copy VT Script */,
 			);
 			buildRules = (
 			);
@@ -299,7 +299,7 @@
 			shellPath = /bin/sh;
 			shellScript = "# Build Go vibetunnel universal binary\necho \"Building Go vibetunnel universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nLINUX_DIR=\"${PROJECT_DIR}/linux\"\nBUILD_SCRIPT=\"${LINUX_DIR}/build-universal.sh\"\n\n# Source Go environment\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Check if go is available\nif ! command -v go &> /dev/null; then\n    echo \"warning: go could not be found in PATH. Skipping Go binary build.\"\n    echo \"PATH is: $PATH\"\n    echo \"To enable Go server support, please install Go and ensure it's in your PATH\"\n    # Create a dummy file so the build doesn't fail\n    mkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n    touch \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel.disabled\"\n    exit 0\nfi\n\nSOURCE_BINARY=\"${LINUX_DIR}/build/vibetunnel-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to linux directory and run build\ncd \"${LINUX_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing Go vibetunnel binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"Go vibetunnel universal binary copied and signed to ${DEST_BINARY}\"\n";
 		};
-		D3E4F5A6B7C8D9E0F1A2B345 /* Build VT Universal Binary */ = {
+		E4F5A6B7C8D9E0F1A2B3C456 /* Copy VT Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -308,11 +308,10 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/linux/cmd/vt/main.go",
-				"$(SRCROOT)/linux/go.mod",
+				"$(SRCROOT)/linux/cmd/vt/vt",
 				"$(SRCROOT)/linux/build-vt-universal.sh",
 			);
-			name = "Build VT Universal Binary";
+			name = "Copy VT Script";
 			outputFileListPaths = (
 			);
 			outputPaths = (
@@ -320,7 +319,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#!/bin/bash\nset -e\n\necho \"Building VT universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nLINUX_DIR=\"${PROJECT_DIR}/linux\"\n\n# Source Go environment\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Check if go is available\nif ! command -v go &> /dev/null; then\n    echo \"warning: go could not be found in PATH. Skipping VT binary build.\"\n    echo \"PATH is: $PATH\"\n    echo \"To enable VT CLI support, please install Go and ensure it's in your PATH\"\n    # Don't fail the build, just skip VT\n    exit 0\nfi\n\n# Build the VT binary\ncd \"$LINUX_DIR\"\n./build-vt-universal.sh \"$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/vt\"\n\n# Sign the binary\nif [ -f \"$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/vt\" ]; then\n    echo \"Signing VT binary...\"\n    codesign --force --sign - \"$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/vt\"\n    echo \"VT binary built and signed successfully\"\nelse\n    echo \"error: VT binary was not created\"\n    exit 1\nfi\n";
+			shellScript = "#!/bin/bash\nset -e\n\necho \"Copying VT script...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nLINUX_DIR=\"${PROJECT_DIR}/linux\"\n\n# Run the build-vt-universal.sh script which now copies the bash script\ncd \"$LINUX_DIR\"\n./build-vt-universal.sh \"$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/vt\"\n\n# The script already handles signing\necho \"VT script copied successfully\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
