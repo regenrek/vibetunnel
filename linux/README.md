@@ -89,6 +89,9 @@ vibetunnel --serve --port 8080
 
 # With ngrok tunnel
 vibetunnel --serve --ngrok --ngrok-token YOUR_TOKEN
+
+# Disable terminal spawning (detached sessions only)
+vibetunnel --serve --no-spawn
 ```
 
 Access the dashboard at `http://localhost:4020` (or your configured port).
@@ -183,6 +186,7 @@ update:
 - `--debug`: Enable debug mode
 - `--cleanup-startup`: Clean up sessions on startup
 - `--server-mode`: Server mode (native, rust)
+- `--no-spawn`: Disable terminal spawning (creates detached sessions only)
 - `--control-path`: Control directory path
 - `--config, -c`: Configuration file path
 
