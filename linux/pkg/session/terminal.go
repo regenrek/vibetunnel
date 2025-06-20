@@ -31,7 +31,7 @@ func configurePTYTerminal(ptyFile *os.File) error {
 
 	// Match node-pty's default behavior: keep most settings from the parent terminal
 	// but ensure proper signal handling and character processing
-	
+
 	// Ensure proper input processing
 	// ICRNL: Map CR to NL on input (important for Enter key)
 	termios.Iflag |= unix.ICRNL
@@ -64,7 +64,7 @@ func configurePTYTerminal(ptyFile *os.File) error {
 	termios.Cc[unix.VINTR] = 3    // Ctrl+C
 	termios.Cc[unix.VKILL] = 21   // Ctrl+U
 	termios.Cc[unix.VMIN] = 1     // Minimum characters for read
-	termios.Cc[unix.VQUIT] = 28   // Ctrl+\ 
+	termios.Cc[unix.VQUIT] = 28   // Ctrl+\
 	termios.Cc[unix.VSUSP] = 26   // Ctrl+Z
 	termios.Cc[unix.VTIME] = 0    // Timeout for read
 

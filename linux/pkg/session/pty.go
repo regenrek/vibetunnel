@@ -65,41 +65,21 @@ func NewPTY(session *Session) (*PTY, error) {
 		debugLog("[DEBUG] NewPTY: Set working directory to: %s", session.info.Cwd)
 	}
 
-	// Set up environment with filtered variables like Rust implementation
-	// Only pass safe environment variables
-	safeEnvVars := []string{"TERM", "SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"}
-	env := make([]string, 0)
+	// Pass all environment variables like Node.js implementation does
+	// This ensures terminal features, locale settings, and shell prompts work correctly
+	env := os.Environ()
 
-	// Copy only safe environment variables from parent
-	for _, v := range os.Environ() {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) == 2 {
-			for _, safe := range safeEnvVars {
-				if parts[0] == safe {
-					env = append(env, v)
-					break
-				}
-			}
-		}
-	}
-
-	// Ensure TERM and SHELL are set
-	hasTermVar := false
-	hasShellVar := false
-	for _, v := range env {
+	// Override TERM if specified in session info
+	termSet := false
+	for i, v := range env {
 		if strings.HasPrefix(v, "TERM=") {
-			hasTermVar = true
-		}
-		if strings.HasPrefix(v, "SHELL=") {
-			hasShellVar = true
+			env[i] = "TERM=" + session.info.Term
+			termSet = true
+			break
 		}
 	}
-
-	if !hasTermVar {
+	if !termSet {
 		env = append(env, "TERM="+session.info.Term)
-	}
-	if !hasShellVar {
-		env = append(env, "SHELL="+cmdline[0])
 	}
 
 	cmd.Env = env
