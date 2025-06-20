@@ -134,8 +134,14 @@ func (p *PTY) pollWithSelect() error {
 				}
 				if n > 0 {
 					// Write to output
-					if err := p.streamWriter.WriteOutput(buf[:n]); err != nil {
-						log.Printf("[ERROR] Failed to write to stream: %v", err)
+					if p.bufferWriter != nil {
+						if _, err := p.bufferWriter.Write(buf[:n]); err != nil {
+							log.Printf("[ERROR] Failed to write to buffer: %v", err)
+						}
+					} else {
+						if err := p.streamWriter.WriteOutput(buf[:n]); err != nil {
+							log.Printf("[ERROR] Failed to write to stream: %v", err)
+						}
 					}
 				}
 
