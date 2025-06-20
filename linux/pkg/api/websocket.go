@@ -151,10 +151,39 @@ func (h *BufferWebSocketHandler) streamSession(sessionID string, send chan []byt
 
 	streamPath := sess.StreamOutPath()
 
+	// Check if stream file exists, wait a bit if it doesn't
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		if _, err := os.Stat(streamPath); err == nil {
+			break
+		}
+		if i == maxRetries-1 {
+			log.Printf("[WebSocket] Stream file not found after retries: %s", streamPath)
+			errorMsg, _ := json.Marshal(map[string]string{
+				"type":    "error",
+				"message": "Session stream not available",
+			})
+			select {
+			case send <- errorMsg:
+			case <-done:
+			}
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	// Create file watcher
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Printf("[WebSocket] Failed to create watcher: %v", err)
+		errorMsg, _ := json.Marshal(map[string]string{
+			"type":    "error",
+			"message": "Failed to create file watcher",
+		})
+		select {
+		case send <- errorMsg:
+		case <-done:
+		}
 		return
 	}
 	defer watcher.Close()
@@ -163,6 +192,14 @@ func (h *BufferWebSocketHandler) streamSession(sessionID string, send chan []byt
 	err = watcher.Add(streamPath)
 	if err != nil {
 		log.Printf("[WebSocket] Failed to watch file: %v", err)
+		errorMsg, _ := json.Marshal(map[string]string{
+			"type":    "error",
+			"message": fmt.Sprintf("Failed to watch session stream: %v", err),
+		})
+		select {
+		case send <- errorMsg:
+		case <-done:
+		}
 		return
 	}
 
@@ -211,7 +248,8 @@ func (h *BufferWebSocketHandler) streamSession(sessionID string, send chan []byt
 func (h *BufferWebSocketHandler) processAndSendContent(sessionID, streamPath string, headerSent *bool, seenBytes *int64, send chan []byte, done chan struct{}) {
 	file, err := os.Open(streamPath)
 	if err != nil {
-		log.Printf("[WebSocket] Failed to open stream file: %v", err)
+		log.Printf("[WebSocket] Failed to open stream file %s: %v", streamPath, err)
+		// Don't panic, just return gracefully
 		return
 	}
 	defer file.Close()
