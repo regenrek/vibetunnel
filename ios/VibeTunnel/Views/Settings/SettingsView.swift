@@ -170,8 +170,6 @@ struct GeneralSettingsView: View {
 /// Advanced settings tab content
 struct AdvancedSettingsView: View {
     @AppStorage("verboseLogging") private var verboseLogging = false
-    @AppStorage("enableMetrics") private var enableMetrics = true
-    @AppStorage("enableCrashReporting") private var enableCrashReporting = true
     @AppStorage("debugModeEnabled") private var debugModeEnabled = false
     
     var body: some View {
@@ -203,45 +201,6 @@ struct AdvancedSettingsView: View {
                     .background(Theme.Colors.cardBackground)
                     .cornerRadius(Theme.CornerRadius.card)
                     
-                    // Metrics
-                    Toggle(isOn: $enableMetrics) {
-                        HStack {
-                            Image(systemName: "chart.line.uptrend.xyaxis")
-                                .foregroundColor(Theme.Colors.primaryAccent)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Usage Metrics")
-                                    .font(Theme.Typography.terminalSystem(size: 14))
-                                    .foregroundColor(Theme.Colors.terminalForeground)
-                                Text("Help improve the app by sharing usage data")
-                                    .font(Theme.Typography.terminalSystem(size: 12))
-                                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
-                            }
-                        }
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: Theme.Colors.primaryAccent))
-                    .padding()
-                    .background(Theme.Colors.cardBackground)
-                    .cornerRadius(Theme.CornerRadius.card)
-                    
-                    // Crash Reporting
-                    Toggle(isOn: $enableCrashReporting) {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundColor(Theme.Colors.primaryAccent)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Crash Reports")
-                                    .font(Theme.Typography.terminalSystem(size: 14))
-                                    .foregroundColor(Theme.Colors.terminalForeground)
-                                Text("Automatically send crash reports")
-                                    .font(Theme.Typography.terminalSystem(size: 12))
-                                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
-                            }
-                        }
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: Theme.Colors.primaryAccent))
-                    .padding()
-                    .background(Theme.Colors.cardBackground)
-                    .cornerRadius(Theme.CornerRadius.card)
                 }
             }
             
