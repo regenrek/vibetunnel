@@ -143,7 +143,7 @@ For technical details, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Prerequisites
 
-- **Rust**: Install via [https://rustup.sh/](https://rustup.sh/)
+- **Rust**: Install via [https://rustup.rs/](https://rustup.rs/)
   ```bash
   # After installing Rust, add the x86_64 target for universal binary support
   rustup target add x86_64-apple-darwin
