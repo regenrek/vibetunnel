@@ -236,7 +236,9 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Handle direct command execution (create new session)
 	if len(args) == 0 {
-		return fmt.Errorf("no command specified. Use --serve to start server, --list-sessions to see sessions, or provide a command to execute")
+		// Show comprehensive help when no arguments provided
+		showHelp()
+		return nil
 	}
 
 	sess, err := manager.CreateSession(session.Config{
@@ -409,6 +411,53 @@ func determineBind(cfg *config.Config) string {
 		// Default to localhost for security
 		return "127.0.0.1"
 	}
+}
+
+func showHelp() {
+	fmt.Println("USAGE:")
+	fmt.Println("    vt [command] [args...]")
+	fmt.Println("    vt --claude [args...]")
+	fmt.Println("    vt --claude-yolo [args...]")
+	fmt.Println("    vt --shell [args...]")
+	fmt.Println("    vt -i [args...]")
+	fmt.Println("    vt --no-shell-wrap [command] [args...]")
+	fmt.Println("    vt --show-session-info")
+	fmt.Println("    vt --show-session-id")
+	fmt.Println("    vt -S [command] [args...]")
+	fmt.Println("    vt --help")
+	fmt.Println()
+	fmt.Println("DESCRIPTION:")
+	fmt.Println("    This wrapper script allows VibeTunnel to see the output of commands by")
+	fmt.Println("    forwarding TTY data through the tty-fwd utility. When you run commands")
+	fmt.Println("    through 'vt', VibeTunnel can monitor and display the command's output")
+	fmt.Println("    in real-time.")
+	fmt.Println()
+	fmt.Println("    By default, commands are executed through your shell to resolve aliases,")
+	fmt.Println("    functions, and builtins. Use --no-shell-wrap to execute commands directly.")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("    vt top                    # Watch top with VibeTunnel monitoring")
+	fmt.Println("    vt python script.py       # Run Python script with output forwarding")
+	fmt.Println("    vt npm test               # Run tests with VibeTunnel visibility")
+	fmt.Println("    vt --claude               # Auto-locate and run Claude")
+	fmt.Println("    vt --claude --help        # Run Claude with --help option")
+	fmt.Println("    vt --claude-yolo          # Run Claude with --dangerously-skip-permissions")
+	fmt.Println("    vt --shell                # Launch current shell (equivalent to vt $SHELL)")
+	fmt.Println("    vt -i                     # Launch current shell (short form)")
+	fmt.Println("    vt -S ls -la              # List files without shell alias resolution")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("    --claude                  Auto-locate Claude executable and run it")
+	fmt.Println("    --claude-yolo             Auto-locate Claude and run with --dangerously-skip-permissions")
+	fmt.Println("    --shell, -i               Launch current shell (equivalent to vt $SHELL)")
+	fmt.Println("    --no-shell-wrap, -S       Execute command directly without shell wrapper")
+	fmt.Println("    --help, -h                Show this help message and exit")
+	fmt.Println("    --show-session-info       Show current session info")
+	fmt.Println("    --show-session-id         Show current session ID only")
+	fmt.Println()
+	fmt.Println("NOTE:")
+	fmt.Println("    This script automatically uses the tty-fwd executable bundled with")
+	fmt.Println("    VibeTunnel from the Resources folder.")
 }
 
 func main() {
