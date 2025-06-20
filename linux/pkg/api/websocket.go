@@ -174,16 +174,18 @@ func (h *BufferWebSocketHandler) subscribeToBuffer(sessionID string, send chan [
 
 	// Send initial snapshot
 	msg := h.createBinaryBufferMessage(sessionID, snapshot)
-	if !safeSend(send, msg, done) {
+	if msg != nil && !safeSend(send, msg, done) {
 		return
 	}
 
 	// Subscribe to buffer changes
 	unsubscribe, err := h.bufferManager.SubscribeToBufferChanges(sessionID, func(sid string, snapshot *terminal.BufferSnapshot) {
 		msg := h.createBinaryBufferMessage(sid, snapshot)
-		safeSend(send, msg, done)
+		if msg != nil {
+			safeSend(send, msg, done)
+		}
 	})
-	
+
 	if err != nil {
 		log.Printf("[WebSocket] Failed to subscribe to buffer changes: %v", err)
 		errorMsg, _ := json.Marshal(map[string]string{
@@ -196,11 +198,10 @@ func (h *BufferWebSocketHandler) subscribeToBuffer(sessionID string, send chan [
 
 	// Wait for done signal
 	<-done
-	
+
 	// Unsubscribe when done
 	unsubscribe()
 }
-
 
 func (h *BufferWebSocketHandler) createBinaryMessage(sessionID string, data []byte) []byte {
 	// Binary message format:
@@ -231,9 +232,15 @@ func (h *BufferWebSocketHandler) createBinaryMessage(sessionID string, data []by
 }
 
 func (h *BufferWebSocketHandler) createBinaryBufferMessage(sessionID string, snapshot *terminal.BufferSnapshot) []byte {
+	// Check for nil snapshot to prevent panic
+	if snapshot == nil {
+		log.Printf("[WebSocket] Received nil snapshot for session %s, skipping", sessionID)
+		return nil
+	}
+
 	// Serialize the buffer snapshot to binary format
 	snapshotData := snapshot.SerializeToBinary()
-	
+
 	// Wrap it in our binary message format
 	return h.createBinaryMessage(sessionID, snapshotData)
 }
