@@ -115,7 +115,6 @@
 				788687EE2DFF4FCB00B22C15 /* Frameworks */,
 				788687EF2DFF4FCB00B22C15 /* Resources */,
 				B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */,
-				A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */,
 				C2D3E4F5A6B7C8D9E0F1A234 /* Build Go vibetunnel Universal Binary */,
 				E4F5A6B7C8D9E0F1A2B3C456 /* Copy VT Script */,
 			);
@@ -222,32 +221,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		A189466CB0AD49BEBE16B954 /* Build tty-fwd Universal Binary */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/tty-fwd/src/main.rs",
-				"$(SRCROOT)/tty-fwd/src/protocol.rs",
-				"$(SRCROOT)/tty-fwd/src/tty_spawn.rs",
-				"$(SRCROOT)/tty-fwd/src/utils.rs",
-				"$(SRCROOT)/tty-fwd/Cargo.toml",
-				"$(SRCROOT)/tty-fwd/build-universal.sh",
-			);
-			name = "Build tty-fwd Universal Binary";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/tty-fwd",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Build tty-fwd universal binary\necho \"Building tty-fwd universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nTTY_FWD_DIR=\"${PROJECT_DIR}/tty-fwd\"\nBUILD_SCRIPT=\"${TTY_FWD_DIR}/build-universal.sh\"\n\n# Determine target directory based on configuration\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n    TARGET_DIR=\"debug\"\nelse\n    TARGET_DIR=\"release\"\nfi\n\nSOURCE_BINARY=\"${TTY_FWD_DIR}/target/${TARGET_DIR}/tty-fwd-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/tty-fwd\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to tty-fwd directory and run build\ncd \"${TTY_FWD_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing tty-fwd binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"tty-fwd universal binary copied and signed to ${DEST_BINARY}\"\n";
-		};
 		B2C3D4E5F6A7B8C9D0E1F234 /* Build Web Frontend */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -297,7 +270,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Build Go vibetunnel universal binary\necho \"Building Go vibetunnel universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nLINUX_DIR=\"${PROJECT_DIR}/linux\"\nBUILD_SCRIPT=\"${LINUX_DIR}/build-universal.sh\"\n\n# Source Go environment\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Check if go is available\nif ! command -v go &> /dev/null; then\n    echo \"Go not found in PATH, checking alternative location...\"\n    \n    # Check if Go is installed at /usr/local/go/bin/go\n    if [ -x \"/usr/local/go/bin/go\" ]; then\n        echo \"Found Go at /usr/local/go/bin/go\"\n        export PATH=\"/usr/local/go/bin:$PATH\"\n    else\n        echo \"warning: go could not be found in PATH or at /usr/local/go/bin/go. Skipping Go binary build.\"\n        echo \"PATH is: $PATH\"\n        echo \"To enable Go server support, please install Go and ensure it's in your PATH\"\n        # Create a dummy file so the build doesn't fail\n        mkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n        touch \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel.disabled\"\n        exit 0\n    fi\nfi\n\n# Print Go version for debugging\necho \"Using Go version: $(go version)\"\n\nSOURCE_BINARY=\"${LINUX_DIR}/build/vibetunnel-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to linux directory and run build\ncd \"${LINUX_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing Go vibetunnel binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"Go vibetunnel universal binary copied and signed to ${DEST_BINARY}\"\n";
+			shellScript = "# Build Go vibetunnel universal binary\necho \"Building Go vibetunnel universal binary...\"\n\n# Get the project directory\nPROJECT_DIR=\"${SRCROOT}\"\nLINUX_DIR=\"${PROJECT_DIR}/linux\"\nBUILD_SCRIPT=\"${LINUX_DIR}/build-universal.sh\"\n\n# Source Go environment\n[ -f \"$HOME/.profile\" ] && . \"$HOME/.profile\"\n[ -f \"$HOME/.zprofile\" ] && . \"$HOME/.zprofile\"\n\n# Source system PATH directories to ensure Go is available\nfor path_file in /etc/paths.d/*; do\n    [ -r \"$path_file\" ] && export PATH=\"$PATH:$(cat \"$path_file\")\"\ndone\n\n# Check if go is available\nif ! command -v go &> /dev/null; then\n    echo \"Go not found in PATH, checking alternative location...\"\n    \n    # Check if Go is installed at /usr/local/go/bin/go\n    if [ -x \"/usr/local/go/bin/go\" ]; then\n        echo \"Found Go at /usr/local/go/bin/go\"\n        export PATH=\"/usr/local/go/bin:$PATH\"\n    else\n        echo \"warning: go could not be found in PATH or at /usr/local/go/bin/go. Skipping Go binary build.\"\n        echo \"PATH is: $PATH\"\n        echo \"To enable Go server support, please install Go and ensure it's in your PATH\"\n        # Create a dummy file so the build doesn't fail\n        mkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n        touch \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel.disabled\"\n        exit 0\n    fi\nfi\n\n# Print Go version for debugging\necho \"Using Go version: $(go version)\"\n\nSOURCE_BINARY=\"${LINUX_DIR}/build/vibetunnel-universal\"\nDEST_BINARY=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/vibetunnel\"\n\n# Check if build script exists\nif [ ! -f \"${BUILD_SCRIPT}\" ]; then\n    echo \"error: Build script not found at ${BUILD_SCRIPT}\"\n    exit 1\nfi\n\n# Make build script executable\nchmod +x \"${BUILD_SCRIPT}\"\n\n# Change to linux directory and run build\ncd \"${LINUX_DIR}\"\n./build-universal.sh\n\n# Check if build succeeded\nif [ ! -f \"${SOURCE_BINARY}\" ]; then\n    echo \"error: Universal binary not found at ${SOURCE_BINARY}\"\n    exit 1\nfi\n\n# Create Resources directory if it doesn't exist\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\n\n# Copy the binary\ncp \"${SOURCE_BINARY}\" \"${DEST_BINARY}\"\nchmod +x \"${DEST_BINARY}\"\n\n# Sign the binary\necho \"Signing Go vibetunnel binary...\"\ncodesign --force --sign - \"${DEST_BINARY}\"\n\necho \"Go vibetunnel universal binary copied and signed to ${DEST_BINARY}\"\n";
 		};
 		E4F5A6B7C8D9E0F1A2B3C456 /* Copy VT Script */ = {
 			isa = PBXShellScriptBuildPhase;
