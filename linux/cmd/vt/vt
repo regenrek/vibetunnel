@@ -1,0 +1,48 @@
+#!/bin/bash
+# vt - VibeTunnel CLI wrapper
+# Simple bash wrapper that passes through to vibetunnel with shell expansion
+
+VERSION="1.0.3"
+
+# Handle version flag
+if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+    echo "vt version $VERSION"
+    exit 0
+fi
+
+# Find vibetunnel binary (prefer Go implementation)
+if [ -x "/usr/local/bin/vibetunnel" ]; then
+    VIBETUNNEL="/usr/local/bin/vibetunnel"
+elif [ -x "/Users/steipete/Projects/vibetunnel/linux/build/vibetunnel" ]; then
+    VIBETUNNEL="/Users/steipete/Projects/vibetunnel/linux/build/vibetunnel"
+elif [ -x "./vibetunnel" ]; then
+    VIBETUNNEL="./vibetunnel"
+elif command -v vibetunnel >/dev/null 2>&1; then
+    VIBETUNNEL="vibetunnel"
+elif [ -x "/Applications/VibeTunnel.app/Contents/Resources/tty-fwd" ]; then
+    # Fallback to Rust implementation if Go version not found
+    VIBETUNNEL="/Applications/VibeTunnel.app/Contents/Resources/tty-fwd"
+else
+    echo >&2 "Error: vibetunnel not found. Please install it first."
+    exit 1
+fi
+
+# Use the user's shell to resolve aliases and run commands
+USER_SHELL="${SHELL:-/bin/bash}"
+SHELL_NAME=$(basename "$USER_SHELL")
+
+# Execute through shell to resolve aliases, functions, and builtins
+case "$SHELL_NAME" in
+    zsh)
+        # For zsh, use interactive mode to get aliases
+        exec "$VIBETUNNEL" --do-not-allow-column-set=true -- "$USER_SHELL" -i -c "$(printf '%q ' "$@")"
+        ;;
+    bash)
+        # For bash, expand aliases in non-interactive mode
+        exec "$VIBETUNNEL" --do-not-allow-column-set=true -- "$USER_SHELL" -c "shopt -s expand_aliases; source ~/.bashrc 2>/dev/null || source ~/.bash_profile 2>/dev/null || true; $(printf '%q ' "$@")"
+        ;;
+    *)
+        # Generic shell handling
+        exec "$VIBETUNNEL" --do-not-allow-column-set=true -- "$USER_SHELL" -c "$(printf '%q ' "$@")"
+        ;;
+esac
