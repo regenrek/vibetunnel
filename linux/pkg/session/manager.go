@@ -51,11 +51,19 @@ func (m *Manager) CreateSession(config Config) (*Session, error) {
 		return nil, err
 	}
 
-	if err := session.Start(); err != nil {
-		if removeErr := os.RemoveAll(session.Path()); removeErr != nil {
-			log.Printf("[ERROR] Failed to remove session path after start failure: %v", removeErr)
+	// For spawned sessions, don't start the PTY immediately
+	// The PTY will be created when the spawned terminal connects
+	if !config.IsSpawned {
+		if err := session.Start(); err != nil {
+			if removeErr := os.RemoveAll(session.Path()); removeErr != nil {
+				log.Printf("[ERROR] Failed to remove session path after start failure: %v", removeErr)
+			}
+			return nil, err
 		}
-		return nil, err
+	} else {
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] Created spawned session %s - waiting for terminal to attach", session.ID[:8])
+		}
 	}
 
 	// Add to running sessions registry
@@ -76,11 +84,19 @@ func (m *Manager) CreateSessionWithID(id string, config Config) (*Session, error
 		return nil, err
 	}
 
-	if err := session.Start(); err != nil {
-		if removeErr := os.RemoveAll(session.Path()); removeErr != nil {
-			log.Printf("[ERROR] Failed to remove session path after start failure: %v", removeErr)
+	// For spawned sessions, don't start the PTY immediately
+	// The PTY will be created when the spawned terminal connects
+	if !config.IsSpawned {
+		if err := session.Start(); err != nil {
+			if removeErr := os.RemoveAll(session.Path()); removeErr != nil {
+				log.Printf("[ERROR] Failed to remove session path after start failure: %v", removeErr)
+			}
+			return nil, err
 		}
-		return nil, err
+	} else {
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] Created spawned session %s with ID - waiting for terminal to attach", session.ID[:8])
+		}
 	}
 
 	// Add to running sessions registry
