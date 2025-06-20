@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Main settings view with tabbed navigation
 struct SettingsView: View {
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.dismiss)
+    var dismiss
     @State private var selectedTab = SettingsTab.general
     
     enum SettingsTab: String, CaseIterable {
@@ -23,11 +24,11 @@ struct SettingsView: View {
                 // Tab selector
                 HStack(spacing: 0) {
                     ForEach(SettingsTab.allCases, id: \.self) { tab in
-                        Button(action: {
+                        Button {
                             withAnimation(Theme.Animation.smooth) {
                                 selectedTab = tab
                             }
-                        }) {
+                        } label: {
                             VStack(spacing: Theme.Spacing.small) {
                                 Image(systemName: tab.icon)
                                     .font(.title2)
@@ -80,10 +81,14 @@ struct SettingsView: View {
 
 /// General settings tab content
 struct GeneralSettingsView: View {
-    @AppStorage("defaultFontSize") private var defaultFontSize: Double = 14
-    @AppStorage("defaultTerminalWidth") private var defaultTerminalWidth: Int = 80
-    @AppStorage("autoScrollEnabled") private var autoScrollEnabled = true
-    @AppStorage("enableURLDetection") private var enableURLDetection = true
+    @AppStorage("defaultFontSize")
+    private var defaultFontSize: Double = 14
+    @AppStorage("defaultTerminalWidth")
+    private var defaultTerminalWidth: Int = 80
+    @AppStorage("autoScrollEnabled")
+    private var autoScrollEnabled = true
+    @AppStorage("enableURLDetection")
+    private var enableURLDetection = true
     
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.large) {
@@ -169,8 +174,10 @@ struct GeneralSettingsView: View {
 
 /// Advanced settings tab content
 struct AdvancedSettingsView: View {
-    @AppStorage("verboseLogging") private var verboseLogging = false
-    @AppStorage("debugModeEnabled") private var debugModeEnabled = false
+    @AppStorage("verboseLogging")
+    private var verboseLogging = false
+    @AppStorage("debugModeEnabled")
+    private var debugModeEnabled = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.large) {
@@ -200,7 +207,6 @@ struct AdvancedSettingsView: View {
                     .padding()
                     .background(Theme.Colors.cardBackground)
                     .cornerRadius(Theme.CornerRadius.card)
-                    
                 }
             }
             
