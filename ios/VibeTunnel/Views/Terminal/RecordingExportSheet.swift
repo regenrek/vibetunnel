@@ -146,6 +146,10 @@ struct RecordingExportSheet: View {
     }
 }
 
+/// UIKit share sheet wrapper for SwiftUI.
+///
+/// Presents the system share sheet for exporting files
+/// and sharing content with other apps.
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 

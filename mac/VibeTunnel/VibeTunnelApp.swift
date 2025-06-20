@@ -101,7 +101,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
         #endif
 
         // Handle single instance check before doing anything else
-        if !isRunningInPreview, !isRunningInTests, !isRunningInDebug {
+        #if DEBUG
+        // Skip single instance check in debug builds
+        #else
+        if !isRunningInPreview && !isRunningInTests && !isRunningInDebug {
             handleSingleInstanceCheck()
             registerForDistributedNotifications()
 
@@ -109,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
             let applicationMover = ApplicationMover()
             applicationMover.checkAndOfferToMoveToApplications()
         }
+        #endif
 
         // Initialize Sparkle updater manager
         sparkleUpdaterManager = SparkleUpdaterManager.shared
@@ -305,13 +309,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
         }
 
         // Remove distributed notification observer
-        if !isRunningInPreview, !isRunningInTests, !isRunningInDebug {
+        #if DEBUG
+        // Skip removing observer in debug builds
+        #else
+        if !isRunningInPreview && !isRunningInTests && !isRunningInDebug {
             DistributedNotificationCenter.default().removeObserver(
                 self,
                 name: Self.showSettingsNotification,
                 object: nil
             )
         }
+        #endif
 
         // Remove update check notification observer
         NotificationCenter.default.removeObserver(

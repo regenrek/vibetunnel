@@ -39,8 +39,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/build"
+MAC_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$MAC_DIR")"
+BUILD_DIR="$MAC_DIR/build"
 
 # Default values
 CONFIGURATION="Release"
@@ -111,7 +112,7 @@ else
 fi
 
 # Build the app
-cd "$PROJECT_DIR"
+cd "$MAC_DIR"
 
 # Use CI-specific configuration if in CI environment
 XCCONFIG_ARG=""

@@ -54,14 +54,16 @@ jobs:
       id: swiftformat
       continue-on-error: true
       run: |
-        swiftformat . --lint 2>&1 | tee swiftformat-output.txt
+        cd mac
+        swiftformat . --lint 2>&1 | tee ../swiftformat-output.txt
         echo "result=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
       
     - name: Run SwiftLint
       id: swiftlint
       continue-on-error: true
       run: |
-        swiftlint 2>&1 | tee swiftlint-output.txt
+        cd mac
+        swiftlint 2>&1 | tee ../swiftlint-output.txt
         echo "result=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         
     - name: Read SwiftFormat Output
@@ -166,6 +168,7 @@ jobs:
         
     - name: Resolve Dependencies
       run: |
+        cd mac
         echo "Resolving Swift package dependencies..."
         xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace -quiet || {
           echo "Failed to resolve dependencies. Retrying with verbose output..."
@@ -175,6 +178,7 @@ jobs:
     - name: Build Debug
       timeout-minutes: 30
       run: |
+        cd mac
         set -o pipefail && \
         xcodebuild build \
           -workspace VibeTunnel.xcworkspace \
@@ -193,6 +197,7 @@ jobs:
     - name: Build Release
       timeout-minutes: 30
       run: |
+        cd mac
         set -o pipefail && \
         xcodebuild build \
           -workspace VibeTunnel.xcworkspace \
@@ -211,6 +216,7 @@ jobs:
     - name: Run tests
       timeout-minutes: 20
       run: |
+        cd mac
         set -o pipefail && \
         xcodebuild test \
           -workspace VibeTunnel.xcworkspace \
@@ -232,7 +238,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: swift-test-results
-        path: TestResults
+        path: mac/TestResults
         
     - name: List build products
       if: always()

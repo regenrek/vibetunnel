@@ -1,6 +1,9 @@
 import SwiftUI
 
-/// Custom text field style for terminal-like appearance
+/// Custom text field style for terminal-like appearance.
+///
+/// Applies terminal-themed styling to text fields including
+/// monospace font, dark background, and subtle border.
 struct TerminalTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration

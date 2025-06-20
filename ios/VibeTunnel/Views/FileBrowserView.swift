@@ -183,6 +183,10 @@ struct FileBrowserView: View {
     }
 }
 
+/// Row component for displaying file or directory information.
+///
+/// Shows file/directory icon, name, size, and modification time
+/// with appropriate styling for directories and parent navigation.
 struct FileBrowserRow: View {
     let name: String
     let isDirectory: Bool
@@ -263,6 +267,10 @@ struct FileBrowserRow: View {
     }
 }
 
+/// Button style with terminal-themed press effects.
+///
+/// Provides subtle scale and opacity animations on press
+/// for a responsive terminal-like interaction feel.
 struct TerminalButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

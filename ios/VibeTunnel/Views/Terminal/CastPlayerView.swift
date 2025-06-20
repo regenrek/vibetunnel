@@ -179,7 +179,11 @@ struct CastPlayerView: View {
     }
 }
 
-/// Simple terminal view for cast playback
+/// Terminal view specialized for cast file playback.
+///
+/// Provides a read-only terminal emulator for displaying recorded
+/// terminal sessions, handling font sizing and terminal dimensions
+/// based on the cast file metadata.
 struct CastTerminalView: UIViewRepresentable {
     @Binding var fontSize: CGFloat
     let viewModel: CastPlayerViewModel
@@ -228,6 +232,7 @@ struct CastTerminalView: UIViewRepresentable {
     }
 
     @MainActor
+    /// Coordinator for managing terminal state and handling events.
     class Coordinator: NSObject {
         weak var terminal: SwiftTerm.TerminalView?
         let viewModel: CastPlayerViewModel
@@ -352,6 +357,17 @@ class CastPlayerViewModel {
 
 /// Extension to CastPlayer for playback from specific time
 extension CastPlayer {
+    /// Plays the cast file from a specific time with adjustable speed.
+    ///
+    /// - Parameters:
+    ///   - startTime: Time offset to start playback from (default: 0).
+    ///   - speed: Playback speed multiplier (default: 1.0).
+    ///   - onEvent: Closure called for each event during playback.
+    ///   - completion: Closure called when playback completes.
+    ///
+    /// This method supports seeking and variable speed playback,
+    /// filtering events based on the start time and adjusting
+    /// delays according to the speed multiplier.
     func play(
         from startTime: TimeInterval = 0,
         speed: Double = 1.0,

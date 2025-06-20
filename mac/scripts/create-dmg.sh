@@ -31,8 +31,9 @@ fi
 
 APP_PATH="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/build"
+MAC_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$MAC_DIR")"
+BUILD_DIR="$MAC_DIR/build"
 
 if [[ ! -d "$APP_PATH" ]]; then
     echo "Error: App not found at $APP_PATH"

@@ -12,4 +12,5 @@ extension Tag {
     @Tag static var performance: Self
     @Tag static var integration: Self
     @Tag static var regression: Self
+    @Tag static var sessionManagement: Self
 }

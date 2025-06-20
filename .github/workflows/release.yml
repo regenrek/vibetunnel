@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  build-mac:
+    name: Build macOS App
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-apple-darwin,aarch64-apple-darwin
+    
+    - name: Build tty-fwd universal binary
+      working-directory: tty-fwd
+      run: |
+        chmod +x build-universal.sh
+        ./build-universal.sh
+    
+    - name: Build Go universal binary
+      working-directory: linux
+      run: |
+        chmod +x build-universal.sh
+        ./build-universal.sh
+    
+    - name: Resolve Dependencies
+      working-directory: mac
+      run: |
+        xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace
+    
+    - name: Build Release
+      working-directory: mac
+      run: |
+        ./scripts/build.sh --configuration Release
+    
+    - name: Create DMG
+      working-directory: mac
+      run: |
+        APP_PATH="build/Build/Products/Release/VibeTunnel.app"
+        DMG_PATH="build/VibeTunnel-${{ github.event.inputs.version || github.ref_name }}.dmg"
+        ./scripts/create-dmg.sh "$APP_PATH" "$DMG_PATH"
+        echo "DMG_PATH=$DMG_PATH" >> $GITHUB_ENV
+    
+    - name: Upload Release Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mac-release
+        path: |
+          mac/build/VibeTunnel-*.dmg
+          mac/build/Build/Products/Release/VibeTunnel.app
+        retention-days: 7
+    
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: mac/build/VibeTunnel-*.dmg
+        draft: true
+        prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        generate_release_notes: true
+
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode 16.3
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.3'
+    
+    - name: Resolve Dependencies
+      working-directory: ios
+      run: |
+        xcodebuild -resolvePackageDependencies -project VibeTunnel.xcodeproj
+    
+    - name: Build iOS Release
+      working-directory: ios
+      run: |
+        xcodebuild build \
+          -project VibeTunnel.xcodeproj \
+          -scheme VibeTunnel \
+          -destination "generic/platform=iOS" \
+          -configuration Release \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          ONLY_ACTIVE_ARCH=NO \
+          -derivedDataPath build/DerivedData
+    
+    - name: Upload iOS Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-release
+        path: ios/build/DerivedData/Build/Products/Release-iphoneos/
+        retention-days: 7
