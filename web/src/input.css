@@ -110,6 +110,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Terminal line styling */
+.terminal-line {
+  white-space: pre;
+  overflow: hidden;
+  color: #d4d4d4;
+}
+
 /* Terminal character specific styling */
 .terminal-char {
   font-variant-ligatures: none;

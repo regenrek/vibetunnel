@@ -1,4 +1,4 @@
-import { Terminal as XtermTerminal, IBufferCell } from '@xterm/headless';
+import { Terminal as XtermTerminal } from '@xterm/headless';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -182,28 +182,57 @@ export class TerminalManager {
   }
 
   /**
+   * Get buffer stats for a session
+   */
+  async getBufferStats(sessionId: string) {
+    const terminal = await this.getTerminal(sessionId);
+    const buffer = terminal.buffer.active;
+
+    return {
+      totalRows: buffer.length,
+      cols: terminal.cols,
+      rows: terminal.rows,
+      viewportY: buffer.viewportY,
+      cursorX: buffer.cursorX,
+      cursorY: buffer.cursorY,
+      scrollback: terminal.options.scrollback || 0,
+    };
+  }
+
+  /**
    * Get buffer snapshot for a session
    */
   async getBufferSnapshot(
     sessionId: string,
-    viewportY: number,
+    viewportY: number | undefined,
     lines: number
   ): Promise<BufferSnapshot> {
     const terminal = await this.getTerminal(sessionId);
     const buffer = terminal.buffer.active;
 
-    // Calculate actual viewport bounds
-    const startLine = Math.max(0, viewportY);
-    const endLine = Math.min(buffer.length, viewportY + lines);
+    let startLine: number;
+    let actualViewportY: number;
+
+    if (viewportY === undefined) {
+      // Get lines from bottom - calculate start position
+      startLine = Math.max(0, buffer.length - lines);
+      actualViewportY = startLine;
+    } else {
+      // Use specified viewport position
+      startLine = Math.max(0, viewportY);
+      actualViewportY = viewportY;
+    }
+
+    const endLine = Math.min(buffer.length, startLine + lines);
     const actualLines = endLine - startLine;
 
-    // Get cursor position
+    // Get cursor position relative to our viewport
     const cursorX = buffer.cursorX;
-    const cursorY = buffer.cursorY + buffer.viewportY - viewportY;
+    const cursorY = buffer.cursorY + buffer.viewportY - actualViewportY;
 
     // Extract cells
     const cells: BufferCell[][] = [];
-    const cell: IBufferCell = {} as IBufferCell;
+    const cell = buffer.getNullCell();
 
     for (let row = 0; row < actualLines; row++) {
       const line = buffer.getLine(startLine + row);
@@ -238,8 +267,9 @@ export class TerminalManager {
           const fg = cell.getFgColor();
           const bg = cell.getBgColor();
 
-          if (fg !== undefined) bufferCell.fg = fg;
-          if (bg !== undefined) bufferCell.bg = bg;
+          // Handle color values - -1 means default color
+          if (fg !== undefined && fg !== -1) bufferCell.fg = fg;
+          if (bg !== undefined && bg !== -1) bufferCell.bg = bg;
           if (attributes !== 0) bufferCell.attributes = attributes;
 
           rowCells.push(bufferCell);
@@ -257,7 +287,7 @@ export class TerminalManager {
     return {
       cols: terminal.cols,
       rows: actualLines,
-      viewportY,
+      viewportY: actualViewportY,
       cursorX,
       cursorY,
       cells,

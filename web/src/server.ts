@@ -392,11 +392,43 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
   }
 });
 
-// Get session buffer in binary format
+// Get session buffer stats
+app.get('/api/sessions/:sessionId/buffer/stats', async (req, res) => {
+  const sessionId = req.params.sessionId;
+
+  try {
+    // Validate session exists
+    const session = ptyService.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Check if stream file exists
+    const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
+    if (!fs.existsSync(streamOutPath)) {
+      return res.status(404).json({ error: 'Session stream not found' });
+    }
+
+    // Get terminal stats
+    const stats = await terminalManager.getBufferStats(sessionId);
+
+    // Add last modified time from stream file
+    const fileStats = fs.statSync(streamOutPath);
+    stats.lastModified = fileStats.mtime.toISOString();
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting session buffer stats:', error);
+    res.status(500).json({ error: 'Failed to get session buffer stats' });
+  }
+});
+
+// Get session buffer in binary or JSON format
 app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
   const sessionId = req.params.sessionId;
-  const viewportY = parseInt(req.query.viewportY as string) || 0;
+  const viewportY = req.query.viewportY ? parseInt(req.query.viewportY as string) : undefined;
   const lines = parseInt(req.query.lines as string) || 24;
+  const format = (req.query.format as string) || 'binary';
 
   try {
     // Validate session exists
@@ -412,15 +444,21 @@ app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
     }
 
     // Get buffer snapshot
+    // If viewportY is not specified, get lines from bottom
     const snapshot = await terminalManager.getBufferSnapshot(sessionId, viewportY, lines);
 
-    // Encode to binary format
-    const binaryData = terminalManager.encodeSnapshot(snapshot);
+    if (format === 'json') {
+      // Send JSON response
+      res.json(snapshot);
+    } else {
+      // Encode to binary format
+      const binaryData = terminalManager.encodeSnapshot(snapshot);
 
-    // Send binary response
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Length', binaryData.length.toString());
-    res.send(binaryData);
+      // Send binary response
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Length', binaryData.length.toString());
+      res.send(binaryData);
+    }
   } catch (error) {
     console.error('Error getting session buffer:', error);
     res.status(500).json({ error: 'Failed to get session buffer' });

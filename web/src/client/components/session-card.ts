@@ -1,8 +1,6 @@
-import { LitElement, html, PropertyValues } from 'lit';
+import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import './terminal.js';
-import type { Terminal } from './terminal.js';
-import { CastConverter } from '../utils/cast-converter.js';
+import './vibe-terminal-buffer.js';
 
 export interface Session {
   id: string;
@@ -27,90 +25,15 @@ export class SessionCard extends LitElement {
   }
 
   @property({ type: Object }) session!: Session;
-  @state() private terminal: Terminal | null = null;
   @state() private killing = false;
   @state() private killingFrame = 0;
 
   private killingInterval: number | null = null;
 
-  firstUpdated(changedProperties: PropertyValues) {
-    super.firstUpdated(changedProperties);
-    this.setupTerminal();
-  }
-
-  updated(changedProperties: PropertyValues) {
-    super.updated(changedProperties);
-
-    // Initialize terminal after first render when terminal element exists
-    if (!this.terminal && !this.killing) {
-      const terminalElement = this.querySelector('vibe-terminal') as Terminal;
-      if (terminalElement) {
-        this.initializeTerminal();
-      }
-    }
-  }
-
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this.killingInterval) {
       clearInterval(this.killingInterval);
-    }
-    // Terminal cleanup is handled by the component itself
-    this.terminal = null;
-  }
-
-  private setupTerminal() {
-    // Terminal element will be created in render()
-    // We'll initialize it in updated() after first render
-  }
-
-  private async initializeTerminal() {
-    const terminalElement = this.querySelector('vibe-terminal') as Terminal;
-    if (!terminalElement) return;
-
-    this.terminal = terminalElement;
-
-    // Configure terminal for card display
-    this.terminal.cols = 80;
-    this.terminal.rows = 24;
-    this.terminal.fontSize = 10; // Smaller font for card display
-    this.terminal.fitHorizontally = true; // Fit to card width
-
-    // Load snapshot data
-    const url = `/api/sessions/${this.session.id}/snapshot`;
-
-    // Wait a moment for freshly created sessions before connecting
-    const sessionAge = Date.now() - new Date(this.session.startedAt).getTime();
-    const delay = sessionAge < 5000 ? 2000 : 0; // 2 second delay if session is less than 5 seconds old
-
-    setTimeout(async () => {
-      await this.loadSnapshot(url);
-    }, delay);
-  }
-
-  private async loadSnapshot(url: string) {
-    if (!this.terminal) return;
-
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch snapshot: ${response.status}`);
-
-      const castContent = await response.text();
-
-      // Clear terminal first
-      this.terminal.clear();
-
-      // Use the new super-fast dump method that handles everything in one operation
-      await CastConverter.dumpToTerminal(this.terminal, castContent);
-
-      // Scroll to bottom after loading
-      this.terminal.queueCallback(() => {
-        if (this.terminal) {
-          this.terminal.scrollToBottom();
-        }
-      });
-    } catch (error) {
-      console.error('Failed to load session snapshot:', error);
     }
   }
 
@@ -284,15 +207,14 @@ export class SessionCard extends LitElement {
                 </div>
               `
             : html`
-                <vibe-terminal
+                <vibe-terminal-buffer
                   .sessionId=${this.session.id}
-                  .cols=${80}
-                  .rows=${24}
                   .fontSize=${10}
                   .fitHorizontally=${true}
+                  .pollInterval=${1000}
                   class="w-full h-full"
                   style="pointer-events: none;"
-                ></vibe-terminal>
+                ></vibe-terminal-buffer>
               `}
         </div>
 
