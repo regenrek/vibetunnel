@@ -19,8 +19,6 @@ export class VibeTerminalBuffer extends LitElement {
   }
 
   @property({ type: String }) sessionId = '';
-  @property({ type: Number }) fontSize = 14;
-  @property({ type: Boolean }) fitHorizontally = false;
   @property({ type: Number }) pollInterval = 1000; // Poll interval in ms
 
   @state() private buffer: BufferSnapshot | null = null;
@@ -28,7 +26,6 @@ export class VibeTerminalBuffer extends LitElement {
   @state() private loading = false;
   @state() private actualRows = 0;
   @state() private displayedFontSize = 14;
-  @state() private containerCols = 80; // Calculated columns that fit
 
   private container: HTMLElement | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
@@ -69,9 +66,6 @@ export class VibeTerminalBuffer extends LitElement {
       this.stopPolling();
       this.startPolling();
     }
-    if (changedProperties.has('fontSize') || changedProperties.has('fitHorizontally')) {
-      this.calculateDimensions();
-    }
 
     // Update buffer content after any render
     if (this.container && this.buffer) {
@@ -94,35 +88,35 @@ export class VibeTerminalBuffer extends LitElement {
     const containerWidth = this.container.clientWidth;
     const containerHeight = this.container.clientHeight;
 
-    if (this.fitHorizontally && this.buffer) {
-      // Horizontal fitting: calculate fontSize to fit buffer.cols characters in container width
-      const targetCharWidth = containerWidth / this.buffer.cols;
+    // Always fit horizontally
+    // Step 1: Measure container width
+    // Step 2: Divide by cols to get target character width
+    const cols = this.buffer?.cols || 80;
+    const targetCharWidth = containerWidth / cols;
 
-      // Estimate font size needed (assuming monospace font with ~0.6 char/font ratio)
-      const calculatedFontSize = targetCharWidth / 0.6;
-      this.displayedFontSize = Math.max(4, Math.min(32, Math.floor(calculatedFontSize)));
+    // Step 3: Scale font size so we can fit cols characters into the container width
+    // Estimate font size needed (assuming monospace font with ~0.6 char/font ratio)
+    const calculatedFontSize = targetCharWidth / 0.6;
+    this.displayedFontSize = Math.max(4, Math.min(32, Math.floor(calculatedFontSize)));
 
-      // Calculate actual rows with new font size
-      const lineHeight = this.displayedFontSize * 1.2;
-      const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+    console.log('calculateDimensions:', {
+      containerWidth,
+      cols,
+      targetCharWidth,
+      calculatedFontSize,
+      displayedFontSize: this.displayedFontSize,
+    });
 
-      if (newActualRows !== this.actualRows) {
-        this.actualRows = newActualRows;
-        this.fetchBuffer();
-      }
-    } else {
-      // Normal mode: use original font size and calculate cols that fit
-      this.displayedFontSize = this.fontSize;
-      const lineHeight = this.fontSize * 1.2;
-      const charWidth = this.fontSize * 0.6;
+    // Step 4: Calculate how many lines are visible based on scaled font size
+    const lineHeight = this.displayedFontSize * 1.2;
+    const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
 
-      const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
-      this.containerCols = Math.max(20, Math.floor(containerWidth / charWidth));
-
-      if (newActualRows !== this.actualRows) {
-        this.actualRows = newActualRows;
-        this.fetchBuffer();
-      }
+    if (newActualRows !== this.actualRows) {
+      this.actualRows = newActualRows;
+      this.fetchBuffer();
+    } else if (this.buffer) {
+      // If rows didn't change but we have a buffer, just update the display
+      this.requestUpdate();
     }
   }
 
@@ -162,7 +156,7 @@ export class VibeTerminalBuffer extends LitElement {
         return; // No changes
       }
 
-      // Fetch buffer data - let server decide the viewport
+      // Fetch buffer data - request enough lines for display
       const lines = Math.max(this.actualRows, stats.rows);
       const response = await fetch(
         `/api/sessions/${this.sessionId}/buffer?lines=${lines}&format=json`
@@ -175,6 +169,9 @@ export class VibeTerminalBuffer extends LitElement {
       this.buffer = await response.json();
       this.lastModified = stats.lastModified;
       this.error = null;
+
+      // Recalculate dimensions now that we have the actual cols
+      this.calculateDimensions();
 
       // Request update which will trigger updated() lifecycle
       this.requestUpdate();
@@ -229,22 +226,18 @@ export class VibeTerminalBuffer extends LitElement {
 
     const lineHeight = this.displayedFontSize * 1.2;
     let html = '';
+
+    // Step 5: Draw the bottom n lines
     let cellsToRender: BufferCell[][];
     let startIndex = 0;
 
-    if (this.fitHorizontally) {
-      // In fitHorizontally mode, we show all content scaled to fit
+    if (this.buffer.cells.length <= this.actualRows) {
+      // All content fits
       cellsToRender = this.buffer.cells;
     } else {
-      // Show the bottom portion that fits, ensuring last non-empty line is visible
-      if (this.buffer.cells.length <= this.actualRows) {
-        // All content fits
-        cellsToRender = this.buffer.cells;
-      } else {
-        // Content exceeds viewport, show bottom portion
-        startIndex = this.buffer.cells.length - this.actualRows;
-        cellsToRender = this.buffer.cells.slice(startIndex);
-      }
+      // Content exceeds viewport, show bottom portion
+      startIndex = this.buffer.cells.length - this.actualRows;
+      cellsToRender = this.buffer.cells.slice(startIndex);
     }
 
     cellsToRender.forEach((row, index) => {

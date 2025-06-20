@@ -209,8 +209,6 @@ export class SessionCard extends LitElement {
             : html`
                 <vibe-terminal-buffer
                   .sessionId=${this.session.id}
-                  .fontSize=${10}
-                  .fitHorizontally=${true}
                   .pollInterval=${1000}
                   class="w-full h-full"
                   style="pointer-events: none;"
