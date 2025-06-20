@@ -1,31 +1,31 @@
-import SwiftUI
 import Observation
+import SwiftUI
 
 struct FileBrowserView: View {
     @State private var viewModel = FileBrowserViewModel()
     @Environment(\.dismiss) private var dismiss
-    
+
     let onSelect: (String) -> Void
     let initialPath: String
-    
+
     init(initialPath: String = "~", onSelect: @escaping (String) -> Void) {
         self.initialPath = initialPath
         self.onSelect = onSelect
     }
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 // Background
                 Color.black.ignoresSafeArea()
-                
+
                 VStack(spacing: 0) {
                     // Current path display
                     HStack(spacing: 12) {
                         Image(systemName: "folder.fill")
                             .foregroundColor(Theme.Colors.terminalAccent)
                             .font(.system(size: 16))
-                        
+
                         Text(viewModel.currentPath)
                             .font(.custom("SF Mono", size: 14))
                             .foregroundColor(Theme.Colors.terminalGray)
@@ -36,7 +36,7 @@ struct FileBrowserView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
                     .background(Theme.Colors.terminalDarkGray)
-                    
+
                     // File list
                     ScrollView {
                         LazyVStack(spacing: 0) {
@@ -52,7 +52,7 @@ struct FileBrowserView: View {
                                 )
                                 .transition(.opacity)
                             }
-                            
+
                             // Directories first, then files
                             ForEach(viewModel.sortedEntries) { entry in
                                 FileBrowserRow(
@@ -77,7 +77,7 @@ struct FileBrowserView: View {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.terminalAccent))
                                     .scaleEffect(1.2)
-                                
+
                                 Text("Loading...")
                                     .font(.custom("SF Mono", size: 14))
                                     .foregroundColor(Theme.Colors.terminalGray)
@@ -86,11 +86,11 @@ struct FileBrowserView: View {
                             .background(Color.black.opacity(0.8))
                         }
                     }
-                    
+
                     // Bottom toolbar
                     HStack(spacing: 20) {
                         // Cancel button
-                        Button(action: { dismiss() }) {
+                        Button(action: { dismiss() }, label: {
                             Text("cancel")
                                 .font(.custom("SF Mono", size: 14))
                                 .foregroundColor(Theme.Colors.terminalGray)
@@ -101,13 +101,13 @@ struct FileBrowserView: View {
                                         .stroke(Theme.Colors.terminalGray.opacity(0.3), lineWidth: 1)
                                 )
                                 .contentShape(Rectangle())
-                        }
+                        })
                         .buttonStyle(TerminalButtonStyle())
-                        
+
                         Spacer()
-                        
+
                         // Create folder button
-                        Button(action: { viewModel.showCreateFolder = true }) {
+                        Button(action: { viewModel.showCreateFolder = true }, label: {
                             Label("new folder", systemImage: "folder.badge.plus")
                                 .font(.custom("SF Mono", size: 14))
                                 .foregroundColor(Theme.Colors.terminalAccent)
@@ -118,14 +118,14 @@ struct FileBrowserView: View {
                                         .stroke(Theme.Colors.terminalAccent.opacity(0.5), lineWidth: 1)
                                 )
                                 .contentShape(Rectangle())
-                        }
+                        })
                         .buttonStyle(TerminalButtonStyle())
-                        
+
                         // Select button
-                        Button(action: { 
+                        Button(action: {
                             onSelect(viewModel.currentPath)
                             dismiss()
-                        }) {
+                        }, label: {
                             Text("select")
                                 .font(.custom("SF Mono", size: 14))
                                 .foregroundColor(.black)
@@ -141,7 +141,7 @@ struct FileBrowserView: View {
                                         .blur(radius: 10)
                                 )
                                 .contentShape(Rectangle())
-                        }
+                        })
                         .buttonStyle(TerminalButtonStyle())
                     }
                     .padding(.horizontal, 20)
@@ -154,11 +154,11 @@ struct FileBrowserView: View {
                 TextField("Folder name", text: $viewModel.newFolderName)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                
+
                 Button("Cancel", role: .cancel) {
                     viewModel.newFolderName = ""
                 }
-                
+
                 Button("Create") {
                     viewModel.createFolder()
                 }
@@ -167,7 +167,7 @@ struct FileBrowserView: View {
                 Text("Enter a name for the new folder")
             }
             .alert("Error", isPresented: $viewModel.showError, presenting: viewModel.errorMessage) { _ in
-                Button("OK") { }
+                Button("OK") {}
             } message: { error in
                 Text(error)
             }
@@ -186,8 +186,15 @@ struct FileBrowserRow: View {
     let size: String?
     let modifiedTime: String?
     let onTap: () -> Void
-    
-    init(name: String, isDirectory: Bool, isParent: Bool = false, size: String? = nil, modifiedTime: String? = nil, onTap: @escaping () -> Void) {
+
+    init(
+        name: String,
+        isDirectory: Bool,
+        isParent: Bool = false,
+        size: String? = nil,
+        modifiedTime: String? = nil,
+        onTap: @escaping () -> Void
+    ) {
         self.name = name
         self.isDirectory = isDirectory
         self.isParent = isParent
@@ -195,7 +202,7 @@ struct FileBrowserRow: View {
         self.modifiedTime = modifiedTime
         self.onTap = onTap
     }
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
@@ -204,33 +211,35 @@ struct FileBrowserRow: View {
                     .foregroundColor(isDirectory ? Theme.Colors.terminalAccent : Theme.Colors.terminalGray.opacity(0.6))
                     .font(.system(size: 16))
                     .frame(width: 24)
-                
+
                 // Name
                 Text(name)
                     .font(.custom("SF Mono", size: 14))
-                    .foregroundColor(isParent ? Theme.Colors.terminalAccent : (isDirectory ? Theme.Colors.terminalWhite : Theme.Colors.terminalGray))
+                    .foregroundColor(isParent ? Theme.Colors
+                        .terminalAccent : (isDirectory ? Theme.Colors.terminalWhite : Theme.Colors.terminalGray)
+                    )
                     .lineLimit(1)
                     .truncationMode(.middle)
-                
+
                 Spacer()
-                
+
                 // Details
                 if !isParent {
                     VStack(alignment: .trailing, spacing: 2) {
-                        if let size = size {
+                        if let size {
                             Text(size)
                                 .font(.custom("SF Mono", size: 11))
                                 .foregroundColor(Theme.Colors.terminalGray.opacity(0.6))
                         }
-                        
-                        if let modifiedTime = modifiedTime {
+
+                        if let modifiedTime {
                             Text(modifiedTime)
                                 .font(.custom("SF Mono", size: 11))
                                 .foregroundColor(Theme.Colors.terminalGray.opacity(0.5))
                         }
                     }
                 }
-                
+
                 // Chevron for directories
                 if isDirectory && !isParent {
                     Image(systemName: "chevron.right")
@@ -269,9 +278,9 @@ class FileBrowserViewModel {
     var newFolderName = ""
     var showError = false
     var errorMessage: String?
-    
+
     private let apiClient = APIClient.shared
-    
+
     var sortedEntries: [FileEntry] {
         entries.sorted { entry1, entry2 in
             // Directories come first
@@ -282,22 +291,22 @@ class FileBrowserViewModel {
             return entry1.name.localizedCaseInsensitiveCompare(entry2.name) == .orderedAscending
         }
     }
-    
+
     var canGoUp: Bool {
         currentPath != "/" && currentPath != "~"
     }
-    
+
     func loadDirectory(path: String) {
         Task {
             await loadDirectoryAsync(path: path)
         }
     }
-    
+
     @MainActor
     private func loadDirectoryAsync(path: String) async {
         isLoading = true
         defer { isLoading = false }
-        
+
         do {
             let result = try await apiClient.browseDirectory(path: path)
             // Use the absolute path returned by the server
@@ -311,26 +320,26 @@ class FileBrowserViewModel {
             showError = true
         }
     }
-    
+
     func navigate(to path: String) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         loadDirectory(path: path)
     }
-    
+
     func navigateToParent() {
         let parentPath = URL(fileURLWithPath: currentPath).deletingLastPathComponent().path
         navigate(to: parentPath)
     }
-    
+
     func createFolder() {
         let folderName = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !folderName.isEmpty else { return }
-        
+
         Task {
             await createFolderAsync(name: folderName)
         }
     }
-    
+
     @MainActor
     private func createFolderAsync(name: String) async {
         do {

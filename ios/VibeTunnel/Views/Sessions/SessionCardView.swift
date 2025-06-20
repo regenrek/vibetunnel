@@ -5,14 +5,14 @@ struct SessionCardView: View {
     let onTap: () -> Void
     let onKill: () -> Void
     let onCleanup: () -> Void
-    
+
     @State private var isPressed = false
     @State private var terminalSnapshot: TerminalSnapshot?
     @State private var isLoadingSnapshot = false
     @State private var isKilling = false
     @State private var opacity: Double = 1.0
     @State private var scale: CGFloat = 1.0
-    
+
     private var displayWorkingDir: String {
         // Convert absolute paths back to ~ notation for display
         let homePrefix = "/Users/"
@@ -23,10 +23,10 @@ struct SessionCardView: View {
         }
         return session.workingDir
     }
-    
+
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
                 // Header with session ID/name and kill button
                 HStack {
                     Text(session.name ?? String(session.id.prefix(8)))
@@ -34,9 +34,9 @@ struct SessionCardView: View {
                         .fontWeight(.medium)
                         .foregroundColor(Theme.Colors.primaryAccent)
                         .lineLimit(1)
-                    
+
                     Spacer()
-                    
+
                     Button(action: {
                         HapticFeedback.impact(.medium)
                         if session.isRunning {
@@ -44,26 +44,26 @@ struct SessionCardView: View {
                         } else {
                             animateCleanup()
                         }
-                    }) {
+                    }, label: {
                         Text(session.isRunning ? "kill" : "clean")
                             .font(Theme.Typography.terminalSystem(size: 12))
                             .foregroundColor(Theme.Colors.terminalForeground)
-                            .padding(.horizontal, Theme.Spacing.sm)
+                            .padding(.horizontal, Theme.Spacing.small)
                             .padding(.vertical, 4)
                             .background(
                                 RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
                                     .stroke(Theme.Colors.cardBorder, lineWidth: 1)
                             )
-                    }
+                    })
                     .buttonStyle(PlainButtonStyle())
                 }
-                
+
                 // Terminal content area showing command and terminal output preview
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
                     .fill(Theme.Colors.terminalBackground)
                     .frame(height: 120)
                     .overlay(
-                        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                             if session.isRunning {
                                 if let snapshot = terminalSnapshot, !snapshot.cleanOutputPreview.isEmpty {
                                     // Show terminal output preview
@@ -75,7 +75,7 @@ struct SessionCardView: View {
                                             .lineLimit(nil)
                                             .multilineTextAlignment(.leading)
                                     }
-                                    .padding(Theme.Spacing.sm)
+                                    .padding(Theme.Spacing.small)
                                 } else {
                                     // Show command and working directory info as fallback
                                     VStack(alignment: .leading, spacing: 4) {
@@ -87,26 +87,28 @@ struct SessionCardView: View {
                                                 .font(Theme.Typography.terminalSystem(size: 12))
                                                 .foregroundColor(Theme.Colors.terminalForeground)
                                         }
-                                        
+
                                         Text(displayWorkingDir)
                                             .font(Theme.Typography.terminalSystem(size: 10))
                                             .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
                                             .lineLimit(1)
-                                        
+
                                         if isLoadingSnapshot {
                                             HStack {
                                                 ProgressView()
-                                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors
+                                                            .primaryAccent
+                                                    ))
                                                     .scaleEffect(0.8)
                                                 Text("Loading output...")
                                                     .font(Theme.Typography.terminalSystem(size: 10))
                                                     .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
                                             }
-                                            .padding(.top, Theme.Spacing.xs)
+                                            .padding(.top, Theme.Spacing.extraSmall)
                                         }
                                     }
-                                    .padding(Theme.Spacing.sm)
-                                    
+                                    .padding(Theme.Spacing.small)
+
                                     Spacer()
                                 }
                             } else {
@@ -125,7 +127,7 @@ struct SessionCardView: View {
                                                 .multilineTextAlignment(.leading)
                                         }
                                     }
-                                    .padding(Theme.Spacing.sm)
+                                    .padding(Theme.Spacing.small)
                                 } else {
                                     Text("Session exited")
                                         .font(Theme.Typography.terminalSystem(size: 12))
@@ -135,21 +137,25 @@ struct SessionCardView: View {
                             }
                         }
                     )
-                
+
                 // Status bar at bottom
-                HStack(spacing: Theme.Spacing.sm) {
+                HStack(spacing: Theme.Spacing.small) {
                     // Status indicator
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(session.isRunning ? Theme.Colors.successAccent : Theme.Colors.terminalForeground.opacity(0.3))
+                            .fill(session.isRunning ? Theme.Colors.successAccent : Theme.Colors.terminalForeground
+                                .opacity(0.3)
+                            )
                             .frame(width: 6, height: 6)
                         Text(session.isRunning ? "running" : "exited")
                             .font(Theme.Typography.terminalSystem(size: 10))
-                            .foregroundColor(session.isRunning ? Theme.Colors.successAccent : Theme.Colors.terminalForeground.opacity(0.5))
+                            .foregroundColor(session.isRunning ? Theme.Colors.successAccent : Theme.Colors
+                                .terminalForeground.opacity(0.5)
+                            )
                     }
-                    
+
                     Spacer()
-                    
+
                     // PID info
                     if session.isRunning, let pid = session.pid {
                         Text("PID: \(pid)")
@@ -162,7 +168,7 @@ struct SessionCardView: View {
                     }
                 }
             }
-            .padding(Theme.Spacing.md)
+            .padding(Theme.Spacing.medium)
             .background(
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.card)
                     .fill(Theme.Colors.cardBackground)
@@ -200,10 +206,10 @@ struct SessionCardView: View {
             loadSnapshot()
         }
     }
-    
+
     private func loadSnapshot() {
         guard terminalSnapshot == nil else { return }
-        
+
         isLoadingSnapshot = true
         Task {
             do {
@@ -220,16 +226,16 @@ struct SessionCardView: View {
             }
         }
     }
-    
+
     private func animateKill() {
         guard !isKilling else { return }
         isKilling = true
-        
+
         // Shake animation
         withAnimation(.linear(duration: 0.05).repeatCount(4, autoreverses: true)) {
             scale = 0.97
         }
-        
+
         // Fade out after shake
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation(.easeOut(duration: 0.3)) {
@@ -237,7 +243,7 @@ struct SessionCardView: View {
                 scale = 0.95
             }
             onKill()
-            
+
             // Reset after a delay
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isKilling = false
@@ -248,14 +254,14 @@ struct SessionCardView: View {
             }
         }
     }
-    
+
     private func animateCleanup() {
         // Shrink and fade animation for cleanup
         withAnimation(.easeOut(duration: 0.3)) {
             scale = 0.8
             opacity = 0
         }
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             onCleanup()
         }

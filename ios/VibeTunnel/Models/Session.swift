@@ -13,7 +13,7 @@ struct Session: Codable, Identifiable, Equatable {
     let waiting: Bool?
     let width: Int?
     let height: Int?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case command = "cmdline"
@@ -28,15 +28,15 @@ struct Session: Codable, Identifiable, Equatable {
         case width
         case height
     }
-    
+
     var displayName: String {
         name ?? command
     }
-    
+
     var isRunning: Bool {
         status == .running
     }
-    
+
     var formattedStartTime: String {
         // Parse and format the startedAt string
         // Try ISO8601 first
@@ -47,7 +47,7 @@ struct Session: Codable, Identifiable, Equatable {
             displayFormatter.timeStyle = .short
             return displayFormatter.string(from: date)
         }
-        
+
         // Try RFC3339 format (what Go uses)
         let rfc3339Formatter = DateFormatter()
         rfc3339Formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -58,7 +58,7 @@ struct Session: Codable, Identifiable, Equatable {
             displayFormatter.timeStyle = .short
             return displayFormatter.string(from: date)
         }
-        
+
         // Try without fractional seconds
         rfc3339Formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
         if let date = rfc3339Formatter.date(from: startedAt) {
@@ -67,7 +67,7 @@ struct Session: Codable, Identifiable, Equatable {
             displayFormatter.timeStyle = .short
             return displayFormatter.string(from: date)
         }
-        
+
         return startedAt
     }
 }
@@ -82,15 +82,31 @@ struct SessionCreateData: Codable {
     let command: [String]
     let workingDir: String
     let name: String?
-    let spawn_terminal: Bool?
+    let spawnTerminal: Bool?
     let cols: Int?
     let rows: Int?
-    
-    init(command: String = "zsh", workingDir: String, name: String? = nil, spawnTerminal: Bool = false, cols: Int = 120, rows: Int = 30) {
+
+    enum CodingKeys: String, CodingKey {
+        case command
+        case workingDir
+        case name
+        case spawnTerminal = "spawn_terminal"
+        case cols
+        case rows
+    }
+
+    init(
+        command: String = "zsh",
+        workingDir: String,
+        name: String? = nil,
+        spawnTerminal: Bool = false,
+        cols: Int = 120,
+        rows: Int = 30
+    ) {
         self.command = [command]
         self.workingDir = workingDir
         self.name = name
-        self.spawn_terminal = spawnTerminal
+        self.spawnTerminal = spawnTerminal
         self.cols = cols
         self.rows = rows
     }

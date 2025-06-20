@@ -6,7 +6,7 @@ struct ContentView: View {
     @State private var showingFilePicker = false
     @State private var showingCastPlayer = false
     @State private var selectedCastFile: URL?
-    
+
     var body: some View {
         Group {
             if connectionManager.isConnected, connectionManager.serverConfig != nil {

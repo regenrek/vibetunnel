@@ -1,0 +1,39 @@
+# SwiftLint configuration for VibeTunnel iOS
+
+# Adjust file length thresholds
+file_length:
+  warning: 800
+  error: 1000
+  ignore_comment_only_lines: true
+
+# Adjust type body length thresholds
+type_body_length:
+  warning: 500
+  error: 800
+
+# Keep other rules at their defaults
+line_length:
+  warning: 120
+  error: 200
+  ignores_urls: true
+  ignores_function_declarations: true
+  ignores_comments: true
+
+# Opt-in rules
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - last_where
+  - reduce_boolean
+  - reduce_into
+  - yoda_condition
+
+# Excluded paths
+excluded:
+  - .build
+  - Package.swift
+  - VibeTunnel.xcodeproj
+  - VibeTunnelTests

@@ -1,23 +1,23 @@
-import SwiftUI
 import Observation
+import SwiftUI
 
 struct ConnectionView: View {
     @Environment(ConnectionManager.self) var connectionManager
     @State private var viewModel = ConnectionViewModel()
     @State private var logoScale: CGFloat = 0.8
     @State private var contentOpacity: Double = 0
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 // Background
                 Theme.Colors.terminalBackground
                     .ignoresSafeArea()
-                
+
                 // Content
-                VStack(spacing: Theme.Spacing.xxl) {
+                VStack(spacing: Theme.Spacing.extraExtraLarge) {
                     // Logo and Title
-                    VStack(spacing: Theme.Spacing.lg) {
+                    VStack(spacing: Theme.Spacing.large) {
                         ZStack {
                             // Glow effect
                             Image(systemName: "terminal.fill")
@@ -25,7 +25,7 @@ struct ConnectionView: View {
                                 .foregroundColor(Theme.Colors.primaryAccent)
                                 .blur(radius: 20)
                                 .opacity(0.5)
-                            
+
                             // Main icon
                             Image(systemName: "terminal.fill")
                                 .font(.system(size: 80))
@@ -38,12 +38,12 @@ struct ConnectionView: View {
                                 logoScale = 1.0
                             }
                         }
-                        
-                        VStack(spacing: Theme.Spacing.sm) {
+
+                        VStack(spacing: Theme.Spacing.small) {
                             Text("VibeTunnel")
                                 .font(.system(size: 42, weight: .bold, design: .rounded))
                                 .foregroundColor(Theme.Colors.terminalForeground)
-                            
+
                             Text("Terminal Multiplexer")
                                 .font(Theme.Typography.terminalSystem(size: 16))
                                 .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
@@ -51,7 +51,7 @@ struct ConnectionView: View {
                         }
                     }
                     .padding(.top, 60)
-                    
+
                     // Connection Form
                     ServerConfigForm(
                         host: $viewModel.host,
@@ -68,7 +68,7 @@ struct ConnectionView: View {
                             contentOpacity = 1.0
                         }
                     }
-                    
+
                     Spacer()
                 }
                 .padding()
@@ -81,7 +81,7 @@ struct ConnectionView: View {
             viewModel.loadLastConnection()
         }
     }
-    
+
     private func connectToServer() {
         Task {
             await viewModel.testConnection { config in
@@ -100,7 +100,7 @@ class ConnectionViewModel {
     var password: String = ""
     var isConnecting: Bool = false
     var errorMessage: String?
-    
+
     func loadLastConnection() {
         if let config = UserDefaults.standard.data(forKey: "savedServerConfig"),
            let serverConfig = try? JSONDecoder().decode(ServerConfig.self, from: config) {
@@ -110,30 +110,30 @@ class ConnectionViewModel {
             self.password = serverConfig.password ?? ""
         }
     }
-    
+
     @MainActor
     func testConnection(onSuccess: @escaping (ServerConfig) -> Void) async {
         errorMessage = nil
-        
+
         guard !host.isEmpty else {
             errorMessage = "Please enter a server address"
             return
         }
-        
-        guard let portNumber = Int(port), portNumber > 0, portNumber <= 65535 else {
+
+        guard let portNumber = Int(port), portNumber > 0, portNumber <= 65_535 else {
             errorMessage = "Please enter a valid port number"
             return
         }
-        
+
         isConnecting = true
-        
+
         let config = ServerConfig(
             host: host,
             port: portNumber,
             name: name.isEmpty ? nil : name,
             password: password.isEmpty ? nil : password
         )
-        
+
         do {
             // Test connection by fetching sessions
             let url = config.baseURL.appendingPathComponent("api/sessions")
@@ -142,7 +142,7 @@ class ConnectionViewModel {
                 request.setValue(authHeader, forHTTPHeaderField: "Authorization")
             }
             let (_, response) = try await URLSession.shared.data(for: request)
-            
+
             if let httpResponse = response as? HTTPURLResponse,
                httpResponse.statusCode == 200 {
                 onSuccess(config)
@@ -152,7 +152,7 @@ class ConnectionViewModel {
         } catch {
             errorMessage = "Connection failed: \(error.localizedDescription)"
         }
-        
+
         isConnecting = false
     }
 }

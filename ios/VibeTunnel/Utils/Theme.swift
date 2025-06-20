@@ -1,32 +1,33 @@
 import SwiftUI
 
-struct Theme {
+enum Theme {
     // MARK: - Colors
-    struct Colors {
+
+    enum Colors {
         // Terminal-inspired colors
         static let terminalBackground = Color(hex: "0A0E14")
         static let terminalForeground = Color(hex: "B3B1AD")
         static let terminalSelection = Color(hex: "273747")
-        
+
         // Accent colors
         static let primaryAccent = Color(hex: "39BAE6")
         static let secondaryAccent = Color(hex: "59C2FF")
         static let successAccent = Color(hex: "AAD94C")
         static let warningAccent = Color(hex: "FFB454")
         static let errorAccent = Color(hex: "F07178")
-        
+
         // UI colors
         static let cardBackground = Color(hex: "0D1117")
         static let cardBorder = Color(hex: "1C2128")
         static let headerBackground = Color(hex: "010409")
         static let overlayBackground = Color.black.opacity(0.7)
-        
+
         // Additional UI colors for FileBrowser
         static let terminalAccent = primaryAccent
         static let terminalGray = Color(hex: "8B949E")
         static let terminalDarkGray = Color(hex: "161B22")
         static let terminalWhite = Color.white
-        
+
         // Terminal ANSI colors
         static let ansiBlack = Color(hex: "01060E")
         static let ansiRed = Color(hex: "EA6C73")
@@ -36,7 +37,7 @@ struct Theme {
         static let ansiMagenta = Color(hex: "FAE994")
         static let ansiCyan = Color(hex: "90E1C6")
         static let ansiWhite = Color(hex: "C7C7C7")
-        
+
         // Bright ANSI colors
         static let ansiBrightBlack = Color(hex: "686868")
         static let ansiBrightRed = Color(hex: "F07178")
@@ -47,95 +48,100 @@ struct Theme {
         static let ansiBrightCyan = Color(hex: "95E6CB")
         static let ansiBrightWhite = Color(hex: "FFFFFF")
     }
-    
+
     // MARK: - Typography
-    struct Typography {
+
+    enum Typography {
         static let terminalFont = "SF Mono"
         static let terminalFontFallback = "Menlo"
         static let uiFont = "SF Pro Display"
-        
+
         static func terminal(size: CGFloat) -> Font {
-            return Font.custom(terminalFont, size: size)
+            Font.custom(terminalFont, size: size)
                 .monospaced()
         }
-        
+
         static func terminalSystem(size: CGFloat) -> Font {
-            return Font.system(size: size, design: .monospaced)
+            Font.system(size: size, design: .monospaced)
         }
     }
-    
+
     // MARK: - Spacing
-    struct Spacing {
-        static let xs: CGFloat = 4
-        static let sm: CGFloat = 8
-        static let md: CGFloat = 12
-        static let lg: CGFloat = 16
-        static let xl: CGFloat = 24
-        static let xxl: CGFloat = 32
+
+    enum Spacing {
+        static let extraSmall: CGFloat = 4
+        static let small: CGFloat = 8
+        static let medium: CGFloat = 12
+        static let large: CGFloat = 16
+        static let extraLarge: CGFloat = 24
+        static let extraExtraLarge: CGFloat = 32
     }
-    
+
     // MARK: - Corner Radius
-    struct CornerRadius {
+
+    enum CornerRadius {
         static let small: CGFloat = 6
         static let medium: CGFloat = 10
         static let large: CGFloat = 16
         static let card: CGFloat = 12
     }
-    
+
     // MARK: - Animation
-    struct Animation {
+
+    enum Animation {
         static let quick = SwiftUI.Animation.easeInOut(duration: 0.2)
         static let standard = SwiftUI.Animation.easeInOut(duration: 0.3)
         static let smooth = SwiftUI.Animation.spring(response: 0.4, dampingFraction: 0.8)
     }
-    
+
     // MARK: - Shadows
-    struct Shadows {
-        struct Card {
-            static let color = Color.black.opacity(0.3)
-            static let radius: CGFloat = 8
-            static let x: CGFloat = 0
-            static let y: CGFloat = 2
-        }
-        
-        struct Button {
-            static let color = Color.black.opacity(0.2)
-            static let radius: CGFloat = 4
-            static let x: CGFloat = 0
-            static let y: CGFloat = 1
-        }
+
+    enum CardShadow {
+        static let color = Color.black.opacity(0.3)
+        static let radius: CGFloat = 8
+        static let xOffset: CGFloat = 0
+        static let yOffset: CGFloat = 2
+    }
+
+    enum ButtonShadow {
+        static let color = Color.black.opacity(0.2)
+        static let radius: CGFloat = 4
+        static let xOffset: CGFloat = 0
+        static let yOffset: CGFloat = 1
     }
 }
 
 // MARK: - Color Extension
+
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
         Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
+        let alpha, red, green, blue: UInt64
         switch hex.count {
         case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+            (alpha, red, green, blue) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
         case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+            (alpha, red, green, blue) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
         case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+            (alpha, red, green, blue) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
         default:
-            (a, r, g, b) = (255, 0, 0, 0)
+            (alpha, red, green, blue) = (255, 0, 0, 0)
         }
-        
+
         self.init(
             .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
+            red: Double(red) / 255,
+            green: Double(green) / 255,
+            blue: Double(blue) / 255,
+            opacity: Double(alpha) / 255
         )
     }
 }
 
 // MARK: - View Modifiers
+
 extension View {
     func terminalCard() -> some View {
         self
@@ -145,20 +151,25 @@ extension View {
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.card)
                     .stroke(Theme.Colors.cardBorder, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 2)
+            .shadow(
+                color: Theme.CardShadow.color,
+                radius: Theme.CardShadow.radius,
+                x: Theme.CardShadow.xOffset,
+                y: Theme.CardShadow.yOffset
+            )
     }
-    
+
     func glowEffect(color: Color = Theme.Colors.primaryAccent) -> some View {
         self
             .shadow(color: color.opacity(0.5), radius: 10)
             .shadow(color: color.opacity(0.3), radius: 20)
     }
-    
+
     func terminalButton() -> some View {
         self
             .foregroundColor(Theme.Colors.terminalForeground)
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.vertical, Theme.Spacing.md)
+            .padding(.horizontal, Theme.Spacing.large)
+            .padding(.vertical, Theme.Spacing.medium)
             .background(Theme.Colors.primaryAccent.opacity(0.1))
             .cornerRadius(Theme.CornerRadius.medium)
             .overlay(
@@ -169,18 +180,19 @@ extension View {
 }
 
 // MARK: - Haptic Feedback
+
 @MainActor
 struct HapticFeedback {
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         let generator = UIImpactFeedbackGenerator(style: style)
         generator.impactOccurred()
     }
-    
+
     static func selection() {
         let generator = UISelectionFeedbackGenerator()
         generator.selectionChanged()
     }
-    
+
     static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(type)

@@ -5,21 +5,26 @@ struct ServerConfig: Codable, Equatable {
     let port: Int
     let name: String?
     let password: String?
-    
+
     var baseURL: URL {
-        URL(string: "http://\(host):\(port)")!
+        // This should always succeed with valid host and port
+        // Fallback ensures we always have a valid URL
+        URL(string: "http://\(host):\(port)") ?? URL(fileURLWithPath: "/")
     }
-    
+
     var displayName: String {
         name ?? "\(host):\(port)"
     }
-    
+
     var requiresAuthentication: Bool {
-        password != nil && !password!.isEmpty
+        if let password {
+            return !password.isEmpty
+        }
+        return false
     }
-    
+
     var authorizationHeader: String? {
-        guard let password = password, !password.isEmpty else { return nil }
+        guard let password, !password.isEmpty else { return nil }
         let credentials = "admin:\(password)"
         guard let data = credentials.data(using: .utf8) else { return nil }
         let base64 = data.base64EncodedString()
