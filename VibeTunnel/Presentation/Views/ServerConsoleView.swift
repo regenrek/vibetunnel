@@ -53,20 +53,18 @@ struct ServerConsoleView: View {
                     }
                     .buttonStyle(.borderless)
                     
-                    // Show restart button for all modes except Swift/Hummingbird
-                    if ServerManager.shared.serverMode != .hummingbird {
-                        Divider()
-                            .frame(height: 20)
-                        
-                        Button {
-                            Task {
-                                await ServerManager.shared.manualRestart()
-                            }
-                        } label: {
-                            Label("Restart", systemImage: "arrow.clockwise")
+                    // Show restart button for all server modes
+                    Divider()
+                        .frame(height: 20)
+                    
+                    Button {
+                        Task {
+                            await ServerManager.shared.manualRestart()
                         }
-                        .buttonStyle(.borderedProminent)
+                    } label: {
+                        Label("Restart", systemImage: "arrow.clockwise")
                     }
+                    .buttonStyle(.borderedProminent)
                 }
             }
             .padding()
@@ -253,7 +251,6 @@ extension ServerLogEntry.Level {
 extension ServerMode {
     var color: Color {
         switch self {
-        case .hummingbird: .blue
         case .rust: .orange
         case .go: .cyan
         }

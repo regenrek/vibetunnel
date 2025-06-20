@@ -35,14 +35,11 @@ protocol ServerProtocol: AnyObject {
 /// Each mode corresponds to a different backend technology with its own
 /// performance characteristics and feature set.
 enum ServerMode: String, CaseIterable {
-    case hummingbird
     case rust
     case go
 
     var displayName: String {
         switch self {
-        case .hummingbird:
-            "Hummingbird"
         case .rust:
             "Rust"
         case .go:
@@ -52,8 +49,6 @@ enum ServerMode: String, CaseIterable {
 
     var description: String {
         switch self {
-        case .hummingbird:
-            "Built-in Swift server"
         case .rust:
             "External tty-fwd binary"
         case .go:

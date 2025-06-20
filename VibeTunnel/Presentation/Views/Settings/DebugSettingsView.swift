@@ -5,9 +5,6 @@ import SwiftUI
 /// Debug settings tab for development and troubleshooting
 struct DebugSettingsView: View {
     @State private var serverMonitor = ServerMonitor.shared
-    @State private var lastError: String?
-    @State private var testResult: String?
-    @State private var isTesting = false
     @AppStorage("debugMode")
     private var debugMode = false
     @AppStorage("logLevel")
@@ -36,18 +33,9 @@ struct DebugSettingsView: View {
                     isServerHealthy: isServerHealthy,
                     isServerRunning: isServerRunning,
                     serverPort: serverPort,
-                    lastError: lastError,
                     serverModeString: $serverModeString,
                     serverManager: serverManager,
                     getCurrentServerMode: getCurrentServerMode
-                )
-
-                APIEndpointsSection(
-                    isServerRunning: isServerRunning,
-                    serverPort: serverPort,
-                    isTesting: $isTesting,
-                    testResult: $testResult,
-                    testEndpoint: testEndpoint
                 )
 
                 DebugOptionsSection(
@@ -100,40 +88,6 @@ struct DebugSettingsView: View {
     // MARK: - Private Methods
 
     // toggleServer function removed - server now runs continuously with auto-recovery
-
-    private func testEndpoint(_ endpoint: APIEndpoint) {
-        isTesting = true
-        testResult = nil
-
-        Task {
-            do {
-                guard let url = URL(string: "http://127.0.0.1:\(serverPort)\(endpoint.path)") else {
-                    testResult = "Invalid URL"
-                    return
-                }
-                var request = URLRequest(url: url)
-                request.httpMethod = endpoint.method
-
-                let (data, response) = try await URLSession.shared.data(for: request)
-
-                if let httpResponse = response as? HTTPURLResponse {
-                    let statusEmoji = httpResponse.statusCode == 200 ? "✅" : "❌"
-                    let preview = String(data: data, encoding: .utf8)?.prefix(100) ?? ""
-                    testResult = "\(statusEmoji) \(httpResponse.statusCode) - \(preview)..."
-                }
-            } catch {
-                testResult = "❌ Error: \(error.localizedDescription)"
-            }
-
-            isTesting = false
-
-            // Clear result after 5 seconds
-            Task {
-                try? await Task.sleep(for: .seconds(5))
-                testResult = nil
-            }
-        }
-    }
 
     private func startHeartbeatMonitoring() {
         // Cancel any existing heartbeat task
@@ -245,7 +199,6 @@ private struct ServerSection: View {
     let isServerHealthy: Bool
     let isServerRunning: Bool
     let serverPort: Int
-    let lastError: String?
     @Binding var serverModeString: String
     let serverManager: ServerManager
     let getCurrentServerMode: () -> String
@@ -317,21 +270,13 @@ private struct ServerSection: View {
 
                     Spacer()
 
-                    // Show restart button for all modes except Swift/Hummingbird
-                    if serverModeString != ServerMode.hummingbird.rawValue {
-                        Button("Restart") {
-                            Task {
-                                await serverManager.manualRestart()
-                            }
+                    // Show restart button for all server modes
+                    Button("Restart") {
+                        Task {
+                            await serverManager.manualRestart()
                         }
-                        .buttonStyle(.borderedProminent)
                     }
-                }
-
-                if let lastError {
-                    Text(lastError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                    .buttonStyle(.borderedProminent)
                 }
 
                 Divider()
@@ -346,7 +291,7 @@ private struct ServerSection: View {
                     }
                     Spacer()
                     Picker("", selection: Binding(
-                        get: { ServerMode(rawValue: serverModeString) ?? .hummingbird },
+                        get: { ServerMode(rawValue: serverModeString) ?? .rust },
                         set: { newMode in
                             serverModeString = newMode.rawValue
                             Task {
@@ -460,67 +405,6 @@ private struct ServerSection: View {
     }
 }
 
-// MARK: - API Endpoints Section
-
-private struct APIEndpointsSection: View {
-    let isServerRunning: Bool
-    let serverPort: Int
-    @Binding var isTesting: Bool
-    @Binding var testResult: String?
-    let testEndpoint: (APIEndpoint) -> Void
-
-    var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(apiEndpoints) { endpoint in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(endpoint.method)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.blue)
-                                .frame(width: 45, alignment: .leading)
-
-                            Text(endpoint.path)
-                                .font(.system(.caption, design: .monospaced))
-
-                            Spacer()
-
-                            if isServerRunning && endpoint.isTestable {
-                                Button("Test") {
-                                    testEndpoint(endpoint)
-                                }
-                                .buttonStyle(.borderless)
-                                .font(.caption)
-                                .disabled(isTesting)
-                            }
-                        }
-
-                        Text(endpoint.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                if let testResult {
-                    Text(testResult)
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                        .padding(.top, 4)
-                }
-            }
-        } header: {
-            Text("API Endpoints")
-                .font(.headline)
-        } footer: {
-            Text("Click 'Test' to send a request to the endpoint and see the response.")
-                .font(.caption)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
-        }
-    }
-}
-
 // MARK: - Debug Options Section
 
 private struct DebugOptionsSection: View {
@@ -579,7 +463,7 @@ private struct DeveloperToolsSection: View {
                     }
                     .buttonStyle(.bordered)
                 }
-                Text("View real-time server logs from both Hummingbird and Rust servers.")
+                Text("View real-time server logs from the server.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

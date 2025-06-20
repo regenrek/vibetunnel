@@ -24,8 +24,6 @@ public final class ServerMonitor {
         ServerManager.shared.lastError
     }
 
-    /// Reference to the actual server (kept for backward compatibility)
-    private weak var server: TunnelServer?
 
     /// Internal state tracking
     public var isServerRunning = false
@@ -37,11 +35,6 @@ public final class ServerMonitor {
         }
     }
 
-    /// Updates the monitor with the current server instance (backward compatibility)
-    public func setServer(_ server: TunnelServer?) {
-        self.server = server
-        updateStatus()
-    }
 
     /// Updates the current status from the server
     public func updateStatus() {

@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */ = {isa = PBXBuildFile; productRef = 788688212DFF600100B22C15 /* Hummingbird */; };
+		78AD8B912E051ED40009725C /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = 78AD8B902E051ED40009725C /* HTTPTypes */; };
+		78AD8B932E051ED40009725C /* HTTPTypesFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 78AD8B922E051ED40009725C /* HTTPTypesFoundation */; };
+		78AD8B952E051ED40009725C /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 78AD8B942E051ED40009725C /* Logging */; };
 		89D01D862CB5D7DC0075D8BD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 89D01D852CB5D7DC0075D8BD /* Sparkle */; };
 /* End PBXBuildFile section */
 
@@ -59,7 +61,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				788688552DFF5EAB00B22C15 /* Hummingbird in Frameworks */,
+				78AD8B912E051ED40009725C /* HTTPTypes in Frameworks */,
+				78AD8B932E051ED40009725C /* HTTPTypesFoundation in Frameworks */,
+				78AD8B952E051ED40009725C /* Logging in Frameworks */,
 				89D01D862CB5D7DC0075D8BD /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -79,6 +83,7 @@
 			children = (
 				788687F32DFF4FCB00B22C15 /* VibeTunnel */,
 				788688012DFF4FCB00B22C15 /* VibeTunnelTests */,
+				78AD8B8F2E051ED40009725C /* Frameworks */,
 				788687F22DFF4FCB00B22C15 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +95,13 @@
 				788687FE2DFF4FCB00B22C15 /* VibeTunnelTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		78AD8B8F2E051ED40009725C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -116,8 +128,10 @@
 			);
 			name = VibeTunnel;
 			packageProductDependencies = (
-				788688212DFF600100B22C15 /* Hummingbird */,
 				89D01D852CB5D7DC0075D8BD /* Sparkle */,
+				78AD8B902E051ED40009725C /* HTTPTypes */,
+				78AD8B922E051ED40009725C /* HTTPTypesFoundation */,
+				78AD8B942E051ED40009725C /* Logging */,
 			);
 			productName = VibeTunnel;
 			productReference = 788687F12DFF4FCB00B22C15 /* VibeTunnel.app */;
@@ -175,8 +189,9 @@
 			mainGroup = 788687E82DFF4FCB00B22C15;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */,
 				89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */,
+				78AD8B8D2E051EA50009725C /* XCRemoteSwiftPackageReference "swift-http-types" */,
+				78AD8B8E2E051EB50009725C /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 788687F22DFF4FCB00B22C15 /* Products */;
@@ -608,12 +623,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */ = {
+		78AD8B8D2E051EA50009725C /* XCRemoteSwiftPackageReference "swift-http-types" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/hummingbird-project/hummingbird";
+			repositoryURL = "https://github.com/apple/swift-http-types.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.14.1;
+				minimumVersion = 1.4.0;
+			};
+		};
+		78AD8B8E2E051EB50009725C /* XCRemoteSwiftPackageReference "swift-log" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-log.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.3;
 			};
 		};
 		89D01D842CB5D7DC0075D8BD /* XCRemoteSwiftPackageReference "Sparkle" */ = {
@@ -627,10 +650,20 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		788688212DFF600100B22C15 /* Hummingbird */ = {
+		78AD8B902E051ED40009725C /* HTTPTypes */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 788688202DFF600100B22C15 /* XCRemoteSwiftPackageReference "hummingbird" */;
-			productName = Hummingbird;
+			package = 78AD8B8D2E051EA50009725C /* XCRemoteSwiftPackageReference "swift-http-types" */;
+			productName = HTTPTypes;
+		};
+		78AD8B922E051ED40009725C /* HTTPTypesFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 78AD8B8D2E051EA50009725C /* XCRemoteSwiftPackageReference "swift-http-types" */;
+			productName = HTTPTypesFoundation;
+		};
+		78AD8B942E051ED40009725C /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 78AD8B8E2E051EB50009725C /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
 		};
 		89D01D852CB5D7DC0075D8BD /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

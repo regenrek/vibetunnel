@@ -357,8 +357,6 @@ class ServerManager {
 
     private func createServer(for mode: ServerMode) -> ServerProtocol {
         switch mode {
-        case .hummingbird:
-            HummingbirdServer()
         case .rust:
             RustServer()
         case .go:
@@ -550,11 +548,8 @@ class ServerManager {
 
     /// Clear the authentication cache (e.g., when password is changed or cleared)
     func clearAuthCache() async {
-        // Only clear cache for Hummingbird server which uses the auth middleware
-        if serverMode == .hummingbird, let hummingbirdServer = currentServer as? HummingbirdServer {
-            await hummingbirdServer.clearAuthCache()
-            logger.info("Cleared authentication cache")
-        }
+        // Authentication cache clearing is no longer needed as external servers handle their own auth
+        logger.info("Authentication cache clearing requested - handled by external server")
     }
     
     /// Update VT config file with the preferred server
