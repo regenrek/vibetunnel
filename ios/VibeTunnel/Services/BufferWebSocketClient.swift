@@ -346,8 +346,7 @@ class BufferWebSocketClient: NSObject {
     }
 
     deinit {
-        // Cancel the WebSocket task
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
         // Tasks will be cancelled automatically when the object is deallocated
+        // WebSocket task cleanup happens in disconnect()
     }
 }
