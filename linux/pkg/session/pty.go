@@ -124,24 +124,6 @@ func NewPTY(session *Session) (*PTY, error) {
 		return nil, fmt.Errorf("failed to set PTY size: %w", err)
 	}
 
-	// Set terminal flags to match Rust implementation
-	// Get the current terminal attributes
-	oldState, err := term.MakeRaw(int(ptmx.Fd()))
-	if err != nil {
-		debugLog("[DEBUG] NewPTY: Failed to get terminal attributes: %v", err)
-	} else {
-		// Restore the terminal but with specific flags enabled
-		// We don't want raw mode, we want interactive mode with ISIG, ICANON, and ECHO
-		if err := term.Restore(int(ptmx.Fd()), oldState); err != nil {
-			log.Printf("[ERROR] NewPTY: Failed to restore terminal: %v", err)
-		}
-
-		// The creack/pty library should have already set up the terminal properly
-		// for interactive use. The key is that the PTY slave (not master) needs
-		// these settings, and they're typically inherited from the process.
-		debugLog("[DEBUG] NewPTY: Terminal configured for interactive mode")
-	}
-
 	streamOut, err := os.Create(session.StreamOutPath())
 	if err != nil {
 		log.Printf("[ERROR] NewPTY: Failed to create stream-out: %v", err)
