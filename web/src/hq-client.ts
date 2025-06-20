@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import * as os from 'os';
 
 export class HQClient {
   private readonly hqUrl: string;
@@ -10,10 +9,10 @@ export class HQClient {
   private readonly hqPassword: string;
   private registrationRetryTimeout: NodeJS.Timeout | null = null;
 
-  constructor(hqUrl: string, hqUsername: string, hqPassword: string) {
+  constructor(hqUrl: string, hqUsername: string, hqPassword: string, remoteName: string) {
     this.hqUrl = hqUrl;
     this.remoteId = uuidv4();
-    this.remoteName = `${os.hostname()}-${process.pid}`;
+    this.remoteName = remoteName;
     this.token = uuidv4();
     this.hqUsername = hqUsername;
     this.hqPassword = hqPassword;
@@ -36,11 +35,13 @@ export class HQClient {
       });
 
       if (!response.ok) {
-        throw new Error(`Registration failed: ${response.statusText}`);
+        const errorBody = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(`Registration failed: ${errorBody.error || response.statusText}`);
       }
 
       console.log(`Successfully registered with HQ at ${this.hqUrl}`);
       console.log(`Remote ID: ${this.remoteId}`);
+      console.log(`Remote name: ${this.remoteName}`);
       console.log(`Token: ${this.token}`);
     } catch (error) {
       console.error('Failed to register with HQ:', error);

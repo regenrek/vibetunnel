@@ -17,6 +17,9 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
+// Add JSON body parser middleware
+app.use(express.json());
+
 const PORT = process.env.PORT || 4020;
 
 // ANSI color codes
@@ -33,6 +36,7 @@ let isHQMode = false;
 let hqUrl: string | null = null;
 let hqUsername: string | null = null;
 let hqPassword: string | null = null;
+let remoteName: string | null = null;
 
 // Check for command line arguments
 for (let i = 0; i < args.length; i++) {
@@ -53,6 +57,9 @@ for (let i = 0; i < args.length; i++) {
   } else if (args[i] === '--hq-password' && i + 1 < args.length) {
     hqPassword = args[i + 1];
     i++; // Skip the password value in next iteration
+  } else if (args[i] === '--name' && i + 1 < args.length) {
+    remoteName = args[i + 1];
+    i++; // Skip the name value in next iteration
   }
 }
 
@@ -81,6 +88,13 @@ if (hqUrl && (!hqUsername || !hqPassword)) {
     `${RED}ERROR: HQ username and password required when --hq-url is specified${RESET}`
   );
   console.error('Use --hq-username and --hq-password with --hq-url');
+  process.exit(1);
+}
+
+// Validate remote name is provided when registering with HQ
+if (hqUrl && !remoteName) {
+  console.error(`${RED}ERROR: Remote name required when --hq-url is specified${RESET}`);
+  console.error('Use --name to specify a unique name for this remote server');
   process.exit(1);
 }
 
@@ -153,9 +167,10 @@ if (isHQMode) {
   console.log(`${GREEN}Running in HQ mode${RESET}`);
 }
 
-if (hqUrl && hqUsername && hqPassword) {
-  hqClient = new HQClient(hqUrl, hqUsername, hqPassword);
+if (hqUrl && hqUsername && hqPassword && remoteName) {
+  hqClient = new HQClient(hqUrl, hqUsername, hqPassword, remoteName);
   console.log(`${GREEN}Will register with HQ at: ${hqUrl}${RESET}`);
+  console.log(`${GREEN}Remote name: ${remoteName}${RESET}`);
 }
 
 // Ensure control directory exists
@@ -247,6 +262,65 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Hot reload functionality for development
 const hotReloadClients = new Set<WebSocket>();
+
+// === HQ/REMOTE MANAGEMENT ===
+
+// Register a remote server (HQ mode only)
+app.post('/api/remotes/register', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(403).json({ error: 'This endpoint is only available in HQ mode' });
+  }
+
+  const { id, name, url, token } = req.body;
+
+  if (!id || !name || !url || !token) {
+    return res.status(400).json({ error: 'Missing required fields: id, name, url, token' });
+  }
+
+  try {
+    const remote = remoteRegistry.register({
+      id,
+      name,
+      url,
+      token,
+      sessionCount: 0,
+    });
+
+    res.json({ success: true, remote });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('already registered')) {
+      return res.status(409).json({ error: error.message });
+    }
+    console.error('Failed to register remote:', error);
+    res.status(500).json({ error: 'Failed to register remote' });
+  }
+});
+
+// Unregister a remote server (HQ mode only)
+app.delete('/api/remotes/:id', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(403).json({ error: 'This endpoint is only available in HQ mode' });
+  }
+
+  const { id } = req.params;
+  const success = remoteRegistry.unregister(id);
+
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Remote not found' });
+  }
+});
+
+// List all remote servers (HQ mode only)
+app.get('/api/remotes', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(403).json({ error: 'This endpoint is only available in HQ mode' });
+  }
+
+  const remotes = remoteRegistry.getAllRemotes();
+  res.json(remotes);
+});
 
 // === SESSION MANAGEMENT ===
 

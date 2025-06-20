@@ -11,6 +11,7 @@ export interface RemoteServer {
 
 export class RemoteRegistry {
   private remotes: Map<string, RemoteServer> = new Map();
+  private remotesByName: Map<string, RemoteServer> = new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private readonly HEALTH_CHECK_INTERVAL = 15000; // Check every 15 seconds
   private readonly HEALTH_CHECK_TIMEOUT = 5000; // 5 second timeout per check
@@ -20,6 +21,11 @@ export class RemoteRegistry {
   }
 
   register(remote: Omit<RemoteServer, 'registeredAt' | 'lastHeartbeat' | 'status'>): RemoteServer {
+    // Check if a remote with the same name already exists
+    if (this.remotesByName.has(remote.name)) {
+      throw new Error(`Remote with name '${remote.name}' is already registered`);
+    }
+
     const now = new Date();
     const registeredRemote: RemoteServer = {
       ...remote,
@@ -29,6 +35,7 @@ export class RemoteRegistry {
     };
 
     this.remotes.set(remote.id, registeredRemote);
+    this.remotesByName.set(remote.name, registeredRemote);
     console.log(`Remote registered: ${remote.name} (${remote.id}) from ${remote.url}`);
 
     // Immediately check health of new remote
@@ -41,6 +48,7 @@ export class RemoteRegistry {
     const remote = this.remotes.get(remoteId);
     if (remote) {
       console.log(`Remote unregistered: ${remote.name} (${remoteId})`);
+      this.remotesByName.delete(remote.name);
       return this.remotes.delete(remoteId);
     }
     return false;
