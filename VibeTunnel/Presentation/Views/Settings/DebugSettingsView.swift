@@ -374,13 +374,8 @@ private struct ServerSection: View {
                     if serverManager.isSwitching {
                         TextShimmer(text: "Switching server mode...", font: .caption)
                             .foregroundStyle(.secondary)
-                    } else {
-                        Text(" ") // Invisible spacer to maintain height
-                            .font(.caption)
-                            .opacity(0)
                     }
                 }
-                .frame(height: 16)
                 
                 // Port conflict warning
                 if let conflict = portConflict {
