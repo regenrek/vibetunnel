@@ -29,6 +29,8 @@ export class VibeTunnelApp extends LitElement {
   @state() private showCreateModal = false;
 
   private hotReloadWs: WebSocket | null = null;
+  private errorTimeoutId: number | null = null;
+  private successTimeoutId: number | null = null;
 
   connectedCallback() {
     super.connectedCallback();
@@ -48,26 +50,48 @@ export class VibeTunnelApp extends LitElement {
   }
 
   private showError(message: string) {
+    // Clear any existing error timeout
+    if (this.errorTimeoutId !== null) {
+      clearTimeout(this.errorTimeoutId);
+      this.errorTimeoutId = null;
+    }
+
     this.errorMessage = message;
     // Clear error after 5 seconds
-    setTimeout(() => {
+    this.errorTimeoutId = window.setTimeout(() => {
       this.errorMessage = '';
+      this.errorTimeoutId = null;
     }, 5000);
   }
 
   private showSuccess(message: string) {
+    // Clear any existing success timeout
+    if (this.successTimeoutId !== null) {
+      clearTimeout(this.successTimeoutId);
+      this.successTimeoutId = null;
+    }
+
     this.successMessage = message;
     // Clear success after 5 seconds
-    setTimeout(() => {
+    this.successTimeoutId = window.setTimeout(() => {
       this.successMessage = '';
+      this.successTimeoutId = null;
     }, 5000);
   }
 
   private clearError() {
-    this.errorMessage = '';
+    // Only clear if there's no active timeout
+    if (this.errorTimeoutId === null) {
+      this.errorMessage = '';
+    }
   }
 
   private clearSuccess() {
+    // Clear the timeout if active
+    if (this.successTimeoutId !== null) {
+      clearTimeout(this.successTimeoutId);
+      this.successTimeoutId = null;
+    }
     this.successMessage = '';
   }
 
@@ -354,7 +378,16 @@ export class VibeTunnelApp extends LitElement {
                 class="bg-status-error text-dark-bg px-4 py-2 rounded shadow-lg font-mono text-sm"
               >
                 ${this.errorMessage}
-                <button @click=${this.clearError} class="ml-2 text-dark-bg hover:text-dark-text">
+                <button
+                  @click=${() => {
+                    if (this.errorTimeoutId !== null) {
+                      clearTimeout(this.errorTimeoutId);
+                      this.errorTimeoutId = null;
+                    }
+                    this.errorMessage = '';
+                  }}
+                  class="ml-2 text-dark-bg hover:text-dark-text"
+                >
                   ✕
                 </button>
               </div>
@@ -368,7 +401,16 @@ export class VibeTunnelApp extends LitElement {
                 class="bg-status-success text-dark-bg px-4 py-2 rounded shadow-lg font-mono text-sm"
               >
                 ${this.successMessage}
-                <button @click=${this.clearSuccess} class="ml-2 text-dark-bg hover:text-dark-text">
+                <button
+                  @click=${() => {
+                    if (this.successTimeoutId !== null) {
+                      clearTimeout(this.successTimeoutId);
+                      this.successTimeoutId = null;
+                    }
+                    this.successMessage = '';
+                  }}
+                  class="ml-2 text-dark-bg hover:text-dark-text"
+                >
                   ✕
                 </button>
               </div>
@@ -383,6 +425,7 @@ export class VibeTunnelApp extends LitElement {
             html`
               <session-view
                 .session=${this.sessions.find((s) => s.id === this.selectedSessionId)}
+                @navigate-to-list=${this.handleNavigateToList}
               ></session-view>
             `
           )
@@ -408,6 +451,7 @@ export class VibeTunnelApp extends LitElement {
                 @error=${this.handleError}
                 @hide-exited-change=${this.handleHideExitedChange}
                 @kill-all-sessions=${this.handleKillAll}
+                @navigate-to-session=${this.handleNavigateToSession}
               ></session-list>
             </div>
           `}
