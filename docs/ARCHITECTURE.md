@@ -20,9 +20,9 @@ VibeTunnel employs a multi-layered architecture designed for flexibility, securi
 ┌─────────────────────────────────────────────────────────┐
 │                    HTTP Server Layer                     │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │  Dual Implementation:                            │   │
-│  │  1. Hummingbird Server (Swift)                  │   │
-│  │  2. Rust Server (tty-fwd binary)                │   │
+│  │  Implementation:                                 │   │
+│  │  1. Rust Server (tty-fwd binary)                │   │
+│  │  2. Go Server (Alternative)                     │   │
 │  │  - REST APIs for session management              │   │
 │  │  - WebSocket streaming for terminal I/O         │   │
 │  └─────────────────────────────────────────────────┘   │
@@ -65,13 +65,7 @@ Key files:
 
 ### 2. HTTP Server Layer
 
-VibeTunnel offers two server implementations that can be switched at runtime:
-
-#### Hummingbird Server (Swift)
-- Built-in Swift implementation using the Hummingbird framework
-- Native integration with the macOS app
-- RESTful APIs for session management
-- File: `VibeTunnel/Core/Services/HummingbirdServer.swift`
+VibeTunnel offers multiple server implementations that can be switched at runtime:
 
 #### Rust Server (tty-fwd)
 - External binary written in Rust for high-performance TTY forwarding

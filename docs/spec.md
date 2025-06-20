@@ -36,14 +36,14 @@ VibeTunnel is a macOS application that provides browser-based access to Mac term
 - **Real-Time Streaming**: Live terminal updates via WebSocket
 - **Session Recording**: Full asciinema format recording support
 - **Security Options**: Password protection, localhost-only mode, Tailscale/ngrok integration
-- **Multiple Server Backends**: Choice between Swift (Hummingbird) and Rust (tty-fwd) implementations
+- **Multiple Server Backends**: Choice between Rust (tty-fwd) and Go implementations
 - **Auto-Updates**: Sparkle framework integration for seamless updates
 - **AI Agent Integration**: Special support for Claude Code with shortcuts
 
 ### Technical Stack
 
 - **Native App**: Swift 6.0, SwiftUI, macOS 14.0+
-- **HTTP Servers**: Hummingbird (Swift), tty-fwd (Rust)
+- **HTTP Servers**: tty-fwd (Rust), Go server
 - **Web Frontend**: TypeScript, JavaScript, Tailwind CSS
 - **Build System**: Xcode, Swift Package Manager, Cargo
 - **Distribution**: Signed/notarized DMG with Sparkle updates
@@ -63,8 +63,8 @@ VibeTunnel is a macOS application that provides browser-based access to Mac term
 │  ┌─────────────────────────────────────────────────────┐  │
 │  │                  Server Abstraction                   │  │
 │  │  ┌──────────────────┐  ┌──────────────────────┐     │  │
-│  │  │ Hummingbird      │  │ Rust Server          │     │  │
-│  │  │ Server           │  │ (tty-fwd)            │     │  │
+│  │  │ Rust Server      │  │ Go Server            │     │  │
+│  │  │ (tty-fwd)        │  │                      │     │  │
 │  │  └──────────────────┘  └──────────────────────┘     │  │
 │  └─────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -107,7 +107,7 @@ VibeTunnel is a macOS application that provides browser-based access to Mac term
 
 **Responsibilities**:
 - Orchestrates server lifecycle (start/stop/restart)
-- Manages server selection (Hummingbird vs Rust)
+- Manages server selection (Rust vs Go)
 - Coordinates with other services (Ngrok, SessionMonitor)
 - Provides unified API for UI layer
 
@@ -175,9 +175,7 @@ func isServerRunning() -> Bool
 
 ## Server Implementations
 
-### Hummingbird Server (Swift)
-
-**Location**: `VibeTunnel/Core/Services/HummingbirdServer.swift`
+### Server Implementations
 
 **Architecture**:
 ```swift
@@ -537,7 +535,7 @@ interface TerminalMessage {
 ### Settings Window
 
 **General Tab**:
-- Server selection (Hummingbird/Rust)
+- Server selection (Rust/Go)
 - Port configuration
 - Auto-start preferences
 - Update channel selection
