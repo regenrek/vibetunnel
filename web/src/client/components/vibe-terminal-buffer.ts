@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { TerminalRenderer, type BufferCell } from '../utils/terminal-renderer.js';
 
 interface BufferSnapshot {
@@ -28,6 +29,7 @@ export class VibeTerminalBuffer extends LitElement {
   @state() private loading = false;
   @state() private actualRows = 0;
   @state() private displayedFontSize = 14;
+  @state() private containerCols = 80; // Calculated columns that fit
 
   private container: HTMLElement | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
@@ -86,29 +88,38 @@ export class VibeTerminalBuffer extends LitElement {
   private calculateDimensions() {
     if (!this.container) return;
 
+    const containerWidth = this.container.clientWidth;
     const containerHeight = this.container.clientHeight;
-    const lineHeight = this.fontSize * 1.2;
-    const newActualRows = Math.floor(containerHeight / lineHeight);
 
     if (this.fitHorizontally && this.buffer) {
-      // Calculate font size to fit terminal width
-      const containerWidth = this.container.clientWidth;
-      const charWidth = this.fontSize * 0.6; // Approximate char width
-      const requiredWidth = this.buffer.cols * charWidth;
+      // Horizontal fitting: calculate fontSize to fit buffer.cols characters in container width
+      const targetCharWidth = containerWidth / this.buffer.cols;
 
-      if (requiredWidth > containerWidth) {
-        const scale = containerWidth / requiredWidth;
-        this.displayedFontSize = Math.floor(this.fontSize * scale);
-      } else {
-        this.displayedFontSize = this.fontSize;
+      // Estimate font size needed (assuming monospace font with ~0.6 char/font ratio)
+      const calculatedFontSize = targetCharWidth / 0.6;
+      this.displayedFontSize = Math.max(4, Math.min(32, Math.floor(calculatedFontSize)));
+
+      // Calculate actual rows with new font size
+      const lineHeight = this.displayedFontSize * 1.2;
+      const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+
+      if (newActualRows !== this.actualRows) {
+        this.actualRows = newActualRows;
+        this.fetchBuffer();
       }
     } else {
+      // Normal mode: use original font size and calculate cols that fit
       this.displayedFontSize = this.fontSize;
-    }
+      const lineHeight = this.fontSize * 1.2;
+      const charWidth = this.fontSize * 0.6;
 
-    if (newActualRows !== this.actualRows) {
-      this.actualRows = newActualRows;
-      this.fetchBuffer();
+      const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
+      this.containerCols = Math.max(20, Math.floor(containerWidth / charWidth));
+
+      if (newActualRows !== this.actualRows) {
+        this.actualRows = newActualRows;
+        this.fetchBuffer();
+      }
     }
   }
 
@@ -148,12 +159,9 @@ export class VibeTerminalBuffer extends LitElement {
         return; // No changes
       }
 
-      // Fetch buffer data - request at least one full terminal screen worth of lines
-      // This ensures we get the complete visible terminal state
-      const linesToFetch = Math.max(this.actualRows, stats.rows);
-      const lines = Math.min(linesToFetch, stats.totalRows);
+      // Always fetch the entire buffer to show all content
       const response = await fetch(
-        `/api/sessions/${this.sessionId}/buffer?lines=${lines}&format=json`
+        `/api/sessions/${this.sessionId}/buffer?viewportY=0&lines=${stats.totalRows}&format=json`
       );
 
       if (!response.ok) {
@@ -163,14 +171,6 @@ export class VibeTerminalBuffer extends LitElement {
       this.buffer = await response.json();
       this.lastModified = stats.lastModified;
       this.error = null;
-
-      // Debug logging
-      console.log(`Buffer loaded for ${this.sessionId}:`, {
-        cols: this.buffer.cols,
-        rows: this.buffer.rows,
-        cellCount: this.buffer.cells.length,
-        firstLineSample: this.buffer.cells[0]?.slice(0, 10),
-      });
 
       this.requestUpdate();
     } catch (error) {
@@ -210,24 +210,37 @@ export class VibeTerminalBuffer extends LitElement {
 
     const lineHeight = this.displayedFontSize * 1.2;
 
-    // Render lines - if we have more lines than can fit, show the bottom portion
-    const startIndex = Math.max(0, this.buffer.cells.length - this.actualRows);
-    const visibleCells = this.buffer.cells.slice(startIndex);
+    // In fitHorizontally mode, we show all content scaled to fit
+    // Otherwise, we show from the top and let it overflow
+    if (this.fitHorizontally) {
+      // Render all lines - the buffer is already trimmed of blank lines from the bottom
+      return this.buffer.cells.map((row, index) => {
+        const isCursorLine = index === this.buffer.cursorY;
+        const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
+        const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
 
-    return visibleCells.map((row, index) => {
-      const actualIndex = startIndex + index;
-      const isCursorLine = actualIndex === this.buffer.cursorY;
-      const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
-      const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
+        return html`
+          <div class="terminal-line" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">
+            ${unsafeHTML(lineContent)}
+          </div>
+        `;
+      });
+    } else {
+      // Show only what fits in the viewport
+      const visibleCells = this.buffer.cells.slice(0, this.actualRows);
 
-      return html`
-        <div
-          class="terminal-line"
-          style="height: ${lineHeight}px; line-height: ${lineHeight}px;"
-          .innerHTML=${lineContent}
-        ></div>
-      `;
-    });
+      return visibleCells.map((row, index) => {
+        const isCursorLine = index === this.buffer.cursorY;
+        const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
+        const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
+
+        return html`
+          <div class="terminal-line" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">
+            ${unsafeHTML(lineContent)}
+          </div>
+        `;
+      });
+    }
   }
 
   /**

@@ -284,13 +284,31 @@ export class TerminalManager {
       cells.push(rowCells);
     }
 
+    // Trim blank lines from the bottom
+    let lastNonBlankRow = cells.length - 1;
+    while (lastNonBlankRow >= 0) {
+      const row = cells[lastNonBlankRow];
+      const hasContent = row.some(
+        (cell) =>
+          cell.char !== ' ' ||
+          cell.fg !== undefined ||
+          cell.bg !== undefined ||
+          cell.attributes !== undefined
+      );
+      if (hasContent) break;
+      lastNonBlankRow--;
+    }
+
+    // Keep at least one row
+    const trimmedCells = cells.slice(0, Math.max(1, lastNonBlankRow + 1));
+
     return {
       cols: terminal.cols,
-      rows: actualLines,
+      rows: trimmedCells.length,
       viewportY: actualViewportY,
       cursorX,
       cursorY,
-      cells,
+      cells: trimmedCells,
     };
   }
 

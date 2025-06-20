@@ -214,6 +214,9 @@ export class TerminalRenderer {
         const b = cell.fg & 0xff;
         style += `color: rgb(${r}, ${g}, ${b});`;
       }
+    } else {
+      // Default foreground color if not specified
+      style += `color: #d4d4d4;`;
     }
 
     // Get background color
