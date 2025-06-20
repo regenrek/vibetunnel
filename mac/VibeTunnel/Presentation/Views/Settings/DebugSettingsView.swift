@@ -335,7 +335,7 @@ private struct ServerSection: View {
 
         if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
             // Only show warning for non-VibeTunnel processes
-            // tty-fwd and other VibeTunnel instances will be auto-killed by ServerManager
+            // VibeTunnel instances will be auto-killed by ServerManager
             if case .reportExternalApp = conflict.suggestedAction {
                 portConflict = conflict
             } else {
@@ -356,13 +356,6 @@ private struct DebugOptionsSection: View {
 
     var body: some View {
         Section {
-            VStack(alignment: .leading, spacing: 4) {
-                Toggle("Debug mode", isOn: $debugMode)
-                Text("Enable additional logging and debugging features.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Log Level")

@@ -80,6 +80,7 @@ struct AsciinemaHeader: Codable {
     let width: Int
     let height: Int
     let timestamp: Double?
+    let duration: Double?
     let command: String?
     let title: String?
     let env: [String: String]?

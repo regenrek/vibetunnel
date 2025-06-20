@@ -446,7 +446,13 @@ export class SessionView extends LitElement {
   }
 
   private handleBack() {
-    window.location.search = '';
+    // Dispatch a custom event that the app can handle with view transitions
+    this.dispatchEvent(
+      new CustomEvent('navigate-to-list', {
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   private handleSessionExit(e: Event) {

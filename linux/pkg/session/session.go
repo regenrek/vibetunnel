@@ -67,14 +67,15 @@ type Session struct {
 	stdinPipe   *os.File
 	stdinMutex  sync.Mutex
 	mu          sync.RWMutex
+	manager     *Manager // Reference to manager for accessing global settings
 }
 
-func newSession(controlPath string, config Config) (*Session, error) {
+func newSession(controlPath string, config Config, manager *Manager) (*Session, error) {
 	id := uuid.New().String()
-	return newSessionWithID(controlPath, id, config)
+	return newSessionWithID(controlPath, id, config, manager)
 }
 
-func newSessionWithID(controlPath string, id string, config Config) (*Session, error) {
+func newSessionWithID(controlPath string, id string, config Config, manager *Manager) (*Session, error) {
 	sessionPath := filepath.Join(controlPath, id)
 
 	// Only log in debug mode
@@ -159,10 +160,11 @@ func newSessionWithID(controlPath string, id string, config Config) (*Session, e
 		ID:          id,
 		controlPath: controlPath,
 		info:        info,
+		manager:     manager,
 	}, nil
 }
 
-func loadSession(controlPath, id string) (*Session, error) {
+func loadSession(controlPath, id string, manager *Manager) (*Session, error) {
 	sessionPath := filepath.Join(controlPath, id)
 	info, err := LoadInfo(sessionPath)
 	if err != nil {
@@ -173,6 +175,7 @@ func loadSession(controlPath, id string) (*Session, error) {
 		ID:          id,
 		controlPath: controlPath,
 		info:        info,
+		manager:     manager,
 	}
 
 	// Validate that essential session files exist
@@ -260,6 +263,64 @@ func (s *Session) Attach() error {
 		return fmt.Errorf("session not started")
 	}
 	return s.pty.Attach()
+}
+
+// AttachSpawnedSession is used when a terminal is spawned with TTY_SESSION_ID
+// It creates a new PTY for the spawned terminal and runs the command
+func (s *Session) AttachSpawnedSession() error {
+	// Create a new PTY for this spawned session
+	pty, err := NewPTY(s)
+	if err != nil {
+		return fmt.Errorf("failed to create PTY: %w", err)
+	}
+	s.pty = pty
+
+	// Update session status
+	s.info.Status = string(StatusRunning)
+	s.info.Pid = pty.Pid()
+	
+	if err := s.info.Save(s.Path()); err != nil {
+		if err := pty.Close(); err != nil {
+			log.Printf("[ERROR] Failed to close PTY: %v", err)
+		}
+		return fmt.Errorf("failed to update session info: %w", err)
+	}
+
+	// Create a channel to signal when PTY.Run() completes
+	ptyDone := make(chan struct{})
+	
+	// Start the PTY I/O loop in a goroutine (like Start() does)
+	go func() {
+		defer close(ptyDone)
+		if err := s.pty.Run(); err != nil {
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Session %s: PTY.Run() exited with error: %v", s.ID[:8], err)
+			}
+		} else {
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Session %s: PTY.Run() exited normally", s.ID[:8])
+			}
+		}
+		// Ensure session status is updated
+		s.UpdateStatus()
+	}()
+
+	// Start control listener
+	s.startControlListener()
+
+	// Attach to the PTY to connect stdin/stdout
+	attachErr := s.pty.Attach()
+	
+	// Wait a moment for PTY cleanup to complete
+	select {
+	case <-ptyDone:
+		// PTY.Run() already completed
+	case <-time.After(500 * time.Millisecond):
+		// Give it a bit more time to update status
+		s.UpdateStatus()
+	}
+	
+	return attachErr
 }
 
 func (s *Session) SendKey(key string) error {
@@ -353,7 +414,7 @@ func (s *Session) proxyInputToNodeJS(data []byte) error {
 
 func (s *Session) Signal(sig string) error {
 	if s.info.Pid == 0 {
-		return fmt.Errorf("no process to signal")
+		return NewSessionError("no process to signal", ErrProcessNotFound, s.ID)
 	}
 
 	// Check if process is still alive before signaling
@@ -370,21 +431,27 @@ func (s *Session) Signal(sig string) error {
 
 	proc, err := os.FindProcess(s.info.Pid)
 	if err != nil {
-		return err
+		return ErrProcessSignalError(s.ID, sig, err)
 	}
 
 	switch sig {
 	case "SIGTERM":
-		return proc.Signal(os.Interrupt)
+		if err := proc.Signal(os.Interrupt); err != nil {
+			return ErrProcessSignalError(s.ID, sig, err)
+		}
+		return nil
 	case "SIGKILL":
 		err = proc.Kill()
 		// If kill fails with "process already finished", that's okay
 		if err != nil && strings.Contains(err.Error(), "process already finished") {
 			return nil
 		}
-		return err
+		if err != nil {
+			return ErrProcessSignalError(s.ID, sig, err)
+		}
+		return nil
 	default:
-		return fmt.Errorf("unsupported signal: %s", sig)
+		return NewSessionError(fmt.Sprintf("unsupported signal: %s", sig), ErrInvalidArgument, s.ID)
 	}
 }
 
@@ -393,24 +460,29 @@ func (s *Session) Stop() error {
 }
 
 func (s *Session) Kill() error {
-	// First check if the session is already dead
-	if s.info.Status == string(StatusExited) {
-		// Already exited, just cleanup and return success
+	// Use graceful termination like Node.js
+	terminator := NewProcessTerminator(s)
+	return terminator.TerminateGracefully()
+}
+
+// KillWithSignal kills the session with the specified signal
+// If signal is SIGKILL, it sends it immediately without graceful termination
+func (s *Session) KillWithSignal(signal string) error {
+	// If SIGKILL is explicitly requested, send it immediately
+	if signal == "SIGKILL" || signal == "9" {
+		err := s.Signal("SIGKILL")
 		s.cleanup()
-		return nil
+
+		// If the error is because the process doesn't exist, that's fine
+		if err != nil && (strings.Contains(err.Error(), "no such process") ||
+			strings.Contains(err.Error(), "process already finished")) {
+			return nil
+		}
+		return err
 	}
 
-	// Try to kill the process
-	err := s.Signal("SIGKILL")
-	s.cleanup()
-
-	// If the error is because the process doesn't exist, that's fine
-	if err != nil && (strings.Contains(err.Error(), "no such process") ||
-		strings.Contains(err.Error(), "process already finished")) {
-		return nil
-	}
-
-	return err
+	// For other signals, use graceful termination
+	return s.Kill()
 }
 
 func (s *Session) cleanup() {
@@ -426,18 +498,23 @@ func (s *Session) cleanup() {
 }
 
 func (s *Session) Resize(width, height int) error {
-	if s.pty == nil {
-		return fmt.Errorf("session not started")
+	// Check if resizing is disabled globally
+	if s.manager != nil && s.manager.GetDoNotAllowColumnSet() {
+		return NewSessionError("terminal resizing is disabled by server configuration", ErrInvalidInput, s.ID)
 	}
 
 	// Check if session is still alive
 	if s.info.Status == string(StatusExited) {
-		return fmt.Errorf("cannot resize exited session")
+		return NewSessionError("cannot resize exited session", ErrSessionNotRunning, s.ID)
 	}
 
 	// Validate dimensions
 	if width <= 0 || height <= 0 {
-		return fmt.Errorf("invalid dimensions: width=%d, height=%d", width, height)
+		return NewSessionError(
+			fmt.Sprintf("invalid dimensions: width=%d, height=%d", width, height),
+			ErrInvalidArgument,
+			s.ID,
+		)
 	}
 
 	// Update session info
@@ -449,7 +526,20 @@ func (s *Session) Resize(width, height int) error {
 		log.Printf("[ERROR] Failed to save session info after resize: %v", err)
 	}
 
-	// Resize the PTY
+	// If this is a spawned session, send resize command through control FIFO
+	if s.IsSpawned() {
+		cmd := &ControlCommand{
+			Cmd:  "resize",
+			Cols: width,
+			Rows: height,
+		}
+		return SendControlCommand(s.Path(), cmd)
+	}
+
+	// For non-spawned sessions, resize the PTY directly
+	if s.pty == nil {
+		return NewSessionError("session not started", ErrSessionNotRunning, s.ID)
+	}
 	return s.pty.Resize(width, height)
 }
 

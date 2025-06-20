@@ -70,11 +70,16 @@ func fdIsSet(set *syscall.FdSet, fd int) bool {
 // pollWithSelect polls multiple file descriptors using select
 func (p *PTY) pollWithSelect() error {
 	// Buffer for reading
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, 1024) // 1KB buffer for maximum responsiveness
 
 	// Get file descriptors
 	ptyFd := int(p.pty.Fd())
-	stdinFd := int(p.stdinPipe.Fd())
+	var stdinFd int = -1
+
+	// Only include stdin in polling if not using event-driven mode
+	if !p.useEventDrivenStdin && p.stdinPipe != nil {
+		stdinFd = int(p.stdinPipe.Fd())
+	}
 
 	// Open control FIFO in non-blocking mode
 	controlPath := filepath.Join(p.session.Path(), "control")
@@ -93,13 +98,16 @@ func (p *PTY) pollWithSelect() error {
 
 	for {
 		// Build FD list
-		fds := []int{ptyFd, stdinFd}
+		fds := []int{ptyFd}
+		if stdinFd >= 0 {
+			fds = append(fds, stdinFd)
+		}
 		if controlFd >= 0 {
 			fds = append(fds, controlFd)
 		}
 
-		// Wait for activity with 100ms timeout for better responsiveness
-		ready, err := selectRead(fds, 100*time.Millisecond)
+		// Wait for activity with 10ms timeout for real-time responsiveness
+		ready, err := selectRead(fds, 10*time.Millisecond)
 		if err != nil {
 			log.Printf("[ERROR] select error: %v", err)
 			return err

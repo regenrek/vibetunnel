@@ -50,15 +50,9 @@ struct SessionCardView: View {
                             animateCleanup()
                         }
                     }, label: {
-                        Text(session.isRunning ? "kill" : "clean")
-                            .font(Theme.Typography.terminalSystem(size: 12))
-                            .foregroundColor(Theme.Colors.terminalForeground)
-                            .padding(.horizontal, Theme.Spacing.small)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
-                                    .stroke(Theme.Colors.cardBorder, lineWidth: 1)
-                            )
+                        Image(systemName: session.isRunning ? "xmark.circle" : "trash.circle")
+                            .font(.system(size: 18))
+                            .foregroundColor(session.isRunning ? Theme.Colors.errorAccent : Theme.Colors.terminalForeground.opacity(0.6))
                     })
                     .buttonStyle(PlainButtonStyle())
                 }

@@ -701,3 +701,49 @@ body {
   color: #00ff88;
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
+
+/* View Transitions */
+@supports (view-transition-name: none) {
+  ::view-transition {
+    /* Set the transition duration to 0.1s as requested */
+    --transition-duration: 100ms;
+  }
+
+  ::view-transition-group(*) {
+    animation-duration: var(--transition-duration);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: var(--transition-duration);
+    mix-blend-mode: normal;
+  }
+
+  /* Specific styling for terminal transitions */
+  ::view-transition-old(terminal-*) {
+    animation: view-transition-fade-out var(--transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  ::view-transition-new(terminal-*) {
+    animation: view-transition-fade-in var(--transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes view-transition-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes view-transition-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

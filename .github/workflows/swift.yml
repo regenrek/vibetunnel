@@ -170,9 +170,9 @@ jobs:
       run: |
         cd mac
         echo "Resolving Swift package dependencies..."
-        xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace -quiet || {
+        xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace -scheme VibeTunnel -quiet || {
           echo "Failed to resolve dependencies. Retrying with verbose output..."
-          xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace
+          xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace -scheme VibeTunnel
         }
         
     - name: Build Debug

@@ -42,25 +42,27 @@ type StreamEvent struct {
 }
 
 type StreamWriter struct {
-	writer     io.Writer
-	header     *AsciinemaHeader
-	startTime  time.Time
-	mutex      sync.Mutex
-	closed     bool
-	buffer     []byte
-	lastWrite  time.Time
-	flushTimer *time.Timer
-	syncTimer  *time.Timer
-	needsSync  bool
+	writer       io.Writer
+	header       *AsciinemaHeader
+	startTime    time.Time
+	mutex        sync.Mutex
+	closed       bool
+	buffer       []byte
+	escapeParser *EscapeParser
+	lastWrite    time.Time
+	flushTimer   *time.Timer
+	syncTimer    *time.Timer
+	needsSync    bool
 }
 
 func NewStreamWriter(writer io.Writer, header *AsciinemaHeader) *StreamWriter {
 	return &StreamWriter{
-		writer:    writer,
-		header:    header,
-		startTime: time.Now(),
-		buffer:    make([]byte, 0, 4096),
-		lastWrite: time.Now(),
+		writer:       writer,
+		header:       header,
+		startTime:    time.Now(),
+		buffer:       make([]byte, 0, 4096),
+		escapeParser: NewEscapeParser(),
+		lastWrite:    time.Now(),
 	}
 }
 
@@ -106,22 +108,24 @@ func (w *StreamWriter) writeEvent(eventType EventType, data []byte) error {
 		return fmt.Errorf("stream writer closed")
 	}
 
-	w.buffer = append(w.buffer, data...)
 	w.lastWrite = time.Now()
 
-	completeData, remaining := extractCompleteUTF8(w.buffer)
+	// Use escape parser to ensure escape sequences are not split
+	processedData, remaining := w.escapeParser.ProcessData(data)
+
+	// Update buffer with any remaining incomplete sequences
 	w.buffer = remaining
 
-	if len(completeData) == 0 {
-		// If we have incomplete UTF-8 data, set up a timer to flush it after a short delay
-		if len(w.buffer) > 0 {
+	if len(processedData) == 0 {
+		// If we have incomplete data, set up a timer to flush it after a short delay
+		if len(w.buffer) > 0 || w.escapeParser.BufferSize() > 0 {
 			w.scheduleFlush()
 		}
 		return nil
 	}
 
 	elapsed := time.Since(w.startTime).Seconds()
-	event := []interface{}{elapsed, string(eventType), string(completeData)}
+	event := []interface{}{elapsed, string(eventType), string(processedData)}
 
 	eventData, err := json.Marshal(event)
 	if err != nil {
@@ -131,6 +135,11 @@ func (w *StreamWriter) writeEvent(eventType EventType, data []byte) error {
 	_, err = fmt.Fprintf(w.writer, "%s\n", eventData)
 	if err != nil {
 		return err
+	}
+
+	// Immediately flush if the writer supports it for real-time output
+	if flusher, ok := w.writer.(interface{ Flush() error }); ok {
+		flusher.Flush()
 	}
 
 	// Schedule sync instead of immediate sync for better performance
@@ -146,18 +155,30 @@ func (w *StreamWriter) scheduleFlush() {
 		w.flushTimer.Stop()
 	}
 
-	// Set up new timer for 1ms flush delay for better real-time performance
-	w.flushTimer = time.AfterFunc(1*time.Millisecond, func() {
+	// Set up immediate flush for real-time performance
+	w.flushTimer = time.AfterFunc(0, func() {
 		w.mutex.Lock()
 		defer w.mutex.Unlock()
 
-		if w.closed || len(w.buffer) == 0 {
+		if w.closed {
 			return
 		}
 
-		// Force flush incomplete UTF-8 data for real-time streaming
+		// Flush any buffered data from escape parser
+		flushedData := w.escapeParser.Flush()
+		if len(flushedData) == 0 && len(w.buffer) == 0 {
+			return
+		}
+
+		// Combine flushed data with any remaining buffer
+		dataToWrite := append(flushedData, w.buffer...)
+		if len(dataToWrite) == 0 {
+			return
+		}
+
+		// Force flush incomplete data for real-time streaming
 		elapsed := time.Since(w.startTime).Seconds()
-		event := []interface{}{elapsed, string(EventOutput), string(w.buffer)}
+		event := []interface{}{elapsed, string(EventOutput), string(dataToWrite)}
 
 		eventData, err := json.Marshal(event)
 		if err != nil {
@@ -168,6 +189,11 @@ func (w *StreamWriter) scheduleFlush() {
 			// Log but don't fail - this is a best effort flush
 			// Cannot use log here as we might be in a defer/cleanup path
 			return
+		}
+
+		// Immediately flush if the writer supports it for real-time output
+		if flusher, ok := w.writer.(interface{ Flush() error }); ok {
+			flusher.Flush()
 		}
 
 		// Schedule sync instead of immediate sync for better performance
@@ -187,8 +213,8 @@ func (w *StreamWriter) scheduleBatchSync() {
 		w.syncTimer.Stop()
 	}
 
-	// Schedule sync after 1ms for better real-time performance
-	w.syncTimer = time.AfterFunc(1*time.Millisecond, func() {
+	// Schedule immediate sync for real-time performance
+	w.syncTimer = time.AfterFunc(0, func() {
 		if w.needsSync {
 			if file, ok := w.writer.(*os.File); ok {
 				if err := file.Sync(); err != nil {
@@ -218,9 +244,13 @@ func (w *StreamWriter) Close() error {
 		w.syncTimer.Stop()
 	}
 
-	if len(w.buffer) > 0 {
+	// Flush any remaining data from escape parser
+	flushedData := w.escapeParser.Flush()
+	finalData := append(flushedData, w.buffer...)
+
+	if len(finalData) > 0 {
 		elapsed := time.Since(w.startTime).Seconds()
-		event := []interface{}{elapsed, string(EventOutput), string(w.buffer)}
+		event := []interface{}{elapsed, string(EventOutput), string(finalData)}
 		eventData, _ := json.Marshal(event)
 		if _, err := fmt.Fprintf(w.writer, "%s\n", eventData); err != nil {
 			// Write failed during close - log to stderr to avoid deadlock

@@ -2,9 +2,10 @@ package ngrok
 
 import (
 	"context"
-	"golang.ngrok.com/ngrok"
 	"sync"
 	"time"
+
+	"golang.ngrok.com/ngrok"
 )
 
 // Status represents the current state of ngrok tunnel

@@ -6,14 +6,20 @@ import SwiftUI
 struct VibeTunnelApp: App {
     @State private var connectionManager = ConnectionManager()
     @State private var navigationManager = NavigationManager()
+    @State private var networkMonitor = NetworkMonitor.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(connectionManager)
                 .environment(navigationManager)
+                .offlineBanner()
                 .onOpenURL { url in
                     handleURL(url)
+                }
+                .task {
+                    // Initialize network monitoring
+                    _ = networkMonitor
                 }
         }
     }
@@ -37,12 +43,19 @@ struct VibeTunnelApp: App {
 /// tracking connection state, and providing a central point for
 /// connection-related operations.
 @Observable
+@MainActor
 class ConnectionManager {
-    var isConnected: Bool = false
+    var isConnected: Bool = false {
+        didSet {
+            UserDefaults.standard.set(isConnected, forKey: "connectionState")
+        }
+    }
     var serverConfig: ServerConfig?
+    var lastConnectionTime: Date?
 
     init() {
         loadSavedConnection()
+        restoreConnectionState()
     }
 
     private func loadSavedConnection() {
@@ -52,17 +65,51 @@ class ConnectionManager {
             self.serverConfig = config
         }
     }
+    
+    private func restoreConnectionState() {
+        // Restore connection state if app was terminated while connected
+        let wasConnected = UserDefaults.standard.bool(forKey: "connectionState")
+        if let lastConnectionData = UserDefaults.standard.object(forKey: "lastConnectionTime") as? Date {
+            lastConnectionTime = lastConnectionData
+            
+            // Only restore connection if it was within the last hour
+            let timeSinceLastConnection = Date().timeIntervalSince(lastConnectionData)
+            if wasConnected && timeSinceLastConnection < 3600 && serverConfig != nil {
+                // Attempt to restore connection
+                isConnected = true
+            } else {
+                // Clear stale connection state
+                isConnected = false
+            }
+        }
+    }
 
     func saveConnection(_ config: ServerConfig) {
         if let data = try? JSONEncoder().encode(config) {
             UserDefaults.standard.set(data, forKey: "savedServerConfig")
             self.serverConfig = config
+            
+            // Save connection timestamp
+            lastConnectionTime = Date()
+            UserDefaults.standard.set(lastConnectionTime, forKey: "lastConnectionTime")
         }
     }
 
     func disconnect() {
         isConnected = false
+        UserDefaults.standard.removeObject(forKey: "connectionState")
+        UserDefaults.standard.removeObject(forKey: "lastConnectionTime")
     }
+    
+    var currentServerConfig: ServerConfig? {
+        serverConfig
+    }
+}
+
+// Make ConnectionManager accessible globally for APIClient
+extension ConnectionManager {
+    @MainActor
+    static let shared = ConnectionManager()
 }
 
 /// Manages app-wide navigation state.

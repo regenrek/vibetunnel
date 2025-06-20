@@ -13,7 +13,12 @@ struct TerminalView: View {
     @State private var fontSize: CGFloat = 14
     @State private var showingFontSizeSheet = false
     @State private var showingRecordingSheet = false
+    @State private var showingTerminalWidthSheet = false
+    @State private var showingTerminalThemeSheet = false
+    @State private var selectedTerminalWidth: Int?
+    @State private var selectedTheme = TerminalTheme.selected
     @State private var keyboardHeight: CGFloat = 0
+    @State private var showScrollToBottom = false
     @FocusState private var isInputFocused: Bool
 
     init(session: Session) {
@@ -25,7 +30,7 @@ struct TerminalView: View {
         NavigationStack {
             ZStack {
                 // Background
-                Theme.Colors.terminalBackground
+                selectedTheme.background
                     .ignoresSafeArea()
 
                 // Terminal content
@@ -60,6 +65,19 @@ struct TerminalView: View {
 
                         Button(action: { showingFontSizeSheet = true }, label: {
                             Label("Font Size", systemImage: "textformat.size")
+                        })
+
+                        Button(action: { showingTerminalWidthSheet = true }, label: {
+                            Label("Terminal Width", systemImage: "arrow.left.and.right")
+                        })
+                        
+                        Button(action: { viewModel.toggleFitToWidth() }, label: {
+                            Label(viewModel.fitToWidth ? "Fixed Width" : "Fit to Width", 
+                                  systemImage: viewModel.fitToWidth ? "arrow.left.and.right.square" : "arrow.left.and.right.square.fill")
+                        })
+
+                        Button(action: { showingTerminalThemeSheet = true }, label: {
+                            Label("Theme", systemImage: "paintbrush")
                         })
 
                         Button(action: { viewModel.copyBuffer() }, label: {
@@ -97,6 +115,15 @@ struct TerminalView: View {
             }
             .sheet(isPresented: $showingRecordingSheet) {
                 RecordingExportSheet(recorder: viewModel.castRecorder, sessionName: session.displayName)
+            }
+            .sheet(isPresented: $showingTerminalWidthSheet) {
+                TerminalWidthSheet(selectedWidth: $selectedTerminalWidth, isResizeBlockedByServer: viewModel.isResizeBlockedByServer)
+                    .onAppear {
+                        selectedTerminalWidth = viewModel.terminalCols
+                    }
+            }
+            .sheet(isPresented: $showingTerminalThemeSheet) {
+                TerminalThemeSheet(selectedTheme: $selectedTheme)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
@@ -190,6 +217,20 @@ struct TerminalView: View {
                 keyboardHeight = 0
             }
         }
+        .onChange(of: selectedTerminalWidth) { oldValue, newValue in
+            if let width = newValue, width != viewModel.terminalCols {
+                // Calculate appropriate height based on aspect ratio
+                let aspectRatio = Double(viewModel.terminalRows) / Double(viewModel.terminalCols)
+                let newHeight = Int(Double(width) * aspectRatio)
+                viewModel.resize(cols: width, rows: newHeight)
+            }
+        }
+        .onChange(of: viewModel.isAtBottom) { oldValue, newValue in
+            // Update scroll button visibility
+            withAnimation(Theme.Animation.smooth) {
+                showScrollToBottom = !newValue
+            }
+        }
     }
 
     private var loadingView: some View {
@@ -235,6 +276,7 @@ struct TerminalView: View {
             TerminalHostingView(
                 session: session,
                 fontSize: $fontSize,
+                theme: selectedTheme,
                 onInput: { text in
                     viewModel.sendInput(text)
                 },
@@ -246,8 +288,15 @@ struct TerminalView: View {
                 viewModel: viewModel
             )
             .id(viewModel.terminalViewId)
-            .background(Theme.Colors.terminalBackground)
+            .background(selectedTheme.background)
             .focused($isInputFocused)
+            .scrollToBottomOverlay(
+                isVisible: showScrollToBottom,
+                action: {
+                    viewModel.scrollToBottom()
+                    showScrollToBottom = false
+                }
+            )
 
             // Keyboard toolbar
             if keyboardHeight > 0 {
@@ -280,6 +329,9 @@ class TerminalViewModel {
     var terminalRows: Int = 0
     var isAutoScrollEnabled = true
     var recordingPulse = false
+    var isResizeBlockedByServer = false
+    var isAtBottom = true
+    var fitToWidth = false
 
     let session: Session
     let castRecorder: CastRecorder
@@ -317,6 +369,13 @@ class TerminalViewModel {
 
         // Connect to WebSocket
         bufferWebSocketClient?.connect()
+
+        // Load initial snapshot after a brief delay to ensure terminal is ready
+        Task { @MainActor in
+            // Wait for terminal view to be initialized
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+            await loadSnapshot()
+        }
 
         // Subscribe to terminal events
         bufferWebSocketClient?.subscribe(to: session.id) { [weak self] event in
@@ -362,13 +421,23 @@ class TerminalViewModel {
 
     @MainActor
     private func loadSnapshot() async {
-        guard let snapshotURL = APIClient.shared.snapshotURL(for: session.id) else { return }
-
         do {
-            let (data, _) = try await URLSession.shared.data(from: snapshotURL)
-            if let snapshot = String(data: data, encoding: .utf8) {
-                // Feed the snapshot to the terminal
-                terminalCoordinator?.feedData(snapshot)
+            let snapshot = try await APIClient.shared.getSessionSnapshot(sessionId: session.id)
+            
+            // Process the snapshot events
+            if let header = snapshot.header {
+                // Initialize terminal with dimensions from header
+                terminalCols = header.width
+                terminalRows = header.height
+                print("Snapshot header: \(header.width)x\(header.height)")
+            }
+            
+            // Feed all output events to the terminal
+            for event in snapshot.events {
+                if event.type == .output {
+                    // Feed the actual terminal output data
+                    terminalCoordinator?.feedData(event.data)
+                }
             }
         } catch {
             print("Failed to load terminal snapshot: \(error)")
@@ -396,7 +465,19 @@ class TerminalViewModel {
 
         case .output(_, let data):
             // Feed output data directly to the terminal
-            terminalCoordinator?.feedData(data)
+            if let coordinator = terminalCoordinator {
+                coordinator.feedData(data)
+            } else {
+                // Queue the data to be fed once coordinator is ready
+                print("Warning: Terminal coordinator not ready, queueing data")
+                Task {
+                    // Wait a bit for coordinator to be initialized
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                    if let coordinator = self.terminalCoordinator {
+                        coordinator.feedData(data)
+                    }
+                }
+            }
             // Record output if recording
             castRecorder.recordOutput(data)
 
@@ -442,8 +523,14 @@ class TerminalViewModel {
         Task {
             do {
                 try await SessionService.shared.resizeTerminal(sessionId: session.id, cols: cols, rows: rows)
+                // If resize succeeded, ensure the flag is cleared
+                isResizeBlockedByServer = false
             } catch {
                 print("Failed to resize terminal: \(error)")
+                // Check if the error is specifically about resize being disabled
+                if case APIError.resizeDisabledByServer = error {
+                    isResizeBlockedByServer = true
+                }
             }
         }
     }
@@ -457,5 +544,34 @@ class TerminalViewModel {
     func copyBuffer() {
         // Terminal copy is handled by SwiftTerm's built-in functionality
         HapticFeedback.notification(.success)
+    }
+    
+    func scrollToBottom() {
+        // Signal the terminal to scroll to bottom
+        isAutoScrollEnabled = true
+        isAtBottom = true
+        // The actual scrolling is handled by the terminal coordinator
+        terminalCoordinator?.scrollToBottom()
+    }
+    
+    func updateScrollState(isAtBottom: Bool) {
+        self.isAtBottom = isAtBottom
+        self.isAutoScrollEnabled = isAtBottom
+    }
+    
+    func toggleFitToWidth() {
+        fitToWidth.toggle()
+        HapticFeedback.impact(.light)
+        
+        if fitToWidth {
+            // Calculate optimal width to fit the screen
+            let screenWidth = UIScreen.main.bounds.width
+            let padding: CGFloat = 32 // Account for UI padding
+            let charWidth: CGFloat = 9 // Approximate character width
+            let optimalCols = Int((screenWidth - padding) / charWidth)
+            
+            // Resize to fit
+            resize(cols: optimalCols, rows: terminalRows)
+        }
     }
 }

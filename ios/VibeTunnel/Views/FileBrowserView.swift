@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import QuickLook
 
 /// File browser for navigating the server's file system.
 ///
@@ -7,13 +8,28 @@ import SwiftUI
 /// navigation, selection, and directory creation capabilities.
 struct FileBrowserView: View {
     @State private var viewModel = FileBrowserViewModel()
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
+    @State private var showingFileEditor = false
+    @State private var showingNewFileAlert = false
+    @State private var newFileName = ""
+    @State private var selectedFile: FileEntry?
+    @State private var showingDeleteAlert = false
+    @StateObject private var quickLookManager = QuickLookManager.shared
+    @State private var showingQuickLook = false
 
     let onSelect: (String) -> Void
     let initialPath: String
+    let mode: FileBrowserMode
 
-    init(initialPath: String = "~", onSelect: @escaping (String) -> Void) {
+    enum FileBrowserMode {
+        case selectDirectory
+        case browseFiles
+    }
+
+    init(initialPath: String = "~", mode: FileBrowserMode = .selectDirectory, onSelect: @escaping (String) -> Void) {
         self.initialPath = initialPath
+        self.mode = mode
         self.onSelect = onSelect
     }
 
@@ -24,18 +40,44 @@ struct FileBrowserView: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Current path display
-                    HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .foregroundColor(Theme.Colors.terminalAccent)
-                            .font(.system(size: 16))
+                    // Navigation header
+                    HStack(spacing: 16) {
+                        // Back button
+                        if viewModel.canGoUp {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                viewModel.navigateToParent()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Back")
+                                        .font(.custom("SF Mono", size: 14))
+                                }
+                                .foregroundColor(Theme.Colors.terminalAccent)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Theme.Colors.terminalAccent.opacity(0.1))
+                                )
+                            }
+                            .buttonStyle(TerminalButtonStyle())
+                        }
+                        
+                        // Current path display
+                        HStack(spacing: 8) {
+                            Image(systemName: "folder.fill")
+                                .foregroundColor(Theme.Colors.terminalAccent)
+                                .font(.system(size: 16))
 
-                        Text(viewModel.currentPath)
-                            .font(.custom("SF Mono", size: 14))
-                            .foregroundColor(Theme.Colors.terminalGray)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(viewModel.displayPath)
+                                .font(.custom("SF Mono", size: 14))
+                                .foregroundColor(Theme.Colors.terminalGray)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
@@ -44,33 +86,45 @@ struct FileBrowserView: View {
                     // File list
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            // Parent directory
-                            if viewModel.canGoUp {
-                                FileBrowserRow(
-                                    name: "..",
-                                    isDirectory: true,
-                                    isParent: true,
-                                    onTap: {
-                                        viewModel.navigateToParent()
-                                    }
-                                )
-                                .transition(.opacity)
-                            }
-
                             // Directories first, then files
                             ForEach(viewModel.sortedEntries) { entry in
                                 FileBrowserRow(
                                     name: entry.name,
                                     isDirectory: entry.isDir,
                                     size: entry.isDir ? nil : entry.formattedSize,
-                                    modifiedTime: entry.formattedDate,
-                                    onTap: {
-                                        if entry.isDir {
-                                            viewModel.navigate(to: entry.path)
+                                    modifiedTime: entry.formattedDate
+                                ) {
+                                    if entry.isDir {
+                                        viewModel.navigate(to: entry.path)
+                                    } else if mode == .browseFiles {
+                                        // Preview file with Quick Look
+                                        selectedFile = entry
+                                        Task {
+                                            await viewModel.previewFile(entry)
                                         }
                                     }
-                                )
+                                }
                                 .transition(.opacity)
+                                // Context menu disabled - file operations not implemented in backend
+                                /*
+                                .contextMenu {
+                                    if mode == .browseFiles && !entry.isDir {
+                                        Button(action: {
+                                            selectedFile = entry
+                                            showingFileEditor = true
+                                        }) {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                        
+                                        Button(role: .destructive, action: {
+                                            selectedFile = entry
+                                            showingDeleteAlert = true
+                                        }) {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                                */
                             }
                         }
                         .padding(.vertical, 8)
@@ -124,29 +178,51 @@ struct FileBrowserView: View {
                                 .contentShape(Rectangle())
                         })
                         .buttonStyle(TerminalButtonStyle())
+                        
+                        // Create file button (disabled - not implemented in backend)
+                        // Uncomment when file operations are implemented
+                        /*
+                        if mode == .browseFiles {
+                            Button(action: { showingNewFileAlert = true }, label: {
+                                Label("new file", systemImage: "doc.badge.plus")
+                                    .font(.custom("SF Mono", size: 14))
+                                    .foregroundColor(Theme.Colors.terminalAccent)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Theme.Colors.terminalAccent.opacity(0.5), lineWidth: 1)
+                                    )
+                                    .contentShape(Rectangle())
+                            })
+                            .buttonStyle(TerminalButtonStyle())
+                        }
+                        */
 
-                        // Select button
-                        Button(action: {
-                            onSelect(viewModel.currentPath)
-                            dismiss()
-                        }, label: {
-                            Text("select")
-                                .font(.custom("SF Mono", size: 14))
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Theme.Colors.terminalAccent)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Theme.Colors.terminalAccent.opacity(0.3))
-                                        .blur(radius: 10)
-                                )
-                                .contentShape(Rectangle())
-                        })
-                        .buttonStyle(TerminalButtonStyle())
+                        // Select button (only in selectDirectory mode)
+                        if mode == .selectDirectory {
+                            Button(action: {
+                                onSelect(viewModel.currentPath)
+                                dismiss()
+                            }, label: {
+                                Text("select")
+                                    .font(.custom("SF Mono", size: 14))
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Theme.Colors.terminalAccent)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Theme.Colors.terminalAccent.opacity(0.3))
+                                            .blur(radius: 10)
+                                    )
+                                    .contentShape(Rectangle())
+                            })
+                            .buttonStyle(TerminalButtonStyle())
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
@@ -174,6 +250,85 @@ struct FileBrowserView: View {
                 Button("OK") {}
             } message: { error in
                 Text(error)
+            }
+            .alert("Create File", isPresented: $showingNewFileAlert) {
+                TextField("File name", text: $newFileName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                Button("Cancel", role: .cancel) {
+                    newFileName = ""
+                }
+
+                Button("Create") {
+                    let path = viewModel.currentPath + "/" + newFileName
+                    selectedFile = FileEntry(
+                        name: newFileName,
+                        path: path,
+                        isDir: false,
+                        size: 0,
+                        mode: "0644",
+                        modTime: Date()
+                    )
+                    showingFileEditor = true
+                    newFileName = ""
+                }
+                .disabled(newFileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text("Enter a name for the new file")
+            }
+            .alert("Delete File", isPresented: $showingDeleteAlert, presenting: selectedFile) { file in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await viewModel.deleteFile(path: file.path)
+                    }
+                }
+            } message: { file in
+                Text("Are you sure you want to delete '\(file.name)'? This action cannot be undone.")
+            }
+            .sheet(isPresented: $showingFileEditor) {
+                if let file = selectedFile {
+                    FileEditorView(
+                        path: file.path,
+                        isNewFile: !viewModel.entries.contains { $0.path == file.path }
+                    )
+                    .onDisappear {
+                        // Reload directory to show any new files
+                        viewModel.loadDirectory(path: viewModel.currentPath)
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $quickLookManager.isPresenting) {
+                QuickLookWrapper(quickLookManager: quickLookManager)
+                    .ignoresSafeArea()
+            }
+            .overlay {
+                if quickLookManager.isDownloading {
+                    ZStack {
+                        Color.black.opacity(0.8)
+                            .ignoresSafeArea()
+                        
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.terminalAccent))
+                                .scaleEffect(1.5)
+                            
+                            Text("Downloading file...")
+                                .font(.custom("SF Mono", size: 16))
+                                .foregroundColor(Theme.Colors.terminalWhite)
+                            
+                            if quickLookManager.downloadProgress > 0 {
+                                ProgressView(value: quickLookManager.downloadProgress)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: Theme.Colors.terminalAccent))
+                                    .frame(width: 200)
+                            }
+                        }
+                        .padding(40)
+                        .background(Theme.Colors.terminalDarkGray)
+                        .cornerRadius(12)
+                    }
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -308,6 +463,24 @@ class FileBrowserViewModel {
     var canGoUp: Bool {
         currentPath != "/" && currentPath != "~"
     }
+    
+    var displayPath: String {
+        // Show a more user-friendly path
+        if currentPath == "/" {
+            return "/"
+        } else if currentPath.hasPrefix("/Users/") {
+            // Extract username from path like /Users/username/...
+            let components = currentPath.components(separatedBy: "/")
+            if components.count > 2 {
+                let username = components[2]
+                let homePath = "/Users/\(username)"
+                if currentPath == homePath || currentPath.hasPrefix(homePath + "/") {
+                    return currentPath.replacingOccurrences(of: homePath, with: "~")
+                }
+            }
+        }
+        return currentPath
+    }
 
     func loadDirectory(path: String) {
         Task {
@@ -328,7 +501,7 @@ class FileBrowserViewModel {
                 entries = result.files
             }
         } catch {
-            print("[FileBrowser] Failed to load directory: \(error)")
+            // Failed to load directory: \(error)
             errorMessage = "Failed to load directory: \(error.localizedDescription)"
             showError = true
         }
@@ -363,16 +536,34 @@ class FileBrowserViewModel {
             // Reload directory to show new folder
             await loadDirectoryAsync(path: currentPath)
         } catch {
-            print("[FileBrowser] Failed to create folder: \(error)")
+            // Failed to create folder: \(error)
             errorMessage = "Failed to create folder: \(error.localizedDescription)"
             showError = true
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
+    
+    func deleteFile(path: String) async {
+        // File deletion is not yet implemented in the backend
+        errorMessage = "File deletion is not available in the current server version"
+        showError = true
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
+    }
+    
+    func previewFile(_ file: FileEntry) async {
+        do {
+            try await QuickLookManager.shared.previewFile(file, apiClient: apiClient)
+        } catch {
+            await MainActor.run {
+                errorMessage = "Failed to preview file: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
 }
 
 #Preview {
-    FileBrowserView { path in
-        print("Selected path: \(path)")
+    FileBrowserView { _ in
+        // Selected path
     }
 }

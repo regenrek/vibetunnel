@@ -3,6 +3,14 @@ import Foundation
 import os.log
 import SwiftUI
 
+/// Terminal launch result with window/tab information
+struct TerminalLaunchResult {
+    let terminal: Terminal
+    let tabReference: String?
+    let tabID: String?
+    let windowID: CGWindowID?
+}
+
 /// Terminal launch configuration
 struct TerminalLaunchConfig {
     let command: String
@@ -135,11 +143,32 @@ enum Terminal: String, CaseIterable {
         // For all other terminals, use clipboard approach for reliability
         // This avoids issues with special characters and long commands
         // Note: The command is already copied to clipboard before this script runs
+        
+        // Special handling for iTerm2 to ensure new window (not tab)
+        if self == .iTerm2 {
+            return """
+            tell application "\(processName)"
+                activate
+                tell application "System Events"
+                    -- Create new window (Cmd+Shift+N for iTerm2)
+                    keystroke "n" using {command down, shift down}
+                    delay 0.5
+                    -- Paste command from clipboard
+                    keystroke "v" using {command down}
+                    delay 0.1
+                    -- Execute the command
+                    key code 36
+                end tell
+            end tell
+            """
+        }
+        
+        // For other terminals, Cmd+N typically creates a new window
         return """
         tell application "\(processName)"
             activate
             tell application "System Events"
-                -- Create new window/tab
+                -- Create new window
                 keystroke "n" using {command down}
                 delay 0.5
                 -- Paste command from clipboard
@@ -289,7 +318,7 @@ final class TerminalLauncher {
     func launchCommand(_ command: String) throws {
         let terminal = getValidTerminal()
         let config = TerminalLaunchConfig(command: command, workingDirectory: nil, terminal: terminal)
-        try launchWithConfig(config)
+        _ = try launchWithConfig(config)
     }
 
     func verifyPreferredTerminal() {
@@ -363,21 +392,51 @@ final class TerminalLauncher {
         return actualTerminal
     }
 
-    private func launchWithConfig(_ config: TerminalLaunchConfig) throws {
+    private func launchWithConfig(_ config: TerminalLaunchConfig, sessionId: String? = nil) throws -> TerminalLaunchResult {
         logger.debug("Launch config - command: \(config.command)")
         logger.debug("Launch config - fullCommand: \(config.fullCommand)")
         logger.debug("Launch config - keystrokeEscapedCommand: \(config.keystrokeEscapedCommand)")
 
         let method = config.terminal.launchMethod(for: config)
+        var tabReference: String? = nil
+        var tabID: String? = nil
+        var windowID: CGWindowID? = nil
 
         switch method {
         case .appleScript(let script):
             logger.debug("Generated AppleScript:\n\(script)")
-            // For non-Terminal.app terminals, copy command to clipboard first
-            if config.terminal != .terminal {
-                copyToClipboard(config.fullCommand)
+            
+            // For Terminal.app and iTerm2, use enhanced scripts to get tab info
+            if let sessionId = sessionId, (config.terminal == .terminal || config.terminal == .iTerm2) {
+                let enhancedScript = generateEnhancedScript(for: config, sessionId: sessionId)
+                let result = try executeAppleScriptWithResult(enhancedScript)
+                
+                logger.debug("Enhanced script result for \(config.terminal.rawValue): '\(result)'")
+                
+                // Parse the result to extract tab/window info
+                if config.terminal == .terminal {
+                    // Terminal.app returns "windowID|tabID"
+                    let components = result.split(separator: "|").map(String.init)
+                    logger.debug("Terminal.app components: \(components)")
+                    if components.count >= 2 {
+                        windowID = CGWindowID(components[0]) ?? nil
+                        tabReference = "tab id \(components[1]) of window id \(components[0])"
+                        logger.info("Terminal.app window ID: \(windowID ?? 0), tab reference: \(tabReference ?? "")")
+                    }
+                } else if config.terminal == .iTerm2 {
+                    // iTerm2 returns window ID
+                    let windowIDString = result.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // For iTerm2, we store the window ID as tabID for consistency
+                    tabID = windowIDString
+                    logger.info("iTerm2 window ID: \(windowIDString)")
+                }
+            } else {
+                // For non-Terminal.app terminals, copy command to clipboard first
+                if config.terminal != .terminal {
+                    copyToClipboard(config.fullCommand)
+                }
+                try executeAppleScript(script)
             }
-            try executeAppleScript(script)
 
         case .processWithArgs(let args):
             try launchProcess(bundleIdentifier: config.terminal.bundleIdentifier, args: args)
@@ -415,6 +474,13 @@ final class TerminalLauncher {
                 }
             }
         }
+        
+        return TerminalLaunchResult(
+            terminal: config.terminal,
+            tabReference: tabReference,
+            tabID: tabID,
+            windowID: windowID
+        )
     }
 
     private func launchProcess(bundleIdentifier: String, args: [String]) throws {
@@ -474,12 +540,72 @@ final class TerminalLauncher {
             throw TerminalLauncherError.appleScriptExecutionFailed(error.localizedDescription, errorCode: nil)
         }
     }
+    
+    private func executeAppleScriptWithResult(_ script: String) throws -> String {
+        do {
+            // Use a longer timeout (15 seconds) for terminal launch operations
+            return try AppleScriptExecutor.shared.executeWithResult(script, timeout: 15.0)
+        } catch let error as AppleScriptError {
+            // Check if this is a permission error
+            if case .executionFailed(_, let errorCode) = error,
+               let code = errorCode
+            {
+                switch code {
+                case -25_211, -1_719:
+                    throw TerminalLauncherError.accessibilityPermissionDenied
+                case -2_741:
+                    throw TerminalLauncherError.appleScriptExecutionFailed(
+                        "AppleScript syntax error - likely unescaped quotes in command",
+                        errorCode: code
+                    )
+                default:
+                    break
+                }
+            }
+            throw error.toTerminalLauncherError()
+        } catch {
+            throw TerminalLauncherError.appleScriptExecutionFailed(error.localizedDescription, errorCode: nil)
+        }
+    }
+    
+    private func generateEnhancedScript(for config: TerminalLaunchConfig, sessionId: String) -> String {
+        switch config.terminal {
+        case .terminal:
+            // Terminal.app script that returns window and tab info
+            return """
+            tell application "Terminal"
+                activate
+                set newTab to do script "\(config.appleScriptEscapedCommand)"
+                set windowID to id of window 1 of newTab
+                set tabID to id of newTab
+                return (windowID as string) & "|" & (tabID as string)
+            end tell
+            """
+            
+        case .iTerm2:
+            // iTerm2 script that returns window info
+            return """
+            tell application "iTerm2"
+                activate
+                set newWindow to (create window with default profile)
+                tell current session of newWindow
+                    write text "\(config.appleScriptEscapedCommand)"
+                end tell
+                return id of newWindow
+            end tell
+            """
+            
+        default:
+            // For other terminals, use the standard script
+            return config.terminal.unifiedAppleScript(for: config)
+        }
+    }
 
     // MARK: - Terminal Session Launching
 
     func launchTerminalSession(workingDirectory: String, command: String, sessionId: String) throws {
-        // Find tty-fwd binary path
-        let ttyFwdPath = findTTYFwdBinary()
+        // Find vibetunnel binary path
+        let vibetunnelPath = findVibeTunnelBinary()
 
         // Expand tilde in working directory path
         let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
@@ -487,10 +613,10 @@ final class TerminalLauncher {
         // Escape the working directory for shell
         let escapedWorkingDir = expandedWorkingDir.replacingOccurrences(of: "\"", with: "\\\"")
 
-        // Construct the full command with cd && tty-fwd && exit pattern
-        // tty-fwd will use TTY_SESSION_ID from environment or generate one
+        // Construct the full command with cd && vibetunnel && exit pattern
+        // vibetunnel will use TTY_SESSION_ID from environment
         let fullCommand =
-            "cd \"\(escapedWorkingDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(ttyFwdPath) -- \(command) && exit"
+            "cd \"\(escapedWorkingDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(vibetunnelPath) \(command) && exit"
 
         // Get the preferred terminal or fallback
         let terminal = getValidTerminal()
@@ -501,36 +627,46 @@ final class TerminalLauncher {
             workingDirectory: nil,
             terminal: terminal
         )
-        try launchWithConfig(config)
+        
+        // Launch the terminal and get tab/window info
+        let launchResult = try launchWithConfig(config, sessionId: sessionId)
+        
+        // Register the window with WindowTracker
+        WindowTracker.shared.registerWindow(
+            for: sessionId,
+            terminalApp: terminal,
+            tabReference: launchResult.tabReference,
+            tabID: launchResult.tabID
+        )
     }
 
-    /// Optimized terminal session launching that receives pre-formatted command from Rust
+    /// Optimized terminal session launching that receives pre-formatted command from Go server
     func launchOptimizedTerminalSession(
         workingDirectory: String,
         command: String,
         sessionId: String,
-        ttyFwdPath: String? = nil
+        vibetunnelPath: String? = nil
     )
         throws
     {
         // Expand tilde in working directory path
         let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
 
-        // Use provided tty-fwd path or find bundled one
-        let ttyFwd = ttyFwdPath ?? findTTYFwdBinary()
+        // Use provided vibetunnel path or find bundled one
+        let vibetunnel = vibetunnelPath ?? findVibeTunnelBinary()
 
         // Properly escape the directory path for shell
         let escapedDir = expandedWorkingDir.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
 
-        // When called from Swift server, we need to construct the full command with tty-fwd
-        // When called from Rust via socket, command is already pre-formatted
+        // When called from Swift server, we need to construct the full command with vibetunnel
+        // When called from Go server via socket, command is already pre-formatted
         let fullCommand: String = if command.contains("TTY_SESSION_ID=") {
-            // Command is pre-formatted from Rust, add cd and exit
+            // Command is pre-formatted from Go server, add cd and exit
             "cd \"\(escapedDir)\" && \(command) && exit"
         } else {
-            // Command is just the user command, need to add tty-fwd
-            "cd \"\(escapedDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(ttyFwd) -- \(command) && exit"
+            // Command is just the user command, need to add vibetunnel
+            "cd \"\(escapedDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(vibetunnel) \(command) && exit"
         }
 
         // Get the preferred terminal or fallback
@@ -542,17 +678,27 @@ final class TerminalLauncher {
             workingDirectory: nil,
             terminal: terminal
         )
-        try launchWithConfig(config)
+        
+        // Launch the terminal and get tab/window info
+        let launchResult = try launchWithConfig(config, sessionId: sessionId)
+        
+        // Register the window with WindowTracker
+        WindowTracker.shared.registerWindow(
+            for: sessionId,
+            terminalApp: terminal,
+            tabReference: launchResult.tabReference,
+            tabID: launchResult.tabID
+        )
     }
 
-    private func findTTYFwdBinary() -> String {
-        // Look for bundled tty-fwd binary (shipped with the app)
-        if let bundledTTYFwd = Bundle.main.path(forResource: "tty-fwd", ofType: nil) {
-            logger.info("Using bundled tty-fwd at: \(bundledTTYFwd)")
-            return bundledTTYFwd
+    private func findVibeTunnelBinary() -> String {
+        // Look for bundled vibetunnel binary (shipped with the app)
+        if let bundledVibetunnel = Bundle.main.path(forResource: "vibetunnel", ofType: nil) {
+            logger.info("Using bundled vibetunnel at: \(bundledVibetunnel)")
+            return bundledVibetunnel
         }
 
-        logger.error("No tty-fwd binary found in app bundle, command will fail")
-        return "echo 'VibeTunnel: tty-fwd binary not found in app bundle'; false"
+        logger.error("No vibetunnel binary found in app bundle, command will fail")
+        return "echo 'VibeTunnel: vibetunnel binary not found in app bundle'; false"
     }
 }

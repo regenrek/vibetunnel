@@ -9,6 +9,7 @@ struct TerminalToolbar: View {
     let onDismissKeyboard: () -> Void
     let onRawInput: ((String) -> Void)?
     @State private var showMoreKeys = false
+    @State private var showAdvancedKeyboard = false
 
     init(
         onSpecialKey: @escaping (TerminalInput.SpecialKey) -> Void,
@@ -74,6 +75,12 @@ struct TerminalToolbar: View {
                 }
 
                 Spacer()
+                
+                // Advanced keyboard
+                ToolbarButton(systemImage: "keyboard") {
+                    HapticFeedback.impact(.light)
+                    showAdvancedKeyboard = true
+                }
 
                 // Dismiss keyboard
                 ToolbarButton(systemImage: "keyboard.chevron.compact.down") {
@@ -176,6 +183,11 @@ struct TerminalToolbar: View {
             }
         }
         .background(Theme.Colors.cardBackground.edgesIgnoringSafeArea(.bottom))
+        .sheet(isPresented: $showAdvancedKeyboard) {
+            AdvancedKeyboardView(isPresented: $showAdvancedKeyboard) { input in
+                onRawInput?(input)
+            }
+        }
     }
 }
 

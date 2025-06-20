@@ -45,13 +45,13 @@ pub const DEFAULT_TERM: &str = "xterm-256color";
 
 /// Spawn a command with PTY using TtySpawn builder - used as fallback when socket spawn fails
 pub fn spawn_with_pty_fallback(
-    command: &[String], 
-    working_dir: Option<&str>
+    command: &[String],
+    working_dir: Option<&str>,
 ) -> Result<String, Error> {
     use uuid::Uuid;
-    
+
     let session_id = Uuid::new_v4().to_string();
-    
+
     // Get session control directory
     let control_dir = env::var("TTY_FWD_CONTROL_DIR").unwrap_or_else(|_| {
         format!(
@@ -59,13 +59,13 @@ pub fn spawn_with_pty_fallback(
             env::var("HOME").unwrap_or_default()
         )
     });
-    
+
     let session_dir = format!("{control_dir}/{session_id}");
     std::fs::create_dir_all(&session_dir)?;
-    
+
     // Save current working directory to restore later (to avoid affecting server)
     let original_dir = std::env::current_dir().ok();
-    
+
     // Set working directory if specified
     if let Some(dir) = working_dir {
         let expanded_dir = if dir == "~/" || dir == "~" {
@@ -81,29 +81,27 @@ pub fn spawn_with_pty_fallback(
         };
         std::env::set_current_dir(&expanded_dir)?;
     }
-    
+
     // Build command vector for TtySpawn
     let cmdline = if command.is_empty() {
         vec!["zsh".to_string()]
     } else {
         command.iter().map(|s| s.to_string()).collect()
     };
-    
+
     let session_name = if command.is_empty() {
         "Terminal".to_string()
     } else {
         format!("{} (PTY)", command[0])
     };
-    
+
     // Use TtySpawn to create the session
-    let mut tty_spawn = TtySpawn::new_cmdline(
-        cmdline.iter().map(|s| std::ffi::OsString::from(s))
-    );
-    
+    let mut tty_spawn = TtySpawn::new_cmdline(cmdline.iter().map(|s| std::ffi::OsString::from(s)));
+
     let session_json_path = std::path::PathBuf::from(&session_dir).join("session.json");
     let stdin_path = std::path::PathBuf::from(&session_dir).join("stdin");
     let stdout_path = std::path::PathBuf::from(&session_dir).join("stream-out");
-    
+
     // Configure the TTY spawn
     tty_spawn
         .detached(true)
@@ -111,17 +109,17 @@ pub fn spawn_with_pty_fallback(
         .session_name(&session_name)
         .stdin_path(&stdin_path)?
         .stdout_path(&stdout_path, true)?;
-    
+
     // Spawn the session
     let spawn_result = tty_spawn.spawn();
-    
+
     // Restore original working directory to avoid affecting the server
     if let Some(original) = original_dir {
         let _ = std::env::set_current_dir(original);
     }
-    
+
     let _exit_code = spawn_result?;
-    
+
     Ok(session_id)
 }
 
@@ -737,7 +735,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
         unsafe {
             let _slave_fd = pty.slave.as_raw_fd();
             login_tty_compat(pty.slave.into_raw_fd())?;
-            
+
             // Configure the PTY slave for proper signal handling after login_tty
             use std::os::fd::{FromRawFd, OwnedFd};
             let stdin_fd = OwnedFd::from_raw_fd(0); // stdin is now the slave
@@ -752,7 +750,7 @@ fn spawn(mut opts: SpawnOptions) -> Result<i32, Error> {
                 tcsetattr(&stdin_fd, SetArg::TCSANOW, &attrs).ok();
             }
             std::mem::forget(stdin_fd); // Don't close stdin
-            
+
             // No stderr redirection since script_mode is always false
         }
     }
@@ -1019,7 +1017,8 @@ fn monitor_detached_session(
                         if let Ok(cmd_str) = std::str::from_utf8(&buf[..n]) {
                             for line in cmd_str.lines() {
                                 if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(line) {
-                                    if let Some(cmd_type) = cmd.get("cmd").and_then(|v| v.as_str()) {
+                                    if let Some(cmd_type) = cmd.get("cmd").and_then(|v| v.as_str())
+                                    {
                                         if cmd_type == "resize" {
                                             if let (Some(cols), Some(rows)) = (
                                                 cmd.get("cols").and_then(|v| v.as_u64()),
@@ -1031,7 +1030,8 @@ fn monitor_detached_session(
                                                     ws_xpixel: 0,
                                                     ws_ypixel: 0,
                                                 };
-                                                if let Err(e) = set_winsize(master.as_fd(), winsize) {
+                                                if let Err(e) = set_winsize(master.as_fd(), winsize)
+                                                {
                                                     eprintln!("Failed to resize terminal: {}", e);
                                                 } else {
                                                     // Log resize event

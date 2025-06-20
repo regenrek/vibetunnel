@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -120,6 +121,8 @@ func (s *Server) createHandler() http.Handler {
 	api.HandleFunc("/sessions/multistream", s.handleMultistream).Methods("GET")
 	api.HandleFunc("/cleanup-exited", s.handleCleanupExited).Methods("POST")
 	api.HandleFunc("/fs/browse", s.handleBrowseFS).Methods("GET")
+	api.HandleFunc("/fs/read", s.handleReadFile).Methods("GET")
+	api.HandleFunc("/fs/info", s.handleFileInfo).Methods("GET")
 	api.HandleFunc("/mkdir", s.handleMkdir).Methods("POST")
 
 	// Ngrok endpoints
@@ -378,11 +381,11 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			// Generate a session ID
 			sessionID := session.GenerateID()
 
-			// Get vt binary path (not vibetunnel)
+			// Get vibetunnel binary path
 			vtPath := findVTBinary()
 			if vtPath == "" {
-				log.Printf("[ERROR] vt binary not found")
-				http.Error(w, "vt binary not found", http.StatusInternalServerError)
+				log.Printf("[ERROR] vibetunnel binary not found")
+				http.Error(w, "vibetunnel binary not found", http.StatusInternalServerError)
 				return
 			}
 
@@ -464,18 +467,38 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				log.Printf("[ERROR] Failed to create session: %v", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+				// Return structured error response for frontends to parse
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				errorResponse := map[string]interface{}{
+					"success": false,
+					"error":   err.Error(),
+					"details": fmt.Sprintf("Failed to create session with command '%s'", strings.Join(cmdline, " ")),
+				}
+
+				// Extract more specific error information if available
+				if sessionErr, ok := err.(*session.SessionError); ok {
+					errorResponse["code"] = string(sessionErr.Code)
+					if sessionErr.Code == session.ErrPTYCreationFailed {
+						errorResponse["details"] = sessionErr.Message
+					}
+				}
+
+				if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+					log.Printf("Failed to encode error response: %v", err)
+				}
 				return
 			}
 
-			// Get vt binary path (not vibetunnel)
+			// Get vibetunnel binary path
 			vtPath := findVTBinary()
 			if vtPath == "" {
-				log.Printf("[ERROR] vt binary not found for native terminal spawn")
+				log.Printf("[ERROR] vibetunnel binary not found for native terminal spawn")
 				if err := s.manager.RemoveSession(sess.ID); err != nil {
 					log.Printf("Failed to remove session: %v", err)
 				}
-				http.Error(w, "vt binary not found", http.StatusInternalServerError)
+				http.Error(w, "vibetunnel binary not found", http.StatusInternalServerError)
 				return
 			}
 
@@ -516,7 +539,28 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		IsSpawned: false, // This is not a spawned session (detached)
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("[ERROR] Failed to create session: %v", err)
+
+		// Return structured error response for frontends to parse
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		errorResponse := map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+			"details": fmt.Sprintf("Failed to create session with command '%s'", strings.Join(cmdline, " ")),
+		}
+
+		// Extract more specific error information if available
+		if sessionErr, ok := err.(*session.SessionError); ok {
+			errorResponse["code"] = string(sessionErr.Code)
+			if sessionErr.Code == session.ErrPTYCreationFailed {
+				errorResponse["details"] = sessionErr.Message
+			}
+		}
+
+		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
 		return
 	}
 
@@ -1026,29 +1070,27 @@ func (s *Server) GetNgrokStatus() ngrok.StatusResponse {
 	return s.ngrokService.GetStatus()
 }
 
-// findVTBinary locates the vt binary in common locations
+// findVTBinary locates the vibetunnel Go binary in common locations
 func findVTBinary() string {
 	// Get the directory of the current executable (vibetunnel)
 	execPath, err := os.Executable()
 	if err == nil {
-		execDir := filepath.Dir(execPath)
-		// Check if vt is in the same directory as vibetunnel
-		vtPath := filepath.Join(execDir, "vt")
-		if _, err := os.Stat(vtPath); err == nil {
-			return vtPath
-		}
+		// Return the current executable path since we want to use vibetunnel itself
+		return execPath
 	}
 
 	// Check common locations
 	paths := []string{
 		// App bundle location
-		"/Applications/VibeTunnel.app/Contents/Resources/vt",
+		"/Applications/VibeTunnel.app/Contents/Resources/vibetunnel",
 		// Development locations
-		"./vt",
-		"../vt",
-		"../../linux/vt",
+		"./linux/cmd/vibetunnel/vibetunnel",
+		"../linux/cmd/vibetunnel/vibetunnel",
+		"../../linux/cmd/vibetunnel/vibetunnel",
+		"./vibetunnel",
+		"../vibetunnel",
 		// Installed location
-		"/usr/local/bin/vt",
+		"/usr/local/bin/vibetunnel",
 	}
 
 	for _, path := range paths {
@@ -1059,9 +1101,71 @@ func findVTBinary() string {
 	}
 
 	// Try to find in PATH
-	if path, err := exec.LookPath("vt"); err == nil {
+	if path, err := exec.LookPath("vibetunnel"); err == nil {
 		return path
 	}
 
+	// No binary found
 	return ""
+}
+
+func (s *Server) handleFileInfo(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	fileInfo, err := GetFileInfo(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "path traversal") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(fileInfo); err != nil {
+		log.Printf("Failed to encode file info: %v", err)
+	}
+}
+
+func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	file, fileInfo, err := ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "path traversal") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+		} else if strings.Contains(err.Error(), "not readable") {
+			http.Error(w, "File is not readable", http.StatusForbidden)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	defer file.Close()
+
+	// Set appropriate headers
+	w.Header().Set("Content-Type", fileInfo.MimeType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", fileInfo.Name))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size))
+
+	// Add cache headers for static files
+	if strings.HasPrefix(fileInfo.MimeType, "image/") || strings.HasPrefix(fileInfo.MimeType, "application/pdf") {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
+
+	// Support range requests for large files
+	http.ServeContent(w, r, fileInfo.Name, fileInfo.ModTime, file.(io.ReadSeeker))
 }

@@ -25,10 +25,12 @@ export class VibeTunnelApp extends LitElement {
   @state() private loading = false;
   @state() private currentView: 'list' | 'session' = 'list';
   @state() private selectedSessionId: string | null = null;
-  @state() private hideExited = true;
+  @state() private hideExited = this.loadHideExitedState();
   @state() private showCreateModal = false;
 
   private hotReloadWs: WebSocket | null = null;
+  private errorTimeoutId: number | null = null;
+  private successTimeoutId: number | null = null;
 
   connectedCallback() {
     super.connectedCallback();
@@ -48,26 +50,48 @@ export class VibeTunnelApp extends LitElement {
   }
 
   private showError(message: string) {
+    // Clear any existing error timeout
+    if (this.errorTimeoutId !== null) {
+      clearTimeout(this.errorTimeoutId);
+      this.errorTimeoutId = null;
+    }
+
     this.errorMessage = message;
     // Clear error after 5 seconds
-    setTimeout(() => {
+    this.errorTimeoutId = window.setTimeout(() => {
       this.errorMessage = '';
+      this.errorTimeoutId = null;
     }, 5000);
   }
 
   private showSuccess(message: string) {
+    // Clear any existing success timeout
+    if (this.successTimeoutId !== null) {
+      clearTimeout(this.successTimeoutId);
+      this.successTimeoutId = null;
+    }
+
     this.successMessage = message;
     // Clear success after 5 seconds
-    setTimeout(() => {
+    this.successTimeoutId = window.setTimeout(() => {
       this.successMessage = '';
+      this.successTimeoutId = null;
     }, 5000);
   }
 
   private clearError() {
-    this.errorMessage = '';
+    // Only clear if there's no active timeout
+    if (this.errorTimeoutId === null) {
+      this.errorMessage = '';
+    }
   }
 
   private clearSuccess() {
+    // Clear the timeout if active
+    if (this.successTimeoutId !== null) {
+      clearTimeout(this.successTimeoutId);
+      this.successTimeoutId = null;
+    }
     this.successMessage = '';
   }
 
@@ -160,6 +184,7 @@ export class VibeTunnelApp extends LitElement {
 
   private handleHideExitedChange(e: CustomEvent) {
     this.hideExited = e.detail;
+    this.saveHideExitedState(this.hideExited);
   }
 
   private handleCreateSession() {
@@ -168,6 +193,71 @@ export class VibeTunnelApp extends LitElement {
 
   private handleCreateModalClose() {
     this.showCreateModal = false;
+  }
+
+  private async handleNavigateToSession(e: CustomEvent): Promise<void> {
+    const { sessionId } = e.detail;
+
+    // Check if View Transitions API is supported
+    if ('startViewTransition' in document && typeof document.startViewTransition === 'function') {
+      // Debug: Check what elements have view-transition-name before transition
+      console.log('Before transition - elements with view-transition-name:');
+      document.querySelectorAll('[style*="view-transition-name"]').forEach((el) => {
+        console.log('Element:', el, 'Style:', el.getAttribute('style'));
+      });
+
+      // Use View Transitions API for smooth animation
+      const transition = document.startViewTransition(async () => {
+        // Update state which will trigger a re-render
+        this.selectedSessionId = sessionId;
+        this.currentView = 'session';
+        this.updateUrl(sessionId);
+
+        // Wait for LitElement to complete its update
+        await this.updateComplete;
+
+        // Debug: Check what elements have view-transition-name after transition
+        console.log('After transition - elements with view-transition-name:');
+        document.querySelectorAll('[style*="view-transition-name"]').forEach((el) => {
+          console.log('Element:', el, 'Style:', el.getAttribute('style'));
+        });
+      });
+
+      // Log if transition is ready
+      transition.ready
+        .then(() => {
+          console.log('View transition ready');
+        })
+        .catch((err) => {
+          console.error('View transition failed:', err);
+        });
+    } else {
+      // Fallback for browsers without View Transitions support
+      this.selectedSessionId = sessionId;
+      this.currentView = 'session';
+      this.updateUrl(sessionId);
+    }
+  }
+
+  private handleNavigateToList(): void {
+    // Check if View Transitions API is supported
+    if ('startViewTransition' in document && typeof document.startViewTransition === 'function') {
+      // Use View Transitions API for smooth animation
+      document.startViewTransition(() => {
+        // Update state which will trigger a re-render
+        this.selectedSessionId = null;
+        this.currentView = 'list';
+        this.updateUrl();
+
+        // Force update to ensure DOM changes happen within the transition
+        return this.updateComplete;
+      });
+    } else {
+      // Fallback for browsers without View Transitions support
+      this.selectedSessionId = null;
+      this.currentView = 'list';
+      this.updateUrl();
+    }
   }
 
   private async handleKillAll() {
@@ -197,6 +287,25 @@ export class VibeTunnelApp extends LitElement {
     };
     if (sessionList && sessionList.handleCleanupExited) {
       sessionList.handleCleanupExited();
+    }
+  }
+
+  // State persistence methods
+  private loadHideExitedState(): boolean {
+    try {
+      const saved = localStorage.getItem('hideExitedSessions');
+      return saved !== null ? saved === 'true' : true; // Default to true if not set
+    } catch (error) {
+      console.error('Error loading hideExited state:', error);
+      return true; // Default to true on error
+    }
+  }
+
+  private saveHideExitedState(value: boolean): void {
+    try {
+      localStorage.setItem('hideExitedSessions', String(value));
+    } catch (error) {
+      console.error('Error saving hideExited state:', error);
     }
   }
 
@@ -269,7 +378,16 @@ export class VibeTunnelApp extends LitElement {
                 class="bg-status-error text-dark-bg px-4 py-2 rounded shadow-lg font-mono text-sm"
               >
                 ${this.errorMessage}
-                <button @click=${this.clearError} class="ml-2 text-dark-bg hover:text-dark-text">
+                <button
+                  @click=${() => {
+                    if (this.errorTimeoutId !== null) {
+                      clearTimeout(this.errorTimeoutId);
+                      this.errorTimeoutId = null;
+                    }
+                    this.errorMessage = '';
+                  }}
+                  class="ml-2 text-dark-bg hover:text-dark-text"
+                >
                   ✕
                 </button>
               </div>
@@ -283,7 +401,16 @@ export class VibeTunnelApp extends LitElement {
                 class="bg-status-success text-dark-bg px-4 py-2 rounded shadow-lg font-mono text-sm"
               >
                 ${this.successMessage}
-                <button @click=${this.clearSuccess} class="ml-2 text-dark-bg hover:text-dark-text">
+                <button
+                  @click=${() => {
+                    if (this.successTimeoutId !== null) {
+                      clearTimeout(this.successTimeoutId);
+                      this.successTimeoutId = null;
+                    }
+                    this.successMessage = '';
+                  }}
+                  class="ml-2 text-dark-bg hover:text-dark-text"
+                >
                   ✕
                 </button>
               </div>
@@ -298,6 +425,7 @@ export class VibeTunnelApp extends LitElement {
             html`
               <session-view
                 .session=${this.sessions.find((s) => s.id === this.selectedSessionId)}
+                @navigate-to-list=${this.handleNavigateToList}
               ></session-view>
             `
           )
@@ -323,6 +451,7 @@ export class VibeTunnelApp extends LitElement {
                 @error=${this.handleError}
                 @hide-exited-change=${this.handleHideExitedChange}
                 @kill-all-sessions=${this.handleKillAll}
+                @navigate-to-session=${this.handleNavigateToSession}
               ></session-list>
             </div>
           `}

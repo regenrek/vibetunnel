@@ -148,7 +148,7 @@ final class TerminalSpawnService: @unchecked Sendable {
 
     private func handleRequestSync(_ data: Data) -> Data {
         struct SpawnRequest: Codable {
-            let ttyFwdPath: String? // Optional: if provided, use this path instead of bundled one
+            let vibetunnelPath: String? // Optional: if provided, use this path instead of bundled one
             let workingDir: String
             let sessionId: String
             let command: String // Already properly formatted command (not array)
@@ -187,7 +187,7 @@ final class TerminalSpawnService: @unchecked Sendable {
                         workingDirectory: request.workingDir,
                         command: request.command,
                         sessionId: request.sessionId,
-                        ttyFwdPath: request.ttyFwdPath
+                        vibetunnelPath: request.vibetunnelPath
                     )
                 } catch {
                     launchError = error

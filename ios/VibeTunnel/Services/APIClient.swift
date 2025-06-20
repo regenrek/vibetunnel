@@ -9,6 +9,7 @@ enum APIError: LocalizedError {
     case networkError(Error)
     case noServerConfigured
     case invalidResponse
+    case resizeDisabledByServer
 
     var errorDescription: String? {
         switch self {
@@ -62,6 +63,8 @@ enum APIError: LocalizedError {
             return "No server configured"
         case .invalidResponse:
             return "Invalid server response"
+        case .resizeDisabledByServer:
+            return "Terminal resizing is disabled by the server"
         }
     }
 }
@@ -69,12 +72,15 @@ enum APIError: LocalizedError {
 /// Protocol defining the API client interface for VibeTunnel server communication.
 protocol APIClientProtocol {
     func getSessions() async throws -> [Session]
+    func getSession(_ sessionId: String) async throws -> Session
     func createSession(_ data: SessionCreateData) async throws -> String
     func killSession(_ sessionId: String) async throws
     func cleanupSession(_ sessionId: String) async throws
     func cleanupAllExitedSessions() async throws -> [String]
+    func killAllSessions() async throws
     func sendInput(sessionId: String, text: String) async throws
     func resizeTerminal(sessionId: String, cols: Int, rows: Int) async throws
+    func checkHealth() async throws -> Bool
 }
 
 /// Main API client for communicating with the VibeTunnel server.
@@ -118,6 +124,23 @@ class APIClient: APIClientProtocol {
             throw APIError.decodingError(error)
         }
     }
+    
+    func getSession(_ sessionId: String) async throws -> Session {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+
+        let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)")
+        let (data, response) = try await session.data(from: url)
+
+        try validateResponse(response)
+
+        do {
+            return try decoder.decode(Session.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
 
     func createSession(_ data: SessionCreateData) async throws -> String {
         guard let baseURL else {
@@ -156,7 +179,24 @@ class APIClient: APIClientProtocol {
                 print("[APIClient] Response body: \(responseString)")
             }
 
-            try validateResponse(response)
+            // Check if the response is an error
+            if let httpResponse = response as? HTTPURLResponse, !(200..<300).contains(httpResponse.statusCode) {
+                // Try to parse error response
+                struct ErrorResponse: Codable {
+                    let error: String?
+                    let details: String?
+                    let code: String?
+                }
+                
+                if let errorResponse = try? decoder.decode(ErrorResponse.self, from: responseData) {
+                    let errorMessage = errorResponse.details ?? errorResponse.error ?? "Unknown error"
+                    print("[APIClient] Server error: \(errorMessage)")
+                    throw APIError.serverError(httpResponse.statusCode, errorMessage)
+                } else {
+                    // Fallback to generic error
+                    throw APIError.serverError(httpResponse.statusCode, nil)
+                }
+            }
 
             struct CreateResponse: Codable {
                 let sessionId: String
@@ -232,6 +272,23 @@ class APIClient: APIClientProtocol {
             return []
         }
     }
+    
+    func killAllSessions() async throws {
+        // First get all sessions
+        let sessions = try await getSessions()
+        
+        // Filter running sessions
+        let runningSessions = sessions.filter { $0.isRunning }
+        
+        // Kill each running session concurrently
+        await withThrowingTaskGroup(of: Void.self) { group in
+            for session in runningSessions {
+                group.addTask { [weak self] in
+                    try await self?.killSession(session.id)
+                }
+            }
+        }
+    }
 
     // MARK: - Terminal I/O
 
@@ -293,10 +350,94 @@ class APIClient: APIClientProtocol {
 
         try validateResponse(response)
 
+        // The snapshot endpoint returns plain text asciinema format, not JSON
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw APIError.invalidResponse
+        }
+        
+        // Parse asciinema format
+        return try parseAsciinemaSnapshot(sessionId: sessionId, text: text)
+    }
+    
+    private func parseAsciinemaSnapshot(sessionId: String, text: String) throws -> TerminalSnapshot {
+        let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        
+        var header: AsciinemaHeader?
+        var events: [AsciinemaEvent] = []
+        
+        for line in lines {
+            guard let data = line.data(using: .utf8) else { continue }
+            
+            // Try to parse as JSON
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // This is the header
+                if let version = json["version"] as? Int,
+                   let width = json["width"] as? Int,
+                   let height = json["height"] as? Int {
+                    header = AsciinemaHeader(
+                        version: version,
+                        width: width,
+                        height: height,
+                        timestamp: json["timestamp"] as? Double,
+                        duration: json["duration"] as? Double,
+                        command: json["command"] as? String,
+                        title: json["title"] as? String,
+                        env: json["env"] as? [String: String]
+                    )
+                }
+            } else if let json = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+                // This is an event array [timestamp, type, data]
+                if json.count >= 3,
+                   let timestamp = json[0] as? Double,
+                   let typeStr = json[1] as? String,
+                   let eventData = json[2] as? String {
+                    
+                    let eventType: AsciinemaEvent.EventType
+                    switch typeStr {
+                    case "o": eventType = .output
+                    case "i": eventType = .input
+                    case "r": eventType = .resize
+                    case "m": eventType = .marker
+                    default: continue
+                    }
+                    
+                    events.append(AsciinemaEvent(
+                        time: timestamp,
+                        type: eventType,
+                        data: eventData
+                    ))
+                }
+            }
+        }
+        
+        return TerminalSnapshot(
+            sessionId: sessionId,
+            header: header,
+            events: events
+        )
+    }
+
+    // MARK: - Server Health
+    
+    func checkHealth() async throws -> Bool {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+
+        let url = baseURL.appendingPathComponent("api/health")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5.0 // Quick timeout for health check
+        
         do {
-            return try decoder.decode(TerminalSnapshot.self, from: data)
+            let (_, response) = try await session.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                return httpResponse.statusCode == 200
+            }
+            return false
         } catch {
-            throw APIError.decodingError(error)
+            // Health check failure doesn't throw, just returns false
+            return false
         }
     }
 
@@ -315,9 +456,10 @@ class APIClient: APIClientProtocol {
     }
 
     private func addAuthenticationIfNeeded(_ request: inout URLRequest) {
-        // For now, we don't have authentication configured in the iOS app
-        // This is a placeholder for future authentication support
-        // The server might be running without password protection
+        // Add authorization header from server config
+        if let authHeader = ConnectionManager.shared.currentServerConfig?.authorizationHeader {
+            request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        }
     }
 
     // MARK: - File System Operations
@@ -389,5 +531,65 @@ class APIClient: APIClientProtocol {
 
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
+    }
+    
+    func downloadFile(path: String, progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+        
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/fs/read"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "path", value: path)]
+        
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        // Add authentication header if needed
+        addAuthenticationIfNeeded(&request)
+        
+        // For progress tracking, we'll use URLSession delegate
+        // For now, just download the whole file
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        
+        return data
+    }
+    
+    func getFileInfo(path: String) async throws -> FileInfo {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+        
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/fs/info"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "path", value: path)]
+        
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        // Add authentication header if needed
+        addAuthenticationIfNeeded(&request)
+        
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        
+        return try decoder.decode(FileInfo.self, from: data)
     }
 }

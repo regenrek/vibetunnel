@@ -12,6 +12,7 @@ struct ServerConfigForm: View {
     let isConnecting: Bool
     let errorMessage: String?
     let onConnect: () -> Void
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
 
     @FocusState private var focusedField: Field?
     @State private var recentServers: [ServerConfig] = []
@@ -75,13 +76,13 @@ struct ServerConfigForm: View {
                         }
                 }
 
-                // Password Field (Optional)
+                // Password Field (optional)
                 VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Label("Password (Optional)", systemImage: "lock")
+                    Label("Password (optional)", systemImage: "lock")
                         .font(Theme.Typography.terminalSystem(size: 12))
                         .foregroundColor(Theme.Colors.primaryAccent)
 
-                    SecureField("Enter password if required", text: $password)
+                    SecureField("Enter password", text: $password)
                         .textFieldStyle(TerminalTextFieldStyle())
                         .focused($focusedField, equals: .password)
                         .submitLabel(.done)
@@ -123,6 +124,14 @@ struct ServerConfigForm: View {
                             .font(Theme.Typography.terminalSystem(size: 16))
                     }
                     .frame(maxWidth: .infinity)
+                } else if !networkMonitor.isConnected {
+                    HStack(spacing: Theme.Spacing.small) {
+                        Image(systemName: "wifi.slash")
+                        Text("No Internet Connection")
+                    }
+                    .font(Theme.Typography.terminalSystem(size: 16))
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
                 } else {
                     HStack(spacing: Theme.Spacing.small) {
                         Image(systemName: "bolt.fill")
@@ -133,21 +142,22 @@ struct ServerConfigForm: View {
                     .frame(maxWidth: .infinity)
                 }
             })
-            .foregroundColor(isConnecting ? Theme.Colors.terminalForeground : Theme.Colors.primaryAccent)
+            .foregroundColor(isConnecting || !networkMonitor.isConnected ? Theme.Colors.terminalForeground : Theme.Colors.primaryAccent)
             .padding(.vertical, Theme.Spacing.medium)
             .background(
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.medium)
-                    .fill(isConnecting ? Theme.Colors.cardBackground : Theme.Colors.terminalBackground)
+                    .fill(isConnecting || !networkMonitor.isConnected ? Theme.Colors.cardBackground : Theme.Colors.terminalBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.medium)
-                    .stroke(Theme.Colors.primaryAccent, lineWidth: isConnecting ? 1 : 2)
+                    .stroke(networkMonitor.isConnected ? Theme.Colors.primaryAccent : Theme.Colors.cardBorder, lineWidth: isConnecting || !networkMonitor.isConnected ? 1 : 2)
                     .opacity(host.isEmpty ? 0.5 : 1.0)
             )
-            .disabled(isConnecting || host.isEmpty)
+            .disabled(isConnecting || host.isEmpty || !networkMonitor.isConnected)
             .padding(.horizontal)
             .scaleEffect(isConnecting ? 0.98 : 1.0)
             .animation(Theme.Animation.quick, value: isConnecting)
+            .animation(Theme.Animation.quick, value: networkMonitor.isConnected)
 
             // Recent Servers (if any)
             if !recentServers.isEmpty {

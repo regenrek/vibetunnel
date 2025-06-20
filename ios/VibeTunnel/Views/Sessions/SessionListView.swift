@@ -8,10 +8,42 @@ import SwiftUI
 struct SessionListView: View {
     @Environment(ConnectionManager.self) var connectionManager
     @Environment(NavigationManager.self) var navigationManager
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSession = false
     @State private var selectedSession: Session?
     @State private var showExitedSessions = true
+    @State private var showingFileBrowser = false
+    @State private var showingSettings = false
+    @State private var searchText = ""
+    
+    var filteredSessions: [Session] {
+        let sessions = viewModel.sessions.filter { showExitedSessions || $0.isRunning }
+        
+        if searchText.isEmpty {
+            return sessions
+        }
+        
+        return sessions.filter { session in
+            // Search in session name
+            if let name = session.name, name.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            // Search in command
+            if session.command.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            // Search in working directory
+            if session.workingDir.localizedCaseInsensitiveContains(searchText) {
+                return true
+            }
+            // Search in PID
+            if let pid = session.pid, String(pid).contains(searchText) {
+                return true
+            }
+            return false
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -20,16 +52,28 @@ struct SessionListView: View {
                 Theme.Colors.terminalBackground
                     .ignoresSafeArea()
 
-                if viewModel.isLoading && viewModel.sessions.isEmpty {
-                    ProgressView("Loading sessions...")
-                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
-                        .font(Theme.Typography.terminalSystem(size: 14))
-                        .foregroundColor(Theme.Colors.terminalForeground)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.sessions.isEmpty {
-                    emptyStateView
-                } else {
-                    sessionList
+                VStack {
+                    // Error banner at the top
+                    if let errorMessage = viewModel.errorMessage {
+                        ErrorBanner(message: errorMessage, isOffline: !networkMonitor.isConnected)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
+                    if viewModel.isLoading && viewModel.sessions.isEmpty {
+                        ProgressView("Loading sessions...")
+                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
+                            .font(Theme.Typography.terminalSystem(size: 14))
+                            .foregroundColor(Theme.Colors.terminalForeground)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if !networkMonitor.isConnected && viewModel.sessions.isEmpty {
+                        offlineStateView
+                    } else if filteredSessions.isEmpty && !searchText.isEmpty {
+                        noSearchResultsView
+                    } else if viewModel.sessions.isEmpty {
+                        emptyStateView
+                    } else {
+                        sessionList
+                    }
                 }
             }
             .navigationTitle("Sessions")
@@ -49,14 +93,34 @@ struct SessionListView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        HapticFeedback.impact(.light)
-                        showingCreateSession = true
-                    }, label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(Theme.Colors.primaryAccent)
-                    })
+                    HStack(spacing: Theme.Spacing.medium) {
+                        Button(action: {
+                            HapticFeedback.impact(.light)
+                            showingSettings = true
+                        }, label: {
+                            Image(systemName: "gearshape.fill")
+                                .font(.title3)
+                                .foregroundColor(Theme.Colors.primaryAccent)
+                        })
+                        
+                        Button(action: {
+                            HapticFeedback.impact(.light)
+                            showingFileBrowser = true
+                        }, label: {
+                            Image(systemName: "folder.fill")
+                                .font(.title3)
+                                .foregroundColor(Theme.Colors.primaryAccent)
+                        })
+                        
+                        Button(action: {
+                            HapticFeedback.impact(.light)
+                            showingCreateSession = true
+                        }, label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(Theme.Colors.primaryAccent)
+                        })
+                    }
                 }
             }
             .sheet(isPresented: $showingCreateSession) {
@@ -73,9 +137,18 @@ struct SessionListView: View {
             .sheet(item: $selectedSession) { session in
                 TerminalView(session: session)
             }
+            .sheet(isPresented: $showingFileBrowser) {
+                FileBrowserView(mode: .browseFiles) { path in
+                    // For browse mode, we don't need to handle path selection
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
             .refreshable {
                 await viewModel.loadSessions()
             }
+            .searchable(text: $searchText, prompt: "Search sessions")
             .onAppear {
                 viewModel.startAutoRefresh()
             }
@@ -136,6 +209,32 @@ struct SessionListView: View {
         }
         .padding()
     }
+    
+    private var noSearchResultsView: some View {
+        VStack(spacing: Theme.Spacing.extraLarge) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.3))
+            
+            VStack(spacing: Theme.Spacing.small) {
+                Text("No sessions found")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Colors.terminalForeground)
+                
+                Text("Try searching with different keywords")
+                    .font(Theme.Typography.terminalSystem(size: 14))
+                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+            }
+            
+            Button(action: { searchText = "" }) {
+                Label("Clear Search", systemImage: "xmark.circle.fill")
+                    .font(Theme.Typography.terminalSystem(size: 14))
+            }
+            .terminalButton()
+        }
+        .padding()
+    }
 
     private var sessionList: some View {
         ScrollView {
@@ -156,7 +255,7 @@ struct SessionListView: View {
                     GridItem(.flexible(), spacing: Theme.Spacing.medium),
                     GridItem(.flexible(), spacing: Theme.Spacing.medium)
                 ], spacing: Theme.Spacing.medium) {
-                    if showExitedSessions && viewModel.sessions.contains(where: { !$0.isRunning }) {
+                    if showExitedSessions && filteredSessions.contains(where: { !$0.isRunning }) {
                         CleanupAllButton {
                             Task {
                                 await viewModel.cleanupAllExited()
@@ -164,7 +263,7 @@ struct SessionListView: View {
                         }
                     }
 
-                    ForEach(viewModel.sessions.filter { showExitedSessions || $0.isRunning }) { session in
+                    ForEach(filteredSessions) { session in
                         SessionCardView(session: session) {
                             HapticFeedback.selection()
                             if session.isRunning {
@@ -192,6 +291,77 @@ struct SessionListView: View {
             .padding(.vertical)
             .animation(Theme.Animation.smooth, value: viewModel.sessions)
         }
+    }
+    
+    private var offlineStateView: some View {
+        VStack(spacing: Theme.Spacing.extraLarge) {
+            ZStack {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 60))
+                    .foregroundColor(Theme.Colors.errorAccent)
+                    .blur(radius: 20)
+                    .opacity(0.3)
+
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 60))
+                    .foregroundColor(Theme.Colors.errorAccent)
+            }
+
+            VStack(spacing: Theme.Spacing.small) {
+                Text("No Internet Connection")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Colors.terminalForeground)
+
+                Text("Unable to load sessions while offline")
+                    .font(Theme.Typography.terminalSystem(size: 14))
+                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: {
+                HapticFeedback.impact(.medium)
+                Task {
+                    await viewModel.loadSessions()
+                }
+            }, label: {
+                HStack(spacing: Theme.Spacing.small) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Retry")
+                }
+                .font(Theme.Typography.terminalSystem(size: 16))
+                .fontWeight(.medium)
+            })
+            .terminalButton()
+            .disabled(!networkMonitor.isConnected)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Error Banner
+
+struct ErrorBanner: View {
+    let message: String
+    let isOffline: Bool
+    
+    var body: some View {
+        HStack {
+            Image(systemName: isOffline ? "wifi.slash" : "exclamationmark.triangle")
+                .foregroundColor(.white)
+            
+            Text(message)
+                .font(Theme.Typography.terminalSystem(size: 14))
+                .foregroundColor(.white)
+                .lineLimit(2)
+            
+            Spacer()
+        }
+        .padding()
+        .background(isOffline ? Color.orange : Theme.Colors.errorAccent)
+        .cornerRadius(Theme.CornerRadius.small)
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 }
 
@@ -271,15 +441,14 @@ class SessionListViewModel {
     }
 
     func killAllSessions() async {
-        let runningSessions = sessions.filter(\.isRunning)
-        for session in runningSessions {
-            do {
-                try await sessionService.killSession(session.id)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+        do {
+            try await sessionService.killAllSessions()
+            await loadSessions()
+            HapticFeedback.notification(.success)
+        } catch {
+            errorMessage = error.localizedDescription
+            HapticFeedback.notification(.error)
         }
-        await loadSessions()
     }
 }
 

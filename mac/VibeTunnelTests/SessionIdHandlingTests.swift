@@ -113,10 +113,10 @@ struct SessionIdHandlingTests {
     
     // MARK: - Session List Parsing Tests
     
-    @Test("Parse tty-fwd session list response")
-    func testParseTtyFwdSessionList() throws {
-        // Define a local type for parsing tty-fwd session JSON
-        struct TtyFwdSession: Codable {
+    @Test("Parse session list response")
+    func testParseSessionList() throws {
+        // Define a local type for parsing session JSON
+        struct Session: Codable {
             let cmdline: [String]
             let cwd: String
             let name: String
@@ -127,8 +127,8 @@ struct SessionIdHandlingTests {
             let streamOut: String
         }
         
-        // Test parsing the JSON response from tty-fwd --list-sessions
-        let ttyFwdResponse = """
+        // Test parsing the JSON response from session list
+        let sessionResponse = """
         {
             "a37ea008-41f6-412f-bbba-f28f091267ce": {
                 "cmdline": ["zsh"],
@@ -143,8 +143,8 @@ struct SessionIdHandlingTests {
         }
         """
         
-        let data = ttyFwdResponse.data(using: .utf8)!
-        let sessions = try JSONDecoder().decode([String: TtyFwdSession].self, from: data)
+        let data = sessionResponse.data(using: .utf8)!
+        let sessions = try JSONDecoder().decode([String: Session].self, from: data)
         
         // Verify the session ID is a proper UUID
         #expect(sessions.count == 1)
@@ -163,15 +163,14 @@ struct SessionIdHandlingTests {
 @Test(.bug("https://github.com/example/issues/123"))
 func testSessionIdMismatchBugFixed() async throws {
     // This test documents the specific bug that was fixed:
-    // 1. Swift server generated: "session_1234567890_abc123"
-    // 2. tty-fwd generated: "a37ea008-41f6-412f-bbba-f28f091267ce"
-    // 3. Client used Swift's ID for input: /api/sessions/session_1234567890_abc123/input
-    // 4. Server looked up session in tty-fwd's list and found nothing → 404
+    // 1. Server generated session ID
+    // 2. Client used the session ID for operations
+    // 3. Session lookup must work correctly with the generated ID
     
     // The fix ensures:
-    // - Swift server captures tty-fwd's UUID from stdout
-    // - Returns that UUID to the client
-    // - All subsequent operations use the correct UUID
+    // - Server generates and manages session IDs
+    // - Returns the correct ID to the client
+    // - All subsequent operations use the correct ID
     
     // This test serves as documentation of the bug and its fix
     // No assertion needed - test passes if it compiles

@@ -146,7 +146,9 @@ export class FileBrowser extends LitElement {
 
     return html`
       <div class="modal-backdrop flex items-center justify-center">
-        <div class="modal-content font-mono text-sm w-96 h-96 flex flex-col overflow-hidden">
+        <div
+          class="modal-content font-mono text-sm w-[90vw] max-w-2xl h-[80vh] max-h-[600px] flex flex-col overflow-hidden"
+        >
           <div class="pb-4 mb-4 border-b border-dark-border flex-shrink-0">
             <div class="flex justify-between items-center mb-2">
               <h2 class="text-accent-green text-lg font-bold">Select Directory</h2>

@@ -73,24 +73,6 @@ echo "Code signing: $SIGN_APP"
 # Clean build directory only if it doesn't exist
 mkdir -p "$BUILD_DIR"
 
-# Build tty-fwd universal binary
-echo "🔨 Building tty-fwd universal binary..."
-if [[ -x "$PROJECT_DIR/tty-fwd/build-universal.sh" ]]; then
-    cd "$PROJECT_DIR/tty-fwd"
-    ./build-universal.sh
-    
-    # Verify the binary was built
-    if [[ -f "$PROJECT_DIR/tty-fwd/target/release/tty-fwd-universal" ]]; then
-        echo "✓ tty-fwd universal binary built successfully"
-        # Note: The Xcode build phase will copy this to the app bundle
-    else
-        echo "Error: Failed to build tty-fwd universal binary"
-        exit 1
-    fi
-else
-    echo "Error: tty-fwd build script not found at $PROJECT_DIR/tty-fwd/build-universal.sh"
-    exit 1
-fi
 
 # Build Go vibetunnel universal binary
 echo "🔨 Building Go vibetunnel universal binary..."

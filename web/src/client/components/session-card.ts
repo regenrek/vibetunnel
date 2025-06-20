@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './vibe-terminal-buffer.js';
+import './copy-icon.js';
 
 export interface Session {
   id: string;
@@ -146,11 +147,25 @@ export class SessionCard extends LitElement {
     textArea.select();
     try {
       document.execCommand('copy');
-      console.log('PID copied to clipboard (fallback):', text);
+      console.log('Text copied to clipboard (fallback):', text);
     } catch (error) {
       console.error('Fallback copy failed:', error);
     }
     document.body.removeChild(textArea);
+  }
+
+  private async handlePathClick(e: Event) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    try {
+      await navigator.clipboard.writeText(this.session.workingDir);
+      console.log('Path copied to clipboard:', this.session.workingDir);
+    } catch (error) {
+      console.error('Failed to copy path to clipboard:', error);
+      // Fallback: select text manually
+      this.fallbackCopyToClipboard(this.session.workingDir);
+    }
   }
 
   render() {
@@ -174,11 +189,32 @@ export class SessionCard extends LitElement {
           ${this.session.status === 'running'
             ? html`
                 <button
-                  class="btn-ghost font-mono text-xs py-1 text-status-error disabled:opacity-50 flex-shrink-0"
+                  class="btn-ghost text-status-error disabled:opacity-50 flex-shrink-0 p-1 rounded-full hover:bg-status-error hover:bg-opacity-20 transition-all"
                   @click=${this.handleKillClick}
                   ?disabled=${this.killing}
+                  title="Kill session"
                 >
-                  ${this.killing ? 'killing...' : 'kill'}
+                  ${this.killing
+                    ? html`<span class="block w-5 h-5 flex items-center justify-center"
+                        >${this.getKillingText()}</span
+                      >`
+                    : html`
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle cx="12" cy="12" r="10" stroke-width="2" />
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 9l-6 6m0-6l6 6"
+                          />
+                        </svg>
+                      `}
                 </button>
               `
             : ''}
@@ -217,18 +253,23 @@ export class SessionCard extends LitElement {
             ${this.session.pid
               ? html`
                   <span
-                    class="cursor-pointer hover:text-accent-green transition-colors text-xs flex-shrink-0 ml-2"
+                    class="cursor-pointer hover:text-accent-green transition-colors text-xs flex-shrink-0 ml-2 inline-flex items-center gap-1"
                     @click=${this.handlePidClick}
                     title="Click to copy PID"
                   >
-                    PID: ${this.session.pid} <span class="opacity-50">(click to copy)</span>
+                    PID: ${this.session.pid} <copy-icon size="14"></copy-icon>
                   </span>
                 `
               : ''}
           </div>
           <div class="text-xs opacity-75 min-w-0 mt-1">
-            <div class="truncate" title="${this.session.workingDir}">
-              ${this.session.workingDir}
+            <div
+              class="truncate cursor-pointer hover:text-accent-green transition-colors inline-flex items-center gap-1 max-w-full"
+              title="Click to copy path"
+              @click=${this.handlePathClick}
+            >
+              <span class="truncate">${this.session.workingDir}</span>
+              <copy-icon size="12" class="flex-shrink-0"></copy-icon>
             </div>
           </div>
         </div>

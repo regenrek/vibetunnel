@@ -21,13 +21,13 @@ struct Session: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case command = "cmdline"
-        case workingDir = "cwd"
+        case command
+        case workingDir
         case name
         case status
-        case exitCode = "exit_code"
-        case startedAt = "started_at"
-        case lastModified = "last_modified"
+        case exitCode
+        case startedAt
+        case lastModified
         case pid
         case waiting
         case width

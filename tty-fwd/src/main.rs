@@ -173,17 +173,21 @@ fn main() -> Result<(), anyhow::Error> {
             // Parse resize spec like "120x40"
             let parts: Vec<&str> = resize_spec.split('x').collect();
             if parts.len() != 2 {
-                return Err(anyhow!("Invalid resize format. Use <cols>x<rows> (e.g., 120x40)"));
+                return Err(anyhow!(
+                    "Invalid resize format. Use <cols>x<rows> (e.g., 120x40)"
+                ));
             }
-            let cols: u16 = parts[0].parse()
+            let cols: u16 = parts[0]
+                .parse()
                 .map_err(|_| anyhow!("Invalid column value: {}", parts[0]))?;
-            let rows: u16 = parts[1].parse()
+            let rows: u16 = parts[1]
+                .parse()
                 .map_err(|_| anyhow!("Invalid row value: {}", parts[1]))?;
-            
+
             if cols == 0 || rows == 0 {
                 return Err(anyhow!("Column and row values must be greater than 0"));
             }
-            
+
             return sessions::resize_session(&control_path, sid, cols, rows);
         }
         return Err(anyhow!("--resize requires --session <session_id>"));

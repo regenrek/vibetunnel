@@ -10,6 +10,18 @@ struct ServerConfig: Codable, Equatable {
     let port: Int
     let name: String?
     let password: String?
+    
+    init(
+        host: String,
+        port: Int,
+        name: String? = nil,
+        password: String? = nil
+    ) {
+        self.host = host
+        self.port = port
+        self.name = name
+        self.password = password
+    }
 
     /// Constructs the base URL for API requests.
     ///
@@ -34,7 +46,7 @@ struct ServerConfig: Codable, Equatable {
 
     /// Indicates whether the server requires authentication.
     ///
-    /// - Returns: true if a non-empty password is set, false otherwise.
+    /// - Returns: true if a password is configured, false otherwise.
     var requiresAuthentication: Bool {
         if let password {
             return !password.isEmpty
@@ -42,14 +54,10 @@ struct ServerConfig: Codable, Equatable {
         return false
     }
 
-    /// Generates the Basic Authentication header value.
+    /// Generates the Authorization header value if a password is configured.
     ///
-    /// - Returns: A properly formatted Basic Auth header string,
-    ///   or nil if no password is set.
-    ///
-    /// The authentication uses "admin" as the username and the
-    /// configured password. The credentials are base64 encoded
-    /// following the HTTP Basic Authentication scheme.
+    /// - Returns: A Basic auth header string using "admin" as username,
+    ///   or nil if no password is configured.
     var authorizationHeader: String? {
         guard let password, !password.isEmpty else { return nil }
         let credentials = "admin:\(password)"

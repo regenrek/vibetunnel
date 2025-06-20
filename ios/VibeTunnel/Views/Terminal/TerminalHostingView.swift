@@ -1,6 +1,7 @@
 import SwiftTerm
 import SwiftUI
 
+
 /// UIKit bridge for the SwiftTerm terminal emulator.
 ///
 /// Wraps SwiftTerm's TerminalView in a UIViewRepresentable to integrate
@@ -8,18 +9,30 @@ import SwiftUI
 struct TerminalHostingView: UIViewRepresentable {
     let session: Session
     @Binding var fontSize: CGFloat
+    let theme: TerminalTheme
     let onInput: (String) -> Void
     let onResize: (Int, Int) -> Void
     var viewModel: TerminalViewModel
     @State private var isAutoScrollEnabled = true
+    @AppStorage("enableURLDetection") private var enableURLDetection = true
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let terminal = SwiftTerm.TerminalView()
 
-        // Configure terminal appearance
-        terminal.backgroundColor = UIColor(Theme.Colors.terminalBackground)
-        terminal.nativeForegroundColor = UIColor(Theme.Colors.terminalForeground)
-        terminal.nativeBackgroundColor = UIColor(Theme.Colors.terminalBackground)
+        // Configure terminal appearance with theme
+        terminal.backgroundColor = UIColor(theme.background)
+        terminal.nativeForegroundColor = UIColor(theme.foreground)
+        terminal.nativeBackgroundColor = UIColor(theme.background)
+        
+        // Set ANSI colors from theme
+        // TODO: Fix color conversion for SwiftTerm
+        // terminal.installColors([])
+        
+        // Set cursor color
+        terminal.caretColor = UIColor(theme.cursor)
+        
+        // Set selection color
+        terminal.selectedTextBackgroundColor = UIColor(theme.selection)
 
         // Set up delegates
         // SwiftTerm's TerminalView uses terminalDelegate, not delegate
@@ -29,9 +42,7 @@ struct TerminalHostingView: UIViewRepresentable {
         terminal.allowMouseReporting = false
         terminal.optionAsMetaKey = true
 
-        // Enable URL detection
-        // SwiftTerm doesn't have built-in link detection API
-        // URL detection would need to be implemented manually
+        // URL detection is handled by SwiftTerm automatically
 
         // Configure font
         updateFont(terminal, size: fontSize)
@@ -46,6 +57,19 @@ struct TerminalHostingView: UIViewRepresentable {
 
     func updateUIView(_ terminal: SwiftTerm.TerminalView, context: Context) {
         updateFont(terminal, size: fontSize)
+        
+        // URL detection is handled by SwiftTerm automatically
+        
+        // Update theme colors
+        terminal.backgroundColor = UIColor(theme.background)
+        terminal.nativeForegroundColor = UIColor(theme.foreground)
+        terminal.nativeBackgroundColor = UIColor(theme.background)
+        terminal.caretColor = UIColor(theme.cursor)
+        terminal.selectedTextBackgroundColor = UIColor(theme.selection)
+        
+        // Update ANSI colors
+        // TODO: Fix color conversion for SwiftTerm
+        // terminal.installColors([])
 
         // Update terminal content from viewModel
         context.coordinator.terminal = terminal
@@ -96,7 +120,14 @@ struct TerminalHostingView: UIViewRepresentable {
 
         func feedData(_ data: String) {
             Task { @MainActor in
-                guard let terminal else { return }
+                guard let terminal else { 
+                    print("[Terminal] No terminal instance available")
+                    return 
+                }
+
+                // Debug: Log first 100 chars of data
+                let preview = String(data.prefix(100))
+                print("[Terminal] Feeding \(data.count) bytes: \(preview)")
 
                 // Store current scroll position before feeding data
                 let wasAtBottom = viewModel.isAutoScrollEnabled
@@ -125,28 +156,21 @@ struct TerminalHostingView: UIViewRepresentable {
         }
 
         func scrolled(source: SwiftTerm.TerminalView, position: Double) {
-            // SwiftTerm doesn't expose detailed scroll position tracking
-            // The position parameter represents the relative scroll position
-            // // Check if user manually scrolled away from bottom
-            // if let terminal = terminal {
-            //    let buffer = terminal.buffer
-            //    let totalRows = buffer.lines.count
-            //    let viewportHeight = terminal.rows
-            //    let maxScroll = Double(max(0, totalRows - viewportHeight))
-            //
-            //    // If user scrolled away from bottom (with some tolerance)
-            //    let isAtBottom = position >= maxScroll - 5
-            //
-            //    Task { @MainActor in
-            //        if !isAtBottom && viewModel.isAutoScrollEnabled {
-            //            // User manually scrolled up - disable auto-scroll
-            //            viewModel.isAutoScrollEnabled = false
-            //        } else if isAtBottom && !viewModel.isAutoScrollEnabled {
-            //            // User scrolled back to bottom - re-enable auto-scroll
-            //            viewModel.isAutoScrollEnabled = true
-            //        }
-            //    }
-            // }
+            // Check if user is at bottom
+            Task { @MainActor in
+                // Estimate if at bottom based on position
+                let isAtBottom = position >= 0.95
+                viewModel.updateScrollState(isAtBottom: isAtBottom)
+                
+                // The view model will handle button visibility through its state
+            }
+        }
+        
+        func scrollToBottom() {
+            // Scroll to bottom by sending page down keys
+            if let terminal = terminal {
+                terminal.feed(text: "\u{001b}[B")
+            }
         }
 
         func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
@@ -158,10 +182,11 @@ struct TerminalHostingView: UIViewRepresentable {
         }
 
         func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String: String]) {
-            // Open URL
+            // Open URL with haptic feedback
             if let url = URL(string: link) {
                 DispatchQueue.main.async {
-                    UIApplication.shared.open(url)
+                    HapticFeedback.impact(.light)
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
                 }
             }
         }

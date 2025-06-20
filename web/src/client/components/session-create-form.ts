@@ -26,6 +26,16 @@ export class SessionCreateForm extends LitElement {
 
   @state() private isCreating = false;
   @state() private showFileBrowser = false;
+  @state() private selectedQuickStart = 'zsh';
+
+  private quickStartCommands = [
+    { label: 'claude', command: 'claude' },
+    { label: 'zsh', command: 'zsh' },
+    { label: 'bash', command: 'bash' },
+    { label: 'python3', command: 'python3' },
+    { label: 'node', command: 'node' },
+    { label: 'npm run dev', command: 'npm run dev' },
+  ];
 
   private readonly STORAGE_KEY_WORKING_DIR = 'vibetunnel_last_working_dir';
   private readonly STORAGE_KEY_COMMAND = 'vibetunnel_last_command';
@@ -170,9 +180,11 @@ export class SessionCreateForm extends LitElement {
         );
       } else {
         const error = await response.json();
+        // Use the detailed error message if available, otherwise fall back to the error field
+        const errorMessage = error.details || error.error || 'Unknown error';
         this.dispatchEvent(
           new CustomEvent('error', {
-            detail: `Failed to create session: ${error.error}`,
+            detail: errorMessage,
           })
         );
       }
@@ -225,6 +237,11 @@ export class SessionCreateForm extends LitElement {
     this.dispatchEvent(new CustomEvent('cancel'));
   }
 
+  private handleQuickStart(command: string) {
+    this.command = command;
+    this.selectedQuickStart = command;
+  }
+
   render() {
     if (!this.visible) {
       return html``;
@@ -232,14 +249,15 @@ export class SessionCreateForm extends LitElement {
 
     return html`
       <div class="modal-backdrop flex items-center justify-center">
-        <div class="modal-content font-mono text-sm w-96 max-w-full mx-4">
+        <div class="modal-content font-mono text-sm w-96 lg:w-[576px] max-w-full mx-4">
           <div class="pb-6 mb-6 border-b border-dark-border">
-            <h2 class="text-accent-green text-lg font-bold">Create New Session</h2>
+            <h2 class="text-accent-green text-lg font-bold">New Session</h2>
           </div>
 
-          <div class="p-4">
-            <div class="mb-4">
-              <label class="form-label">Session Name (optional):</label>
+          <div class="p-4 lg:p-8">
+            <!-- Session Name -->
+            <div class="mb-6">
+              <label class="form-label">Session Name (Optional):</label>
               <input
                 type="text"
                 class="input-field"
@@ -250,7 +268,22 @@ export class SessionCreateForm extends LitElement {
               />
             </div>
 
-            <div class="mb-4">
+            <!-- Command -->
+            <div class="mb-6">
+              <label class="form-label">Command:</label>
+              <input
+                type="text"
+                class="input-field"
+                .value=${this.command}
+                @input=${this.handleCommandChange}
+                @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
+                placeholder="zsh"
+                ?disabled=${this.disabled || this.isCreating}
+              />
+            </div>
+
+            <!-- Working Directory -->
+            <div class="mb-6">
               <label class="form-label">Working Directory:</label>
               <div class="flex gap-4">
                 <input
@@ -266,25 +299,37 @@ export class SessionCreateForm extends LitElement {
                   @click=${this.handleBrowse}
                   ?disabled=${this.disabled || this.isCreating}
                 >
-                  Browse
+                  📁
                 </button>
               </div>
             </div>
 
-            <div class="mb-4">
-              <label class="form-label">Command:</label>
-              <input
-                type="text"
-                class="input-field"
-                .value=${this.command}
-                @input=${this.handleCommandChange}
-                @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
-                placeholder="zsh"
-                ?disabled=${this.disabled || this.isCreating}
-              />
+            <!-- Quick Start Section -->
+            <div class="mb-6">
+              <label class="form-label text-dark-text-secondary uppercase text-xs tracking-wider"
+                >Quick Start</label
+              >
+              <div class="grid grid-cols-2 gap-3 mt-3">
+                ${this.quickStartCommands.map(
+                  ({ label, command }) => html`
+                    <button
+                      @click=${() => this.handleQuickStart(command)}
+                      class="px-4 py-3 rounded border text-left transition-all
+                        ${this.command === command
+                        ? 'bg-accent-green bg-opacity-20 border-accent-green text-accent-green'
+                        : 'bg-dark-border bg-opacity-10 border-dark-border text-dark-text hover:bg-opacity-20 hover:border-dark-text-secondary'}"
+                      ?disabled=${this.disabled || this.isCreating}
+                    >
+                      ${label === 'claude' ? '✨ ' : ''}${label === 'npm run dev'
+                        ? '▶️ '
+                        : ''}${label}
+                    </button>
+                  `
+                )}
+              </div>
             </div>
 
-            <div class="flex gap-4 mt-6">
+            <div class="flex gap-4 mt-8">
               <button
                 class="btn-ghost font-mono flex-1 py-3"
                 @click=${this.handleCancel}

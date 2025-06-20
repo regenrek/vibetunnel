@@ -109,6 +109,7 @@ private/
 # Built binaries (should be built during build process)
 linux/vibetunnel
 linux/vt
+linux/linux
 VibeTunnel/Resources/vt
 VibeTunnel/Resources/vibetunnel
 linux/vt-go

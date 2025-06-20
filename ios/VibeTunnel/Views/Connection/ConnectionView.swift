@@ -6,7 +6,9 @@ import SwiftUI
 /// Displays the app branding and provides interface for entering
 /// server connection details with saved server management.
 struct ConnectionView: View {
-    @Environment(ConnectionManager.self) var connectionManager
+    @Environment(ConnectionManager.self)
+    var connectionManager
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @State private var viewModel = ConnectionViewModel()
     @State private var logoScale: CGFloat = 0.8
     @State private var contentOpacity: Double = 0
@@ -52,6 +54,10 @@ struct ConnectionView: View {
                                 .font(Theme.Typography.terminalSystem(size: 16))
                                 .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
                                 .tracking(2)
+                            
+                            // Network status
+                            ConnectionStatusView()
+                                .padding(.top, Theme.Spacing.small)
                         }
                     }
                     .padding(.top, 60)
@@ -87,6 +93,11 @@ struct ConnectionView: View {
     }
 
     private func connectToServer() {
+        guard networkMonitor.isConnected else {
+            viewModel.errorMessage = "No internet connection available"
+            return
+        }
+        
         Task {
             await viewModel.testConnection { config in
                 connectionManager.saveConnection(config)

@@ -22,7 +22,7 @@ struct ProcessDetails {
 
     /// Check if this is one of our managed servers
     var isManagedServer: Bool {
-        name == "tty-fwd" || name == "vibetunnel" || name.contains("node") && (path?.contains("VibeTunnel") ?? false)
+        name == "vibetunnel" || name.contains("node") && (path?.contains("VibeTunnel") ?? false)
     }
 }
 
