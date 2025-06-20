@@ -19,56 +19,91 @@ const wss = new WebSocketServer({ server });
 
 const PORT = process.env.PORT || 4020;
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-let basicAuthPassword: string | null = null;
-let isHQMode = false;
-let joinHQUrl: string | null = null;
-
-// Check for command line arguments
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--password' && i + 1 < args.length) {
-    basicAuthPassword = args[i + 1];
-    i++; // Skip the password value in next iteration
-  } else if (args[i] === '--hq') {
-    isHQMode = true;
-  } else if (args[i] === '--join-hq' && i + 1 < args.length) {
-    joinHQUrl = args[i + 1];
-    i++; // Skip the URL value in next iteration
-  }
-}
-
-// Fall back to environment variable if no --password argument
-if (!basicAuthPassword && process.env.VIBETUNNEL_PASSWORD) {
-  basicAuthPassword = process.env.VIBETUNNEL_PASSWORD;
-}
-
-// Validate join-hq URL
-if (joinHQUrl) {
-  try {
-    const url = new URL(joinHQUrl);
-    if (url.protocol !== 'https:') {
-      console.error(`${RED}ERROR: --join-hq URL must use HTTPS protocol${RESET}`);
-      process.exit(1);
-    }
-  } catch {
-    console.error(`${RED}ERROR: Invalid --join-hq URL: ${joinHQUrl}${RESET}`);
-    process.exit(1);
-  }
-}
-
 // ANSI color codes
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
 const GREEN = '\x1b[32m';
 const RESET = '\x1b[0m';
 
-if (basicAuthPassword) {
+// Parse command line arguments
+const args = process.argv.slice(2);
+let basicAuthUsername: string | null = null;
+let basicAuthPassword: string | null = null;
+let isHQMode = false;
+let hqUrl: string | null = null;
+let hqUsername: string | null = null;
+let hqPassword: string | null = null;
+
+// Check for command line arguments
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--username' && i + 1 < args.length) {
+    basicAuthUsername = args[i + 1];
+    i++; // Skip the username value in next iteration
+  } else if (args[i] === '--password' && i + 1 < args.length) {
+    basicAuthPassword = args[i + 1];
+    i++; // Skip the password value in next iteration
+  } else if (args[i] === '--hq') {
+    isHQMode = true;
+  } else if (args[i] === '--hq-url' && i + 1 < args.length) {
+    hqUrl = args[i + 1];
+    i++; // Skip the URL value in next iteration
+  } else if (args[i] === '--hq-username' && i + 1 < args.length) {
+    hqUsername = args[i + 1];
+    i++; // Skip the username value in next iteration
+  } else if (args[i] === '--hq-password' && i + 1 < args.length) {
+    hqPassword = args[i + 1];
+    i++; // Skip the password value in next iteration
+  }
+}
+
+// Check environment variables for local auth
+if (!basicAuthUsername && process.env.VIBETUNNEL_USERNAME) {
+  basicAuthUsername = process.env.VIBETUNNEL_USERNAME;
+}
+if (!basicAuthPassword && process.env.VIBETUNNEL_PASSWORD) {
+  basicAuthPassword = process.env.VIBETUNNEL_PASSWORD;
+}
+
+// Validate local auth configuration
+if ((basicAuthUsername && !basicAuthPassword) || (!basicAuthUsername && basicAuthPassword)) {
+  console.error(
+    `${RED}ERROR: Both username and password must be provided for authentication${RESET}`
+  );
+  console.error(
+    'Use --username and --password, or set both VIBETUNNEL_USERNAME and VIBETUNNEL_PASSWORD'
+  );
+  process.exit(1);
+}
+
+// Validate HQ registration configuration
+if (hqUrl && (!hqUsername || !hqPassword)) {
+  console.error(
+    `${RED}ERROR: HQ username and password required when --hq-url is specified${RESET}`
+  );
+  console.error('Use --hq-username and --hq-password with --hq-url');
+  process.exit(1);
+}
+
+// Validate HQ URL
+if (hqUrl) {
+  try {
+    const url = new URL(hqUrl);
+    if (url.protocol !== 'https:') {
+      console.error(`${RED}ERROR: --hq-url must use HTTPS protocol${RESET}`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(`${RED}ERROR: Invalid --hq-url: ${hqUrl}${RESET}`);
+    process.exit(1);
+  }
+}
+
+if (basicAuthUsername && basicAuthPassword) {
   console.log(`${GREEN}Basic authentication enabled${RESET}`);
 } else {
   console.log(`${RED}WARNING: No authentication configured!${RESET}`);
   console.log(
-    `${YELLOW}Set VIBETUNNEL_PASSWORD environment variable or use --password flag to enable authentication.${RESET}`
+    `${YELLOW}Set VIBETUNNEL_USERNAME and VIBETUNNEL_PASSWORD or use --username and --password flags.${RESET}`
   );
 }
 
@@ -118,12 +153,9 @@ if (isHQMode) {
   console.log(`${GREEN}Running in HQ mode${RESET}`);
 }
 
-if (joinHQUrl && basicAuthPassword) {
-  hqClient = new HQClient(joinHQUrl, basicAuthPassword);
-  console.log(`${GREEN}Will register with HQ at: ${joinHQUrl}${RESET}`);
-} else if (joinHQUrl && !basicAuthPassword) {
-  console.error(`${RED}ERROR: --join-hq requires --password to be set${RESET}`);
-  process.exit(1);
+if (hqUrl && hqUsername && hqPassword) {
+  hqClient = new HQClient(hqUrl, hqUsername, hqPassword);
+  console.log(`${GREEN}Will register with HQ at: ${hqUrl}${RESET}`);
 }
 
 // Ensure control directory exists
@@ -164,7 +196,7 @@ const authMiddleware = (
   next: express.NextFunction
 ) => {
   // Skip auth if not configured
-  if (!basicAuthPassword && !hqClient) {
+  if (!(basicAuthUsername && basicAuthPassword) && !hqClient) {
     return next();
   }
 
@@ -189,12 +221,12 @@ const authMiddleware = (
   }
 
   // Check Basic Auth
-  if (authHeader.startsWith('Basic ') && basicAuthPassword) {
+  if (authHeader.startsWith('Basic ') && basicAuthUsername && basicAuthPassword) {
     const base64Credentials = authHeader.slice(6);
     const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
     const [username, password] = credentials.split(':');
 
-    if (username === 'admin' && password === basicAuthPassword) {
+    if (username === basicAuthUsername && password === basicAuthPassword) {
       return next();
     }
   }
@@ -204,7 +236,7 @@ const authMiddleware = (
 };
 
 // Apply auth middleware if authentication is configured
-if (basicAuthPassword || hqClient) {
+if ((basicAuthUsername && basicAuthPassword) || hqClient) {
   app.use(authMiddleware);
 }
 
@@ -1150,7 +1182,7 @@ function sendBinaryBuffer(ws: WebSocket, sessionId: string, snapshot: BufferSnap
 // WebSocket connections
 wss.on('connection', (ws, req) => {
   // Check authentication for WebSocket connections
-  if (basicAuthPassword || hqClient) {
+  if ((basicAuthUsername && basicAuthPassword) || hqClient) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -1169,12 +1201,17 @@ wss.on('connection', (ws, req) => {
     }
 
     // Check Basic Auth
-    if (!authenticated && authHeader.startsWith('Basic ') && basicAuthPassword) {
+    if (
+      !authenticated &&
+      authHeader.startsWith('Basic ') &&
+      basicAuthUsername &&
+      basicAuthPassword
+    ) {
       const base64Credentials = authHeader.slice(6);
       const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
       const [username, password] = credentials.split(':');
 
-      if (username === 'admin' && password === basicAuthPassword) {
+      if (username === basicAuthUsername && password === basicAuthPassword) {
         authenticated = true;
       }
     }
@@ -1228,14 +1265,14 @@ if (process.env.NODE_ENV !== 'test') {
   server.listen(PORT, () => {
     console.log(`VibeTunnel New Server running on http://localhost:${PORT}`);
     console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
-    if (basicAuthPassword) {
+    if (basicAuthUsername && basicAuthPassword) {
       console.log(`${GREEN}Basic authentication: ENABLED${RESET}`);
-      console.log('Username: admin');
+      console.log(`Username: ${basicAuthUsername}`);
       console.log(`Password: ${basicAuthPassword}`);
     } else {
       console.log(`${RED}⚠️  WARNING: Server running without authentication!${RESET}`);
       console.log(
-        `${YELLOW}Anyone can access this server. Use --password or set VIBETUNNEL_PASSWORD.${RESET}`
+        `${YELLOW}Anyone can access this server. Use --username and --password or set VIBETUNNEL_USERNAME and VIBETUNNEL_PASSWORD.${RESET}`
       );
     }
 

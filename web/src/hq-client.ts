@@ -6,15 +6,17 @@ export class HQClient {
   private readonly remoteId: string;
   private readonly remoteName: string;
   private readonly token: string;
-  private readonly password: string;
+  private readonly hqUsername: string;
+  private readonly hqPassword: string;
   private registrationRetryTimeout: NodeJS.Timeout | null = null;
 
-  constructor(hqUrl: string, password: string) {
+  constructor(hqUrl: string, hqUsername: string, hqPassword: string) {
     this.hqUrl = hqUrl;
     this.remoteId = uuidv4();
     this.remoteName = `${os.hostname()}-${process.pid}`;
     this.token = uuidv4();
-    this.password = password;
+    this.hqUsername = hqUsername;
+    this.hqPassword = hqPassword;
   }
 
   async register(): Promise<void> {
@@ -23,7 +25,7 @@ export class HQClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Basic ${Buffer.from(`user:${this.password}`).toString('base64')}`,
+          Authorization: `Basic ${Buffer.from(`${this.hqUsername}:${this.hqPassword}`).toString('base64')}`,
         },
         body: JSON.stringify({
           id: this.remoteId,
@@ -56,7 +58,7 @@ export class HQClient {
     fetch(`${this.hqUrl}/api/remotes/${this.remoteId}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Basic ${Buffer.from(`user:${this.password}`).toString('base64')}`,
+        Authorization: `Basic ${Buffer.from(`${this.hqUsername}:${this.hqPassword}`).toString('base64')}`,
       },
     }).catch(() => {
       // Ignore errors during shutdown
