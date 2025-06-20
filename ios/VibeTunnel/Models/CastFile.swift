@@ -124,7 +124,8 @@ class CastRecorder {
             let eventArray: [Any] = [event.time, event.type, event.data]
 
             if let jsonData = try? JSONSerialization.data(withJSONObject: eventArray),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
+               let jsonString = String(data: jsonData, encoding: .utf8)
+            {
                 castContent += jsonString + "\n"
             }
         }

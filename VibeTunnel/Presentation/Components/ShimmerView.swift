@@ -3,15 +3,15 @@ import SwiftUI
 /// A shimmer loading effect view that maintains consistent height
 struct ShimmerView: View {
     @State private var isAnimating = false
-    
+
     let height: CGFloat
     let cornerRadius: CGFloat
-    
+
     init(height: CGFloat = 20, cornerRadius: CGFloat = 4) {
         self.height = height
         self.cornerRadius = cornerRadius
     }
-    
+
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius)
             .fill(
@@ -55,9 +55,9 @@ struct ShimmerView: View {
 struct TextShimmer: View {
     let text: String
     let font: Font
-    
+
     @State private var textHeight: CGFloat = 20
-    
+
     var body: some View {
         ZStack {
             // Hidden text to measure height
@@ -73,7 +73,7 @@ struct TextShimmer: View {
                 .onPreferenceChange(HeightPreferenceKey.self) { height in
                     textHeight = height
                 }
-            
+
             ShimmerView(height: textHeight, cornerRadius: 4)
         }
     }
@@ -90,7 +90,7 @@ private struct HeightPreferenceKey: PreferenceKey {
     VStack(spacing: 20) {
         ShimmerView()
             .frame(width: 200)
-        
+
         TextShimmer(text: "Loading...", font: .body)
             .frame(width: 100)
     }

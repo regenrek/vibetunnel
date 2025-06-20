@@ -10,14 +10,14 @@ import OSLog
 @MainActor
 final class DockIconManager: NSObject {
     private static let _shared = DockIconManager()
-    
+
     static var shared: DockIconManager {
         _shared
     }
-    
+
     private var windowsObservation: NSKeyValueObservation?
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel", category: "DockIconManager")
-    
+
     override private init() {
         super.init()
         setupObservers()
@@ -27,14 +27,14 @@ final class DockIconManager: NSObject {
             self.updateDockVisibility()
         }
     }
-    
+
     deinit {
         windowsObservation?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
-    
+
     // MARK: - Public Methods
-    
+
     /// Update dock visibility based on current state.
     /// Call this when user preferences change or when you need to ensure proper state.
     func updateDockVisibility() {
@@ -43,26 +43,27 @@ final class DockIconManager: NSObject {
             logger.warning("NSApp not available yet, skipping dock visibility update")
             return
         }
-        
+
         let userWantsDockHidden = !UserDefaults.standard.bool(forKey: "showInDock")
-        
+
         // Count visible windows (excluding panels and hidden windows)
         let visibleWindows = NSApp.windows.filter { window in
             window.isVisible &&
-            window.frame.width > 1 && window.frame.height > 1 && // settings window hack
-            !window.isKind(of: NSPanel.self) &&
-            window.contentViewController != nil
+                window.frame.width > 1 && window.frame.height > 1 && // settings window hack
+                !window.isKind(of: NSPanel.self) &&
+                window.contentViewController != nil
         }
-        
+
         let hasVisibleWindows = !visibleWindows.isEmpty
-        
-        // logger.info("Updating dock visibility - User wants hidden: \(userWantsDockHidden), Visible windows: \(visibleWindows.count)")
-        
+
+        // logger.info("Updating dock visibility - User wants hidden: \(userWantsDockHidden), Visible windows:
+        // \(visibleWindows.count)")
+
         // Log window details for debugging
         // for window in visibleWindows {
         //     logger.debug("  Visible window: \(window.title.isEmpty ? "(untitled)" : window.title, privacy: .public)")
         // }
-        
+
         // Show dock if user wants it shown OR if any windows are open
         if !userWantsDockHidden || hasVisibleWindows {
             // logger.info("Showing dock icon")
@@ -72,15 +73,15 @@ final class DockIconManager: NSObject {
             NSApp.setActivationPolicy(.accessory)
         }
     }
-    
+
     /// Force show the dock icon temporarily (e.g., when opening a window).
     /// The dock visibility will be properly managed automatically via KVO.
     func temporarilyShowDock() {
         NSApp.setActivationPolicy(.regular)
     }
-    
+
     // MARK: - Private Methods
-    
+
     private func setupObservers() {
         // Ensure NSApp is available before setting up observers
         guard NSApp != nil else {
@@ -91,7 +92,7 @@ final class DockIconManager: NSObject {
             }
             return
         }
-        
+
         // Observe changes to NSApp.windows using KVO
         // Remove .initial option to avoid triggering during initialization
         windowsObservation = NSApp.observe(\.windows, options: [.new]) { [weak self] _, _ in
@@ -101,7 +102,7 @@ final class DockIconManager: NSObject {
                 self?.updateDockVisibility()
             }
         }
-        
+
         // Also observe individual window visibility changes
         NotificationCenter.default.addObserver(
             self,
@@ -109,21 +110,21 @@ final class DockIconManager: NSObject {
             name: NSWindow.didBecomeKeyNotification,
             object: nil
         )
-        
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowVisibilityChanged),
             name: NSWindow.didResignKeyNotification,
             object: nil
         )
-        
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowVisibilityChanged),
             name: NSWindow.willCloseNotification,
             object: nil
         )
-        
+
         // Listen for preference changes
         NotificationCenter.default.addObserver(
             self,
@@ -132,7 +133,7 @@ final class DockIconManager: NSObject {
             object: nil
         )
     }
-    
+
     @objc
     private func windowVisibilityChanged(_ notification: Notification) {
         // Debounce window state changes
@@ -141,13 +142,13 @@ final class DockIconManager: NSObject {
             updateDockVisibility()
         }
     }
-    
+
     @objc
     private func dockPreferenceChanged(_ notification: Notification) {
         // Only update if the specific dock preference changed
         guard let userDefaults = notification.object as? UserDefaults,
               userDefaults == UserDefaults.standard else { return }
-        
+
         // Ensure we're on main thread and add a small delay to avoid race conditions
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))

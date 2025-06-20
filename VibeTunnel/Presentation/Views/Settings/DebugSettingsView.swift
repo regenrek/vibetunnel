@@ -202,7 +202,7 @@ private struct ServerSection: View {
     @Binding var serverModeString: String
     let serverManager: ServerManager
     let getCurrentServerMode: () -> String
-    
+
     @State private var portConflict: PortConflict?
     @State private var isCheckingPort = false
 
@@ -214,8 +214,10 @@ private struct ServerSection: View {
                     LabeledContent("Status") {
                         if isServerHealthy || isServerRunning {
                             HStack {
-                                Image(systemName: isServerHealthy ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                                    .foregroundStyle(isServerHealthy ? .green : .orange)
+                                Image(systemName: isServerHealthy ? "checkmark.circle.fill" :
+                                    "exclamationmark.circle.fill"
+                                )
+                                .foregroundStyle(isServerHealthy ? .green : .orange)
                                 Text(isServerHealthy ? "Healthy" : "Unhealthy")
                             }
                         } else {
@@ -321,7 +323,7 @@ private struct ServerSection: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                
+
                 // Port conflict warning
                 if let conflict = portConflict {
                     VStack(alignment: .leading, spacing: 6) {
@@ -329,18 +331,18 @@ private struct ServerSection: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
                                 .font(.caption)
-                            
+
                             Text("Port \(conflict.port) is used by \(conflict.process.name)")
                                 .font(.caption)
                                 .foregroundColor(.orange)
                         }
-                        
+
                         if !conflict.alternativePorts.isEmpty {
                             HStack(spacing: 4) {
                                 Text("Try port:")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                
+
                                 ForEach(conflict.alternativePorts.prefix(3), id: \.self) { port in
                                     Button(String(port)) {
                                         serverManager.port = String(port)
@@ -377,19 +379,19 @@ private struct ServerSection: View {
                 .font(.headline)
         }
     }
-    
+
     private func checkPortAvailability() async {
         isCheckingPort = true
         defer { isCheckingPort = false }
-        
+
         let port = Int(serverPort)
-        
+
         // Only check if it's not the port we're already successfully using
         if serverManager.isRunning && Int(serverManager.port) == port {
             portConflict = nil
             return
         }
-        
+
         if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
             // Only show warning for non-VibeTunnel processes
             // tty-fwd and other VibeTunnel instances will be auto-killed by ServerManager

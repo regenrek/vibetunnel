@@ -15,7 +15,7 @@ enum WindowCenteringHelper {
         let activeScreen = NSScreen.screens.first { screen in
             screen.frame.contains(mouseLocation)
         } ?? NSScreen.main ?? NSScreen.screens.first
-        
+
         if let screen = activeScreen {
             let screenFrame = screen.visibleFrame
             let windowFrame = window.frame

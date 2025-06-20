@@ -20,8 +20,8 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
         subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel",
         category: "SparkleUpdater"
     )
-    
-    nonisolated private static let staticLogger = os.Logger(
+
+    private nonisolated static let staticLogger = os.Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel",
         category: "SparkleUpdater"
     )
@@ -49,7 +49,7 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
 
         // Create user driver delegate for gentle reminders
         userDriverDelegate = SparkleUserDriverDelegate()
-        
+
         // Initialize Sparkle with standard configuration
         #if DEBUG
             // In debug mode, start the updater for testing

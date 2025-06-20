@@ -52,11 +52,11 @@ struct ServerConsoleView: View {
                         Label("Export", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderless)
-                    
+
                     // Show restart button for all server modes
                     Divider()
                         .frame(height: 20)
-                    
+
                     Button {
                         Task {
                             await ServerManager.shared.manualRestart()

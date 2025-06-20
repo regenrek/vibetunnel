@@ -83,7 +83,8 @@ struct SessionListView: View {
         .onChange(of: navigationManager.shouldNavigateToSession) { _, shouldNavigate in
             if shouldNavigate,
                let sessionId = navigationManager.selectedSessionId,
-               let session = viewModel.sessions.first(where: { $0.id == sessionId }) {
+               let session = viewModel.sessions.first(where: { $0.id == sessionId })
+            {
                 selectedSession = session
                 navigationManager.clearNavigation()
             }

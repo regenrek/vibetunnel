@@ -176,7 +176,7 @@ final class GoServer: ServerProtocol {
 
         // Static files are always at Resources/web/public
         let staticPath = URL(fileURLWithPath: resourcesPath).appendingPathComponent("web/public").path
-        
+
         // Verify the web directory exists
         if !FileManager.default.fileExists(atPath: staticPath) {
             logger.error("Web directory not found at expected location: \(staticPath)")

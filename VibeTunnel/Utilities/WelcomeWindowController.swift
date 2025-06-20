@@ -26,7 +26,7 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         // Use normal window level instead of floating
         window.level = .normal
-        
+
         // Set content view mode to ensure proper cleanup
         hostingController.sizingOptions = [.preferredContentSize]
 
@@ -61,13 +61,13 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
         // Ensure window is visible and in front
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-        
+
         // Force activation to bring window to front
         NSApp.activate(ignoringOtherApps: true)
-        
+
         // Temporarily raise window level to ensure it's on top
         window.level = .floating
-        
+
         // Reset level after a short delay
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(100))
@@ -79,9 +79,9 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
     private func handleShowWelcomeNotification() {
         show()
     }
-    
+
     // MARK: - NSWindowDelegate
-    
+
     func windowWillClose(_ notification: Notification) {
         // Ensure any async tasks are cancelled
         Task { @MainActor in

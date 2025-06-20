@@ -17,7 +17,8 @@ struct SessionCardView: View {
         // Convert absolute paths back to ~ notation for display
         let homePrefix = "/Users/"
         if session.workingDir.hasPrefix(homePrefix),
-           let userEndIndex = session.workingDir[homePrefix.endIndex...].firstIndex(of: "/") {
+           let userEndIndex = session.workingDir[homePrefix.endIndex...].firstIndex(of: "/")
+        {
             let restOfPath = String(session.workingDir[userEndIndex...])
             return "~\(restOfPath)"
         }

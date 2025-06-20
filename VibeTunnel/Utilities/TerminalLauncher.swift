@@ -187,7 +187,7 @@ enum Terminal: String, CaseIterable {
         switch self {
         case .terminal: "Terminal"
         case .iTerm2: "iTerm"
-        case .ghostty: "ghostty"  // lowercase for System Events
+        case .ghostty: "ghostty" // lowercase for System Events
         case .warp: "Warp"
         case .alacritty: "Alacritty"
         case .hyper: "Hyper"

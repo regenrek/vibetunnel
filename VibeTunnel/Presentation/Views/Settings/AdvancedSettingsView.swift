@@ -35,7 +35,7 @@ struct AdvancedSettingsView: View {
                                     .buttonStyle(.bordered)
                                     .opacity(0)
                                     .allowsHitTesting(false)
-                                
+
                                 // Actual content
                                 if cliInstaller.isInstalled {
                                     if cliInstaller.needsUpdate {
@@ -48,17 +48,19 @@ struct AdvancedSettingsView: View {
                                         HStack(spacing: 8) {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .foregroundColor(.green)
-                                            Text("CLI \(cliInstaller.installedVersion?.replacingOccurrences(of: "v", with: "") ?? "unknown") installed")
-                                                .foregroundColor(.secondary)
-                                            
+                                            Text(
+                                                "CLI \(cliInstaller.installedVersion?.replacingOccurrences(of: "v", with: "") ?? "unknown") installed"
+                                            )
+                                            .foregroundColor(.secondary)
+
                                             // Show reinstall button in debug mode
                                             if debugMode {
                                                 Button(action: {
                                                     cliInstaller.installCLITool()
-                                                }) {
+                                                }, label: {
                                                     Image(systemName: "arrow.clockwise.circle")
                                                         .font(.system(size: 14))
-                                                }
+                                                })
                                                 .buttonStyle(.plain)
                                                 .foregroundColor(.accentColor)
                                                 .help("Reinstall CLI tool")
@@ -76,16 +78,18 @@ struct AdvancedSettingsView: View {
                                 }
                             }
                         }
-                        
+
                         if let error = cliInstaller.lastError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundColor(.red)
                         } else if cliInstaller.isInstalled {
                             if cliInstaller.needsUpdate {
-                                Text("Update available: \(cliInstaller.installedVersion ?? "unknown") → \(cliInstaller.bundledVersion ?? "unknown")")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text(
+                                    "Update available: \(cliInstaller.installedVersion ?? "unknown") → \(cliInstaller.bundledVersion ?? "unknown")"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             } else {
                                 Text("The 'vt' command line tool is installed at /usr/local/bin/vt")
                                     .font(.caption)

@@ -157,7 +157,7 @@ struct InteractiveAppIcon: View {
                     .scaleEffect(1.2)
                     .shadow(color: glowColor, radius: 30, x: 0, y: 0)
                     .allowsHitTesting(false)
-                
+
                 // Secondary glow layer
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
@@ -168,7 +168,7 @@ struct InteractiveAppIcon: View {
                     .scaleEffect(1.1)
                     .shadow(color: glowColor, radius: 20, x: 0, y: 0)
                     .allowsHitTesting(false)
-                
+
                 // Main icon with shadow
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
@@ -204,7 +204,7 @@ struct InteractiveAppIcon: View {
             startFloatingAnimation()
         }
     }
-    
+
     private var glowColor: Color {
         if colorScheme == .dark {
             // Greenish-gold glow for dark mode
@@ -230,7 +230,7 @@ struct InteractiveAppIcon: View {
     private var shadowOffset: CGFloat {
         isHovering ? 10 : 6
     }
-    
+
     private func startFloatingAnimation() {
         withAnimation(
             Animation.easeInOut(duration: 3.0)

@@ -74,7 +74,8 @@ class BufferWebSocketClient: NSObject {
         // Add authentication header if needed
         if let config = UserDefaults.standard.data(forKey: "savedServerConfig"),
            let serverConfig = try? JSONDecoder().decode(ServerConfig.self, from: config),
-           let authHeader = serverConfig.authorizationHeader {
+           let authHeader = serverConfig.authorizationHeader
+        {
             request.setValue(authHeader, forHTTPHeaderField: "Authorization")
         }
 
@@ -197,7 +198,8 @@ class BufferWebSocketClient: NSObject {
 
         // Decode terminal event
         if let event = decodeTerminalEvent(from: messageData),
-           let handler = subscriptions[sessionId] {
+           let handler = subscriptions[sessionId]
+        {
             handler(event)
         }
     }
@@ -206,23 +208,27 @@ class BufferWebSocketClient: NSObject {
         // Decode the JSON payload from the binary message
         do {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let type = json["type"] as? String {
+               let type = json["type"] as? String
+            {
                 switch type {
                 case "header":
                     if let width = json["width"] as? Int,
-                       let height = json["height"] as? Int {
+                       let height = json["height"] as? Int
+                    {
                         return .header(width: width, height: height)
                     }
 
                 case "output":
                     if let timestamp = json["timestamp"] as? Double,
-                       let outputData = json["data"] as? String {
+                       let outputData = json["data"] as? String
+                    {
                         return .output(timestamp: timestamp, data: outputData)
                     }
 
                 case "resize":
                     if let timestamp = json["timestamp"] as? Double,
-                       let dimensions = json["dimensions"] as? String {
+                       let dimensions = json["dimensions"] as? String
+                    {
                         return .resize(timestamp: timestamp, dimensions: dimensions)
                     }
 

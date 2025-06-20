@@ -400,7 +400,8 @@ class TerminalViewModel {
             let parts = dimensions.split(separator: "x")
             if parts.count == 2,
                let cols = Int(parts[0]),
-               let rows = Int(parts[1]) {
+               let rows = Int(parts[1])
+            {
                 // Update terminal dimensions
                 terminalCols = cols
                 terminalRows = rows

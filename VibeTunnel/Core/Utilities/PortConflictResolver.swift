@@ -8,18 +8,18 @@ struct ProcessDetails {
     let path: String?
     let parentPid: Int?
     let bundleIdentifier: String?
-    
+
     /// Check if this is a VibeTunnel process
     var isVibeTunnel: Bool {
         if let bundleId = bundleIdentifier {
             return bundleId.contains("vibetunnel") || bundleId.contains("VibeTunnel")
         }
-        if let path = path {
+        if let path {
             return path.contains("VibeTunnel")
         }
         return name.contains("VibeTunnel")
     }
-    
+
     /// Check if this is one of our managed servers
     var isManagedServer: Bool {
         name == "tty-fwd" || name == "vibetunnel" || name.contains("node") && (path?.contains("VibeTunnel") ?? false)
@@ -46,17 +46,17 @@ enum ConflictAction {
 @MainActor
 final class PortConflictResolver {
     private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "PortConflictResolver")
-    
+
     static let shared = PortConflictResolver()
-    
+
     private init() {}
-    
+
     /// Check if a port is available
     func isPortAvailable(_ port: Int) async -> Bool {
         let result = await detectConflict(on: port)
         return result == nil
     }
-    
+
     /// Detect what process is using a port
     func detectConflict(on port: Int) async -> PortConflict? {
         do {
@@ -64,35 +64,35 @@ final class PortConflictResolver {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
             process.arguments = ["-i", ":\(port)", "-n", "-P", "-F"]
-            
+
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = Pipe()
-            
+
             try process.run()
             process.waitUntilExit()
-            
+
             guard process.terminationStatus == 0 else {
                 // Port is free
                 return nil
             }
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8), !output.isEmpty else {
                 return nil
             }
-            
+
             // Parse lsof output
             if let processInfo = parseLsofOutput(output) {
                 // Get root process
                 let rootProcess = await findRootProcess(for: processInfo)
-                
+
                 // Find alternative ports
                 let alternatives = await findAvailablePorts(near: port, count: 3)
-                
+
                 // Determine action
                 let action = determineAction(for: processInfo, rootProcess: rootProcess)
-                
+
                 return PortConflict(
                     port: port,
                     process: processInfo,
@@ -104,64 +104,64 @@ final class PortConflictResolver {
         } catch {
             logger.error("Failed to check port conflict: \(error)")
         }
-        
+
         return nil
     }
-    
+
     /// Kill a process and optionally its parent VibeTunnel instance
     func resolveConflict(_ conflict: PortConflict) async throws {
         switch conflict.suggestedAction {
         case .killOurInstance(let pid, let processName):
             logger.info("Killing conflicting process: \(processName) (PID: \(pid))")
-            
+
             // Kill the process
             let killProcess = Process()
             killProcess.executableURL = URL(fileURLWithPath: "/bin/kill")
             killProcess.arguments = ["-9", "\(pid)"]
-            
+
             try killProcess.run()
             killProcess.waitUntilExit()
-            
+
             if killProcess.terminationStatus != 0 {
                 throw PortConflictError.failedToKillProcess(pid: pid)
             }
-            
+
             // Wait a moment for port to be released
             try await Task.sleep(for: .milliseconds(500))
-            
+
         case .suggestAlternativePort, .reportExternalApp:
             // These require user action
             throw PortConflictError.requiresUserAction
         }
     }
-    
+
     /// Force kill any process, regardless of type
     func forceKillProcess(_ conflict: PortConflict) async throws {
         logger.info("Force killing process: \(conflict.process.name) (PID: \(conflict.process.pid))")
-        
+
         // Kill the process
         let killProcess = Process()
         killProcess.executableURL = URL(fileURLWithPath: "/bin/kill")
         killProcess.arguments = ["-9", "\(conflict.process.pid)"]
-        
+
         try killProcess.run()
         killProcess.waitUntilExit()
-        
+
         if killProcess.terminationStatus != 0 {
             // Try with sudo if regular kill fails
             logger.warning("Regular kill failed, attempting with elevated privileges")
             throw PortConflictError.failedToKillProcess(pid: conflict.process.pid)
         }
-        
+
         // Wait a moment for port to be released
         try await Task.sleep(for: .milliseconds(500))
     }
-    
+
     /// Find available ports near a given port
     func findAvailablePorts(near port: Int, count: Int) async -> [Int] {
         var availablePorts: [Int] = []
-        let range = max(1024, port - 10)...(port + 100)
-        
+        let range = max(1_024, port - 10)...(port + 100)
+
         for candidatePort in range where candidatePort != port {
             if await isPortAvailable(candidatePort) {
                 availablePorts.append(candidatePort)
@@ -170,17 +170,17 @@ final class PortConflictResolver {
                 }
             }
         }
-        
+
         return availablePorts
     }
-    
+
     // MARK: - Private Methods
-    
+
     private func parseLsofOutput(_ output: String) -> ProcessDetails? {
         var pid: Int?
         var name: String?
         var ppid: Int?
-        
+
         // Parse lsof field output format
         let lines = output.components(separatedBy: "\n")
         for line in lines {
@@ -192,15 +192,15 @@ final class PortConflictResolver {
                 ppid = Int(line.dropFirst())
             }
         }
-        
-        guard let pid = pid, let name = name else {
+
+        guard let pid, let name else {
             return nil
         }
-        
+
         // Get additional process info
         let path = getProcessPath(pid: pid)
         let bundleId = getProcessBundleIdentifier(pid: pid)
-        
+
         return ProcessDetails(
             pid: pid,
             name: name,
@@ -209,20 +209,20 @@ final class PortConflictResolver {
             bundleIdentifier: bundleId
         )
     }
-    
+
     private func getProcessPath(pid: Int) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
         process.arguments = ["-p", "\(pid)", "-o", "comm="]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = Pipe()
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 return output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -230,24 +230,24 @@ final class PortConflictResolver {
         } catch {
             logger.debug("Failed to get process path: \(error)")
         }
-        
+
         return nil
     }
-    
+
     private func getProcessBundleIdentifier(pid: Int) -> String? {
         // Try to get bundle identifier using lsappinfo
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
         process.arguments = ["info", "-only", "bundleid", "\(pid)"]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = Pipe()
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 // Parse bundleid from output
@@ -262,17 +262,17 @@ final class PortConflictResolver {
         } catch {
             logger.debug("Failed to get bundle identifier: \(error)")
         }
-        
+
         return nil
     }
-    
+
     private func findRootProcess(for process: ProcessDetails) async -> ProcessDetails? {
         var current = process
         var visited = Set<Int>()
-        
+
         while let parentPid = current.parentPid, parentPid > 1, !visited.contains(parentPid) {
             visited.insert(current.pid)
-            
+
             // Get parent process info
             if let parentInfo = await getProcessInfo(pid: parentPid) {
                 // If parent is VibeTunnel, it's our root
@@ -284,37 +284,37 @@ final class PortConflictResolver {
                 break
             }
         }
-        
+
         return nil
     }
-    
+
     private func getProcessInfo(pid: Int) async -> ProcessDetails? {
         // Get process info using ps
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
         process.arguments = ["-p", "\(pid)", "-o", "pid=,ppid=,comm="]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = Pipe()
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 let components = output.trimmingCharacters(in: .whitespacesAndNewlines)
                     .components(separatedBy: .whitespaces)
                     .filter { !$0.isEmpty }
-                
+
                 if components.count >= 3 {
                     let pid = Int(components[0]) ?? 0
                     let ppid = Int(components[1]) ?? 0
                     let name = components[2...].joined(separator: " ")
                     let path = getProcessPath(pid: pid)
                     let bundleId = getProcessBundleIdentifier(pid: pid)
-                    
+
                     return ProcessDetails(
                         pid: pid,
                         name: name,
@@ -327,26 +327,26 @@ final class PortConflictResolver {
         } catch {
             logger.debug("Failed to get process info: \(error)")
         }
-        
+
         return nil
     }
-    
+
     private func determineAction(for process: ProcessDetails, rootProcess: ProcessDetails?) -> ConflictAction {
         // If it's our managed server, kill it
         if process.isManagedServer {
             return .killOurInstance(pid: process.pid, processName: process.name)
         }
-        
+
         // If root process is VibeTunnel, kill the whole app
         if let root = rootProcess, root.isVibeTunnel {
             return .killOurInstance(pid: root.pid, processName: root.name)
         }
-        
+
         // If the process itself is VibeTunnel
         if process.isVibeTunnel {
             return .killOurInstance(pid: process.pid, processName: process.name)
         }
-        
+
         // Otherwise, it's an external app
         return .reportExternalApp(name: process.name)
     }
@@ -357,13 +357,13 @@ final class PortConflictResolver {
 enum PortConflictError: LocalizedError {
     case failedToKillProcess(pid: Int)
     case requiresUserAction
-    
+
     var errorDescription: String? {
         switch self {
         case .failedToKillProcess(let pid):
-            return "Failed to terminate process with PID \(pid)"
+            "Failed to terminate process with PID \(pid)"
         case .requiresUserAction:
-            return "This conflict requires user action to resolve"
+            "This conflict requires user action to resolve"
         }
     }
 }

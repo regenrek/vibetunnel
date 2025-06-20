@@ -125,12 +125,12 @@ struct WelcomeView: View {
         } else {
             // Finish action - save welcome version and close window
             welcomeVersion = AppConstants.currentWelcomeVersion
-            
+
             // Close the window properly through the window controller
             if let window = NSApp.windows.first(where: { $0.contentViewController is NSHostingController<Self> }) {
                 window.close()
             }
-            
+
             // Open settings after a delay to ensure the window is fully closed
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(200))

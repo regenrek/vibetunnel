@@ -173,9 +173,9 @@ jobs:
           -scheme VibeTunnel \
           -configuration Debug \
           -destination "platform=macOS" \
-          CODE_SIGN_IDENTITY="-" \
-          CODE_SIGNING_REQUIRED=YES \
-          CODE_SIGN_ENTITLEMENTS="" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
           ENABLE_HARDENED_RUNTIME=NO \
           | xcbeautify
           
@@ -188,9 +188,9 @@ jobs:
           -scheme VibeTunnel \
           -configuration Release \
           -destination "platform=macOS" \
-          CODE_SIGN_IDENTITY="-" \
-          CODE_SIGNING_REQUIRED=YES \
-          CODE_SIGN_ENTITLEMENTS="" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
           ENABLE_HARDENED_RUNTIME=NO \
           | xcbeautify
           
@@ -204,9 +204,9 @@ jobs:
           -configuration Debug \
           -destination "platform=macOS" \
           -resultBundlePath TestResults \
-          CODE_SIGN_IDENTITY="-" \
-          CODE_SIGNING_REQUIRED=YES \
-          CODE_SIGN_ENTITLEMENTS="" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
           ENABLE_HARDENED_RUNTIME=NO \
           | xcbeautify
           

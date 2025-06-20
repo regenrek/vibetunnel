@@ -713,9 +713,9 @@ private struct PortConfigurationView: View {
                                 .font(.caption)
                             }
                         }
-                        
+
                         Spacer()
-                        
+
                         Button {
                             Task {
                                 await forceQuitConflictingProcess(conflict)

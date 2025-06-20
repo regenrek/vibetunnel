@@ -127,11 +127,11 @@ class ServerManager {
             ))
             return
         }
-        
+
         // Check for port conflicts before starting
-        if let conflict = await PortConflictResolver.shared.detectConflict(on: Int(self.port) ?? 4020) {
+        if let conflict = await PortConflictResolver.shared.detectConflict(on: Int(self.port) ?? 4_020) {
             logger.warning("Port \(self.port) is in use by \(conflict.process.name) (PID: \(conflict.process.pid))")
-            
+
             // Handle based on conflict type
             switch conflict.suggestedAction {
             case .killOurInstance(let pid, let processName):
@@ -141,7 +141,7 @@ class ServerManager {
                     message: "Port \(self.port) is used by another instance. Terminating conflicting process...",
                     source: serverMode
                 ))
-                
+
                 do {
                     try await PortConflictResolver.shared.resolveConflict(conflict)
                     logContinuation?.yield(ServerLogEntry(
@@ -149,7 +149,7 @@ class ServerManager {
                         message: "Conflicting process terminated successfully",
                         source: serverMode
                     ))
-                    
+
                     // Wait a moment for port to be fully released
                     try await Task.sleep(for: .milliseconds(500))
                 } catch {
@@ -162,17 +162,21 @@ class ServerManager {
                     ))
                     return
                 }
-                
+
             case .reportExternalApp(let appName):
                 logger.error("Port \(self.port) is used by external app: \(appName)")
-                lastError = PortConflictError.portInUseByApp(appName: appName, port: Int(self.port) ?? 4020, alternatives: conflict.alternativePorts)
+                lastError = PortConflictError.portInUseByApp(
+                    appName: appName,
+                    port: Int(self.port) ?? 4_020,
+                    alternatives: conflict.alternativePorts
+                )
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,
                     message: "Port \(self.port) is used by \(appName). Please choose a different port.",
                     source: serverMode
                 ))
                 return
-                
+
             case .suggestAlternativePort:
                 // This shouldn't happen in our case
                 logger.warning("Port conflict requires alternative port")
@@ -322,7 +326,7 @@ class ServerManager {
 
         // Update mode
         serverMode = mode
-        
+
         // Update VT config file to match
         await updateVTConfig(mode: mode)
 
@@ -551,21 +555,21 @@ class ServerManager {
         // Authentication cache clearing is no longer needed as external servers handle their own auth
         logger.info("Authentication cache clearing requested - handled by external server")
     }
-    
+
     /// Update VT config file with the preferred server
     private func updateVTConfig(mode: ServerMode) async {
         let configPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".vibetunnel")
             .appendingPathComponent("config.json")
-        
+
         // Ensure .vibetunnel directory exists
         let vibetunnelDir = configPath.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: vibetunnelDir, withIntermediateDirectories: true)
-        
+
         // Prepare config data
         let serverValue = mode == .rust ? "rust" : "go" // Map hummingbird to go as well
         let config = ["server": serverValue]
-        
+
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -584,7 +588,7 @@ extension PortConflictError {
     static func portInUseByApp(appName: String, port: Int, alternatives: [Int]) -> Error {
         NSError(
             domain: "sh.vibetunnel.vibetunnel.ServerManager",
-            code: 1001,
+            code: 1_001,
             userInfo: [
                 NSLocalizedDescriptionKey: "Port \(port) is in use by \(appName)",
                 NSLocalizedFailureReasonErrorKey: "The port is being used by another application",

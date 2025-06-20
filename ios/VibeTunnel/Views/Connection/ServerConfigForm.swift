@@ -197,7 +197,8 @@ struct ServerConfigForm: View {
     private func loadRecentServers() {
         // Load recent servers from UserDefaults
         if let data = UserDefaults.standard.data(forKey: "recentServers"),
-           let servers = try? JSONDecoder().decode([ServerConfig].self, from: data) {
+           let servers = try? JSONDecoder().decode([ServerConfig].self, from: data)
+        {
             recentServers = servers
         }
     }

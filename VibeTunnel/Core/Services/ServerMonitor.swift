@@ -24,7 +24,6 @@ public final class ServerMonitor {
         ServerManager.shared.lastError
     }
 
-
     /// Internal state tracking
     public var isServerRunning = false
 
@@ -34,7 +33,6 @@ public final class ServerMonitor {
             await syncWithServerManager()
         }
     }
-
 
     /// Updates the current status from the server
     public func updateStatus() {
