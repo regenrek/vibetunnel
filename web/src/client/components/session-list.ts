@@ -99,10 +99,10 @@ export class SessionList extends LitElement {
       : this.sessions;
 
     return html`
-      <div class="font-mono text-sm p-4" style="background: black;">
+      <div class="font-mono text-sm p-4 bg-dark-bg">
         ${filteredSessions.length === 0
           ? html`
-              <div class="text-vs-muted text-center py-8">
+              <div class="text-dark-text-muted text-center py-8">
                 ${this.loading
                   ? 'Loading sessions...'
                   : this.hideExited && this.sessions.length > 0

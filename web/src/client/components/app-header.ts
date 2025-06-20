@@ -1,7 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Session } from './session-list.js';
-import './vibe-logo.js';
+import './terminal-icon.js';
 
 @customElement('app-header')
 export class AppHeader extends LitElement {
@@ -46,109 +46,71 @@ export class AppHeader extends LitElement {
     }
 
     return html`
-      <div class="app-header p-4" style="background: black;">
+      <div class="app-header bg-dark-bg-secondary border-b border-dark-border p-6">
         <!-- Mobile layout -->
-        <div class="flex flex-col gap-3 sm:hidden">
-          <!-- Centered VibeTunnel title -->
-          <div class="text-center">
-            <vibe-logo></vibe-logo>
+        <div class="flex flex-col gap-4 sm:hidden">
+          <!-- Centered Sessions title with stats -->
+          <div class="text-center flex flex-col items-center gap-2">
+            <h1 class="text-2xl font-bold text-accent-green flex items-center gap-3">
+              <terminal-icon size="28"></terminal-icon>
+              <span>Sessions</span>
+            </h1>
+            <p class="text-dark-text-muted text-sm">
+              ${runningSessions.length} ${runningSessions.length === 1 ? 'Session' : 'Sessions'}
+              ${exitedSessions.length > 0 ? `• ${exitedSessions.length} Exited` : ''}
+            </p>
           </div>
 
           <!-- Controls row: left buttons and right buttons -->
           <div class="flex items-center justify-between">
-            <div class="flex gap-1">
+            <div class="flex gap-2">
               ${exitedSessions.length > 0
                 ? html`
                     <button
-                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                      style="background: black; color: #d4d4d4; border: 1px solid ${this.hideExited
-                        ? '#23d18b'
-                        : '#888'};"
+                      class="btn-ghost font-mono text-xs ${this.hideExited
+                        ? 'text-accent-green border border-accent-green'
+                        : ''}"
                       @click=${() =>
                         this.dispatchEvent(
                           new CustomEvent('hide-exited-change', {
                             detail: !this.hideExited,
                           })
                         )}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        const borderColor = this.hideExited ? '#23d18b' : '#888';
-                        btn.style.background = borderColor;
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
                       ${this.hideExited
-                        ? `SHOW EXITED (${exitedSessions.length})`
-                        : `HIDE EXITED (${exitedSessions.length})`}
+                        ? `Show Exited (${exitedSessions.length})`
+                        : `Hide Exited (${exitedSessions.length})`}
                     </button>
                   `
                 : ''}
               ${!this.hideExited && exitedSessions.length > 0
                 ? html`
                     <button
-                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                      class="btn-ghost font-mono text-xs text-status-warning"
                       @click=${this.handleCleanExited}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#d19a66';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
-                      CLEAN EXITED
+                      Clean Exited
                     </button>
                   `
                 : ''}
               ${runningSessions.length > 0 && !this.killingAll
                 ? html`
                     <button
-                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                      class="btn-ghost font-mono text-xs text-status-error"
                       @click=${this.handleKillAll}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#d19a66';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
-                      KILL (${runningSessions.length})
+                      Kill (${runningSessions.length})
                     </button>
                   `
                 : ''}
             </div>
 
-            <div class="flex gap-1">
+            <div class="flex gap-2">
               <button
-                class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                style="background: black; color: #d4d4d4; border: 1px solid #569cd6;"
+                class="btn-primary font-mono text-xs px-4 py-2"
                 @click=${this.handleCreateSession}
-                @mouseover=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  btn.style.background = '#569cd6';
-                  btn.style.color = 'black';
-                }}
-                @mouseout=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  btn.style.background = 'black';
-                  btn.style.color = '#d4d4d4';
-                }}
               >
-                CREATE
+                Create
               </button>
             </div>
           </div>
@@ -156,7 +118,16 @@ export class AppHeader extends LitElement {
 
         <!-- Desktop layout: single row -->
         <div class="hidden sm:flex sm:items-center sm:justify-between">
-          <vibe-logo></vibe-logo>
+          <div class="flex items-center gap-3">
+            <terminal-icon size="32"></terminal-icon>
+            <div>
+              <h1 class="text-xl font-bold text-accent-green">VibeTunnel</h1>
+              <p class="text-dark-text-muted text-sm">
+                ${runningSessions.length} ${runningSessions.length === 1 ? 'Session' : 'Sessions'}
+                ${exitedSessions.length > 0 ? `• ${exitedSessions.length} Exited` : ''}
+              </p>
+            </div>
+          </div>
           <div class="flex items-center gap-3">
             ${exitedSessions.length > 0
               ? html`
@@ -193,61 +164,28 @@ export class AppHeader extends LitElement {
               ${!this.hideExited && this.sessions.filter((s) => s.status === 'exited').length > 0
                 ? html`
                     <button
-                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                      class="btn-ghost font-mono text-xs text-status-warning"
                       @click=${this.handleCleanExited}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#d19a66';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
-                      CLEAN EXITED
+                      Clean Exited
                     </button>
                   `
                 : ''}
               ${runningSessions.length > 0 && !this.killingAll
                 ? html`
                     <button
-                      class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                      style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                      class="btn-ghost font-mono text-xs text-status-error"
                       @click=${this.handleKillAll}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#d19a66';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
-                      KILL ALL (${runningSessions.length})
+                      Kill All (${runningSessions.length})
                     </button>
                   `
                 : ''}
               <button
-                class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                style="background: black; color: #d4d4d4; border: 1px solid #569cd6;"
+                class="btn-primary font-mono text-xs px-4 py-2"
                 @click=${this.handleCreateSession}
-                @mouseover=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  btn.style.background = '#569cd6';
-                  btn.style.color = 'black';
-                }}
-                @mouseout=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  btn.style.background = 'black';
-                  btn.style.color = '#d4d4d4';
-                }}
               >
-                CREATE SESSION
+                Create Session
               </button>
             </div>
           </div>

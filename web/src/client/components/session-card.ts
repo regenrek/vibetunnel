@@ -156,17 +156,17 @@ export class SessionCard extends LitElement {
   render() {
     return html`
       <div
-        class="bg-vs-bg rounded shadow cursor-pointer overflow-hidden ${this.killing
-          ? 'opacity-60'
-          : ''} ${this.hasEscPrompt ? 'border-2 border-orange-500' : 'border border-vs-border'}"
+        class="card cursor-pointer overflow-hidden ${this.killing ? 'opacity-60' : ''} ${this
+          .hasEscPrompt
+          ? 'border-2 border-status-warning'
+          : ''}"
         @click=${this.handleCardClick}
       >
         <!-- Compact Header -->
         <div
-          class="flex justify-between items-center px-3 py-2 border-b border-vs-border"
-          style="background: black;"
+          class="flex justify-between items-center px-3 py-2 border-b border-dark-border bg-dark-bg-tertiary"
         >
-          <div class="text-xs font-mono pr-2 flex-1 min-w-0" style="color: #569cd6;">
+          <div class="text-xs font-mono pr-2 flex-1 min-w-0 text-accent-green">
             <div class="truncate" title="${this.session.name || this.session.command}">
               ${this.session.name || this.session.command}
             </div>
@@ -174,24 +174,9 @@ export class SessionCard extends LitElement {
           ${this.session.status === 'running'
             ? html`
                 <button
-                  class="font-mono px-2 py-0.5 text-xs disabled:opacity-50 flex-shrink-0 rounded transition-colors"
-                  style="background: black; color: #d4d4d4; border: 1px solid #d19a66;"
+                  class="btn-ghost font-mono text-xs py-1 text-status-error disabled:opacity-50 flex-shrink-0"
                   @click=${this.handleKillClick}
                   ?disabled=${this.killing}
-                  @mouseover=${(e: Event) => {
-                    const btn = e.target as HTMLElement;
-                    if (!this.killing) {
-                      btn.style.background = '#d19a66';
-                      btn.style.color = 'black';
-                    }
-                  }}
-                  @mouseout=${(e: Event) => {
-                    const btn = e.target as HTMLElement;
-                    if (!this.killing) {
-                      btn.style.background = 'black';
-                      btn.style.color = '#d4d4d4';
-                    }
-                  }}
                 >
                   ${this.killing ? 'killing...' : 'kill'}
                 </button>
@@ -200,10 +185,10 @@ export class SessionCard extends LitElement {
         </div>
 
         <!-- Terminal display (main content) -->
-        <div class="session-preview bg-black overflow-hidden" style="aspect-ratio: 640/480;">
+        <div class="session-preview bg-dark-bg overflow-hidden" style="aspect-ratio: 640/480;">
           ${this.killing
             ? html`
-                <div class="w-full h-full flex items-center justify-center text-vs-warning">
+                <div class="w-full h-full flex items-center justify-center text-status-error">
                   <div class="text-center font-mono">
                     <div class="text-4xl mb-2">${this.getKillingText()}</div>
                     <div class="text-sm">Killing session...</div>
@@ -222,8 +207,7 @@ export class SessionCard extends LitElement {
 
         <!-- Compact Footer -->
         <div
-          class="px-3 py-2 text-vs-muted text-xs border-t border-vs-border"
-          style="background: black;"
+          class="px-3 py-2 text-dark-text-muted text-xs border-t border-dark-border bg-dark-bg-tertiary"
         >
           <div class="flex justify-between items-center min-w-0">
             <span class="${this.getStatusColor()} text-xs flex items-center gap-1 flex-shrink-0">
@@ -233,7 +217,7 @@ export class SessionCard extends LitElement {
             ${this.session.pid
               ? html`
                   <span
-                    class="cursor-pointer hover:text-vs-accent transition-colors text-xs flex-shrink-0 ml-2"
+                    class="cursor-pointer hover:text-accent-green transition-colors text-xs flex-shrink-0 ml-2"
                     @click=${this.handlePidClick}
                     title="Click to copy PID"
                   >
@@ -261,15 +245,15 @@ export class SessionCard extends LitElement {
 
   private getStatusColor(): string {
     if (this.session.waiting) {
-      return 'text-vs-muted';
+      return 'text-dark-text-muted';
     }
-    return this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning';
+    return this.session.status === 'running' ? 'text-status-success' : 'text-status-warning';
   }
 
   private getStatusDotColor(): string {
     if (this.session.waiting) {
-      return 'bg-gray-500';
+      return 'bg-dark-text-muted';
     }
-    return this.session.status === 'running' ? 'bg-green-500' : 'bg-orange-500';
+    return this.session.status === 'running' ? 'bg-status-success' : 'bg-status-warning';
   }
 }
