@@ -5,13 +5,13 @@ export interface RemoteServer {
   token: string;
   registeredAt: Date;
   lastHeartbeat: Date;
-  sessionCount: number;
-  status: 'online' | 'offline';
+  sessionIds: Set<string>; // Track which sessions belong to this remote
 }
 
 export class RemoteRegistry {
   private remotes: Map<string, RemoteServer> = new Map();
   private remotesByName: Map<string, RemoteServer> = new Map();
+  private sessionToRemote: Map<string, string> = new Map(); // sessionId -> remoteId
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private readonly HEALTH_CHECK_INTERVAL = 15000; // Check every 15 seconds
   private readonly HEALTH_CHECK_TIMEOUT = 5000; // 5 second timeout per check
@@ -20,7 +20,9 @@ export class RemoteRegistry {
     this.startHealthChecker();
   }
 
-  register(remote: Omit<RemoteServer, 'registeredAt' | 'lastHeartbeat' | 'status'>): RemoteServer {
+  register(
+    remote: Omit<RemoteServer, 'registeredAt' | 'lastHeartbeat' | 'sessionIds'>
+  ): RemoteServer {
     // Check if a remote with the same name already exists
     if (this.remotesByName.has(remote.name)) {
       throw new Error(`Remote with name '${remote.name}' is already registered`);
@@ -31,7 +33,7 @@ export class RemoteRegistry {
       ...remote,
       registeredAt: now,
       lastHeartbeat: now,
-      status: 'online',
+      sessionIds: new Set<string>(),
     };
 
     this.remotes.set(remote.id, registeredRemote);
@@ -48,6 +50,12 @@ export class RemoteRegistry {
     const remote = this.remotes.get(remoteId);
     if (remote) {
       console.log(`Remote unregistered: ${remote.name} (${remoteId})`);
+
+      // Clean up session mappings
+      for (const sessionId of remote.sessionIds) {
+        this.sessionToRemote.delete(sessionId);
+      }
+
       this.remotesByName.delete(remote.name);
       return this.remotes.delete(remoteId);
     }
@@ -66,8 +74,25 @@ export class RemoteRegistry {
     return Array.from(this.remotes.values());
   }
 
-  getOnlineRemotes(): RemoteServer[] {
-    return this.getAllRemotes().filter((r) => r.status === 'online');
+  getRemoteBySessionId(sessionId: string): RemoteServer | undefined {
+    const remoteId = this.sessionToRemote.get(sessionId);
+    return remoteId ? this.remotes.get(remoteId) : undefined;
+  }
+
+  updateRemoteSessions(remoteId: string, sessionIds: string[]): void {
+    const remote = this.remotes.get(remoteId);
+    if (!remote) return;
+
+    // Remove old session mappings
+    for (const oldSessionId of remote.sessionIds) {
+      this.sessionToRemote.delete(oldSessionId);
+    }
+
+    // Update with new sessions
+    remote.sessionIds = new Set(sessionIds);
+    for (const sessionId of sessionIds) {
+      this.sessionToRemote.set(sessionId, remoteId);
+    }
   }
 
   private async checkRemoteHealth(remote: RemoteServer): Promise<void> {
@@ -80,30 +105,38 @@ export class RemoteRegistry {
         Authorization: `Bearer ${remote.token}`,
       };
 
-      const response = await fetch(`${remote.url}/api/sessions`, {
+      // First try health endpoint, fall back to sessions
+      let response = await fetch(`${remote.url}/api/health`, {
         headers,
         signal: controller.signal,
-      });
+      }).catch(() => null);
+
+      // If health endpoint doesn't exist, try sessions
+      if (!response || response.status === 404) {
+        response = await fetch(`${remote.url}/api/sessions`, {
+          headers,
+          signal: controller.signal,
+        });
+      }
 
       clearTimeout(timeoutId);
 
       if (response.ok) {
-        const sessions = await response.json();
         remote.lastHeartbeat = new Date();
-        remote.sessionCount = Array.isArray(sessions) ? sessions.length : 0;
 
-        if (remote.status !== 'online') {
-          remote.status = 'online';
-          console.log(`Remote came online: ${remote.name} (${remote.id})`);
+        // If we got sessions, update the session tracking
+        if (response.url.endsWith('/api/sessions')) {
+          const sessions = await response.json();
+          const sessionIds = Array.isArray(sessions) ? sessions.map((s: any) => s.id) : [];
+          this.updateRemoteSessions(remote.id, sessionIds);
         }
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
-      if (remote.status !== 'offline') {
-        remote.status = 'offline';
-        console.log(`Remote went offline: ${remote.name} (${remote.id}) - ${error}`);
-      }
+      console.log(`Remote failed health check: ${remote.name} (${remote.id}) - ${error}`);
+      // Remove the remote if it fails health check
+      this.unregister(remote.id);
     }
   }
 

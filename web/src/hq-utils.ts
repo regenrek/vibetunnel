@@ -1,44 +1,6 @@
 import { RemoteRegistry } from './remote-registry.js';
 import { Request, Response, NextFunction } from 'express';
 
-export interface SessionIdInfo {
-  remoteId: string;
-  sessionId: string;
-  isLocal: boolean;
-}
-
-/**
- * Parse a potentially namespaced session ID
- * Format: "remoteId:sessionId" or just "sessionId" for local
- */
-export function parseSessionId(namespacedId: string): SessionIdInfo {
-  const parts = namespacedId.split(':');
-
-  if (parts.length === 2) {
-    return {
-      remoteId: parts[0],
-      sessionId: parts[1],
-      isLocal: false,
-    };
-  }
-
-  return {
-    remoteId: 'local',
-    sessionId: namespacedId,
-    isLocal: true,
-  };
-}
-
-/**
- * Create a namespaced session ID
- */
-export function createNamespacedId(remoteId: string, sessionId: string): string {
-  if (remoteId === 'local') {
-    return sessionId;
-  }
-  return `${remoteId}:${sessionId}`;
-}
-
 /**
  * Proxy middleware for forwarding session operations to remote servers
  */
@@ -58,30 +20,15 @@ export function createSessionProxyMiddleware(
       return next();
     }
 
-    const { remoteId, sessionId: actualSessionId, isLocal } = parseSessionId(sessionId);
-
-    // If it's a local session, continue with normal processing
-    if (isLocal) {
-      // Replace the session ID with the actual ID for local processing
-      if (req.params.sessionId) {
-        req.params.sessionId = actualSessionId;
-      }
+    // Check if this session belongs to a remote
+    const remote = remoteRegistry.getRemoteBySessionId(sessionId);
+    if (!remote) {
+      // It's a local session, continue with normal processing
       return next();
     }
 
-    // Get the remote server
-    const remote = remoteRegistry.getRemote(remoteId);
-    if (!remote) {
-      return res.status(404).json({ error: 'Remote server not found' });
-    }
-
-    if (remote.status !== 'online') {
-      return res.status(503).json({ error: 'Remote server is offline' });
-    }
-
-    // Build the target URL
-    const targetPath = req.originalUrl.replace(sessionId, actualSessionId);
-    const targetUrl = `${remote.url}${targetPath}`;
+    // Build the target URL - keep the same path
+    const targetUrl = `${remote.url}${req.originalUrl}`;
 
     try {
       // Forward the request

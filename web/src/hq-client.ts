@@ -7,7 +7,6 @@ export class HQClient {
   private readonly token: string;
   private readonly hqUsername: string;
   private readonly hqPassword: string;
-  private registrationRetryTimeout: NodeJS.Timeout | null = null;
 
   constructor(hqUrl: string, hqUsername: string, hqPassword: string, remoteName: string) {
     this.hqUrl = hqUrl;
@@ -45,25 +44,22 @@ export class HQClient {
       console.log(`Token: ${this.token}`);
     } catch (error) {
       console.error('Failed to register with HQ:', error);
-      // Retry registration after 5 seconds
-      this.registrationRetryTimeout = setTimeout(() => this.register(), 5000);
+      throw error; // Let the caller handle retries if needed
     }
   }
 
-  destroy(): void {
-    if (this.registrationRetryTimeout) {
-      clearTimeout(this.registrationRetryTimeout);
-    }
-
-    // Try to unregister
-    fetch(`${this.hqUrl}/api/remotes/${this.remoteId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${this.hqUsername}:${this.hqPassword}`).toString('base64')}`,
-      },
-    }).catch(() => {
+  async destroy(): Promise<void> {
+    try {
+      // Try to unregister
+      await fetch(`${this.hqUrl}/api/remotes/${this.remoteId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${this.hqUsername}:${this.hqPassword}`).toString('base64')}`,
+        },
+      });
+    } catch {
       // Ignore errors during shutdown
-    });
+    }
   }
 
   getRemoteId(): string {

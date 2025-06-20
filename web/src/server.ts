@@ -121,39 +121,18 @@ if (basicAuthUsername && basicAuthPassword) {
   );
 }
 
-// tty-fwd binary path - check multiple possible locations
-const possibleTtyFwdPaths = [
-  path.resolve(__dirname, '..', '..', 'tty-fwd', 'target', 'release', 'tty-fwd'),
-  path.resolve(__dirname, '..', '..', '..', 'tty-fwd', 'target', 'release', 'tty-fwd'),
-  'tty-fwd', // System PATH
-];
+// Control directory for session data
+const CONTROL_DIR =
+  process.env.VIBETUNNEL_CONTROL_DIR || path.join(os.homedir(), '.vibetunnel/control');
 
-let TTY_FWD_PATH = '';
-for (const pathToCheck of possibleTtyFwdPaths) {
-  if (fs.existsSync(pathToCheck)) {
-    TTY_FWD_PATH = pathToCheck;
-    break;
-  }
-}
-
-if (!TTY_FWD_PATH) {
-  console.error('tty-fwd binary not found. Please ensure it is built and available.');
-  process.exit(1);
-}
-
-const TTY_FWD_CONTROL_DIR =
-  process.env.TTY_FWD_CONTROL_DIR || path.join(os.homedir(), '.vibetunnel/control');
-
-// Initialize PTY service with configuration
+// Initialize PTY service with node-pty implementation
 const ptyService = new PtyService({
-  implementation: (process.env.PTY_IMPLEMENTATION as 'node-pty' | 'tty-fwd' | 'auto') || 'auto',
-  controlPath: TTY_FWD_CONTROL_DIR,
-  fallbackToTtyFwd: process.env.PTY_FALLBACK_TTY_FWD !== 'false',
-  ttyFwdPath: TTY_FWD_PATH || undefined,
+  implementation: 'node-pty',
+  controlPath: CONTROL_DIR,
 });
 
 // Initialize Terminal Manager for server-side terminal state
-const terminalManager = new TerminalManager(TTY_FWD_CONTROL_DIR);
+const terminalManager = new TerminalManager(CONTROL_DIR);
 
 // Initialize Stream Watcher for efficient file streaming
 const streamWatcher = new StreamWatcher();
@@ -174,18 +153,15 @@ if (hqUrl && hqUsername && hqPassword && remoteName) {
 }
 
 // Ensure control directory exists
-if (!fs.existsSync(TTY_FWD_CONTROL_DIR)) {
-  fs.mkdirSync(TTY_FWD_CONTROL_DIR, { recursive: true });
-  console.log(`Created control directory: ${TTY_FWD_CONTROL_DIR}`);
+if (!fs.existsSync(CONTROL_DIR)) {
+  fs.mkdirSync(CONTROL_DIR, { recursive: true });
+  console.log(`Created control directory: ${CONTROL_DIR}`);
 } else {
-  console.log(`Using existing control directory: ${TTY_FWD_CONTROL_DIR}`);
+  console.log(`Using existing control directory: ${CONTROL_DIR}`);
 }
 
 console.log(`PTY Service: Using ${ptyService.getCurrentImplementation()} implementation`);
-if (ptyService.isUsingTtyFwd()) {
-  console.log(`Using tty-fwd at: ${TTY_FWD_PATH}`);
-}
-console.log(`Control directory: ${TTY_FWD_CONTROL_DIR}`);
+console.log(`Control directory: ${CONTROL_DIR}`);
 
 // Helper function to resolve paths with ~ expansion
 function resolvePath(inputPath: string, fallback?: string): string {
@@ -263,6 +239,13 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Hot reload functionality for development
 const hotReloadClients = new Set<WebSocket>();
 
+// === HEALTH CHECK ===
+
+// Simple health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // === HQ/REMOTE MANAGEMENT ===
 
 // Register a remote server (HQ mode only)
@@ -283,7 +266,6 @@ app.post('/api/remotes/register', (req, res) => {
       name,
       url,
       token,
-      sessionCount: 0,
     });
 
     res.json({ success: true, remote });
@@ -355,19 +337,18 @@ app.get('/api/sessions', async (req, res) => {
         lastModified: lastModified,
         pid: sessionInfo.pid,
         waiting: sessionInfo.waiting,
-        remoteId: 'local', // Mark as local session
-        remoteName: 'Local',
+        remoteName: 'Local', // Local sessions belong to "Local"
       };
     });
 
     let allSessions = localSessionData;
 
-    // If in HQ mode, fetch sessions from all online remotes
+    // If in HQ mode, fetch sessions from all remotes
     if (isHQMode && remoteRegistry) {
-      const onlineRemotes = remoteRegistry.getOnlineRemotes();
+      const allRemotes = remoteRegistry.getAllRemotes();
 
       // Fetch sessions from each remote in parallel
-      const remoteSessionPromises = onlineRemotes.map(async (remote) => {
+      const remoteSessionPromises = allRemotes.map(async (remote) => {
         try {
           const response = await fetch(`${remote.url}/api/sessions`, {
             headers: {
@@ -378,11 +359,14 @@ app.get('/api/sessions', async (req, res) => {
 
           if (response.ok) {
             const remoteSessions = await response.json();
+
+            // Track session IDs for this remote
+            const sessionIds = remoteSessions.map((s: any) => s.id);
+            remoteRegistry.updateRemoteSessions(remote.id, sessionIds);
+
             // Add remote info to each session
             return remoteSessions.map((session: any) => ({
               ...session,
-              id: `${remote.id}:${session.id}`, // Namespace the session ID
-              remoteId: remote.id,
               remoteName: remote.name,
             }));
           }
@@ -426,16 +410,12 @@ app.post('/api/sessions', async (req, res) => {
         return res.status(404).json({ error: 'Remote server not found' });
       }
 
-      if (remote.status !== 'online') {
-        return res.status(503).json({ error: 'Remote server is offline' });
-      }
-
       try {
         const response = await fetch(`${remote.url}/api/sessions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Basic ${Buffer.from(`user:${basicAuthPassword}`).toString('base64')}`,
+            Authorization: `Bearer ${remote.token}`, // Use remote's token
           },
           body: JSON.stringify({ command, workingDir, name }),
           signal: AbortSignal.timeout(10000), // 10 second timeout
@@ -447,8 +427,7 @@ app.post('/api/sessions', async (req, res) => {
         }
 
         const result = await response.json();
-        // Namespace the session ID
-        res.json({ sessionId: `${remoteId}:${result.sessionId}` });
+        res.json(result); // Return sessionId as-is, no namespacing
         return;
       } catch (error) {
         console.error(`Failed to create session on remote ${remote.name}:`, error);
@@ -526,16 +505,58 @@ app.delete('/api/sessions/:sessionId/cleanup', sessionProxy, async (req, res) =>
   }
 });
 
-// Cleanup all exited sessions
+// Cleanup all exited sessions (local and remote)
 app.post('/api/cleanup-exited', async (req, res) => {
   try {
-    const cleanedSessions = ptyService.cleanupExitedSessions();
-    console.log(`Cleaned up ${cleanedSessions.length} exited sessions`);
+    // Clean up local sessions
+    const localCleanedSessions = ptyService.cleanupExitedSessions();
+    console.log(`Cleaned up ${localCleanedSessions.length} local exited sessions`);
+
+    let totalCleaned = localCleanedSessions.length;
+    const remoteResults: Array<{ remoteName: string; cleaned: number; error?: string }> = [];
+
+    // If in HQ mode, clean up sessions on all remotes
+    if (isHQMode && remoteRegistry) {
+      const allRemotes = remoteRegistry.getAllRemotes();
+
+      // Clean up on each remote in parallel
+      const remoteCleanupPromises = allRemotes.map(async (remote) => {
+        try {
+          const response = await fetch(`${remote.url}/api/cleanup-exited`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${remote.token}`,
+            },
+            signal: AbortSignal.timeout(10000), // 10 second timeout
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            const cleanedCount = result.cleanedSessions?.length || 0;
+            totalCleaned += cleanedCount;
+            remoteResults.push({ remoteName: remote.name, cleaned: cleanedCount });
+          } else {
+            throw new Error(`HTTP ${response.status}`);
+          }
+        } catch (error) {
+          console.error(`Failed to cleanup sessions on remote ${remote.name}:`, error);
+          remoteResults.push({
+            remoteName: remote.name,
+            cleaned: 0,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      });
+
+      await Promise.all(remoteCleanupPromises);
+    }
 
     res.json({
       success: true,
-      message: `${cleanedSessions.length} exited sessions cleaned up`,
-      cleanedSessions,
+      message: `${totalCleaned} exited sessions cleaned up across all servers`,
+      localCleaned: localCleanedSessions.length,
+      remoteResults,
     });
   } catch (error) {
     console.error('Error cleaning up exited sessions:', error);
@@ -547,82 +568,12 @@ app.post('/api/cleanup-exited', async (req, res) => {
   }
 });
 
-// === HQ MODE ENDPOINTS ===
-
-// Register a remote server (HQ mode only)
-app.post('/api/remotes/register', (req, res) => {
-  if (!isHQMode || !remoteRegistry) {
-    return res.status(404).json({ error: 'HQ mode not enabled' });
-  }
-
-  const { id, name, url, token } = req.body;
-
-  if (!id || !name || !url || !token) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  // Note: Basic auth is already validated by the middleware for this endpoint
-  // The token provided here is for HQ to authenticate with the remote
-
-  const remote = remoteRegistry.register({
-    id,
-    name,
-    url,
-    token, // This token is for HQ to use when calling remote's APIs
-    sessionCount: 0,
-  });
-
-  res.json({ success: true, remote: { id: remote.id, name: remote.name } });
-});
-
-// Unregister remote
-app.delete('/api/remotes/:remoteId', (req, res) => {
-  if (!isHQMode || !remoteRegistry) {
-    return res.status(404).json({ error: 'HQ mode not enabled' });
-  }
-
-  const { remoteId } = req.params;
-
-  // Note: Basic auth is already validated by the middleware for this endpoint
-  // Only allow unregistering if the remote exists
-  const remote = remoteRegistry.getRemote(remoteId);
-  if (!remote) {
-    return res.status(404).json({ error: 'Remote not found' });
-  }
-
-  const success = remoteRegistry.unregister(remoteId);
-
-  if (success) {
-    res.json({ success: true });
-  } else {
-    res.status(404).json({ error: 'Remote not found' });
-  }
-});
-
-// List all remotes (HQ mode only)
-app.get('/api/remotes', (req, res) => {
-  if (!isHQMode || !remoteRegistry) {
-    return res.status(404).json({ error: 'HQ mode not enabled' });
-  }
-
-  const remotes = remoteRegistry.getAllRemotes().map((r) => ({
-    id: r.id,
-    name: r.name,
-    url: r.url,
-    status: r.status,
-    sessionCount: r.sessionCount,
-    lastHeartbeat: r.lastHeartbeat,
-  }));
-
-  res.json(remotes);
-});
-
 // === TERMINAL I/O ===
 
 // Live streaming cast file for XTerm renderer
 app.get('/api/sessions/:sessionId/stream', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
-  const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
+  const streamOutPath = path.join(CONTROL_DIR, sessionId, 'stream-out');
 
   if (!fs.existsSync(streamOutPath)) {
     return res.status(404).json({ error: 'Session not found' });
@@ -658,7 +609,7 @@ app.get('/api/sessions/:sessionId/stream', sessionProxy, async (req, res) => {
 // Get session snapshot (optimized cast with only content after last clear)
 app.get('/api/sessions/:sessionId/snapshot', sessionProxy, (req, res) => {
   const sessionId = req.params.sessionId;
-  const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
+  const streamOutPath = path.join(CONTROL_DIR, sessionId, 'stream-out');
 
   if (!fs.existsSync(streamOutPath)) {
     return res.status(404).json({ error: 'Session not found' });
@@ -790,7 +741,7 @@ app.get('/api/sessions/:sessionId/buffer/stats', sessionProxy, async (req, res) 
     }
 
     // Check if stream file exists
-    const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
+    const streamOutPath = path.join(CONTROL_DIR, sessionId, 'stream-out');
     if (!fs.existsSync(streamOutPath)) {
       return res.status(404).json({ error: 'Session stream not found' });
     }
@@ -825,7 +776,7 @@ app.get('/api/sessions/:sessionId/buffer', sessionProxy, async (req, res) => {
     }
 
     // Check if stream file exists
-    const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
+    const streamOutPath = path.join(CONTROL_DIR, sessionId, 'stream-out');
     if (!fs.existsSync(streamOutPath)) {
       return res.status(404).json({ error: 'Session stream not found' });
     }
@@ -1337,8 +1288,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Only start server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
   server.listen(PORT, () => {
-    console.log(`VibeTunnel New Server running on http://localhost:${PORT}`);
-    console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
+    console.log(`VibeTunnel Server running on http://localhost:${PORT}`);
     if (basicAuthUsername && basicAuthPassword) {
       console.log(`${GREEN}Basic authentication: ENABLED${RESET}`);
       console.log(`Username: ${basicAuthUsername}`);
@@ -1372,11 +1322,11 @@ if (process.env.NODE_ENV !== 'test') {
   );
 
   // Graceful shutdown
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     console.log('\nShutting down...');
 
     if (hqClient) {
-      hqClient.destroy();
+      await hqClient.destroy();
     }
 
     if (remoteRegistry) {
