@@ -357,13 +357,6 @@ private struct DebugOptionsSection: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Debug mode", isOn: $debugMode)
-                Text("Enable additional logging and debugging features.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Log Level")
                     Spacer()
