@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -20,6 +21,26 @@ import (
 // useSelectPolling determines whether to use select-based polling
 // Enable this for better control FIFO integration
 const useSelectPolling = true
+
+// isShellBuiltin checks if a command is a shell builtin
+func isShellBuiltin(cmd string) bool {
+	builtins := []string{
+		"cd", "echo", "pwd", "export", "alias", "source", ".", 
+		"unset", "set", "eval", "exec", "exit", "return",
+		"break", "continue", "shift", "trap", "wait", "umask",
+		"ulimit", "times", "test", "[", "[[", "type", "hash",
+		"help", "history", "jobs", "kill", "let", "local",
+		"logout", "popd", "pushd", "read", "readonly", "true",
+		"false", ":", "printf", "declare", "typeset", "unalias",
+	}
+	
+	for _, builtin := range builtins {
+		if cmd == builtin {
+			return true
+		}
+	}
+	return false
+}
 
 type PTY struct {
 	session             *Session
@@ -56,18 +77,24 @@ func NewPTY(session *Session) (*PTY, error) {
 		// Execute command through login shell for proper environment handling
 		// This ensures aliases and functions from .zshrc/.bashrc are loaded
 		shellCmd := strings.Join(cmdline, " ")
-		
-		// Try different approaches based on the shell
-		if strings.Contains(shell, "zsh") {
-			// For zsh, use login shell without -i flag as it can cause issues with PTY allocation
+
+		// Check if this is a shell builtin command
+		if isShellBuiltin(cmdline[0]) {
+			// For builtins, we don't need interactive mode
+			cmd = exec.Command(shell, "-c", shellCmd)
+			debugLog("[DEBUG] NewPTY: Executing builtin command: %s -c %q", shell, shellCmd)
+		} else if strings.Contains(shell, "zsh") {
+			// For zsh, use login shell to load configurations
+			// Interactive mode (-i) can cause issues with some commands
 			cmd = exec.Command(shell, "-l", "-c", shellCmd)
 			debugLog("[DEBUG] NewPTY: Executing through zsh login shell: %s -l -c %q", shell, shellCmd)
 		} else {
 			// For other shells (bash, sh), use interactive login
+			// This ensures aliases and functions are available
 			cmd = exec.Command(shell, "-i", "-l", "-c", shellCmd)
 			debugLog("[DEBUG] NewPTY: Executing through interactive login shell: %s -i -l -c %q", shell, shellCmd)
 		}
-		
+
 		// Add some debugging to understand what's happening
 		debugLog("[DEBUG] NewPTY: Shell: %s", shell)
 		debugLog("[DEBUG] NewPTY: Command: %v", cmdline)
@@ -93,13 +120,18 @@ func NewPTY(session *Session) (*PTY, error) {
 	// Pass all environment variables like Node.js implementation does
 	// This ensures terminal features, locale settings, and shell prompts work correctly
 	env := os.Environ()
-	
+
 	// Log PATH for debugging
+	pathFound := false
 	for _, e := range env {
 		if strings.HasPrefix(e, "PATH=") {
 			debugLog("[DEBUG] NewPTY: PATH=%s", e[5:])
+			pathFound = true
 			break
 		}
+	}
+	if !pathFound {
+		debugLog("[DEBUG] NewPTY: No PATH found in environment!")
 	}
 
 	// Override TERM if specified in session info
@@ -122,11 +154,12 @@ func NewPTY(session *Session) (*PTY, error) {
 		// Provide more helpful error message for common failures
 		errorMsg := fmt.Sprintf("Failed to start PTY for command '%s'", strings.Join(cmdline, " "))
 		if strings.Contains(err.Error(), "no such file or directory") || strings.Contains(err.Error(), "not found") {
-			errorMsg = fmt.Sprintf("Command '%s' not found. Make sure it's installed and in your PATH, or is a valid shell alias/function.", cmdline[0])
+			errorMsg = fmt.Sprintf("Command '%s' not found. Make sure it's installed and in your PATH, or is a valid shell alias/function. The command was executed through %s to load your shell configuration.", cmdline[0], shell)
 		} else if strings.Contains(err.Error(), "permission denied") {
 			errorMsg = fmt.Sprintf("Permission denied executing '%s'", strings.Join(cmdline, " "))
 		}
 		log.Printf("[ERROR] NewPTY: %s: %v", errorMsg, err)
+		log.Printf("[ERROR] NewPTY: Shell used: %s, Working directory: %s", shell, session.info.Cwd)
 		return nil, NewSessionErrorWithCause(errorMsg, ErrPTYCreationFailed, session.ID, err)
 	}
 
@@ -317,7 +350,7 @@ func (p *PTY) Run() error {
 
 	go func() {
 		debugLog("[DEBUG] PTY.Run: Starting output reading goroutine")
-		buf := make([]byte, 32*1024)
+		buf := make([]byte, 4*1024) // 4KB buffer for more responsive output
 
 		for {
 			// Use a timeout-based approach for cross-platform compatibility
@@ -547,7 +580,7 @@ func (p *PTY) Resize(width, height int) error {
 
 func (p *PTY) Close() error {
 	var firstErr error
-	
+
 	if p.streamWriter != nil {
 		if err := p.streamWriter.Close(); err != nil {
 			log.Printf("[ERROR] PTY.Close: Failed to close stream writer: %v", err)
@@ -574,4 +607,3 @@ func (p *PTY) Close() error {
 	}
 	return firstErr
 }
-
