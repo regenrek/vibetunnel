@@ -120,6 +120,8 @@ func (s *Server) createHandler() http.Handler {
 	api.HandleFunc("/sessions/multistream", s.handleMultistream).Methods("GET")
 	api.HandleFunc("/cleanup-exited", s.handleCleanupExited).Methods("POST")
 	api.HandleFunc("/fs/browse", s.handleBrowseFS).Methods("GET")
+	api.HandleFunc("/fs/read", s.handleReadFile).Methods("GET")
+	api.HandleFunc("/fs/info", s.handleFileInfo).Methods("GET")
 	api.HandleFunc("/mkdir", s.handleMkdir).Methods("POST")
 
 	// Ngrok endpoints
@@ -1064,4 +1066,65 @@ func findVTBinary() string {
 	}
 
 	return ""
+}
+
+func (s *Server) handleFileInfo(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	fileInfo, err := GetFileInfo(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "path traversal") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(fileInfo); err != nil {
+		log.Printf("Failed to encode file info: %v", err)
+	}
+}
+
+func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	file, fileInfo, err := ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "path traversal") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+		} else if strings.Contains(err.Error(), "not readable") {
+			http.Error(w, "File is not readable", http.StatusForbidden)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	defer file.Close()
+
+	// Set appropriate headers
+	w.Header().Set("Content-Type", fileInfo.MimeType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", fileInfo.Name))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size))
+	
+	// Add cache headers for static files
+	if strings.HasPrefix(fileInfo.MimeType, "image/") || strings.HasPrefix(fileInfo.MimeType, "application/pdf") {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
+
+	// Support range requests for large files
+	http.ServeContent(w, r, fileInfo.Name, fileInfo.ModTime, file.(io.ReadSeeker))
 }
