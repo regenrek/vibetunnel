@@ -183,6 +183,51 @@ export class VibeTerminalBuffer extends LitElement {
 
   render() {
     return html`
+      <style>
+        /* Import terminal color variables from parent scope */
+        .terminal-container {
+          /* Ensure CSS variables are inherited */
+          color: #d4d4d4;
+          background-color: transparent;
+        }
+
+        /* Terminal character styling */
+        .terminal-char {
+          font-variant-ligatures: none;
+          font-feature-settings: 'liga' 0;
+          white-space: pre;
+        }
+
+        .terminal-char.bold {
+          font-weight: bold;
+        }
+
+        .terminal-char.italic {
+          font-style: italic;
+        }
+
+        .terminal-char.underline {
+          text-decoration: underline;
+        }
+
+        .terminal-char.dim {
+          opacity: 0.5;
+        }
+
+        .terminal-char.strikethrough {
+          text-decoration: line-through;
+        }
+
+        .terminal-char.cursor {
+          background-color: #23d18b !important;
+        }
+
+        /* Terminal line styling */
+        .terminal-line {
+          white-space: pre;
+          overflow: hidden;
+        }
+      </style>
       <div class="relative w-full h-full overflow-hidden bg-[#1e1e1e]">
         ${this.error
           ? html`
