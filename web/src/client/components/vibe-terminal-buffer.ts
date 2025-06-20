@@ -99,14 +99,6 @@ export class VibeTerminalBuffer extends LitElement {
     const calculatedFontSize = targetCharWidth / 0.6;
     this.displayedFontSize = Math.max(4, Math.min(32, Math.floor(calculatedFontSize)));
 
-    console.log('calculateDimensions:', {
-      containerWidth,
-      cols,
-      targetCharWidth,
-      calculatedFontSize,
-      displayedFontSize: this.displayedFontSize,
-    });
-
     // Step 4: Calculate how many lines are visible based on scaled font size
     const lineHeight = this.displayedFontSize * 1.2;
     const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
