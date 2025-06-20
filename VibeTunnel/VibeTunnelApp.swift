@@ -9,6 +9,10 @@ struct VibeTunnelApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
     @State private var sessionMonitor = SessionMonitor.shared
+    @State private var serverManager = ServerManager.shared
+    @State private var ngrokService = NgrokService.shared
+    @State private var appleScriptPermissionManager = AppleScriptPermissionManager.shared
+    @State private var terminalLauncher = TerminalLauncher.shared
 
     init() {
         // No special initialization needed
@@ -28,6 +32,7 @@ struct VibeTunnelApp: App {
             // Welcome Window
             WindowGroup("Welcome", id: "welcome") {
                 WelcomeView()
+                    .withVibeTunnelServices()
             }
             .windowResizability(.contentSize)
             .defaultSize(width: 580, height: 480)
@@ -35,6 +40,7 @@ struct VibeTunnelApp: App {
 
             Settings {
                 SettingsView()
+                    .withVibeTunnelServices()
             }
             .commands {
                 CommandGroup(after: .appInfo) {
@@ -55,7 +61,7 @@ struct VibeTunnelApp: App {
             MenuBarExtra {
                 MenuBarView()
                     .environment(sessionMonitor)
-                    .environment(serverMonitor)
+                    .withVibeTunnelServices()
             } label: {
                 Image("menubar")
                     .renderingMode(.template)
@@ -159,7 +165,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
                 // Check if server actually started
                 if serverManager.isRunning {
                     logger.info("HTTP server started successfully on port \(self.serverManager.port)")
-                    logger.info("Server mode: \(self.serverManager.serverMode.displayName)")
 
                     // Start monitoring sessions after server starts
                     sessionMonitor.startMonitoring()

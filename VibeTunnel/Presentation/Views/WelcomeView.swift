@@ -24,7 +24,7 @@ struct WelcomeView: View {
     @AppStorage(AppConstants.UserDefaultsKeys.welcomeVersion)
     private var welcomeVersion = 0
     @State private var cliInstaller = CLIInstaller()
-    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
+    @State private var permissionManager = AppleScriptPermissionManager.shared
 
     var body: some View {
         VStack(spacing: 0) {

@@ -21,7 +21,7 @@ struct DashboardSettingsView: View {
     @State private var passwordError: String?
     @State private var passwordSaved = false
 
-    @StateObject private var permissionManager = AppleScriptPermissionManager.shared
+    @State private var permissionManager = AppleScriptPermissionManager.shared
 
     @State private var ngrokAuthToken = ""
     @State private var ngrokStatus: NgrokTunnelStatus?

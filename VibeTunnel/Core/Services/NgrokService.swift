@@ -104,8 +104,8 @@ final class NgrokService: NgrokTunnelProtocol {
     /// The ngrok process if using CLI mode
     private var ngrokProcess: Process?
 
-    /// Timer for periodic status updates
-    private var statusTimer: Timer?
+    /// Task for periodic status updates
+    private var statusTask: Task<Void, Never>?
 
     private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "NgrokService")
 
@@ -136,8 +136,8 @@ final class NgrokService: NgrokTunnelProtocol {
             ngrokProcess = nil
         }
 
-        statusTimer?.invalidate()
-        statusTimer = nil
+        statusTask?.cancel()
+        statusTask = nil
 
         isActive = false
         publicUrl = nil
@@ -257,11 +257,12 @@ final class NgrokService: NgrokTunnelProtocol {
 
     /// Monitors tunnel status periodically
     private func startStatusMonitoring() {
-        statusTimer?.invalidate()
+        statusTask?.cancel()
 
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
-            Task { @MainActor in
+        statusTask = Task { @MainActor in
+            while !Task.isCancelled {
                 await self.updateTunnelStatus()
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
             }
         }
     }

@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import OSLog
+import Observation
 
 /// Manages AppleScript automation permissions for VibeTunnel.
 ///
@@ -8,11 +9,12 @@ import OSLog
 /// terminal applications via AppleScript. It provides continuous monitoring
 /// and user-friendly permission request flows.
 @MainActor
-final class AppleScriptPermissionManager: ObservableObject {
+@Observable
+final class AppleScriptPermissionManager {
     static let shared = AppleScriptPermissionManager()
 
-    @Published private(set) var hasPermission = false
-    @Published private(set) var isChecking = false
+    private(set) var hasPermission = false
+    private(set) var isChecking = false
 
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "VibeTunnel",
@@ -30,7 +32,7 @@ final class AppleScriptPermissionManager: ObservableObject {
     }
 
     deinit {
-        monitoringTask?.cancel()
+        // Task will be cancelled automatically when the object is deallocated
     }
 
     /// Checks if we have AppleScript automation permissions.

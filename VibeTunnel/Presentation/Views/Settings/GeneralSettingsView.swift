@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 /// General settings tab for basic app preferences
@@ -128,7 +127,7 @@ struct GeneralSettingsView: View {
 // MARK: - Permissions Section
 
 private struct PermissionsSection: View {
-    @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
+    @State private var appleScriptManager = AppleScriptPermissionManager.shared
     @State private var accessibilityUpdateTrigger = 0
 
     private var hasAccessibilityPermission: Bool {

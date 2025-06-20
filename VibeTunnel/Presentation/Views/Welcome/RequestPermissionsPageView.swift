@@ -20,7 +20,7 @@ import SwiftUI
 /// - ``AccessibilityPermissionManager`` for accessibility permissions
 /// - Terminal selection stored in UserDefaults
 struct RequestPermissionsPageView: View {
-    @StateObject private var appleScriptManager = AppleScriptPermissionManager.shared
+    @State private var appleScriptManager = AppleScriptPermissionManager.shared
     @State private var accessibilityUpdateTrigger = 0
 
     private var hasAccessibilityPermission: Bool {
