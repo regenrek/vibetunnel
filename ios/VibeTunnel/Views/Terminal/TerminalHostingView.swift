@@ -6,7 +6,7 @@ struct TerminalHostingView: UIViewRepresentable {
     @Binding var fontSize: CGFloat
     let onInput: (String) -> Void
     let onResize: (Int, Int) -> Void
-    @ObservedObject var viewModel: TerminalViewModel
+    var viewModel: TerminalViewModel
     @State private var isAutoScrollEnabled = true
     
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {

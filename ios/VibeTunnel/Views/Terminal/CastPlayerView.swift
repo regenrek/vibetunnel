@@ -1,18 +1,19 @@
 import SwiftUI
+import Observation
 import SwiftTerm
 import UniformTypeIdentifiers
 
 struct CastPlayerView: View {
     let castFileURL: URL
     @Environment(\.dismiss) var dismiss
-    @StateObject private var viewModel = CastPlayerViewModel()
+    @State private var viewModel = CastPlayerViewModel()
     @State private var fontSize: CGFloat = 14
     @State private var isPlaying = false
     @State private var currentTime: TimeInterval = 0
     @State private var playbackSpeed: Double = 1.0
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Theme.Colors.terminalBackground
                     .ignoresSafeArea()
@@ -143,9 +144,9 @@ struct CastPlayerView: View {
             .padding()
             .background(Theme.Colors.cardBackground)
         }
-        .onReceive(viewModel.$currentTime) { time in
+        .onChange(of: viewModel.currentTime) { _, newTime in
             if !viewModel.isSeeking {
-                currentTime = time
+                currentTime = newTime
             }
         }
     }
@@ -177,7 +178,7 @@ struct CastPlayerView: View {
 // Simple terminal view for cast playback
 struct CastTerminalView: UIViewRepresentable {
     @Binding var fontSize: CGFloat
-    @ObservedObject var viewModel: CastPlayerViewModel
+    let viewModel: CastPlayerViewModel
     
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let terminal = SwiftTerm.TerminalView()
@@ -251,11 +252,12 @@ struct CastTerminalView: UIViewRepresentable {
 }
 
 @MainActor
-class CastPlayerViewModel: ObservableObject {
-    @Published var isLoading = true
-    @Published var errorMessage: String?
-    @Published var currentTime: TimeInterval = 0
-    @Published var isSeeking = false
+@Observable
+class CastPlayerViewModel {
+    var isLoading = true
+    var errorMessage: String?
+    var currentTime: TimeInterval = 0
+    var isSeeking = false
     
     var player: CastPlayer?
     var header: CastFile? { player?.header }
@@ -293,19 +295,21 @@ class CastPlayerViewModel: ObservableObject {
             guard let player = player else { return }
             
             player.play(from: currentTime, speed: speed) { [weak self] event in
-                guard let self = self else { return }
-                
-                switch event.type {
-                case "o":
-                    self.onTerminalOutput?(event.data)
-                case "r":
-                    // Handle resize if needed
-                    break
-                default:
-                    break
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
+                    switch event.type {
+                    case "o":
+                        self.onTerminalOutput?(event.data)
+                    case "r":
+                        // Handle resize if needed
+                        break
+                    default:
+                        break
+                    }
+                    
+                    self.currentTime = event.time
                 }
-                
-                self.currentTime = event.time
             } completion: {
                 // Playback completed
             }

@@ -1,7 +1,8 @@
 import SwiftUI
+import Observation
 
 struct FileBrowserView: View {
-    @StateObject private var viewModel = FileBrowserViewModel()
+    @State private var viewModel = FileBrowserViewModel()
     @Environment(\.dismiss) private var dismiss
     
     let onSelect: (String) -> Void
@@ -148,7 +149,7 @@ struct FileBrowserView: View {
                     .background(Theme.Colors.terminalDarkGray)
                 }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .alert("Create Folder", isPresented: $viewModel.showCreateFolder) {
                 TextField("Folder name", text: $viewModel.newFolderName)
                     .textInputAutocapitalization(.never)
@@ -259,14 +260,15 @@ struct TerminalButtonStyle: ButtonStyle {
 }
 
 @MainActor
-class FileBrowserViewModel: ObservableObject {
-    @Published var currentPath = "~"
-    @Published var entries: [FileEntry] = []
-    @Published var isLoading = false
-    @Published var showCreateFolder = false
-    @Published var newFolderName = ""
-    @Published var showError = false
-    @Published var errorMessage: String?
+@Observable
+class FileBrowserViewModel {
+    var currentPath = "~"
+    var entries: [FileEntry] = []
+    var isLoading = false
+    var showCreateFolder = false
+    var newFolderName = ""
+    var showError = false
+    var errorMessage: String?
     
     private let apiClient = APIClient.shared
     

@@ -1,15 +1,16 @@
 import SwiftUI
+import Observation
 
 @main
 struct VibeTunnelApp: App {
-    @StateObject private var connectionManager = ConnectionManager()
-    @StateObject private var navigationManager = NavigationManager()
+    @State private var connectionManager = ConnectionManager()
+    @State private var navigationManager = NavigationManager()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(connectionManager)
-                .environmentObject(navigationManager)
+                .environment(connectionManager)
+                .environment(navigationManager)
                 .onOpenURL { url in
                     handleURL(url)
                 }
@@ -28,9 +29,10 @@ struct VibeTunnelApp: App {
     }
 }
 
-class ConnectionManager: ObservableObject {
-    @Published var isConnected: Bool = false
-    @Published var serverConfig: ServerConfig?
+@Observable
+class ConnectionManager {
+    var isConnected: Bool = false
+    var serverConfig: ServerConfig?
     
     init() {
         loadSavedConnection()
@@ -55,9 +57,10 @@ class ConnectionManager: ObservableObject {
     }
 }
 
-class NavigationManager: ObservableObject {
-    @Published var selectedSessionId: String?
-    @Published var shouldNavigateToSession: Bool = false
+@Observable
+class NavigationManager {
+    var selectedSessionId: String?
+    var shouldNavigateToSession: Bool = false
     
     func navigateToSession(_ sessionId: String) {
         selectedSessionId = sessionId

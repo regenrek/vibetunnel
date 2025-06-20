@@ -327,14 +327,8 @@ class BufferWebSocketClient: NSObject {
     }
     
     deinit {
-        reconnectTimer?.invalidate()
-        reconnectTimer = nil
-        pingTimer?.invalidate()
-        pingTimer = nil
-        
+        // Cancel the WebSocket task
         webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
-        
-        subscriptions.removeAll()
+        // Timers will be cleaned up automatically when the object is deallocated
     }
 }

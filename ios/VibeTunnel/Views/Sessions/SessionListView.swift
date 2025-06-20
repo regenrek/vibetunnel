@@ -1,15 +1,16 @@
 import SwiftUI
+import Observation
 
 struct SessionListView: View {
-    @EnvironmentObject var connectionManager: ConnectionManager
-    @EnvironmentObject var navigationManager: NavigationManager
-    @StateObject private var viewModel = SessionListViewModel()
+    @Environment(ConnectionManager.self) var connectionManager
+    @Environment(NavigationManager.self) var navigationManager
+    @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSession = false
     @State private var selectedSession: Session?
     @State private var showExitedSessions = true
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 // Background
                 Theme.Colors.terminalBackground
@@ -78,9 +79,7 @@ struct SessionListView: View {
                 viewModel.stopAutoRefresh()
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
         .preferredColorScheme(.dark)
-        .environmentObject(connectionManager)
         .onChange(of: navigationManager.shouldNavigateToSession) { shouldNavigate in
             if shouldNavigate,
                let sessionId = navigationManager.selectedSessionId,
@@ -294,30 +293,33 @@ struct SessionListView: View {
 }
 
 @MainActor
-class SessionListViewModel: ObservableObject {
-    @Published var sessions: [Session] = []
-    @Published var isLoading = false
-    @Published var errorMessage: String?
+@Observable
+class SessionListViewModel {
+    var sessions: [Session] = []
+    var isLoading = false
+    var errorMessage: String?
     
-    private var refreshTimer: Timer?
+    private var refreshTask: Task<Void, Never>?
     private let sessionService = SessionService.shared
     
     func startAutoRefresh() {
-        Task {
+        refreshTask?.cancel()
+        refreshTask = Task {
             await loadSessions()
-        }
-        
-        // Refresh every 3 seconds
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
-            Task { @MainActor in
-                await self.loadSessions()
+            
+            // Refresh every 3 seconds using modern async approach
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                if !Task.isCancelled {
+                    await loadSessions()
+                }
             }
         }
     }
     
     func stopAutoRefresh() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
+        refreshTask?.cancel()
+        refreshTask = nil
     }
     
     func loadSessions() async {

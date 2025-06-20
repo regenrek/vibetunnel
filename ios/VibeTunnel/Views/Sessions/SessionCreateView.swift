@@ -36,7 +36,7 @@ struct SessionCreateView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Theme.Colors.terminalBackground
                     .ignoresSafeArea()

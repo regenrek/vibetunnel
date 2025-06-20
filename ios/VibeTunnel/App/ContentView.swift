@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @EnvironmentObject var connectionManager: ConnectionManager
+    @Environment(ConnectionManager.self) var connectionManager
     @State private var showingFilePicker = false
     @State private var showingCastPlayer = false
     @State private var selectedCastFile: URL?

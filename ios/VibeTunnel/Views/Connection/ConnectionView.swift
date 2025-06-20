@@ -1,13 +1,14 @@
 import SwiftUI
+import Observation
 
 struct ConnectionView: View {
-    @EnvironmentObject var connectionManager: ConnectionManager
-    @StateObject private var viewModel = ConnectionViewModel()
+    @Environment(ConnectionManager.self) var connectionManager
+    @State private var viewModel = ConnectionViewModel()
     @State private var logoScale: CGFloat = 0.8
     @State private var contentOpacity: Double = 0
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 // Background
                 Theme.Colors.terminalBackground
@@ -72,7 +73,7 @@ struct ConnectionView: View {
                 }
                 .padding()
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .preferredColorScheme(.dark)
@@ -91,13 +92,14 @@ struct ConnectionView: View {
     }
 }
 
-class ConnectionViewModel: ObservableObject {
-    @Published var host: String = "127.0.0.1"
-    @Published var port: String = "4020"
-    @Published var name: String = ""
-    @Published var password: String = ""
-    @Published var isConnecting: Bool = false
-    @Published var errorMessage: String?
+@Observable
+class ConnectionViewModel {
+    var host: String = "127.0.0.1"
+    var port: String = "4020"
+    var name: String = ""
+    var password: String = ""
+    var isConnecting: Bool = false
+    var errorMessage: String?
     
     func loadLastConnection() {
         if let config = UserDefaults.standard.data(forKey: "savedServerConfig"),

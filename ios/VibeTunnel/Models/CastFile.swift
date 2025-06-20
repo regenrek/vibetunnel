@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 // Asciinema cast v2 format support
 struct CastFile: Codable {
@@ -25,10 +26,11 @@ struct CastEvent: Codable {
 
 // Cast file recorder for terminal sessions
 @MainActor
-class CastRecorder: ObservableObject {
-    @Published var isRecording = false
-    @Published var recordingStartTime: Date?
-    @Published var events: [CastEvent] = []
+@Observable
+class CastRecorder {
+    var isRecording = false
+    var recordingStartTime: Date?
+    var events: [CastEvent] = []
     
     private let sessionId: String
     private let width: Int

@@ -1,11 +1,11 @@
 import SwiftUI
-import Combine
+import Observation
 import SwiftTerm
 
 struct TerminalView: View {
     let session: Session
     @Environment(\.dismiss) var dismiss
-    @StateObject private var viewModel: TerminalViewModel
+    @State private var viewModel: TerminalViewModel
     @State private var fontSize: CGFloat = 14
     @State private var showingFontSizeSheet = false
     @State private var showingRecordingSheet = false
@@ -14,11 +14,11 @@ struct TerminalView: View {
     
     init(session: Session) {
         self.session = session
-        self._viewModel = StateObject(wrappedValue: TerminalViewModel(session: session))
+        self._viewModel = State(initialValue: TerminalViewModel(session: session))
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 // Background
                 Theme.Colors.terminalBackground
@@ -157,7 +157,6 @@ struct TerminalView: View {
                 }
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
         .preferredColorScheme(.dark)
         .onAppear {
             viewModel.connect()
@@ -257,20 +256,22 @@ struct TerminalView: View {
 }
 
 @MainActor
-class TerminalViewModel: ObservableObject {
-    @Published var isConnecting = true
-    @Published var isConnected = false
-    @Published var errorMessage: String?
-    @Published var terminalViewId = UUID()
-    @Published var terminalCols: Int = 0
-    @Published var terminalRows: Int = 0
-    @Published var isAutoScrollEnabled = true
-    @Published var recordingPulse = false
+@Observable
+class TerminalViewModel {
+    var isConnecting = true
+    var isConnected = false
+    var errorMessage: String?
+    var terminalViewId = UUID()
+    var terminalCols: Int = 0
+    var terminalRows: Int = 0
+    var isAutoScrollEnabled = true
+    var recordingPulse = false
     
     let session: Session
     let castRecorder: CastRecorder
     private var bufferWebSocketClient: BufferWebSocketClient?
-    var cancellables = Set<AnyCancellable>()
+    private var connectionStatusTask: Task<Void, Never>?
+    private var connectionErrorTask: Task<Void, Never>?
     weak var terminalCoordinator: TerminalHostingView.Coordinator?
     
     init(session: Session) {
@@ -311,9 +312,12 @@ class TerminalViewModel: ObservableObject {
         }
         
         // Monitor connection status
-        bufferWebSocketClient?.$isConnected
-            .sink { [weak self] connected in
-                Task { @MainActor in
+        connectionStatusTask?.cancel()
+        connectionStatusTask = Task { [weak self] in
+            guard let client = self?.bufferWebSocketClient else { return }
+            while !Task.isCancelled {
+                let connected = client.isConnected
+                await MainActor.run {
                     self?.isConnecting = false
                     self?.isConnected = connected
                     if !connected {
@@ -322,19 +326,24 @@ class TerminalViewModel: ObservableObject {
                         self?.errorMessage = nil
                     }
                 }
+                try? await Task.sleep(nanoseconds: 500_000_000) // Check every 0.5 seconds
             }
-            .store(in: &cancellables)
+        }
         
         // Monitor connection errors
-        bufferWebSocketClient?.$connectionError
-            .compactMap { $0 }
-            .sink { [weak self] error in
-                Task { @MainActor in
-                    self?.errorMessage = error.localizedDescription
-                    self?.isConnecting = false
+        connectionErrorTask?.cancel()
+        connectionErrorTask = Task { [weak self] in
+            guard let client = self?.bufferWebSocketClient else { return }
+            while !Task.isCancelled {
+                if let error = client.connectionError {
+                    await MainActor.run {
+                        self?.errorMessage = error.localizedDescription
+                        self?.isConnecting = false
+                    }
                 }
+                try? await Task.sleep(nanoseconds: 500_000_000) // Check every 0.5 seconds
             }
-            .store(in: &cancellables)
+        }
     }
     
     @MainActor
@@ -353,6 +362,8 @@ class TerminalViewModel: ObservableObject {
     }
     
     func disconnect() {
+        connectionStatusTask?.cancel()
+        connectionErrorTask?.cancel()
         bufferWebSocketClient?.unsubscribe(from: session.id)
         bufferWebSocketClient?.disconnect()
         bufferWebSocketClient = nil
@@ -369,13 +380,13 @@ class TerminalViewModel: ObservableObject {
             terminalRows = height
             // The terminal will be resized when created
             
-        case .output(let timestamp, let data):
+        case .output(_, let data):
             // Feed output data directly to the terminal
             terminalCoordinator?.feedData(data)
             // Record output if recording
             castRecorder.recordOutput(data)
             
-        case .resize(let timestamp, let dimensions):
+        case .resize(_, let dimensions):
             // Parse dimensions like "120x30"
             let parts = dimensions.split(separator: "x")
             if parts.count == 2,

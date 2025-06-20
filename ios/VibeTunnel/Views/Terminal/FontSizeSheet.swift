@@ -7,7 +7,7 @@ struct FontSizeSheet: View {
     let fontSizes: [CGFloat] = [10, 12, 14, 16, 18, 20, 22, 24, 28, 32]
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Font size preview
                 VStack(spacing: Theme.Spacing.lg) {

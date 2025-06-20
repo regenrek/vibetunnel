@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct RecordingExportSheet: View {
-    @ObservedObject var recorder: CastRecorder
+    var recorder: CastRecorder
     let sessionName: String
     @Environment(\.dismiss) var dismiss
     @State private var isExporting = false
@@ -10,7 +10,7 @@ struct RecordingExportSheet: View {
     @State private var exportedFileURL: URL?
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: Theme.Spacing.xl) {
                 // Icon
                 ZStack {
