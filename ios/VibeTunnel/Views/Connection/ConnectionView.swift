@@ -6,7 +6,8 @@ import SwiftUI
 /// Displays the app branding and provides interface for entering
 /// server connection details with saved server management.
 struct ConnectionView: View {
-    @Environment(ConnectionManager.self) var connectionManager
+    @Environment(ConnectionManager.self)
+    var connectionManager
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @State private var viewModel = ConnectionViewModel()
     @State private var logoScale: CGFloat = 0.8
@@ -67,8 +68,6 @@ struct ConnectionView: View {
                         port: $viewModel.port,
                         name: $viewModel.name,
                         password: $viewModel.password,
-                        authType: $viewModel.authType,
-                        bearerToken: $viewModel.bearerToken,
                         isConnecting: viewModel.isConnecting,
                         errorMessage: viewModel.errorMessage,
                         onConnect: connectToServer
@@ -115,8 +114,6 @@ class ConnectionViewModel {
     var port: String = "4020"
     var name: String = ""
     var password: String = ""
-    var authType: AuthType = .none
-    var bearerToken: String = ""
     var isConnecting: Bool = false
     var errorMessage: String?
 
@@ -128,8 +125,6 @@ class ConnectionViewModel {
             self.port = String(serverConfig.port)
             self.name = serverConfig.name ?? ""
             self.password = serverConfig.password ?? ""
-            self.authType = serverConfig.authType
-            self.bearerToken = serverConfig.bearerToken ?? ""
         }
     }
 
@@ -153,9 +148,7 @@ class ConnectionViewModel {
             host: host,
             port: portNumber,
             name: name.isEmpty ? nil : name,
-            password: password.isEmpty ? nil : password,
-            authType: authType,
-            bearerToken: bearerToken.isEmpty ? nil : bearerToken
+            password: password.isEmpty ? nil : password
         )
 
         do {

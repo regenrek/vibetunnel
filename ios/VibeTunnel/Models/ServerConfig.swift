@@ -1,20 +1,5 @@
 import Foundation
 
-/// Authentication type for server connections
-enum AuthType: String, Codable, CaseIterable {
-    case none = "none"
-    case basic = "basic"
-    case bearer = "bearer"
-    
-    var displayName: String {
-        switch self {
-        case .none: return "No Authentication"
-        case .basic: return "Basic Auth (Username/Password)"
-        case .bearer: return "Bearer Token"
-        }
-    }
-}
-
 /// Configuration for connecting to a VibeTunnel server.
 ///
 /// ServerConfig stores all necessary information to establish
@@ -25,23 +10,17 @@ struct ServerConfig: Codable, Equatable {
     let port: Int
     let name: String?
     let password: String?
-    let authType: AuthType
-    let bearerToken: String?
     
     init(
         host: String,
         port: Int,
         name: String? = nil,
-        password: String? = nil,
-        authType: AuthType = .none,
-        bearerToken: String? = nil
+        password: String? = nil
     ) {
         self.host = host
         self.port = port
         self.name = name
         self.password = password
-        self.authType = authType
-        self.bearerToken = bearerToken
     }
 
     /// Constructs the base URL for API requests.
@@ -67,46 +46,23 @@ struct ServerConfig: Codable, Equatable {
 
     /// Indicates whether the server requires authentication.
     ///
-    /// - Returns: true if authentication is configured, false otherwise.
+    /// - Returns: true if a password is configured, false otherwise.
     var requiresAuthentication: Bool {
-        switch authType {
-        case .none:
-            return false
-        case .basic:
-            if let password {
-                return !password.isEmpty
-            }
-            return false
-        case .bearer:
-            if let bearerToken {
-                return !bearerToken.isEmpty
-            }
-            return false
+        if let password {
+            return !password.isEmpty
         }
+        return false
     }
 
-    /// Generates the Authorization header value based on auth type.
+    /// Generates the Authorization header value if a password is configured.
     ///
-    /// - Returns: A properly formatted auth header string,
-    ///   or nil if no authentication is configured.
-    ///
-    /// For Basic auth: uses "admin" as the username with the configured password.
-    /// For Bearer auth: uses the configured bearer token.
+    /// - Returns: A Basic auth header string using "admin" as username,
+    ///   or nil if no password is configured.
     var authorizationHeader: String? {
-        switch authType {
-        case .none:
-            return nil
-            
-        case .basic:
-            guard let password, !password.isEmpty else { return nil }
-            let credentials = "admin:\(password)"
-            guard let data = credentials.data(using: .utf8) else { return nil }
-            let base64 = data.base64EncodedString()
-            return "Basic \(base64)"
-            
-        case .bearer:
-            guard let bearerToken, !bearerToken.isEmpty else { return nil }
-            return "Bearer \(bearerToken)"
-        }
+        guard let password, !password.isEmpty else { return nil }
+        let credentials = "admin:\(password)"
+        guard let data = credentials.data(using: .utf8) else { return nil }
+        let base64 = data.base64EncodedString()
+        return "Basic \(base64)"
     }
 }

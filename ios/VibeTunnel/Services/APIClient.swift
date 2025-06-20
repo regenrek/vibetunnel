@@ -456,4 +456,63 @@ class APIClient: APIClientProtocol {
         try validateResponse(response)
     }
     
+    func downloadFile(path: String, progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+        
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/fs/read"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "path", value: path)]
+        
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        // Add authentication header if needed
+        addAuthenticationIfNeeded(&request)
+        
+        // For progress tracking, we'll use URLSession delegate
+        // For now, just download the whole file
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        
+        return data
+    }
+    
+    func getFileInfo(path: String) async throws -> FileInfo {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+        
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/fs/info"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "path", value: path)]
+        
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        // Add authentication header if needed
+        addAuthenticationIfNeeded(&request)
+        
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        
+        return try decoder.decode(FileInfo.self, from: data)
+    }
 }

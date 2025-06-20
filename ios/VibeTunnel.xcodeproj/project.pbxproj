@@ -18,7 +18,7 @@
 		78868B612DFF808300B22C15 /* Exceptions for "VibeTunnel" folder in "VibeTunnel" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Resources/Info.plist",
+				Resources/Info.plist,
 			);
 			target = 788687F02DFF4FCB00B22C15 /* VibeTunnel */;
 		};
