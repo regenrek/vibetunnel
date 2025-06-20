@@ -25,74 +25,74 @@ struct AdvancedSettingsView: View {
 
                 // Integration section
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Install CLI Tool")
                             Spacer()
-                            if cliInstaller.isInstalled {
-                                if cliInstaller.needsUpdate {
-                                    Button("Update VT") {
-                                        cliInstaller.updateCLITool()
+                            ZStack {
+                                // Hidden button to maintain consistent height
+                                Button("Placeholder") {}
+                                    .buttonStyle(.bordered)
+                                    .opacity(0)
+                                    .allowsHitTesting(false)
+                                
+                                // Actual content
+                                if cliInstaller.isInstalled {
+                                    if cliInstaller.needsUpdate {
+                                        Button("Update VT") {
+                                            cliInstaller.updateCLITool()
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .disabled(cliInstaller.isInstalling)
+                                    } else {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                            Text("CLI \(cliInstaller.installedVersion?.replacingOccurrences(of: "v", with: "") ?? "unknown") installed")
+                                                .foregroundColor(.secondary)
+                                            
+                                            // Show reinstall button in debug mode
+                                            if debugMode {
+                                                Button(action: {
+                                                    cliInstaller.installCLITool()
+                                                }) {
+                                                    Image(systemName: "arrow.clockwise.circle")
+                                                        .font(.system(size: 14))
+                                                }
+                                                .buttonStyle(.plain)
+                                                .foregroundColor(.accentColor)
+                                                .help("Reinstall CLI tool")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Button("Install 'vt' Command") {
+                                        Task {
+                                            await cliInstaller.install()
+                                        }
                                     }
                                     .buttonStyle(.bordered)
                                     .disabled(cliInstaller.isInstalling)
-                                } else {
-                                    HStack {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                        Text("CLI tool is installed")
-                                            .foregroundColor(.secondary)
-                                    }
                                 }
-                            } else {
-                                Button("Install 'vt' Command") {
-                                    Task {
-                                        await cliInstaller.install()
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(cliInstaller.isInstalling)
                             }
                         }
-
+                        
                         if cliInstaller.isInstalling {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        }
-
-                        if let error = cliInstaller.lastError {
+                            TextShimmer(text: "Installing CLI Tool...", font: .caption)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else if let error = cliInstaller.lastError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundColor(.red)
                         } else if cliInstaller.isInstalled {
                             if cliInstaller.needsUpdate {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("The 'vt' command line tool is installed at /usr/local/bin/vt")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    HStack(spacing: 4) {
-                                        Text("Installed: v\(cliInstaller.installedVersion ?? "unknown")")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        Text("•")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        Text("Available: v\(cliInstaller.bundledVersion ?? "unknown")")
-                                            .font(.caption)
-                                            .foregroundStyle(.accent)
-                                    }
-                                }
+                                Text("Update available: \(cliInstaller.installedVersion ?? "unknown") → \(cliInstaller.bundledVersion ?? "unknown")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             } else {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("The 'vt' command line tool is installed at /usr/local/bin/vt")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    if let version = cliInstaller.installedVersion {
-                                        Text("Version: v\(version)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
+                                Text("The 'vt' command line tool is installed at /usr/local/bin/vt")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                         } else {
                             Text("Install the 'vt' command line tool to /usr/local/bin for terminal access.")
