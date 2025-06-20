@@ -37,6 +37,12 @@ struct MenuBarView: View {
             SessionCountView(count: sessionMonitor.sessionCount)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+            
+            // Session list with clickable items
+            if !sessionMonitor.sessions.isEmpty {
+                SessionListView(sessions: sessionMonitor.sessions)
+                    .padding(.horizontal, 4)
+            }
 
             Divider()
                 .padding(.vertical, 4)
@@ -222,11 +228,12 @@ struct SessionCountView: View {
 /// Lists active SSH sessions with truncation for large lists
 struct SessionListView: View {
     let sessions: [String: SessionMonitor.SessionInfo]
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(Array(activeSessions.prefix(5)), id: \.key) { session in
-                SessionRowView(session: session)
+                SessionRowView(session: session, openWindow: openWindow)
             }
 
             if activeSessions.count > 5 {
@@ -251,17 +258,39 @@ struct SessionListView: View {
 /// Individual row displaying session information
 struct SessionRowView: View {
     let session: (key: String, value: SessionMonitor.SessionInfo)
+    let openWindow: OpenWindowAction
+    @State private var isHovered = false
 
     var body: some View {
-        HStack {
-            Text("  • \(sessionName)")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer()
+        Button(action: {
+            // Open the session detail window
+            openWindow(id: "session-detail", value: session.key)
+        }) {
+            HStack {
+                Text("  • \(sessionName)")
+                    .font(.system(size: 12))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                
+                Spacer()
+                
+                Text("PID: \(session.value.pid)")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 2)
+        .buttonStyle(PlainButtonStyle())
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isHovered ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
     private var sessionName: String {
@@ -270,8 +299,8 @@ struct SessionRowView: View {
         let name = (workingDir as NSString).lastPathComponent
 
         // Truncate long session names
-        if name.count > 35 {
-            let prefix = String(name.prefix(20))
+        if name.count > 30 {
+            let prefix = String(name.prefix(15))
             let suffix = String(name.suffix(10))
             return "\(prefix)...\(suffix)"
         }

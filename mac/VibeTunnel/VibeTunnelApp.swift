@@ -37,6 +37,19 @@ struct VibeTunnelApp: App {
             .windowResizability(.contentSize)
             .defaultSize(width: 580, height: 480)
             .windowStyle(.hiddenTitleBar)
+            
+            // Session Detail Window
+            WindowGroup("Session Details", id: "session-detail", for: String.self) { $sessionId in
+                if let sessionId = sessionId,
+                   let session = SessionMonitor.shared.sessions[sessionId] {
+                    SessionDetailView(session: session)
+                        .withVibeTunnelServices()
+                } else {
+                    Text("Session not found")
+                        .frame(width: 400, height: 300)
+                }
+            }
+            .windowResizability(.contentSize)
 
             Settings {
                 SettingsView()
