@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import QuickLook
 
 /// File browser for navigating the server's file system.
 ///
@@ -13,6 +14,8 @@ struct FileBrowserView: View {
     @State private var newFileName = ""
     @State private var selectedFile: FileEntry?
     @State private var showingDeleteAlert = false
+    @StateObject private var quickLookManager = QuickLookManager.shared
+    @State private var showingQuickLook = false
 
     let onSelect: (String) -> Void
     let initialPath: String
@@ -80,9 +83,11 @@ struct FileBrowserView: View {
                                         if entry.isDir {
                                             viewModel.navigate(to: entry.path)
                                         } else if mode == .browseFiles {
-                                            // File editing disabled - not implemented in backend
-                                            viewModel.errorMessage = "File viewing/editing is not available in the current server version"
-                                            viewModel.showError = true
+                                            // Preview file with Quick Look
+                                            selectedFile = entry
+                                            Task {
+                                                await viewModel.previewFile(entry)
+                                            }
                                         }
                                     }
                                 )
@@ -278,6 +283,37 @@ struct FileBrowserView: View {
                     .onDisappear {
                         // Reload directory to show any new files
                         viewModel.loadDirectory(path: viewModel.currentPath)
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $quickLookManager.isPresenting) {
+                QuickLookWrapper(quickLookManager: quickLookManager)
+                    .ignoresSafeArea()
+            }
+            .overlay {
+                if quickLookManager.isDownloading {
+                    ZStack {
+                        Color.black.opacity(0.8)
+                            .ignoresSafeArea()
+                        
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.terminalAccent))
+                                .scaleEffect(1.5)
+                            
+                            Text("Downloading file...")
+                                .font(.custom("SF Mono", size: 16))
+                                .foregroundColor(Theme.Colors.terminalWhite)
+                            
+                            if quickLookManager.downloadProgress > 0 {
+                                ProgressView(value: quickLookManager.downloadProgress)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: Theme.Colors.terminalAccent))
+                                    .frame(width: 200)
+                            }
+                        }
+                        .padding(40)
+                        .background(Theme.Colors.terminalDarkGray)
+                        .cornerRadius(12)
                     }
                 }
             }
@@ -481,6 +517,17 @@ class FileBrowserViewModel {
         errorMessage = "File deletion is not available in the current server version"
         showError = true
         UINotificationFeedbackGenerator().notificationOccurred(.error)
+    }
+    
+    func previewFile(_ file: FileEntry) async {
+        do {
+            try await QuickLookManager.shared.previewFile(file, apiClient: apiClient)
+        } catch {
+            await MainActor.run {
+                errorMessage = "Failed to preview file: \(error.localizedDescription)"
+                showError = true
+            }
+        }
     }
 }
 
