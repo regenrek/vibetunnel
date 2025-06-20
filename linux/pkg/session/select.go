@@ -74,7 +74,12 @@ func (p *PTY) pollWithSelect() error {
 
 	// Get file descriptors
 	ptyFd := int(p.pty.Fd())
-	stdinFd := int(p.stdinPipe.Fd())
+	var stdinFd int = -1
+	
+	// Only include stdin in polling if not using event-driven mode
+	if !p.useEventDrivenStdin && p.stdinPipe != nil {
+		stdinFd = int(p.stdinPipe.Fd())
+	}
 
 	// Open control FIFO in non-blocking mode
 	controlPath := filepath.Join(p.session.Path(), "control")
@@ -93,7 +98,10 @@ func (p *PTY) pollWithSelect() error {
 
 	for {
 		// Build FD list
-		fds := []int{ptyFd, stdinFd}
+		fds := []int{ptyFd}
+		if stdinFd >= 0 {
+			fds = append(fds, stdinFd)
+		}
 		if controlFd >= 0 {
 			fds = append(fds, controlFd)
 		}

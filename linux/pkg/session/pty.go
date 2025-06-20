@@ -22,13 +22,14 @@ import (
 const useSelectPolling = true
 
 type PTY struct {
-	session      *Session
-	cmd          *exec.Cmd
-	pty          *os.File
-	oldState     *term.State
-	streamWriter *protocol.StreamWriter
-	stdinPipe    *os.File
-	resizeMutex  sync.Mutex
+	session             *Session
+	cmd                 *exec.Cmd
+	pty                 *os.File
+	oldState            *term.State
+	streamWriter        *protocol.StreamWriter
+	stdinPipe           *os.File
+	useEventDrivenStdin bool
+	resizeMutex         sync.Mutex
 }
 
 func NewPTY(session *Session) (*PTY, error) {
@@ -53,7 +54,12 @@ func NewPTY(session *Session) (*PTY, error) {
 		// Verify the directory exists and is accessible
 		if _, err := os.Stat(session.info.Cwd); err != nil {
 			log.Printf("[ERROR] NewPTY: Working directory '%s' not accessible: %v", session.info.Cwd, err)
-			return nil, fmt.Errorf("working directory '%s' not accessible: %w", session.info.Cwd, err)
+			return nil, NewSessionErrorWithCause(
+				fmt.Sprintf("working directory '%s' not accessible", session.info.Cwd),
+				ErrInvalidArgument,
+				session.ID,
+				err,
+			)
 		}
 		cmd.Dir = session.info.Cwd
 		debugLog("[DEBUG] NewPTY: Set working directory to: %s", session.info.Cwd)
@@ -101,7 +107,7 @@ func NewPTY(session *Session) (*PTY, error) {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		log.Printf("[ERROR] NewPTY: Failed to start PTY: %v", err)
-		return nil, fmt.Errorf("failed to start PTY: %w", err)
+		return nil, ErrPTYCreationError(session.ID, err)
 	}
 
 	debugLog("[DEBUG] NewPTY: PTY started successfully, PID: %d", cmd.Process.Pid)
@@ -110,10 +116,15 @@ func NewPTY(session *Session) (*PTY, error) {
 	debugLog("[DEBUG] NewPTY: Executing command: %v in directory: %s", cmdline, cmd.Dir)
 	debugLog("[DEBUG] NewPTY: Environment has %d variables", len(cmd.Env))
 
-	if err := pty.Setsize(ptmx, &pty.Winsize{
-		Rows: uint16(session.info.Height),
-		Cols: uint16(session.info.Width),
-	}); err != nil {
+	// Configure terminal attributes to match node-pty behavior
+	// This must be done before setting size and after the process starts
+	if err := configurePTYTerminal(ptmx); err != nil {
+		log.Printf("[ERROR] NewPTY: Failed to configure PTY terminal: %v", err)
+		// Don't fail on terminal configuration errors, just log them
+	}
+
+	// Set PTY size using our enhanced function
+	if err := setPTYSize(ptmx, uint16(session.info.Width), uint16(session.info.Height)); err != nil {
 		log.Printf("[ERROR] NewPTY: Failed to set PTY size: %v", err)
 		if err := ptmx.Close(); err != nil {
 			log.Printf("[ERROR] NewPTY: Failed to close PTY: %v", err)
@@ -121,13 +132,15 @@ func NewPTY(session *Session) (*PTY, error) {
 		if err := cmd.Process.Kill(); err != nil {
 			log.Printf("[ERROR] NewPTY: Failed to kill process: %v", err)
 		}
-		return nil, fmt.Errorf("failed to set PTY size: %w", err)
+		return nil, NewSessionErrorWithCause(
+			"failed to set PTY size",
+			ErrPTYResizeFailed,
+			session.ID,
+			err,
+		)
 	}
 
-	// Configure terminal modes for proper interactive shell behavior
-	// The creack/pty library handles basic setup, but we ensure the terminal
-	// is in the correct mode for interactive use (not raw mode)
-	debugLog("[DEBUG] NewPTY: Terminal configured for interactive mode")
+	debugLog("[DEBUG] NewPTY: Terminal configured for interactive mode with flow control")
 
 	streamOut, err := os.Create(session.StreamOutPath())
 	if err != nil {
@@ -209,19 +222,32 @@ func (p *PTY) Run() error {
 
 	debugLog("[DEBUG] PTY.Run: Starting PTY run for session %s, PID %d", p.session.ID[:8], p.cmd.Process.Pid)
 
-	stdinPipe, err := os.OpenFile(p.session.StdinPath(), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	// Use event-driven stdin handling like Node.js
+	stdinWatcher, err := NewStdinWatcher(p.session.StdinPath(), p.pty)
 	if err != nil {
-		log.Printf("[ERROR] PTY.Run: Failed to open stdin pipe: %v", err)
-		return fmt.Errorf("failed to open stdin pipe: %w", err)
-	}
-	defer func() {
-		if err := stdinPipe.Close(); err != nil {
-			log.Printf("[ERROR] PTY.Run: Failed to close stdin pipe: %v", err)
+		// Fall back to polling if watcher fails
+		log.Printf("[WARN] PTY.Run: Failed to create stdin watcher, falling back to polling: %v", err)
+		
+		stdinPipe, err := os.OpenFile(p.session.StdinPath(), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			log.Printf("[ERROR] PTY.Run: Failed to open stdin pipe: %v", err)
+			return fmt.Errorf("failed to open stdin pipe: %w", err)
 		}
-	}()
-	p.stdinPipe = stdinPipe
+		defer func() {
+			if err := stdinPipe.Close(); err != nil {
+				log.Printf("[ERROR] PTY.Run: Failed to close stdin pipe: %v", err)
+			}
+		}()
+		p.stdinPipe = stdinPipe
+	} else {
+		// Start the watcher
+		stdinWatcher.Start()
+		defer stdinWatcher.Stop()
+		p.useEventDrivenStdin = true
+		debugLog("[DEBUG] PTY.Run: Using event-driven stdin handling")
+	}
 
-	debugLog("[DEBUG] PTY.Run: Stdin pipe opened successfully")
+	debugLog("[DEBUG] PTY.Run: Stdin handling initialized")
 
 	// Set up SIGWINCH handling for terminal resize
 	winchCh := make(chan os.Signal, 1)
@@ -236,10 +262,7 @@ func (p *PTY) Run() error {
 				width, height, err := term.GetSize(int(os.Stdin.Fd()))
 				if err == nil {
 					debugLog("[DEBUG] PTY.Run: Received SIGWINCH, resizing to %dx%d", width, height)
-					if err := pty.Setsize(p.pty, &pty.Winsize{
-						Rows: uint16(height),
-						Cols: uint16(width),
-					}); err != nil {
+					if err := setPTYSize(p.pty, uint16(width), uint16(height)); err != nil {
 						log.Printf("[ERROR] PTY.Run: Failed to resize PTY: %v", err)
 					} else {
 						// Update session info
@@ -301,45 +324,48 @@ func (p *PTY) Run() error {
 		}
 	}()
 
-	go func() {
-		debugLog("[DEBUG] PTY.Run: Starting stdin reading goroutine")
-		buf := make([]byte, 4096)
-		for {
-			n, err := stdinPipe.Read(buf)
-			if n > 0 {
-				debugLog("[DEBUG] PTY.Run: Read %d bytes from stdin, writing to PTY", n)
-				if _, err := p.pty.Write(buf[:n]); err != nil {
-					log.Printf("[ERROR] PTY.Run: Failed to write to PTY: %v", err)
-					// Only exit if the PTY is really broken, not on temporary errors
-					if err != syscall.EPIPE && err != syscall.ECONNRESET {
-						errCh <- fmt.Errorf("failed to write to PTY: %w", err)
-						return
+	// Only start stdin goroutine if not using event-driven mode
+	if !p.useEventDrivenStdin && p.stdinPipe != nil {
+		go func() {
+			debugLog("[DEBUG] PTY.Run: Starting stdin reading goroutine")
+			buf := make([]byte, 4096)
+			for {
+				n, err := p.stdinPipe.Read(buf)
+				if n > 0 {
+					debugLog("[DEBUG] PTY.Run: Read %d bytes from stdin, writing to PTY", n)
+					if _, err := p.pty.Write(buf[:n]); err != nil {
+						log.Printf("[ERROR] PTY.Run: Failed to write to PTY: %v", err)
+						// Only exit if the PTY is really broken, not on temporary errors
+						if err != syscall.EPIPE && err != syscall.ECONNRESET {
+							errCh <- fmt.Errorf("failed to write to PTY: %w", err)
+							return
+						}
+						// For broken pipe, just continue - the PTY might be closing
+						debugLog("[DEBUG] PTY.Run: PTY write failed with pipe error, continuing...")
+						time.Sleep(10 * time.Millisecond)
 					}
-					// For broken pipe, just continue - the PTY might be closing
-					debugLog("[DEBUG] PTY.Run: PTY write failed with pipe error, continuing...")
-					time.Sleep(10 * time.Millisecond)
+					// Continue immediately after successful write
+					continue
 				}
-				// Continue immediately after successful write
-				continue
+				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+					// No data available, longer pause to prevent excessive CPU usage
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+				if err == io.EOF {
+					// No writers to the FIFO yet, longer pause before retry
+					time.Sleep(50 * time.Millisecond)
+					continue
+				}
+				if err != nil {
+					// Log other errors but don't crash the session - stdin issues shouldn't kill the PTY
+					log.Printf("[WARN] PTY.Run: Stdin read error (non-fatal): %v", err)
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
 			}
-			if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
-				// No data available, longer pause to prevent excessive CPU usage
-				time.Sleep(10 * time.Millisecond)
-				continue
-			}
-			if err == io.EOF {
-				// No writers to the FIFO yet, longer pause before retry
-				time.Sleep(50 * time.Millisecond)
-				continue
-			}
-			if err != nil {
-				// Log other errors but don't crash the session - stdin issues shouldn't kill the PTY
-				log.Printf("[WARN] PTY.Run: Stdin read error (non-fatal): %v", err)
-				time.Sleep(10 * time.Millisecond)
-				continue
-			}
-		}
-	}()
+		}()
+	}
 
 	go func() {
 		debugLog("[DEBUG] PTY.Run: Starting process wait goroutine for PID %d", p.cmd.Process.Pid)

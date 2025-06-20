@@ -353,7 +353,7 @@ func (s *Session) proxyInputToNodeJS(data []byte) error {
 
 func (s *Session) Signal(sig string) error {
 	if s.info.Pid == 0 {
-		return fmt.Errorf("no process to signal")
+		return NewSessionError("no process to signal", ErrProcessNotFound, s.ID)
 	}
 
 	// Check if process is still alive before signaling
@@ -370,21 +370,27 @@ func (s *Session) Signal(sig string) error {
 
 	proc, err := os.FindProcess(s.info.Pid)
 	if err != nil {
-		return err
+		return ErrProcessSignalError(s.ID, sig, err)
 	}
 
 	switch sig {
 	case "SIGTERM":
-		return proc.Signal(os.Interrupt)
+		if err := proc.Signal(os.Interrupt); err != nil {
+			return ErrProcessSignalError(s.ID, sig, err)
+		}
+		return nil
 	case "SIGKILL":
 		err = proc.Kill()
 		// If kill fails with "process already finished", that's okay
 		if err != nil && strings.Contains(err.Error(), "process already finished") {
 			return nil
 		}
-		return err
+		if err != nil {
+			return ErrProcessSignalError(s.ID, sig, err)
+		}
+		return nil
 	default:
-		return fmt.Errorf("unsupported signal: %s", sig)
+		return NewSessionError(fmt.Sprintf("unsupported signal: %s", sig), ErrInvalidArgument, s.ID)
 	}
 }
 
@@ -393,24 +399,29 @@ func (s *Session) Stop() error {
 }
 
 func (s *Session) Kill() error {
-	// First check if the session is already dead
-	if s.info.Status == string(StatusExited) {
-		// Already exited, just cleanup and return success
+	// Use graceful termination like Node.js
+	terminator := NewProcessTerminator(s)
+	return terminator.TerminateGracefully()
+}
+
+// KillWithSignal kills the session with the specified signal
+// If signal is SIGKILL, it sends it immediately without graceful termination
+func (s *Session) KillWithSignal(signal string) error {
+	// If SIGKILL is explicitly requested, send it immediately
+	if signal == "SIGKILL" || signal == "9" {
+		err := s.Signal("SIGKILL")
 		s.cleanup()
-		return nil
+		
+		// If the error is because the process doesn't exist, that's fine
+		if err != nil && (strings.Contains(err.Error(), "no such process") ||
+			strings.Contains(err.Error(), "process already finished")) {
+			return nil
+		}
+		return err
 	}
-
-	// Try to kill the process
-	err := s.Signal("SIGKILL")
-	s.cleanup()
-
-	// If the error is because the process doesn't exist, that's fine
-	if err != nil && (strings.Contains(err.Error(), "no such process") ||
-		strings.Contains(err.Error(), "process already finished")) {
-		return nil
-	}
-
-	return err
+	
+	// For other signals, use graceful termination
+	return s.Kill()
 }
 
 func (s *Session) cleanup() {
@@ -427,17 +438,21 @@ func (s *Session) cleanup() {
 
 func (s *Session) Resize(width, height int) error {
 	if s.pty == nil {
-		return fmt.Errorf("session not started")
+		return NewSessionError("session not started", ErrSessionNotRunning, s.ID)
 	}
 
 	// Check if session is still alive
 	if s.info.Status == string(StatusExited) {
-		return fmt.Errorf("cannot resize exited session")
+		return NewSessionError("cannot resize exited session", ErrSessionNotRunning, s.ID)
 	}
 
 	// Validate dimensions
 	if width <= 0 || height <= 0 {
-		return fmt.Errorf("invalid dimensions: width=%d, height=%d", width, height)
+		return NewSessionError(
+			fmt.Sprintf("invalid dimensions: width=%d, height=%d", width, height),
+			ErrInvalidArgument,
+			s.ID,
+		)
 	}
 
 	// Update session info
