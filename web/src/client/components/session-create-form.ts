@@ -284,16 +284,16 @@ export class SessionCreateForm extends LitElement {
               />
             </div>
 
-            <div class="flex gap-4 justify-end">
+            <div class="flex gap-4 mt-6">
               <button
-                class="btn-ghost font-mono"
+                class="btn-ghost font-mono flex-1 py-3"
                 @click=${this.handleCancel}
                 ?disabled=${this.isCreating}
               >
                 Cancel
               </button>
               <button
-                class="btn-primary font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                class="btn-primary font-mono flex-1 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                 @click=${this.handleCreate}
                 ?disabled=${this.disabled ||
                 this.isCreating ||

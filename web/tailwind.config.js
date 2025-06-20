@@ -50,7 +50,6 @@ module.exports = {
                 "vs-nav-active": "#00ff88",
                 "vs-highlight": "#8b6914",
             },
-        },
             boxShadow: {
                 'glow-green': '0 0 20px rgba(0, 255, 136, 0.4)',
                 'glow-green-sm': '0 0 10px rgba(0, 255, 136, 0.3)',

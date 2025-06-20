@@ -67,9 +67,9 @@ export class AppHeader extends LitElement {
               ${exitedSessions.length > 0
                 ? html`
                     <button
-                      class="btn-ghost font-mono text-xs ${this.hideExited
-                        ? 'text-accent-green border border-accent-green'
-                        : ''}"
+                      class="btn-secondary font-mono text-xs px-4 py-2 ${this.hideExited
+                        ? ''
+                        : 'bg-accent-green text-dark-bg hover:bg-accent-green-darker'}"
                       @click=${() =>
                         this.dispatchEvent(
                           new CustomEvent('hide-exited-change', {
@@ -78,8 +78,8 @@ export class AppHeader extends LitElement {
                         )}
                     >
                       ${this.hideExited
-                        ? `Show Exited (${exitedSessions.length})`
-                        : `Hide Exited (${exitedSessions.length})`}
+                        ? `Show (${exitedSessions.length})`
+                        : `Hide (${exitedSessions.length})`}
                     </button>
                   `
                 : ''}
@@ -132,31 +132,19 @@ export class AppHeader extends LitElement {
             ${exitedSessions.length > 0
               ? html`
                   <button
-                    class="font-mono px-2 py-1 rounded transition-colors text-xs whitespace-nowrap"
-                    style="background: black; color: #d4d4d4; border: 1px solid ${this.hideExited
-                      ? '#23d18b'
-                      : '#888'};"
+                    class="btn-secondary font-mono text-xs px-4 py-2 ${this.hideExited
+                      ? ''
+                      : 'bg-accent-green text-dark-bg hover:bg-accent-green-darker'}"
                     @click=${() =>
                       this.dispatchEvent(
                         new CustomEvent('hide-exited-change', {
                           detail: !this.hideExited,
                         })
                       )}
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      const borderColor = this.hideExited ? '#23d18b' : '#888';
-                      btn.style.background = borderColor;
-                      btn.style.color = 'black';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'black';
-                      btn.style.color = '#d4d4d4';
-                    }}
                   >
                     ${this.hideExited
-                      ? `SHOW EXITED (${exitedSessions.length})`
-                      : `HIDE EXITED (${exitedSessions.length})`}
+                      ? `Show Exited (${exitedSessions.length})`
+                      : `Hide Exited (${exitedSessions.length})`}
                   </button>
                 `
               : ''}
