@@ -265,9 +265,11 @@ export class VibeTunnelApp extends LitElement {
       ${this.errorMessage
         ? html`
             <div class="fixed top-4 right-4 z-50">
-              <div class="bg-vs-warning text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
+              <div
+                class="bg-status-error text-dark-bg px-4 py-2 rounded shadow-lg font-mono text-sm"
+              >
                 ${this.errorMessage}
-                <button @click=${this.clearError} class="ml-2 text-vs-bg hover:text-vs-muted">
+                <button @click=${this.clearError} class="ml-2 text-dark-bg hover:text-dark-text">
                   ✕
                 </button>
               </div>
@@ -277,9 +279,11 @@ export class VibeTunnelApp extends LitElement {
       ${this.successMessage
         ? html`
             <div class="fixed top-4 right-4 z-50">
-              <div class="bg-vs-link text-vs-bg px-4 py-2 rounded shadow-lg font-mono text-sm">
+              <div
+                class="bg-status-success text-dark-bg px-4 py-2 rounded shadow-lg font-mono text-sm"
+              >
                 ${this.successMessage}
-                <button @click=${this.clearSuccess} class="ml-2 text-vs-bg hover:text-vs-muted">
+                <button @click=${this.clearSuccess} class="ml-2 text-dark-bg hover:text-dark-text">
                   ✕
                 </button>
               </div>
@@ -298,7 +302,7 @@ export class VibeTunnelApp extends LitElement {
             `
           )
         : html`
-            <div class="max-w-4xl mx-auto" style="background: black;">
+            <div class="max-w-4xl mx-auto">
               <app-header
                 .sessions=${this.sessions}
                 .hideExited=${this.hideExited}

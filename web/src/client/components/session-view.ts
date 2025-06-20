@@ -821,28 +821,28 @@ export class SessionView extends LitElement {
   }
 
   private getStatusColor(): string {
-    if (!this.session) return 'text-vs-muted';
+    if (!this.session) return 'text-dark-text-muted';
     if ('waiting' in this.session && this.session.waiting) {
-      return 'text-vs-muted';
+      return 'text-dark-text-muted';
     }
-    return this.session.status === 'running' ? 'text-vs-user' : 'text-vs-warning';
+    return this.session.status === 'running' ? 'text-status-success' : 'text-status-warning';
   }
 
   private getStatusDotColor(): string {
-    if (!this.session) return 'bg-gray-500';
+    if (!this.session) return 'bg-dark-text-muted';
     if ('waiting' in this.session && this.session.waiting) {
-      return 'bg-gray-500';
+      return 'bg-dark-text-muted';
     }
-    return this.session.status === 'running' ? 'bg-green-500' : 'bg-orange-500';
+    return this.session.status === 'running' ? 'bg-status-success' : 'bg-status-warning';
   }
 
   render() {
     if (!this.session) {
       return html`
-        <div class="fixed inset-0 bg-black flex items-center justify-center">
-          <div class="text-vs-text font-mono text-center">
+        <div class="fixed inset-0 bg-dark-bg flex items-center justify-center">
+          <div class="text-dark-text font-mono text-center">
             <div class="text-2xl mb-2">${this.getLoadingText()}</div>
-            <div class="text-sm text-vs-muted">Waiting for session...</div>
+            <div class="text-sm text-dark-text-muted">Waiting for session...</div>
           </div>
         </div>
       `;
@@ -857,40 +857,28 @@ export class SessionView extends LitElement {
           box-shadow: none !important;
         }
         session-view:focus {
-          outline: 2px solid #007acc !important;
+          outline: 2px solid #00ff88 !important;
           outline-offset: -2px;
         }
       </style>
       <div
-        class="flex flex-col bg-vs-bg font-mono"
+        class="flex flex-col bg-dark-bg font-mono"
         style="height: 100vh; height: 100dvh; outline: none !important; box-shadow: none !important;"
       >
         <!-- Compact Header -->
         <div
-          class="flex items-center justify-between px-3 py-2 border-b border-vs-border text-sm min-w-0"
-          style="background: black;"
+          class="flex items-center justify-between px-3 py-2 border-b border-dark-border text-sm min-w-0 bg-dark-bg-secondary"
         >
           <div class="flex items-center gap-3 min-w-0 flex-1">
             <button
-              class="font-mono px-2 py-1 rounded transition-colors text-xs flex-shrink-0"
-              style="background: black; color: #d4d4d4; border: 1px solid #569cd6;"
+              class="btn-secondary font-mono text-xs px-3 py-1 flex-shrink-0"
               @click=${this.handleBack}
-              @mouseover=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                btn.style.background = '#569cd6';
-                btn.style.color = 'black';
-              }}
-              @mouseout=${(e: Event) => {
-                const btn = e.target as HTMLElement;
-                btn.style.background = 'black';
-                btn.style.color = '#d4d4d4';
-              }}
             >
-              BACK
+              Back
             </button>
-            <div class="text-vs-text min-w-0 flex-1 overflow-hidden">
+            <div class="text-dark-text min-w-0 flex-1 overflow-hidden">
               <div
-                class="text-vs-accent text-xs sm:text-sm overflow-hidden text-ellipsis whitespace-nowrap"
+                class="text-accent-green text-xs sm:text-sm overflow-hidden text-ellipsis whitespace-nowrap"
                 title="${this.session.name || this.session.command}"
               >
                 ${this.session.name || this.session.command}
@@ -906,7 +894,7 @@ export class SessionView extends LitElement {
               ${this.terminalCols > 0 && this.terminalRows > 0
                 ? html`
                     <span
-                      class="text-vs-muted text-xs opacity-60"
+                      class="text-dark-text-muted text-xs opacity-60"
                       style="font-size: 10px; line-height: 1;"
                     >
                       ${this.terminalCols}×${this.terminalRows}
@@ -919,7 +907,7 @@ export class SessionView extends LitElement {
 
         <!-- Terminal Container -->
         <div
-          class="flex-1 bg-black overflow-hidden min-h-0 relative"
+          class="flex-1 bg-dark-bg overflow-hidden min-h-0 relative"
           id="terminal-container"
           style="max-width: 100vw; height: 100%;"
         >
@@ -927,11 +915,11 @@ export class SessionView extends LitElement {
             ? html`
                 <!-- Loading overlay -->
                 <div
-                  class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-10"
+                  class="absolute inset-0 bg-dark-bg bg-opacity-80 flex items-center justify-center z-10"
                 >
-                  <div class="text-vs-text font-mono text-center">
+                  <div class="text-dark-text font-mono text-center">
                     <div class="text-2xl mb-2">${this.getLoadingText()}</div>
-                    <div class="text-sm text-vs-muted">Connecting to session...</div>
+                    <div class="text-sm text-dark-text-muted">Connecting to session...</div>
                   </div>
                 </div>
               `
@@ -954,70 +942,26 @@ export class SessionView extends LitElement {
                 <!-- First row: Arrow keys -->
                 <div class="flex gap-2 mb-2">
                   <button
-                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer quick-start-btn"
                     @click=${() => this.handleSpecialKey('arrow_up')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     <span class="text-xl">↑</span>
                   </button>
                   <button
-                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer quick-start-btn"
                     @click=${() => this.handleSpecialKey('arrow_down')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     <span class="text-xl">↓</span>
                   </button>
                   <button
-                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer quick-start-btn"
                     @click=${() => this.handleSpecialKey('arrow_left')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     <span class="text-xl">←</span>
                   </button>
                   <button
-                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer quick-start-btn"
                     @click=${() => this.handleSpecialKey('arrow_right')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     <span class="text-xl">→</span>
                   </button>
@@ -1026,87 +970,32 @@ export class SessionView extends LitElement {
                 <!-- Second row: Special keys -->
                 <div class="flex gap-2">
                   <button
-                    class="font-mono text-sm transition-all cursor-pointer w-16"
+                    class="font-mono text-sm transition-all cursor-pointer w-16 quick-start-btn"
                     @click=${() => this.handleSpecialKey('escape')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px; padding: 8px 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     ESC
                   </button>
                   <button
-                    class="font-mono text-sm transition-all cursor-pointer w-16"
+                    class="font-mono text-sm transition-all cursor-pointer w-16 quick-start-btn"
                     @click=${() => this.handleSpecialKey('\t')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px; padding: 8px 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     <span class="text-xl">⇥</span>
                   </button>
                   <button
-                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer"
+                    class="flex-1 font-mono px-3 py-2 text-sm transition-all cursor-pointer quick-start-btn"
                     @click=${this.handleMobileInputToggle}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     ABC123
                   </button>
                   <button
-                    class="font-mono text-sm transition-all cursor-pointer w-16"
+                    class="font-mono text-sm transition-all cursor-pointer w-16 quick-start-btn"
                     @click=${this.handleCtrlAlphaToggle}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px; padding: 8px 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     CTRL
                   </button>
                   <button
-                    class="font-mono text-sm transition-all cursor-pointer w-16"
+                    class="font-mono text-sm transition-all cursor-pointer w-16 quick-start-btn"
                     @click=${() => this.handleSpecialKey('enter')}
-                    style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px; padding: 8px 4px;"
-                    @mouseover=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.9)';
-                      btn.style.borderColor = '#666';
-                    }}
-                    @mouseout=${(e: Event) => {
-                      const btn = e.target as HTMLElement;
-                      btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                      btn.style.borderColor = '#444';
-                    }}
                   >
                     <span class="text-xl">⏎</span>
                   </button>
@@ -1167,63 +1056,22 @@ export class SessionView extends LitElement {
                   <!-- Controls -->
                   <div class="p-4 flex gap-2" style="border-top: 1px solid #444;">
                     <button
-                      class="font-mono px-3 py-2 text-xs transition-colors"
+                      class="font-mono px-3 py-2 text-xs transition-colors btn-ghost"
                       @click=${() => (this.showMobileInput = false)}
-                      style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#888';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
                       CANCEL
                     </button>
                     <button
-                      class="flex-1 font-mono px-3 py-2 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="flex-1 font-mono px-3 py-2 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed btn-ghost"
                       @click=${this.handleMobileInputSendOnly}
                       ?disabled=${!this.mobileInputText.trim()}
-                      style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        if (!btn.hasAttribute('disabled')) {
-                          btn.style.background = '#888';
-                          btn.style.color = 'black';
-                        }
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        if (!btn.hasAttribute('disabled')) {
-                          btn.style.background = 'black';
-                          btn.style.color = '#d4d4d4';
-                        }
-                      }}
                     >
                       SEND
                     </button>
                     <button
-                      class="flex-1 font-mono px-3 py-2 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="flex-1 font-mono px-3 py-2 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed btn-secondary"
                       @click=${this.handleMobileInputSend}
                       ?disabled=${!this.mobileInputText.trim()}
-                      style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        if (!btn.hasAttribute('disabled')) {
-                          btn.style.background = '#569cd6';
-                          btn.style.color = 'black';
-                        }
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        if (!btn.hasAttribute('disabled')) {
-                          btn.style.background = 'black';
-                          btn.style.color = '#d4d4d4';
-                        }
-                      }}
                     >
                       SEND + ⏎
                     </button>
@@ -1297,19 +1145,8 @@ export class SessionView extends LitElement {
                     ].map(
                       (letter) => html`
                         <button
-                          class="font-mono text-xs transition-all cursor-pointer aspect-square flex items-center justify-center"
-                          style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
+                          class="font-mono text-xs transition-all cursor-pointer aspect-square flex items-center justify-center quick-start-btn"
                           @click=${() => this.handleCtrlKey(letter)}
-                          @mouseover=${(e: Event) => {
-                            const btn = e.target as HTMLElement;
-                            btn.style.background = '#569cd6';
-                            btn.style.color = 'black';
-                          }}
-                          @mouseout=${(e: Event) => {
-                            const btn = e.target as HTMLElement;
-                            btn.style.background = 'rgba(0, 0, 0, 0.8)';
-                            btn.style.color = '#d4d4d4';
-                          }}
                         >
                           ${letter}
                         </button>
@@ -1325,55 +1162,22 @@ export class SessionView extends LitElement {
                   <!-- Action buttons -->
                   <div class="flex gap-2 justify-center">
                     <button
-                      class="font-mono px-4 py-2 text-sm transition-all cursor-pointer"
-                      style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
+                      class="font-mono px-4 py-2 text-sm transition-all cursor-pointer btn-ghost"
                       @click=${() => (this.showCtrlAlpha = false)}
-                      @mouseover=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = '#888';
-                        btn.style.color = 'black';
-                      }}
-                      @mouseout=${(e: Event) => {
-                        const btn = e.target as HTMLElement;
-                        btn.style.background = 'black';
-                        btn.style.color = '#d4d4d4';
-                      }}
                     >
                       CANCEL
                     </button>
                     ${this.ctrlSequence.length > 0
                       ? html`
                           <button
-                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
-                            style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
+                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer btn-ghost"
                             @click=${this.handleClearCtrlSequence}
-                            @mouseover=${(e: Event) => {
-                              const btn = e.target as HTMLElement;
-                              btn.style.background = '#888';
-                              btn.style.color = 'black';
-                            }}
-                            @mouseout=${(e: Event) => {
-                              const btn = e.target as HTMLElement;
-                              btn.style.background = 'black';
-                              btn.style.color = '#d4d4d4';
-                            }}
                           >
                             CLEAR
                           </button>
                           <button
-                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer"
-                            style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
+                            class="font-mono px-3 py-2 text-sm transition-all cursor-pointer btn-secondary"
                             @click=${this.handleSendCtrlSequence}
-                            @mouseover=${(e: Event) => {
-                              const btn = e.target as HTMLElement;
-                              btn.style.background = '#569cd6';
-                              btn.style.color = 'black';
-                            }}
-                            @mouseout=${(e: Event) => {
-                              const btn = e.target as HTMLElement;
-                              btn.style.background = 'black';
-                              btn.style.color = '#d4d4d4';
-                            }}
                           >
                             SEND
                           </button>

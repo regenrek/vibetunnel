@@ -231,25 +231,18 @@ export class SessionCreateForm extends LitElement {
     }
 
     return html`
-      <div
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
-        style="z-index: 9999;"
-      >
-        <div
-          class="font-mono text-sm w-96 max-w-full mx-4"
-          style="background: black; border: 1px solid #569cd6; border-radius: 4px;"
-        >
-          <div class="p-4" style="border-bottom: 1px solid #444;">
-            <div class="text-vs-user text-sm">Create New Session</div>
+      <div class="modal-backdrop flex items-center justify-center">
+        <div class="modal-content font-mono text-sm w-96 max-w-full mx-4">
+          <div class="pb-6 mb-6 border-b border-dark-border">
+            <h2 class="text-accent-green text-lg font-bold">Create New Session</h2>
           </div>
 
           <div class="p-4">
             <div class="mb-4">
-              <div class="text-vs-text mb-2">Session Name (optional):</div>
+              <label class="form-label">Session Name (optional):</label>
               <input
                 type="text"
-                class="w-full outline-none font-mono px-4 py-2"
-                style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
+                class="input-field"
                 .value=${this.sessionName}
                 @input=${this.handleSessionNameChange}
                 placeholder="My Session"
@@ -258,44 +251,31 @@ export class SessionCreateForm extends LitElement {
             </div>
 
             <div class="mb-4">
-              <div class="text-vs-text mb-2">Working Directory:</div>
+              <label class="form-label">Working Directory:</label>
               <div class="flex gap-4">
                 <input
                   type="text"
-                  class="flex-1 outline-none font-mono px-4 py-2"
-                  style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
+                  class="input-field"
                   .value=${this.workingDir}
                   @input=${this.handleWorkingDirChange}
                   placeholder="~/"
                   ?disabled=${this.disabled || this.isCreating}
                 />
                 <button
-                  class="font-mono px-4 py-2 transition-colors"
-                  style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
+                  class="btn-secondary font-mono px-4"
                   @click=${this.handleBrowse}
                   ?disabled=${this.disabled || this.isCreating}
-                  @mouseover=${(e: Event) => {
-                    const btn = e.target as HTMLElement;
-                    btn.style.background = '#569cd6';
-                    btn.style.color = 'black';
-                  }}
-                  @mouseout=${(e: Event) => {
-                    const btn = e.target as HTMLElement;
-                    btn.style.background = 'black';
-                    btn.style.color = '#d4d4d4';
-                  }}
                 >
-                  browse
+                  Browse
                 </button>
               </div>
             </div>
 
             <div class="mb-4">
-              <div class="text-vs-text mb-2">Command:</div>
+              <label class="form-label">Command:</label>
               <input
                 type="text"
-                class="w-full outline-none font-mono px-4 py-2"
-                style="background: rgba(0, 0, 0, 0.8); color: #d4d4d4; border: 1px solid #444; border-radius: 4px;"
+                class="input-field"
                 .value=${this.command}
                 @input=${this.handleCommandChange}
                 @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
@@ -306,47 +286,21 @@ export class SessionCreateForm extends LitElement {
 
             <div class="flex gap-4 justify-end">
               <button
-                class="font-mono px-4 py-2 transition-colors"
-                style="background: black; color: #d4d4d4; border: 1px solid #888; border-radius: 4px;"
+                class="btn-ghost font-mono"
                 @click=${this.handleCancel}
                 ?disabled=${this.isCreating}
-                @mouseover=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  btn.style.background = '#888';
-                  btn.style.color = 'black';
-                }}
-                @mouseout=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  btn.style.background = 'black';
-                  btn.style.color = '#d4d4d4';
-                }}
               >
-                cancel
+                Cancel
               </button>
               <button
-                class="font-mono px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style="background: black; color: #d4d4d4; border: 1px solid #569cd6; border-radius: 4px;"
+                class="btn-primary font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                 @click=${this.handleCreate}
                 ?disabled=${this.disabled ||
                 this.isCreating ||
                 !this.workingDir.trim() ||
                 !this.command.trim()}
-                @mouseover=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  if (!btn.hasAttribute('disabled')) {
-                    btn.style.background = '#569cd6';
-                    btn.style.color = 'black';
-                  }
-                }}
-                @mouseout=${(e: Event) => {
-                  const btn = e.target as HTMLElement;
-                  if (!btn.hasAttribute('disabled')) {
-                    btn.style.background = 'black';
-                    btn.style.color = '#d4d4d4';
-                  }
-                }}
               >
-                ${this.isCreating ? 'creating...' : 'create'}
+                ${this.isCreating ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>

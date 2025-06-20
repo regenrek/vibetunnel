@@ -2,6 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global dark theme styles */
+@layer base {
+  body {
+    @apply bg-dark-bg text-dark-text;
+  }
+  
+  /* Default focus styles */
+  :focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.3);
+  }
+}
+
+/* Custom components */
+@layer components {
+  /* Glowing terminal icon */
+  .terminal-icon {
+    @apply text-accent-green;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.6));
+  }
+  
+  /* Input fields with glow effect */
+  .input-field {
+    @apply bg-dark-bg-secondary border border-dark-border rounded-lg px-4 py-3 text-dark-text w-full;
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:border-accent-green-darker focus:border-accent-green;
+    @apply focus:shadow-glow-green-sm;
+  }
+  
+  /* Button styles */
+  .btn-primary {
+    @apply bg-accent-green text-dark-bg font-medium px-6 py-3 rounded-lg;
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:bg-accent-green-light hover:shadow-glow-green;
+    @apply active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply border border-accent-green text-accent-green px-6 py-3 rounded-lg;
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:bg-accent-green hover:text-dark-bg hover:shadow-glow-green;
+    @apply active:scale-95;
+  }
+  
+  .btn-ghost {
+    @apply text-dark-text-muted px-4 py-2 rounded-lg;
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:text-dark-text hover:bg-dark-bg-tertiary;
+  }
+  
+  /* Card styles */
+  .card {
+    @apply bg-dark-bg-secondary border border-dark-border rounded-lg p-6;
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:border-accent-green-darker hover:shadow-glow-green-sm;
+  }
+  
+  /* Quick start buttons */
+  .quick-start-btn {
+    @apply bg-dark-bg-tertiary border border-dark-border rounded-lg px-4 py-3 h-12;
+    @apply transition-all duration-200 ease-in-out text-dark-text-muted;
+    @apply hover:border-accent-green hover:text-accent-green hover:shadow-glow-green-sm;
+    @apply active:scale-95;
+  }
+  
+  .quick-start-btn.active {
+    @apply bg-accent-green text-dark-bg border-accent-green shadow-glow-green-sm;
+  }
+  
+  /* Modal backdrop */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black bg-opacity-80 z-40;
+    backdrop-filter: blur(4px);
+  }
+  
+  /* Modal content */
+  .modal-content {
+    @apply bg-dark-bg-secondary border border-dark-border rounded-xl p-8;
+    @apply shadow-2xl shadow-black/50;
+  }
+  
+  /* Labels */
+  .form-label {
+    @apply text-dark-text-muted text-sm font-medium mb-2 flex items-center gap-2;
+  }
+}
+
 /* Fira Code Variable Font */
 @font-face {
   font-family: 'Fira Code';
@@ -112,9 +199,10 @@ body {
 
 /* Terminal container styling */
 .terminal-container {
-  color: #d4d4d4;
+  color: #e4e4e4;
   white-space: pre;
   overflow: hidden;
+  background-color: #0a0a0a;
 }
 
 /* Terminal line styling */
@@ -196,8 +284,8 @@ body {
 
 /* Terminal focus indicator */
 .terminal-focused {
-  box-shadow: 0 0 0 2px #00ff00;
-  border-color: #00ff00 !important;
+  box-shadow: 0 0 0 2px #00ff88;
+  border-color: #00ff88 !important;
 }
 
 /* Keyboard capture indicator */
@@ -205,9 +293,9 @@ body {
   position: fixed;
   top: 10px;
   right: 10px;
-  background: rgba(0, 255, 0, 0.1);
-  border: 1px solid #00ff00;
-  color: #00ff00;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid #00ff88;
+  color: #00ff88;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -517,14 +605,14 @@ body {
   left: 12px;
   width: 48px;
   height: 48px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid #444;
+  background: rgba(26, 26, 26, 0.9);
+  border: 1px solid #2a2a2a;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #d4d4d4;
+  color: #e4e4e4;
   font-size: 24px;
   transition: all 0.2s ease;
   user-select: none;
@@ -532,9 +620,11 @@ body {
 }
 
 .scroll-to-bottom:hover {
-  background: rgba(0, 0, 0, 0.9);
-  border-color: #666;
+  background: rgba(26, 26, 26, 1);
+  border-color: #00ff88;
+  color: #00ff88;
   transform: translateY(-1px);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
 
 .scroll-to-bottom:active {
@@ -546,13 +636,13 @@ body {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid #444;
+  background: rgba(26, 26, 26, 0.9);
+  border: 1px solid #2a2a2a;
   border-radius: 4px;
   padding: 8px 12px;
   font-family: 'Fira Code', monospace;
   font-size: 11px;
-  color: #d4d4d4;
+  color: #e4e4e4;
   user-select: none;
   z-index: 10;
   line-height: 1.4;
@@ -580,14 +670,14 @@ body {
   right: 12px;
   width: 48px;
   height: 48px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid #444;
+  background: rgba(26, 26, 26, 0.9);
+  border: 1px solid #2a2a2a;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #d4d4d4;
+  color: #e4e4e4;
   font-size: 20px;
   transition: all 0.2s ease;
   user-select: none;
@@ -595,9 +685,11 @@ body {
 }
 
 .fit-toggle:hover {
-  background: rgba(0, 0, 0, 0.9);
-  border-color: #666;
+  background: rgba(26, 26, 26, 1);
+  border-color: #00ff88;
+  color: #00ff88;
   transform: translateY(-1px);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
 
 .fit-toggle:active {
@@ -605,6 +697,7 @@ body {
 }
 
 .fit-toggle.active {
-  border-color: #569cd6;
-  color: #569cd6;
+  border-color: #00ff88;
+  color: #00ff88;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
