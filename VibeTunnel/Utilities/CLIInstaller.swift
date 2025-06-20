@@ -26,7 +26,7 @@ import SwiftUI
 final class CLIInstaller {
     // MARK: - Properties
 
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "CLIInstaller")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "CLIInstaller")
 
     var isInstalled = false
     var isInstalling = false

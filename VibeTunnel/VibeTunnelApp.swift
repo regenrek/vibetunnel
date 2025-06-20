@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
     private let sessionMonitor = SessionMonitor.shared
     private let serverMonitor = ServerMonitor.shared
     private let ngrokService = NgrokService.shared
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "AppDelegate")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "AppDelegate")
 
     /// Distributed notification name used to ask an existing instance to show the Settings window.
     private static let showSettingsNotification = Notification.Name("sh.vibetunnel.vibetunnel.showSettings")

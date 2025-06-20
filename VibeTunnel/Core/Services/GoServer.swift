@@ -15,9 +15,9 @@ final class GoServer: ServerProtocol {
     private var outputTask: Task<Void, Never>?
     private var errorTask: Task<Void, Never>?
 
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "GoServer")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "GoServer")
     private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
-    private let processQueue = DispatchQueue(label: "com.steipete.VibeTunnel.GoServer", qos: .userInitiated)
+    private let processQueue = DispatchQueue(label: "sh.vibetunnel.vibetunnel.GoServer", qos: .userInitiated)
 
     /// Actor to handle process operations on background thread.
     ///
@@ -25,7 +25,7 @@ final class GoServer: ServerProtocol {
     /// while maintaining Swift concurrency safety.
     private actor ProcessHandler {
         private let queue = DispatchQueue(
-            label: "com.steipete.VibeTunnel.GoServer.ProcessHandler",
+            label: "sh.vibetunnel.vibetunnel.GoServer.ProcessHandler",
             qos: .userInitiated
         )
 

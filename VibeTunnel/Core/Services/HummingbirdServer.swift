@@ -11,7 +11,7 @@ import OSLog
 @MainActor
 final class HummingbirdServer: ServerProtocol {
     private var tunnelServer: TunnelServer?
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "HummingbirdServer")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "HummingbirdServer")
     private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
 
     var serverType: ServerMode { .hummingbird }

@@ -54,7 +54,7 @@ class ServerManager {
     private var monitoringTask: Task<Void, Never>?
     private var crashRecoveryTask: Task<Void, Never>?
 
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "ServerManager")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "ServerManager")
     private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
     private var serverLogTask: Task<Void, Never>?
     private(set) var logStream: AsyncStream<ServerLogEntry>!
@@ -588,7 +588,7 @@ class ServerManager {
 extension PortConflictError {
     static func portInUseByApp(appName: String, port: Int, alternatives: [Int]) -> Error {
         NSError(
-            domain: "com.steipete.VibeTunnel.ServerManager",
+            domain: "sh.vibetunnel.vibetunnel.ServerManager",
             code: 1001,
             userInfo: [
                 NSLocalizedDescriptionKey: "Port \(port) is in use by \(appName)",

@@ -19,7 +19,7 @@ struct DebugSettingsView: View {
     @State private var heartbeatTask: Task<Void, Never>?
     @State private var showPurgeConfirmation = false
 
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "DebugSettings")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "DebugSettings")
 
     private var isServerRunning: Bool {
         serverMonitor.isRunning

@@ -25,9 +25,9 @@ final class RustServer: ServerProtocol {
     private var outputTask: Task<Void, Never>?
     private var errorTask: Task<Void, Never>?
 
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "RustServer")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "RustServer")
     private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
-    private let processQueue = DispatchQueue(label: "com.steipete.VibeTunnel.RustServer", qos: .userInitiated)
+    private let processQueue = DispatchQueue(label: "sh.vibetunnel.vibetunnel.RustServer", qos: .userInitiated)
 
     /// Actor to handle process operations on background thread.
     ///
@@ -35,7 +35,7 @@ final class RustServer: ServerProtocol {
     /// while maintaining Swift concurrency safety.
     private actor ProcessHandler {
         private let queue = DispatchQueue(
-            label: "com.steipete.VibeTunnel.RustServer.ProcessHandler",
+            label: "sh.vibetunnel.vibetunnel.RustServer.ProcessHandler",
             qos: .userInitiated
         )
 

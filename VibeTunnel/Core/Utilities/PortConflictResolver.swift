@@ -45,7 +45,7 @@ enum ConflictAction {
 /// Resolves port conflicts and suggests remediation
 @MainActor
 final class PortConflictResolver {
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "PortConflictResolver")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "PortConflictResolver")
     
     static let shared = PortConflictResolver()
     
