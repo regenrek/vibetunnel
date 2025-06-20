@@ -288,6 +288,9 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 		return fmt.Errorf("invalid port: %w", err)
 	}
 
+	// Set the resize flag on the manager
+	manager.SetDoNotAllowColumnSet(doNotAllowColumnSet)
+
 	// Create and configure server
 	server := api.NewServer(manager, staticPath, serverPassword, portInt)
 	server.SetNoSpawn(noSpawn)

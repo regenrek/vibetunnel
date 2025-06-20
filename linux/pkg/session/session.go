@@ -67,14 +67,15 @@ type Session struct {
 	stdinPipe   *os.File
 	stdinMutex  sync.Mutex
 	mu          sync.RWMutex
+	manager     *Manager // Reference to manager for accessing global settings
 }
 
-func newSession(controlPath string, config Config) (*Session, error) {
+func newSession(controlPath string, config Config, manager *Manager) (*Session, error) {
 	id := uuid.New().String()
-	return newSessionWithID(controlPath, id, config)
+	return newSessionWithID(controlPath, id, config, manager)
 }
 
-func newSessionWithID(controlPath string, id string, config Config) (*Session, error) {
+func newSessionWithID(controlPath string, id string, config Config, manager *Manager) (*Session, error) {
 	sessionPath := filepath.Join(controlPath, id)
 
 	// Only log in debug mode
@@ -159,10 +160,11 @@ func newSessionWithID(controlPath string, id string, config Config) (*Session, e
 		ID:          id,
 		controlPath: controlPath,
 		info:        info,
+		manager:     manager,
 	}, nil
 }
 
-func loadSession(controlPath, id string) (*Session, error) {
+func loadSession(controlPath, id string, manager *Manager) (*Session, error) {
 	sessionPath := filepath.Join(controlPath, id)
 	info, err := LoadInfo(sessionPath)
 	if err != nil {
@@ -173,6 +175,7 @@ func loadSession(controlPath, id string) (*Session, error) {
 		ID:          id,
 		controlPath: controlPath,
 		info:        info,
+		manager:     manager,
 	}
 
 	// Validate that essential session files exist
@@ -437,8 +440,9 @@ func (s *Session) cleanup() {
 }
 
 func (s *Session) Resize(width, height int) error {
-	if s.pty == nil {
-		return NewSessionError("session not started", ErrSessionNotRunning, s.ID)
+	// Check if resizing is disabled globally
+	if s.manager != nil && s.manager.GetDoNotAllowColumnSet() {
+		return NewSessionError("terminal resizing is disabled by server configuration", ErrInvalidInput, s.ID)
 	}
 
 	// Check if session is still alive
@@ -464,7 +468,20 @@ func (s *Session) Resize(width, height int) error {
 		log.Printf("[ERROR] Failed to save session info after resize: %v", err)
 	}
 
-	// Resize the PTY
+	// If this is a spawned session, send resize command through control FIFO
+	if s.IsSpawned() {
+		cmd := &ControlCommand{
+			Cmd:  "resize",
+			Cols: width,
+			Rows: height,
+		}
+		return SendControlCommand(s.Path(), cmd)
+	}
+
+	// For non-spawned sessions, resize the PTY directly
+	if s.pty == nil {
+		return NewSessionError("session not started", ErrSessionNotRunning, s.ID)
+	}
 	return s.pty.Resize(width, height)
 }
 

@@ -162,7 +162,7 @@ func TestEscapeParser_Flush(t *testing.T) {
 	parser := NewEscapeParser()
 
 	// Process data with incomplete sequence
-	input := []byte("text\x1b[31")  // incomplete CSI sequence
+	input := []byte("text\x1b[31") // incomplete CSI sequence
 	processed, _ := parser.ProcessData(input)
 
 	if !bytes.Equal(processed, []byte("text")) {

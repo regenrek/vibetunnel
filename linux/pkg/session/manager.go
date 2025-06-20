@@ -14,9 +14,10 @@ import (
 )
 
 type Manager struct {
-	controlPath     string
-	runningSessions map[string]*Session
-	mutex           sync.RWMutex
+	controlPath         string
+	runningSessions     map[string]*Session
+	mutex               sync.RWMutex
+	doNotAllowColumnSet bool
 }
 
 func NewManager(controlPath string) *Manager {
@@ -26,12 +27,26 @@ func NewManager(controlPath string) *Manager {
 	}
 }
 
+// SetDoNotAllowColumnSet sets the flag to disable terminal resizing for all sessions
+func (m *Manager) SetDoNotAllowColumnSet(value bool) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.doNotAllowColumnSet = value
+}
+
+// GetDoNotAllowColumnSet returns the current value of the resize disable flag
+func (m *Manager) GetDoNotAllowColumnSet() bool {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.doNotAllowColumnSet
+}
+
 func (m *Manager) CreateSession(config Config) (*Session, error) {
 	if err := os.MkdirAll(m.controlPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create control directory: %w", err)
 	}
 
-	session, err := newSession(m.controlPath, config)
+	session, err := newSession(m.controlPath, config, m)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +71,7 @@ func (m *Manager) CreateSessionWithID(id string, config Config) (*Session, error
 		return nil, fmt.Errorf("failed to create control directory: %w", err)
 	}
 
-	session, err := newSessionWithID(m.controlPath, id, config)
+	session, err := newSessionWithID(m.controlPath, id, config, m)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +101,7 @@ func (m *Manager) GetSession(id string) (*Session, error) {
 	m.mutex.RUnlock()
 
 	// Fall back to loading from disk (for sessions that might have been started before this manager instance)
-	return loadSession(m.controlPath, id)
+	return loadSession(m.controlPath, id, m)
 }
 
 func (m *Manager) FindSession(nameOrID string) (*Session, error) {
@@ -119,7 +134,7 @@ func (m *Manager) ListSessions() ([]*Info, error) {
 			continue
 		}
 
-		session, err := loadSession(m.controlPath, entry.Name())
+		session, err := loadSession(m.controlPath, entry.Name(), m)
 		if err != nil {
 			// Log the error when we can't load a session
 			if os.Getenv("VIBETUNNEL_DEBUG") != "" {

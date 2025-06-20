@@ -14,6 +14,9 @@ func TestNewSession(t *testing.T) {
 	tmpDir := t.TempDir()
 	controlPath := filepath.Join(tmpDir, "control")
 
+	// Create a test manager
+	manager := NewManager(controlPath)
+
 	config := &Config{
 		Name:    "test-session",
 		Cmdline: []string{"/bin/sh", "-c", "echo test"},
@@ -22,7 +25,7 @@ func TestNewSession(t *testing.T) {
 		Height:  24,
 	}
 
-	session, err := newSession(controlPath, *config)
+	session, err := newSession(controlPath, *config, manager)
 	if err != nil {
 		t.Fatalf("newSession() error = %v", err)
 	}
@@ -60,10 +63,13 @@ func TestNewSession_Defaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	controlPath := filepath.Join(tmpDir, "control")
 
+	// Create a test manager
+	manager := NewManager(controlPath)
+
 	// Minimal config
 	config := &Config{}
 
-	session, err := newSession(controlPath, *config)
+	session, err := newSession(controlPath, *config, manager)
 	if err != nil {
 		t.Fatalf("newSession() error = %v", err)
 	}

@@ -257,6 +257,12 @@ func (p *PTY) Run() error {
 	// Handle SIGWINCH in a separate goroutine
 	go func() {
 		for range winchCh {
+			// Check if resizing is disabled globally
+			if p.session.manager != nil && p.session.manager.GetDoNotAllowColumnSet() {
+				debugLog("[DEBUG] PTY.Run: Received SIGWINCH but resizing is disabled by server configuration")
+				continue
+			}
+
 			// Get current terminal size if we're attached to a terminal
 			if term.IsTerminal(int(os.Stdin.Fd())) {
 				width, height, err := term.GetSize(int(os.Stdin.Fd()))
@@ -434,6 +440,11 @@ func (p *PTY) Attach() error {
 	signal.Notify(ch, syscall.SIGWINCH)
 	go func() {
 		for range ch {
+			// Check if resizing is disabled globally
+			if p.session.manager != nil && p.session.manager.GetDoNotAllowColumnSet() {
+				debugLog("[DEBUG] PTY.Attach: Received SIGWINCH but resizing is disabled by server configuration")
+				continue
+			}
 			if err := p.updateSize(); err != nil {
 				log.Printf("[ERROR] PTY.Attach: Failed to update size: %v", err)
 			}
@@ -441,8 +452,13 @@ func (p *PTY) Attach() error {
 	}()
 	defer signal.Stop(ch)
 
-	if err := p.updateSize(); err != nil {
-		log.Printf("[ERROR] PTY.Attach: Failed to update initial size: %v", err)
+	// Only update size initially if resizing is allowed
+	if p.session.manager == nil || !p.session.manager.GetDoNotAllowColumnSet() {
+		if err := p.updateSize(); err != nil {
+			log.Printf("[ERROR] PTY.Attach: Failed to update initial size: %v", err)
+		}
+	} else {
+		debugLog("[DEBUG] PTY.Attach: Skipping initial resize - resizing is disabled by server configuration")
 	}
 
 	errCh := make(chan error, 2)

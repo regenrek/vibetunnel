@@ -21,7 +21,7 @@ func TestProcessTerminatorIntegration(t *testing.T) {
 	}
 
 	terminator := NewProcessTerminator(session)
-	
+
 	// Verify it was created with correct timeouts
 	if terminator.gracefulTimeout != 3*time.Second {
 		t.Errorf("Expected 3s graceful timeout, got %v", terminator.gracefulTimeout)
@@ -34,15 +34,15 @@ func TestProcessTerminatorIntegration(t *testing.T) {
 func TestCustomErrorsIntegration(t *testing.T) {
 	// Test custom error types
 	err := NewSessionError("test error", ErrSessionNotFound, "test-id")
-	
+
 	if err.Code != ErrSessionNotFound {
 		t.Errorf("Expected code %v, got %v", ErrSessionNotFound, err.Code)
 	}
-	
+
 	if !IsSessionError(err, ErrSessionNotFound) {
 		t.Error("IsSessionError should return true")
 	}
-	
+
 	if GetSessionID(err) != "test-id" {
 		t.Errorf("Expected session ID 'test-id', got '%s'", GetSessionID(err))
 	}
