@@ -61,6 +61,7 @@ enum Terminal: String, CaseIterable {
     case alacritty = "Alacritty"
     case hyper = "Hyper"
     case wezterm = "WezTerm"
+    case kitty = "Kitty"
 
     var bundleIdentifier: String {
         switch self {
@@ -78,6 +79,8 @@ enum Terminal: String, CaseIterable {
             "co.zeit.hyper"
         case .wezterm:
             "com.github.wez.wezterm"
+        case .kitty:
+            "net.kovidgoyal.kitty"
         }
     }
 
@@ -88,6 +91,7 @@ enum Terminal: String, CaseIterable {
         case .iTerm2: 95 // Very popular among developers
         case .warp: 85 // Popular modern terminal
         case .ghostty: 80 // New but gaining popularity
+        case .kitty: 75 // Fast GPU-based terminal
         case .alacritty: 70 // Popular among power users
         case .wezterm: 60 // Less common but powerful
         case .hyper: 50 // Less popular Electron-based
@@ -179,6 +183,10 @@ enum Terminal: String, CaseIterable {
         case .wezterm:
             // Use unified AppleScript approach for consistency
             .appleScript(script: unifiedAppleScript(for: config))
+            
+        case .kitty:
+            // Use unified AppleScript approach for consistency
+            .appleScript(script: unifiedAppleScript(for: config))
         }
     }
 
@@ -192,6 +200,7 @@ enum Terminal: String, CaseIterable {
         case .alacritty: "Alacritty"
         case .hyper: "Hyper"
         case .wezterm: "WezTerm"
+        case .kitty: "kitty"
         }
     }
 
