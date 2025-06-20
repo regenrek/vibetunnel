@@ -21,22 +21,22 @@ private struct TerminalLauncherKey: EnvironmentKey {
 // MARK: - Environment Values Extensions
 
 extension EnvironmentValues {
-    var serverManager: ServerManager {
+    var serverManager: ServerManager? {
         get { self[ServerManagerKey.self] }
         set { self[ServerManagerKey.self] = newValue }
     }
     
-    var ngrokService: NgrokService {
+    var ngrokService: NgrokService? {
         get { self[NgrokServiceKey.self] }
         set { self[NgrokServiceKey.self] = newValue }
     }
     
-    var appleScriptPermissionManager: AppleScriptPermissionManager {
+    var appleScriptPermissionManager: AppleScriptPermissionManager? {
         get { self[AppleScriptPermissionManagerKey.self] }
         set { self[AppleScriptPermissionManagerKey.self] = newValue }
     }
     
-    var terminalLauncher: TerminalLauncher {
+    var terminalLauncher: TerminalLauncher? {
         get { self[TerminalLauncherKey.self] }
         set { self[TerminalLauncherKey.self] = newValue }
     }
@@ -46,16 +46,17 @@ extension EnvironmentValues {
 
 extension View {
     /// Injects all VibeTunnel services into the environment
+    @MainActor
     func withVibeTunnelServices(
-        serverManager: ServerManager = .shared,
-        ngrokService: NgrokService = .shared,
-        appleScriptPermissionManager: AppleScriptPermissionManager = .shared,
-        terminalLauncher: TerminalLauncher = .shared
+        serverManager: ServerManager? = nil,
+        ngrokService: NgrokService? = nil,
+        appleScriptPermissionManager: AppleScriptPermissionManager? = nil,
+        terminalLauncher: TerminalLauncher? = nil
     ) -> some View {
         self
-            .environment(\.serverManager, serverManager)
-            .environment(\.ngrokService, ngrokService)
-            .environment(\.appleScriptPermissionManager, appleScriptPermissionManager)
-            .environment(\.terminalLauncher, terminalLauncher)
+            .environment(\.serverManager, serverManager ?? ServerManager.shared)
+            .environment(\.ngrokService, ngrokService ?? NgrokService.shared)
+            .environment(\.appleScriptPermissionManager, appleScriptPermissionManager ?? AppleScriptPermissionManager.shared)
+            .environment(\.terminalLauncher, terminalLauncher ?? TerminalLauncher.shared)
     }
 }
