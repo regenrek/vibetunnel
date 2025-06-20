@@ -96,7 +96,14 @@ struct TerminalHostingView: UIViewRepresentable {
 
         func feedData(_ data: String) {
             Task { @MainActor in
-                guard let terminal else { return }
+                guard let terminal else { 
+                    print("[Terminal] No terminal instance available")
+                    return 
+                }
+
+                // Debug: Log first 100 chars of data
+                let preview = String(data.prefix(100))
+                print("[Terminal] Feeding \(data.count) bytes: \(preview)")
 
                 // Store current scroll position before feeding data
                 let wasAtBottom = viewModel.isAutoScrollEnabled

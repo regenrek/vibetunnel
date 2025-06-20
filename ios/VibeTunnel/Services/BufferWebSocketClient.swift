@@ -174,7 +174,12 @@ class BufferWebSocketClient: NSObject {
     }
 
     private func handleBinaryMessage(_ data: Data) {
-        guard data.count > 5 else { return }
+        print("[BufferWebSocket] Received binary message: \(data.count) bytes")
+        
+        guard data.count > 5 else { 
+            print("[BufferWebSocket] Binary message too short")
+            return 
+        }
 
         var offset = 0
 
@@ -183,7 +188,7 @@ class BufferWebSocketClient: NSObject {
         offset += 1
 
         guard magic == Self.bufferMagicByte else {
-            print("[BufferWebSocket] Invalid magic byte: \(magic)")
+            print("[BufferWebSocket] Invalid magic byte: \(String(format: "0x%02X", magic))")
             return
         }
 
@@ -194,19 +199,30 @@ class BufferWebSocketClient: NSObject {
         offset += 4
 
         // Read session ID
-        guard data.count >= offset + Int(sessionIdLength) else { return }
+        guard data.count >= offset + Int(sessionIdLength) else { 
+            print("[BufferWebSocket] Not enough data for session ID")
+            return 
+        }
         let sessionIdData = data.subdata(in: offset..<(offset + Int(sessionIdLength)))
-        guard let sessionId = String(data: sessionIdData, encoding: .utf8) else { return }
+        guard let sessionId = String(data: sessionIdData, encoding: .utf8) else { 
+            print("[BufferWebSocket] Failed to decode session ID")
+            return 
+        }
+        print("[BufferWebSocket] Session ID: \(sessionId)")
         offset += Int(sessionIdLength)
 
         // Remaining data is the message payload
         let messageData = data.subdata(in: offset..<data.count)
+        print("[BufferWebSocket] Message payload: \(messageData.count) bytes")
 
         // Decode terminal event
         if let event = decodeTerminalEvent(from: messageData),
            let handler = subscriptions[sessionId]
         {
+            print("[BufferWebSocket] Dispatching event to handler")
             handler(event)
+        } else {
+            print("[BufferWebSocket] No handler for session ID: \(sessionId)")
         }
     }
 
@@ -216,11 +232,14 @@ class BufferWebSocketClient: NSObject {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let type = json["type"] as? String
             {
+                print("[BufferWebSocket] Received event type: \(type)")
+                
                 switch type {
                 case "header":
                     if let width = json["width"] as? Int,
                        let height = json["height"] as? Int
                     {
+                        print("[BufferWebSocket] Terminal header: \(width)x\(height)")
                         return .header(width: width, height: height)
                     }
 
@@ -228,6 +247,7 @@ class BufferWebSocketClient: NSObject {
                     if let timestamp = json["timestamp"] as? Double,
                        let outputData = json["data"] as? String
                     {
+                        print("[BufferWebSocket] Terminal output: \(outputData.count) bytes")
                         return .output(timestamp: timestamp, data: outputData)
                     }
 

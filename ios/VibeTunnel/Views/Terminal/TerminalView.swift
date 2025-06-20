@@ -318,6 +318,13 @@ class TerminalViewModel {
         // Connect to WebSocket
         bufferWebSocketClient?.connect()
 
+        // Load initial snapshot after a brief delay to ensure terminal is ready
+        Task { @MainActor in
+            // Wait for terminal view to be initialized
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+            await loadSnapshot()
+        }
+
         // Subscribe to terminal events
         bufferWebSocketClient?.subscribe(to: session.id) { [weak self] event in
             Task { @MainActor in
@@ -362,13 +369,23 @@ class TerminalViewModel {
 
     @MainActor
     private func loadSnapshot() async {
-        guard let snapshotURL = APIClient.shared.snapshotURL(for: session.id) else { return }
-
         do {
-            let (data, _) = try await URLSession.shared.data(from: snapshotURL)
-            if let snapshot = String(data: data, encoding: .utf8) {
-                // Feed the snapshot to the terminal
-                terminalCoordinator?.feedData(snapshot)
+            let snapshot = try await APIClient.shared.getSessionSnapshot(sessionId: session.id)
+            
+            // Process the snapshot events
+            if let header = snapshot.header {
+                // Initialize terminal with dimensions from header
+                terminalCols = header.width
+                terminalRows = header.height
+                print("Snapshot header: \(header.width)x\(header.height)")
+            }
+            
+            // Feed all output events to the terminal
+            for event in snapshot.events {
+                if event.type == "o", let outputData = event.data {
+                    // Feed the actual terminal output data
+                    terminalCoordinator?.feedData(outputData)
+                }
             }
         } catch {
             print("Failed to load terminal snapshot: \(error)")
@@ -396,7 +413,19 @@ class TerminalViewModel {
 
         case .output(_, let data):
             // Feed output data directly to the terminal
-            terminalCoordinator?.feedData(data)
+            if let coordinator = terminalCoordinator {
+                coordinator.feedData(data)
+            } else {
+                // Queue the data to be fed once coordinator is ready
+                print("Warning: Terminal coordinator not ready, queueing data")
+                Task {
+                    // Wait a bit for coordinator to be initialized
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                    if let coordinator = self.terminalCoordinator {
+                        coordinator.feedData(data)
+                    }
+                }
+            }
             // Record output if recording
             castRecorder.recordOutput(data)
 
