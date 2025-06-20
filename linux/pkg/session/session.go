@@ -265,6 +265,25 @@ func (s *Session) Attach() error {
 	return s.pty.Attach()
 }
 
+// AttachSpawnedSession is used when a terminal is spawned with TTY_SESSION_ID
+// It creates a new PTY for the spawned terminal and runs the command
+func (s *Session) AttachSpawnedSession() error {
+	// Create a new PTY for this spawned session
+	pty, err := NewPTY(s)
+	if err != nil {
+		return fmt.Errorf("failed to create PTY: %w", err)
+	}
+	s.pty = pty
+
+	// Start the PTY with the command from session info
+	if err := s.pty.Start(); err != nil {
+		return fmt.Errorf("failed to start PTY: %w", err)
+	}
+
+	// Attach to the PTY to connect stdin/stdout
+	return s.pty.Attach()
+}
+
 func (s *Session) SendKey(key string) error {
 	return s.sendInput([]byte(key))
 }

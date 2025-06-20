@@ -93,10 +93,10 @@ if [ -d "$APP_BUNDLE/Contents/Frameworks" ]; then
     done
 fi
 
-# Sign embedded binaries (like tty-fwd)
-if [ -f "$APP_BUNDLE/Contents/Resources/tty-fwd" ]; then
-    log "Signing tty-fwd binary..."
-    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/Resources/tty-fwd" || log "Warning: Failed to sign tty-fwd"
+# Sign embedded binaries (like vibetunnel)
+if [ -f "$APP_BUNDLE/Contents/Resources/vibetunnel" ]; then
+    log "Signing vibetunnel binary..."
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/Resources/vibetunnel" || log "Warning: Failed to sign vibetunnel"
 fi
 
 # Sign the main executable

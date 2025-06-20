@@ -504,8 +504,22 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Attach to the session
-		if err := sess.Attach(); err != nil {
+		// For spawned sessions, we need to execute the command and connect I/O
+		// The session was already created by the server, we just need to run the command
+		info := sess.GetInfo()
+		if info == nil {
+			fmt.Fprintf(os.Stderr, "Error: Failed to get session info\n")
+			os.Exit(1)
+		}
+
+		// Execute the command that was stored in the session
+		if len(info.Args) == 0 {
+			fmt.Fprintf(os.Stderr, "Error: No command specified in session\n")
+			os.Exit(1)
+		}
+
+		// Create a new PTY and attach it to the existing session
+		if err := sess.AttachSpawnedSession(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

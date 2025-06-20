@@ -100,15 +100,14 @@ remove_item "build/SourcePackages" "Source packages"
 remove_item "build/dmg-temp" "DMG temporary files"
 remove_item "DerivedData" "DerivedData"
 
-# Clean tty-fwd Rust target (but keep the built binaries)
+# Clean Go build artifacts
 if [[ "$CLEAN_ALL" == "true" ]]; then
-    remove_item "tty-fwd/target" "Rust build artifacts"
+    remove_item "linux/build" "Go build artifacts"
 else
-    # Keep the release binaries
-    find tty-fwd/target -type f -name "*.d" -delete 2>/dev/null || true
-    find tty-fwd/target -type f -name "*.rmeta" -delete 2>/dev/null || true
-    find tty-fwd/target -type d -name "incremental" -exec rm -rf {} + 2>/dev/null || true
-    [[ "$DRY_RUN" == "false" ]] && print_success "Cleaned Rust intermediate files"
+    # Keep the release binaries but clean intermediate files
+    find linux/build -type f -name "*.a" -delete 2>/dev/null || true
+    find linux/build -type f -name "*.o" -delete 2>/dev/null || true
+    [[ "$DRY_RUN" == "false" ]] && print_success "Cleaned Go intermediate files"
 fi
 
 # Clean SPM build artifacts

@@ -11,8 +11,8 @@ import (
 // This is used as a fallback when the Mac app's terminal service is not available
 func SpawnInTerminal(sessionID, vtBinaryPath string, cmdline []string, workingDir string) error {
 	// Format the command to run in the terminal
-	// This matches the format used by the Rust implementation
-	vtCommand := fmt.Sprintf("TTY_SESSION_ID=\"%s\" \"%s\" -- %s",
+	// Using the Go vibetunnel binary with TTY_SESSION_ID environment variable
+	vtCommand := fmt.Sprintf("TTY_SESSION_ID=\"%s\" \"%s\" %s",
 		sessionID, vtBinaryPath, shellQuoteArgs(cmdline))
 
 	switch runtime.GOOS {

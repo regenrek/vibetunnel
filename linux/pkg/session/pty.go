@@ -53,12 +53,20 @@ func NewPTY(session *Session) (*PTY, error) {
 		// If just launching the shell itself, don't use -c
 		cmd = exec.Command(shell)
 	} else {
-		// Execute command through interactive login shell for proper environment handling
+		// Execute command through login shell for proper environment handling
 		// This ensures aliases and functions from .zshrc/.bashrc are loaded
 		shellCmd := strings.Join(cmdline, " ")
-		// Use interactive login shell to load user's configuration
-		cmd = exec.Command(shell, "-i", "-l", "-c", shellCmd)
-		debugLog("[DEBUG] NewPTY: Executing through interactive login shell: %s -i -l -c %q", shell, shellCmd)
+		
+		// Try different approaches based on the shell
+		if strings.Contains(shell, "zsh") {
+			// For zsh, use login shell without -i flag as it can cause issues with PTY allocation
+			cmd = exec.Command(shell, "-l", "-c", shellCmd)
+			debugLog("[DEBUG] NewPTY: Executing through zsh login shell: %s -l -c %q", shell, shellCmd)
+		} else {
+			// For other shells (bash, sh), use interactive login
+			cmd = exec.Command(shell, "-i", "-l", "-c", shellCmd)
+			debugLog("[DEBUG] NewPTY: Executing through interactive login shell: %s -i -l -c %q", shell, shellCmd)
+		}
 		
 		// Add some debugging to understand what's happening
 		debugLog("[DEBUG] NewPTY: Shell: %s", shell)
@@ -85,6 +93,14 @@ func NewPTY(session *Session) (*PTY, error) {
 	// Pass all environment variables like Node.js implementation does
 	// This ensures terminal features, locale settings, and shell prompts work correctly
 	env := os.Environ()
+	
+	// Log PATH for debugging
+	for _, e := range env {
+		if strings.HasPrefix(e, "PATH=") {
+			debugLog("[DEBUG] NewPTY: PATH=%s", e[5:])
+			break
+		}
+	}
 
 	// Override TERM if specified in session info
 	termSet := false
