@@ -112,7 +112,7 @@ func (w *StreamWriter) writeEvent(eventType EventType, data []byte) error {
 
 	// Use escape parser to ensure escape sequences are not split
 	processedData, remaining := w.escapeParser.ProcessData(data)
-	
+
 	// Update buffer with any remaining incomplete sequences
 	w.buffer = remaining
 
@@ -237,7 +237,7 @@ func (w *StreamWriter) Close() error {
 	// Flush any remaining data from escape parser
 	flushedData := w.escapeParser.Flush()
 	finalData := append(flushedData, w.buffer...)
-	
+
 	if len(finalData) > 0 {
 		elapsed := time.Since(w.startTime).Seconds()
 		event := []interface{}{elapsed, string(EventOutput), string(finalData)}

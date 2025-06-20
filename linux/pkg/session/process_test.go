@@ -15,10 +15,10 @@ func TestProcessTerminator_TerminateGracefully(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		setupSession    func() *Session
-		expectGraceful  bool
-		checkInterval   time.Duration
+		name           string
+		setupSession   func() *Session
+		expectGraceful bool
+		checkInterval  time.Duration
 	}{
 		{
 			name: "already exited session",
@@ -53,9 +53,9 @@ func TestProcessTerminator_TerminateGracefully(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			session := tt.setupSession()
 			terminator := NewProcessTerminator(session)
-			
+
 			err := terminator.TerminateGracefully()
-			
+
 			if tt.expectGraceful && err != nil {
 				t.Errorf("TerminateGracefully() error = %v, want nil", err)
 			}
@@ -86,13 +86,7 @@ func TestProcessTerminator_RealProcess(t *testing.T) {
 		},
 	}
 
-	// Create a flag to track cleanup
-	cleanupCalled := false
-	originalCleanup := session.cleanup
-	session.cleanup = func() {
-		cleanupCalled = true
-		originalCleanup()
-	}
+	// Skip cleanup tracking as cleanup is a method not a field
 
 	terminator := NewProcessTerminator(session)
 	terminator.gracefulTimeout = 1 * time.Second // Shorter timeout for test
@@ -196,7 +190,7 @@ func TestProcessTerminator_CheckInterval(t *testing.T) {
 	}
 
 	terminator := NewProcessTerminator(session)
-	
+
 	// Verify default values match Node.js
 	if terminator.gracefulTimeout != 3*time.Second {
 		t.Errorf("gracefulTimeout = %v, want 3s", terminator.gracefulTimeout)
@@ -208,7 +202,7 @@ func TestProcessTerminator_CheckInterval(t *testing.T) {
 
 func BenchmarkIsProcessRunning(b *testing.B) {
 	pid := os.Getpid()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		isProcessRunning(pid)
@@ -219,7 +213,7 @@ func BenchmarkWaitForProcessExit(b *testing.B) {
 	// Use non-existent PID for immediate return
 	pid := 999999
 	timeout := 1 * time.Millisecond
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		waitForProcessExit(pid, timeout)

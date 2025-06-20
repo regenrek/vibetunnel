@@ -411,7 +411,7 @@ func (s *Session) KillWithSignal(signal string) error {
 	if signal == "SIGKILL" || signal == "9" {
 		err := s.Signal("SIGKILL")
 		s.cleanup()
-		
+
 		// If the error is because the process doesn't exist, that's fine
 		if err != nil && (strings.Contains(err.Error(), "no such process") ||
 			strings.Contains(err.Error(), "process already finished")) {
@@ -419,7 +419,7 @@ func (s *Session) KillWithSignal(signal string) error {
 		}
 		return err
 	}
-	
+
 	// For other signals, use graceful termination
 	return s.Kill()
 }

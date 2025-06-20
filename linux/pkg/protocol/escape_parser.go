@@ -23,10 +23,10 @@ func (p *EscapeParser) ProcessData(data []byte) (processed []byte, remaining []b
 	// Combine buffered data with new data
 	combined := append(p.buffer, data...)
 	p.buffer = p.buffer[:0] // Clear buffer without reallocating
-	
+
 	result := make([]byte, 0, len(combined))
 	pos := 0
-	
+
 	for pos < len(combined) {
 		// Check for escape sequence
 		if combined[pos] == 0x1b { // ESC character
@@ -41,7 +41,7 @@ func (p *EscapeParser) ProcessData(data []byte) (processed []byte, remaining []b
 			pos += seqEnd
 			continue
 		}
-		
+
 		// Process UTF-8 character
 		r, size := utf8.DecodeRune(combined[pos:])
 		if r == utf8.RuneError {
@@ -61,12 +61,12 @@ func (p *EscapeParser) ProcessData(data []byte) (processed []byte, remaining []b
 			pos++
 			continue
 		}
-		
+
 		// Valid UTF-8 character
 		result = append(result, combined[pos:pos+size]...)
 		pos += size
 	}
-	
+
 	return result, p.buffer
 }
 
@@ -76,11 +76,11 @@ func (p *EscapeParser) findEscapeSequenceEnd(data []byte) int {
 	if len(data) == 0 || data[0] != 0x1b {
 		return -1
 	}
-	
+
 	if len(data) < 2 {
 		return -1 // Need more data
 	}
-	
+
 	switch data[1] {
 	case '[': // CSI sequence: ESC [ ... final_char
 		pos := 2
@@ -98,7 +98,7 @@ func (p *EscapeParser) findEscapeSequenceEnd(data []byte) int {
 			}
 		}
 		return -1 // Incomplete
-		
+
 	case ']': // OSC sequence: ESC ] ... (ST or BEL)
 		pos := 2
 		for pos < len(data) {
@@ -112,13 +112,13 @@ func (p *EscapeParser) findEscapeSequenceEnd(data []byte) int {
 			pos++
 		}
 		return -1 // Incomplete
-		
+
 	case '(', ')', '*', '+': // Charset selection
 		if len(data) < 3 {
 			return -1
 		}
 		return 3
-		
+
 	case 'P', 'X', '^', '_': // DCS, SOS, PM, APC sequences
 		// These need special termination sequences
 		pos := 2
@@ -130,7 +130,7 @@ func (p *EscapeParser) findEscapeSequenceEnd(data []byte) int {
 			pos++
 		}
 		return -1 // Incomplete
-		
+
 	default:
 		// Simple two-character sequences
 		return 2
@@ -142,14 +142,14 @@ func (p *EscapeParser) mightBeIncompleteUTF8(data []byte) bool {
 	if len(data) == 0 {
 		return false
 	}
-	
+
 	b := data[0]
-	
+
 	// Single byte (ASCII)
 	if b < 0x80 {
 		return false
 	}
-	
+
 	// Multi-byte sequence starters
 	if b >= 0xc0 {
 		if b < 0xe0 {
@@ -165,7 +165,7 @@ func (p *EscapeParser) mightBeIncompleteUTF8(data []byte) bool {
 			return len(data) < 4
 		}
 	}
-	
+
 	return false
 }
 
@@ -197,10 +197,10 @@ func SplitEscapeSequences(data []byte) [][]byte {
 	if len(data) == 0 {
 		return nil
 	}
-	
+
 	var chunks [][]byte
 	parser := NewEscapeParser()
-	
+
 	processed, remaining := parser.ProcessData(data)
 	if len(processed) > 0 {
 		chunks = append(chunks, processed)
@@ -208,7 +208,7 @@ func SplitEscapeSequences(data []byte) [][]byte {
 	if len(remaining) > 0 {
 		chunks = append(chunks, remaining)
 	}
-	
+
 	return chunks
 }
 
@@ -226,7 +226,7 @@ func IsCompleteEscapeSequence(data []byte) bool {
 func StripEscapeSequences(data []byte) []byte {
 	result := make([]byte, 0, len(data))
 	pos := 0
-	
+
 	parser := NewEscapeParser()
 	for pos < len(data) {
 		if data[pos] == 0x1b {
@@ -239,6 +239,6 @@ func StripEscapeSequences(data []byte) []byte {
 		result = append(result, data[pos])
 		pos++
 	}
-	
+
 	return result
 }

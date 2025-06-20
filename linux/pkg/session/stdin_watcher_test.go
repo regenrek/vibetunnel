@@ -11,13 +11,13 @@ import (
 func TestNewStdinWatcher(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir := t.TempDir()
-	
+
 	// Create a named pipe
 	pipePath := filepath.Join(tmpDir, "stdin")
 	if err := os.MkdirAll(filepath.Dir(pipePath), 0755); err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// Create the pipe file (will be a regular file in tests)
 	if err := os.WriteFile(pipePath, []byte{}, 0644); err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestNewStdinWatcher(t *testing.T) {
 func TestStdinWatcher_StartStop(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir := t.TempDir()
-	
+
 	// Create a named pipe
 	pipePath := filepath.Join(tmpDir, "stdin")
 	if err := os.WriteFile(pipePath, []byte{}, 0644); err != nil {
@@ -98,10 +98,10 @@ func TestStdinWatcher_StartStop(t *testing.T) {
 func TestStdinWatcher_HandleStdinData(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir := t.TempDir()
-	
+
 	// Create a named pipe path
 	pipePath := filepath.Join(tmpDir, "stdin")
-	
+
 	// Create PTY pipe for reading what's written
 	ptyReader, ptyWriter, err := os.Pipe()
 	if err != nil {
@@ -186,7 +186,7 @@ func TestIsEAGAIN(t *testing.T) {
 func TestStdinWatcher_Cleanup(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir := t.TempDir()
-	
+
 	// Create a named pipe
 	pipePath := filepath.Join(tmpDir, "stdin")
 	if err := os.WriteFile(pipePath, []byte{}, 0644); err != nil {
@@ -226,7 +226,7 @@ func TestStdinWatcher_Cleanup(t *testing.T) {
 func BenchmarkStdinWatcher_HandleData(b *testing.B) {
 	// Create temporary directory for testing
 	tmpDir := b.TempDir()
-	
+
 	// Create pipes
 	_, ptyWriter, err := os.Pipe()
 	if err != nil {
@@ -237,7 +237,7 @@ func BenchmarkStdinWatcher_HandleData(b *testing.B) {
 	// Create stdin file with data
 	stdinPath := filepath.Join(tmpDir, "stdin")
 	testData := []byte("This is test data for benchmarking stdin handling\n")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Create fresh stdin file each time
@@ -245,7 +245,7 @@ func BenchmarkStdinWatcher_HandleData(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		if _, err := stdinFile.Write(testData); err != nil {
 			b.Fatal(err)
 		}
@@ -254,10 +254,10 @@ func BenchmarkStdinWatcher_HandleData(b *testing.B) {
 		}
 
 		watcher := &StdinWatcher{
-			stdinPath:   stdinPath,
-			ptyFile:     ptyWriter,
-			stdinFile:   stdinFile,
-			buffer:      make([]byte, 4096),
+			stdinPath: stdinPath,
+			ptyFile:   ptyWriter,
+			stdinFile: stdinFile,
+			buffer:    make([]byte, 4096),
 		}
 
 		watcher.handleStdinData()

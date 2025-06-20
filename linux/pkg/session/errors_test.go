@@ -7,11 +7,11 @@ import (
 
 func TestSessionError(t *testing.T) {
 	tests := []struct {
-		name      string
-		err       *SessionError
-		wantMsg   string
-		wantCode  ErrorCode
-		wantID    string
+		name     string
+		err      *SessionError
+		wantMsg  string
+		wantCode ErrorCode
+		wantID   string
 	}{
 		{
 			name: "basic error with session ID",
@@ -74,7 +74,7 @@ func TestNewSessionError(t *testing.T) {
 	code := ErrSessionNotFound
 
 	err := NewSessionError(message, code, sessionID)
-	
+
 	if err.Message != message {
 		t.Errorf("Message = %v, want %v", err.Message, message)
 	}
@@ -96,7 +96,7 @@ func TestNewSessionErrorWithCause(t *testing.T) {
 	cause := errors.New("root cause")
 
 	err := NewSessionErrorWithCause(message, code, sessionID, cause)
-	
+
 	if err.Message != message {
 		t.Errorf("Message = %v, want %v", err.Message, message)
 	}
@@ -150,7 +150,7 @@ func TestWrapError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wrapped := WrapError(tt.err, tt.code, tt.sessionID)
-			
+
 			if tt.wantNil {
 				if wrapped != nil {
 					t.Errorf("WrapError() = %v, want nil", wrapped)
@@ -268,7 +268,7 @@ func TestGetSessionID(t *testing.T) {
 
 func TestErrorConstructors(t *testing.T) {
 	sessionID := "12345678-1234-1234-1234-123456789012"
-	
+
 	t.Run("ErrSessionNotFoundError", func(t *testing.T) {
 		err := ErrSessionNotFoundError(sessionID)
 		if err.Code != ErrSessionNotFound {

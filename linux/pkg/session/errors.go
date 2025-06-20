@@ -13,36 +13,36 @@ const (
 	ErrSessionAlreadyExists ErrorCode = "SESSION_ALREADY_EXISTS"
 	ErrSessionStartFailed   ErrorCode = "SESSION_START_FAILED"
 	ErrSessionNotRunning    ErrorCode = "SESSION_NOT_RUNNING"
-	
+
 	// Process-related errors
-	ErrProcessNotFound      ErrorCode = "PROCESS_NOT_FOUND"
-	ErrProcessSignalFailed  ErrorCode = "PROCESS_SIGNAL_FAILED"
+	ErrProcessNotFound        ErrorCode = "PROCESS_NOT_FOUND"
+	ErrProcessSignalFailed    ErrorCode = "PROCESS_SIGNAL_FAILED"
 	ErrProcessTerminateFailed ErrorCode = "PROCESS_TERMINATE_FAILED"
-	
+
 	// I/O related errors
-	ErrStdinNotFound        ErrorCode = "STDIN_NOT_FOUND"
-	ErrStdinWriteFailed     ErrorCode = "STDIN_WRITE_FAILED"
-	ErrStreamReadFailed     ErrorCode = "STREAM_READ_FAILED"
-	ErrStreamWriteFailed    ErrorCode = "STREAM_WRITE_FAILED"
-	
+	ErrStdinNotFound     ErrorCode = "STDIN_NOT_FOUND"
+	ErrStdinWriteFailed  ErrorCode = "STDIN_WRITE_FAILED"
+	ErrStreamReadFailed  ErrorCode = "STREAM_READ_FAILED"
+	ErrStreamWriteFailed ErrorCode = "STREAM_WRITE_FAILED"
+
 	// PTY-related errors
-	ErrPTYCreationFailed    ErrorCode = "PTY_CREATION_FAILED"
-	ErrPTYConfigFailed      ErrorCode = "PTY_CONFIG_FAILED"
-	ErrPTYResizeFailed      ErrorCode = "PTY_RESIZE_FAILED"
-	
+	ErrPTYCreationFailed ErrorCode = "PTY_CREATION_FAILED"
+	ErrPTYConfigFailed   ErrorCode = "PTY_CONFIG_FAILED"
+	ErrPTYResizeFailed   ErrorCode = "PTY_RESIZE_FAILED"
+
 	// Control-related errors
 	ErrControlPathNotFound  ErrorCode = "CONTROL_PATH_NOT_FOUND"
 	ErrControlFileCorrupted ErrorCode = "CONTROL_FILE_CORRUPTED"
-	
+
 	// Input-related errors
-	ErrUnknownKey           ErrorCode = "UNKNOWN_KEY"
-	ErrInvalidInput         ErrorCode = "INVALID_INPUT"
-	
+	ErrUnknownKey   ErrorCode = "UNKNOWN_KEY"
+	ErrInvalidInput ErrorCode = "INVALID_INPUT"
+
 	// General errors
-	ErrInvalidArgument      ErrorCode = "INVALID_ARGUMENT"
-	ErrPermissionDenied     ErrorCode = "PERMISSION_DENIED"
-	ErrTimeout              ErrorCode = "TIMEOUT"
-	ErrInternal             ErrorCode = "INTERNAL_ERROR"
+	ErrInvalidArgument  ErrorCode = "INVALID_ARGUMENT"
+	ErrPermissionDenied ErrorCode = "PERMISSION_DENIED"
+	ErrTimeout          ErrorCode = "TIMEOUT"
+	ErrInternal         ErrorCode = "INTERNAL_ERROR"
 )
 
 // SessionError represents an error with context, matching Node.js PtyError
@@ -90,7 +90,7 @@ func WrapError(err error, code ErrorCode, sessionID string) *SessionError {
 	if err == nil {
 		return nil
 	}
-	
+
 	// If it's already a SessionError, preserve the original but add context
 	if se, ok := err.(*SessionError); ok {
 		return &SessionError{
@@ -100,7 +100,7 @@ func WrapError(err error, code ErrorCode, sessionID string) *SessionError {
 			Cause:     se,
 		}
 	}
-	
+
 	return &SessionError{
 		Message:   err.Error(),
 		Code:      code,

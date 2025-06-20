@@ -62,7 +62,7 @@ func TestStreamWriter_WriteHeader(t *testing.T) {
 	}
 
 	writer := NewStreamWriter(&buf, header)
-	
+
 	// Write header
 	if err := writer.WriteHeader(); err != nil {
 		t.Fatalf("WriteHeader() error = %v", err)
@@ -98,7 +98,7 @@ func TestStreamWriter_WriteOutput(t *testing.T) {
 	}
 
 	writer := NewStreamWriter(&buf, header)
-	
+
 	// Write some output
 	testData := []byte("Hello, World!")
 	if err := writer.WriteOutput(testData); err != nil {
@@ -148,7 +148,7 @@ func TestStreamWriter_WriteInput(t *testing.T) {
 	var buf bytes.Buffer
 	header := &AsciinemaHeader{Version: 2}
 	writer := NewStreamWriter(&buf, header)
-	
+
 	testInput := []byte("ls -la")
 	if err := writer.WriteInput(testInput); err != nil {
 		t.Fatalf("WriteInput() error = %v", err)
@@ -172,7 +172,7 @@ func TestStreamWriter_WriteResize(t *testing.T) {
 	var buf bytes.Buffer
 	header := &AsciinemaHeader{Version: 2}
 	writer := NewStreamWriter(&buf, header)
-	
+
 	if err := writer.WriteResize(120, 40); err != nil {
 		t.Fatalf("WriteResize() error = %v", err)
 	}
@@ -230,7 +230,7 @@ func TestStreamWriter_EscapeSequenceHandling(t *testing.T) {
 	if err := json.Unmarshal([]byte(line), &event2); err != nil {
 		t.Fatal(err)
 	}
-	
+
 	expected := "\x1b[31mRed Text\x1b[0m"
 	if event2[2] != expected {
 		t.Errorf("Second write data = %q, want %q", event2[2], expected)
@@ -331,10 +331,10 @@ func TestStreamReader_ReadEvents(t *testing.T) {
 	// Create test data with header and events
 	header := AsciinemaHeader{Version: 2}
 	headerData, _ := json.Marshal(header)
-	
+
 	event1 := []interface{}{0.5, "o", "Hello"}
 	event1Data, _ := json.Marshal(event1)
-	
+
 	event2 := []interface{}{1.0, "i", "input"}
 	event2Data, _ := json.Marshal(event2)
 
@@ -440,9 +440,9 @@ func BenchmarkStreamWriter_WriteOutput(b *testing.B) {
 	var buf bytes.Buffer
 	header := &AsciinemaHeader{Version: 2}
 	writer := NewStreamWriter(&buf, header)
-	
+
 	data := []byte("This is a line of terminal output with some \x1b[31mcolor\x1b[0m\n")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		writer.WriteOutput(data)
@@ -454,7 +454,7 @@ func BenchmarkStreamReader_Next(b *testing.B) {
 	// Create test data
 	header := AsciinemaHeader{Version: 2}
 	headerData, _ := json.Marshal(header)
-	
+
 	var events []string
 	events = append(events, string(headerData))
 	for i := 0; i < 100; i++ {
@@ -462,9 +462,9 @@ func BenchmarkStreamReader_Next(b *testing.B) {
 		eventData, _ := json.Marshal(event)
 		events = append(events, string(eventData))
 	}
-	
+
 	input := strings.Join(events, "\n")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		reader := NewStreamReader(strings.NewReader(input))

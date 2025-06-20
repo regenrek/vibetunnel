@@ -25,7 +25,7 @@ export class VibeTunnelApp extends LitElement {
   @state() private loading = false;
   @state() private currentView: 'list' | 'session' = 'list';
   @state() private selectedSessionId: string | null = null;
-  @state() private hideExited = true;
+  @state() private hideExited = this.loadHideExitedState();
   @state() private showCreateModal = false;
 
   private hotReloadWs: WebSocket | null = null;
@@ -160,6 +160,7 @@ export class VibeTunnelApp extends LitElement {
 
   private handleHideExitedChange(e: CustomEvent) {
     this.hideExited = e.detail;
+    this.saveHideExitedState(this.hideExited);
   }
 
   private handleCreateSession() {
@@ -197,6 +198,25 @@ export class VibeTunnelApp extends LitElement {
     };
     if (sessionList && sessionList.handleCleanupExited) {
       sessionList.handleCleanupExited();
+    }
+  }
+
+  // State persistence methods
+  private loadHideExitedState(): boolean {
+    try {
+      const saved = localStorage.getItem('hideExitedSessions');
+      return saved !== null ? saved === 'true' : true; // Default to true if not set
+    } catch (error) {
+      console.error('Error loading hideExited state:', error);
+      return true; // Default to true on error
+    }
+  }
+
+  private saveHideExitedState(value: boolean): void {
+    try {
+      localStorage.setItem('hideExitedSessions', String(value));
+    } catch (error) {
+      console.error('Error saving hideExited state:', error);
     }
   }
 

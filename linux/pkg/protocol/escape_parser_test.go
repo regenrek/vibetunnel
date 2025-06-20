@@ -7,10 +7,10 @@ import (
 
 func TestEscapeParser_ProcessData(t *testing.T) {
 	tests := []struct {
-		name           string
-		input          []byte
-		wantProcessed  []byte
-		wantRemaining  []byte
+		name          string
+		input         []byte
+		wantProcessed []byte
+		wantRemaining []byte
 	}{
 		{
 			name:          "simple text",
@@ -92,7 +92,7 @@ func TestEscapeParser_ProcessData(t *testing.T) {
 		},
 		{
 			name:          "incomplete UTF-8 at end",
-			input:         []byte("Hello \xe4\xb8"),  // Missing last byte of 世
+			input:         []byte("Hello \xe4\xb8"), // Missing last byte of 世
 			wantProcessed: []byte("Hello "),
 			wantRemaining: []byte("\xe4\xb8"),
 		},
@@ -120,7 +120,7 @@ func TestEscapeParser_ProcessData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewEscapeParser()
 			processed, remaining := parser.ProcessData(tt.input)
-			
+
 			if !bytes.Equal(processed, tt.wantProcessed) {
 				t.Errorf("ProcessData() processed = %q, want %q", processed, tt.wantProcessed)
 			}
@@ -133,22 +133,22 @@ func TestEscapeParser_ProcessData(t *testing.T) {
 
 func TestEscapeParser_MultipleChunks(t *testing.T) {
 	parser := NewEscapeParser()
-	
+
 	// First chunk ends with incomplete escape sequence
 	chunk1 := []byte("Hello\x1b[31")
 	processed1, remaining1 := parser.ProcessData(chunk1)
-	
+
 	if !bytes.Equal(processed1, []byte("Hello")) {
 		t.Errorf("Chunk1 processed = %q, want %q", processed1, "Hello")
 	}
 	if !bytes.Equal(remaining1, []byte("\x1b[31")) {
 		t.Errorf("Chunk1 remaining = %q, want %q", remaining1, "\x1b[31")
 	}
-	
+
 	// Second chunk completes the sequence
 	chunk2 := []byte("mRed Text\x1b[0m")
 	processed2, remaining2 := parser.ProcessData(chunk2)
-	
+
 	expected := []byte("\x1b[31mRed Text\x1b[0m")
 	if !bytes.Equal(processed2, expected) {
 		t.Errorf("Chunk2 processed = %q, want %q", processed2, expected)
@@ -160,26 +160,26 @@ func TestEscapeParser_MultipleChunks(t *testing.T) {
 
 func TestEscapeParser_Flush(t *testing.T) {
 	parser := NewEscapeParser()
-	
+
 	// Process data with incomplete sequence
-	input := []byte("text\x1b[incomplete")
+	input := []byte("text\x1b[31")  // incomplete CSI sequence
 	processed, _ := parser.ProcessData(input)
-	
+
 	if !bytes.Equal(processed, []byte("text")) {
 		t.Errorf("Processed = %q, want %q", processed, "text")
 	}
-	
+
 	// Flush should return the incomplete sequence
 	flushed := parser.Flush()
-	if !bytes.Equal(flushed, []byte("\x1b[incomplete")) {
-		t.Errorf("Flush() = %q, want %q", flushed, "\x1b[incomplete")
+	if !bytes.Equal(flushed, []byte("\x1b[31")) {
+		t.Errorf("Flush() = %q, want %q", flushed, "\x1b[31")
 	}
-	
+
 	// Buffer should be empty after flush
 	if parser.BufferSize() != 0 {
 		t.Errorf("BufferSize() after flush = %d, want 0", parser.BufferSize())
 	}
-	
+
 	// Second flush should return nothing
 	flushed2 := parser.Flush()
 	if len(flushed2) > 0 {
@@ -189,17 +189,17 @@ func TestEscapeParser_Flush(t *testing.T) {
 
 func TestEscapeParser_Reset(t *testing.T) {
 	parser := NewEscapeParser()
-	
+
 	// Add some incomplete data
 	parser.ProcessData([]byte("text\x1b[31"))
-	
+
 	if parser.BufferSize() == 0 {
 		t.Error("Buffer should not be empty before reset")
 	}
-	
+
 	// Reset
 	parser.Reset()
-	
+
 	if parser.BufferSize() != 0 {
 		t.Errorf("BufferSize() after reset = %d, want 0", parser.BufferSize())
 	}
@@ -242,7 +242,7 @@ func TestEscapeParser_ComplexSequences(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewEscapeParser()
 			processed, remaining := parser.ProcessData(tt.input)
-			
+
 			if !bytes.Equal(processed, tt.expected) {
 				t.Errorf("ProcessData() = %q, want %q", processed, tt.expected)
 			}
@@ -383,16 +383,16 @@ func TestSplitEscapeSequences(t *testing.T) {
 
 func TestEscapeParser_UTF8Handling(t *testing.T) {
 	parser := NewEscapeParser()
-	
+
 	// Test multi-byte UTF-8 split across chunks
-	chunk1 := []byte("Hello 世")[:8]  // Split in middle of 世
+	chunk1 := []byte("Hello 世")[:8] // Split in middle of 世
 	chunk2 := []byte("Hello 世")[8:]
-	
+
 	processed1, _ := parser.ProcessData(chunk1)
 	if !bytes.Equal(processed1, []byte("Hello ")) {
 		t.Errorf("Chunk1 should process only complete UTF-8: %q", processed1)
 	}
-	
+
 	processed2, remaining := parser.ProcessData(chunk2)
 	expected := []byte("世")
 	if !bytes.Equal(processed2, expected) {
@@ -407,7 +407,7 @@ func BenchmarkEscapeParser_ProcessData(b *testing.B) {
 	parser := NewEscapeParser()
 	// Typical terminal output with colors and cursor movements
 	data := []byte("Normal text \x1b[31mRed\x1b[0m \x1b[1mBold\x1b[0m \x1b[10;20HPosition\x1b[2J\x1b[H")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		parser.ProcessData(data)
@@ -427,7 +427,7 @@ func BenchmarkEscapeParser_LargeData(b *testing.B) {
 		buf.WriteString(" text with UTF-8: 你好世界\n")
 	}
 	data := buf.Bytes()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		parser.ProcessData(data)

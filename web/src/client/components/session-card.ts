@@ -174,11 +174,32 @@ export class SessionCard extends LitElement {
           ${this.session.status === 'running'
             ? html`
                 <button
-                  class="btn-ghost font-mono text-xs py-1 text-status-error disabled:opacity-50 flex-shrink-0"
+                  class="btn-ghost text-status-error disabled:opacity-50 flex-shrink-0 p-1 rounded-full hover:bg-status-error hover:bg-opacity-20 transition-all"
                   @click=${this.handleKillClick}
                   ?disabled=${this.killing}
+                  title="Kill session"
                 >
-                  ${this.killing ? 'killing...' : 'kill'}
+                  ${this.killing
+                    ? html`<span class="block w-5 h-5 flex items-center justify-center"
+                        >${this.getKillingText()}</span
+                      >`
+                    : html`
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle cx="12" cy="12" r="10" stroke-width="2" />
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 9l-6 6m0-6l6 6"
+                          />
+                        </svg>
+                      `}
                 </button>
               `
             : ''}

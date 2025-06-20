@@ -18,7 +18,7 @@ type ProcessTerminator struct {
 func NewProcessTerminator(session *Session) *ProcessTerminator {
 	return &ProcessTerminator{
 		session:         session,
-		gracefulTimeout: 3 * time.Second,  // Match Node.js 3 second timeout
+		gracefulTimeout: 3 * time.Second,        // Match Node.js 3 second timeout
 		checkInterval:   500 * time.Millisecond, // Match Node.js 500ms check interval
 	}
 }
@@ -85,7 +85,7 @@ func (pt *ProcessTerminator) TerminateGracefully() error {
 
 	// Process didn't terminate gracefully, force kill
 	log.Printf("[INFO] Session %s didn't terminate gracefully, sending SIGKILL...", sessionID)
-	
+
 	if err := pt.session.Signal("SIGKILL"); err != nil {
 		// If process doesn't exist anymore, that's fine
 		if !pt.session.IsAlive() {
@@ -102,7 +102,7 @@ func (pt *ProcessTerminator) TerminateGracefully() error {
 
 	// Wait a bit for SIGKILL to take effect
 	time.Sleep(100 * time.Millisecond)
-	
+
 	if pt.session.IsAlive() {
 		log.Printf("[WARN] Session %s may still be alive after SIGKILL", sessionID)
 	} else {
