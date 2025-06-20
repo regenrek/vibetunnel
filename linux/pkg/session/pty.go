@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -18,9 +19,9 @@ import (
 	"golang.org/x/term"
 )
 
-// useSelectPolling determines whether to use select-based polling
-// Enable this for better control FIFO integration
-const useSelectPolling = true
+// useEventDrivenIO determines whether to use native event-driven I/O
+// This uses epoll on Linux and kqueue on macOS for zero-latency I/O
+const useEventDrivenIO = true
 
 // isShellBuiltin checks if a command is a shell builtin
 func isShellBuiltin(cmd string) bool {
@@ -278,6 +279,153 @@ func (p *PTY) Pid() int {
 	return 0
 }
 
+// runEventDriven runs the PTY using native event-driven I/O (epoll/kqueue)
+func (p *PTY) runEventDriven() error {
+	debugLog("[DEBUG] PTY.runEventDriven: Starting event-driven I/O for session %s", p.session.ID[:8])
+	
+	// Create event loop
+	eventLoop, err := NewEventLoop()
+	if err != nil {
+		log.Printf("[ERROR] PTY.runEventDriven: Failed to create event loop: %v", err)
+		// Fall back to polling
+		return p.pollWithSelect()
+	}
+	defer eventLoop.Close()
+	
+	// Set PTY to non-blocking mode
+	if err := unix.SetNonblock(int(p.pty.Fd()), true); err != nil {
+		log.Printf("[WARN] PTY.runEventDriven: Failed to set PTY non-blocking: %v", err)
+	}
+	
+	// Add PTY to event loop for reading
+	ptyFD := int(p.pty.Fd())
+	if err := eventLoop.Add(ptyFD, EventRead|EventHup, "pty"); err != nil {
+		log.Printf("[ERROR] PTY.runEventDriven: Failed to add PTY to event loop: %v", err)
+		return fmt.Errorf("failed to add PTY to event loop: %w", err)
+	}
+	
+	// Open stdin pipe
+	stdinPipe, err := os.OpenFile(p.session.StdinPath(), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		log.Printf("[ERROR] PTY.runEventDriven: Failed to open stdin pipe: %v", err)
+		return fmt.Errorf("failed to open stdin pipe: %w", err)
+	}
+	defer stdinPipe.Close()
+	
+	// Add stdin pipe to event loop
+	stdinFD := int(stdinPipe.Fd())
+	if err := eventLoop.Add(stdinFD, EventRead, "stdin"); err != nil {
+		log.Printf("[ERROR] PTY.runEventDriven: Failed to add stdin to event loop: %v", err)
+		return fmt.Errorf("failed to add stdin to event loop: %w", err)
+	}
+	
+	// Track process exit
+	exitCh := make(chan error, 1)
+	go func() {
+		waitErr := p.cmd.Wait()
+		
+		if waitErr != nil {
+			if exitError, ok := waitErr.(*exec.ExitError); ok {
+				if ws, ok := exitError.Sys().(syscall.WaitStatus); ok {
+					exitCode := ws.ExitStatus()
+					p.session.info.ExitCode = &exitCode
+				}
+			}
+		} else {
+			exitCode := 0
+			p.session.info.ExitCode = &exitCode
+		}
+		
+		p.session.UpdateStatus()
+		
+		// Close the stream writer to finalize the recording
+		if err := p.streamWriter.Close(); err != nil {
+			log.Printf("[ERROR] PTY.runEventDriven: Failed to close stream writer: %v", err)
+		}
+		
+		eventLoop.Stop()
+		exitCh <- waitErr
+	}()
+	
+	// Buffers for I/O
+	ptyBuf := make([]byte, 4096)
+	stdinBuf := make([]byte, 1024)
+	
+	debugLog("[DEBUG] PTY.runEventDriven: Starting event loop")
+	
+	// Run the event loop
+	err = eventLoop.Run(func(event Event) {
+		switch event.Data.(string) {
+		case "pty":
+			if event.Events&EventRead != 0 {
+				// Read all available data
+				for {
+					n, err := syscall.Read(event.FD, ptyBuf)
+					if n > 0 {
+						if err := p.streamWriter.WriteOutput(ptyBuf[:n]); err != nil {
+							log.Printf("[ERROR] PTY.runEventDriven: Failed to write output: %v", err)
+						}
+					}
+					
+					if err != nil {
+						if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+							// No more data available
+							break
+						}
+						if err != io.EOF {
+							log.Printf("[ERROR] PTY.runEventDriven: PTY read error: %v", err)
+						}
+						eventLoop.Stop()
+						break
+					}
+					
+					// If we read less than buffer size, no more data
+					if n < len(ptyBuf) {
+						break
+					}
+				}
+			}
+			
+			if event.Events&EventHup != 0 {
+				debugLog("[DEBUG] PTY.runEventDriven: PTY closed (HUP)")
+				eventLoop.Stop()
+			}
+			
+		case "stdin":
+			if event.Events&EventRead != 0 {
+				// Read from stdin pipe
+				n, err := syscall.Read(event.FD, stdinBuf)
+				if n > 0 {
+					if _, err := p.pty.Write(stdinBuf[:n]); err != nil {
+						log.Printf("[ERROR] PTY.runEventDriven: Failed to write to PTY: %v", err)
+					}
+					
+					if err := p.streamWriter.WriteInput(stdinBuf[:n]); err != nil {
+						log.Printf("[ERROR] PTY.runEventDriven: Failed to write input to stream: %v", err)
+					}
+				}
+				
+				if err != nil && err != syscall.EAGAIN && err != syscall.EWOULDBLOCK {
+					if err != io.EOF {
+						log.Printf("[ERROR] PTY.runEventDriven: Stdin read error: %v", err)
+					}
+					eventLoop.Remove(event.FD)
+				}
+			}
+		}
+	})
+	
+	if err != nil {
+		log.Printf("[ERROR] PTY.runEventDriven: Event loop error: %v", err)
+	}
+	
+	// Wait for process exit
+	result := <-exitCh
+	
+	debugLog("[DEBUG] PTY.runEventDriven: Completed with result: %v", result)
+	return result
+}
+
 func (p *PTY) Run() error {
 	defer func() {
 		if err := p.Close(); err != nil {
@@ -352,8 +500,13 @@ func (p *PTY) Run() error {
 		}
 	}()
 
-	// Use select-based polling if available
-	if useSelectPolling {
+	// Use event-driven I/O if available
+	if useEventDrivenIO {
+		return p.runEventDriven()
+	}
+	
+	// Use select-based polling as fallback
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		return p.pollWithSelect()
 	}
 
