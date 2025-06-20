@@ -295,7 +295,7 @@ export class TerminalRenderer {
     }
 
     const version = view.getUint8(offset++);
-    if (version !== 0x02) {
+    if (version !== 0x01) {
       throw new Error(`Unsupported buffer version: ${version}`);
     }
 
@@ -316,50 +316,27 @@ export class TerminalRenderer {
     const cells: BufferCell[][] = [];
     const uint8 = new Uint8Array(buffer);
 
-    for (let row = 0; row < rows; row++) {
-      const rowCells: BufferCell[] = [];
+    // Optimized format
+    while (offset < uint8.length) {
+      const marker = uint8[offset++];
 
-      for (let col = 0; col < cols; ) {
-        if (offset >= uint8.length) break;
+      if (marker === 0xfe) {
+        // Empty row(s)
+        const count = uint8[offset++];
+        for (let i = 0; i < count; i++) {
+          cells.push([{ char: ' ', width: 1 }]);
+        }
+      } else if (marker === 0xfd) {
+        // Row with content
+        const cellCount = view.getUint16(offset, true);
+        offset += 2;
 
-        // Check for special markers
-        const firstByte = uint8[offset];
-
-        if (firstByte === 0xff) {
-          // Run-length encoding
-          offset++;
-          const count = uint8[offset++];
-          const cell = this.decodeCell(uint8, offset);
-          offset = cell.offset;
-
-          for (let i = 0; i < count; i++) {
-            rowCells.push(cell.cell);
-            col++;
-          }
-        } else if (firstByte === 0xfe) {
-          // Empty line marker
-          offset++;
-          const count = uint8[offset++];
-          for (let i = 0; i < count && row < rows; i++) {
-            const emptyRow: BufferCell[] = [];
-            for (let j = 0; j < cols; j++) {
-              emptyRow.push({ char: ' ', width: 1 });
-            }
-            cells.push(emptyRow);
-            row++;
-          }
-          row--; // Adjust for outer loop increment
-          break;
-        } else {
-          // Regular cell
+        const rowCells: BufferCell[] = [];
+        for (let i = 0; i < cellCount; i++) {
           const result = this.decodeCell(uint8, offset);
           offset = result.offset;
           rowCells.push(result.cell);
-          col++;
         }
-      }
-
-      if (rowCells.length > 0) {
         cells.push(rowCells);
       }
     }
@@ -371,60 +348,78 @@ export class TerminalRenderer {
     uint8: Uint8Array,
     offset: number
   ): { cell: BufferCell; offset: number } {
-    const firstByte = uint8[offset];
+    const typeByte = uint8[offset++];
 
-    if (firstByte & 0x80) {
-      // Extended cell
-      const header = uint8[offset++];
-      const attributes = uint8[offset++] & 0x7f; // Remove extended bit
-      const charLen = ((header >> 6) & 0x03) + 1;
-      const hasRgbFg = !!(header & 0x20);
-      const hasRgbBg = !!(header & 0x10);
+    // Type byte format:
+    // Bit 7: Has extended data (attrs/colors)
+    // Bit 6: Is Unicode (vs ASCII)
+    // Bit 5: Has foreground color
+    // Bit 4: Has background color
+    // Bit 3: Is RGB foreground (vs palette)
+    // Bit 2: Is RGB background (vs palette)
+    // Bits 1-0: Character type (00=space, 01=ASCII, 10=Unicode)
 
-      // Read character
-      const charBytes = uint8.slice(offset, offset + charLen);
-      const char = new TextDecoder().decode(charBytes);
-      offset += charLen;
+    const hasExtended = !!(typeByte & 0x80);
+    const isUnicode = !!(typeByte & 0x40);
+    const hasFg = !!(typeByte & 0x20);
+    const hasBg = !!(typeByte & 0x10);
+    const isRgbFg = !!(typeByte & 0x08);
+    const isRgbBg = !!(typeByte & 0x04);
+    const charType = typeByte & 0x03;
 
-      // Read colors
-      let fg: number | undefined;
-      let bg: number | undefined;
-
-      if (hasRgbFg) {
-        fg = (uint8[offset] << 16) | (uint8[offset + 1] << 8) | uint8[offset + 2];
-        offset += 3;
-      } else {
-        fg = uint8[offset++];
-      }
-
-      if (hasRgbBg) {
-        bg = (uint8[offset] << 16) | (uint8[offset + 1] << 8) | uint8[offset + 2];
-        offset += 3;
-      } else {
-        bg = uint8[offset++];
-      }
-
+    // Simple space
+    if (typeByte === 0x00) {
       return {
-        cell: { char, width: 1, fg, bg, attributes },
-        offset,
-      };
-    } else {
-      // Basic cell
-      const char = String.fromCharCode(uint8[offset++]);
-      const attributes = uint8[offset++];
-      const fg = uint8[offset++];
-      const bg = uint8[offset++];
-
-      return {
-        cell: {
-          char,
-          width: 1,
-          fg: fg === 7 ? undefined : fg,
-          bg: bg === 0 ? undefined : bg,
-          attributes: attributes === 0 ? undefined : attributes,
-        },
+        cell: { char: ' ', width: 1 },
         offset,
       };
     }
+
+    // Read character
+    let char: string;
+    if (charType === 0x00) {
+      char = ' ';
+    } else if (isUnicode) {
+      const charLen = uint8[offset++];
+      const charBytes = uint8.slice(offset, offset + charLen);
+      char = new TextDecoder().decode(charBytes);
+      offset += charLen;
+    } else {
+      char = String.fromCharCode(uint8[offset++]);
+    }
+
+    // Default cell
+    const cell: BufferCell = { char, width: 1 };
+
+    // Read extended data if present
+    if (hasExtended) {
+      // Attributes
+      const attributes = uint8[offset++];
+      if (attributes !== 0) {
+        cell.attributes = attributes;
+      }
+
+      // Foreground color
+      if (hasFg) {
+        if (isRgbFg) {
+          cell.fg = (uint8[offset] << 16) | (uint8[offset + 1] << 8) | uint8[offset + 2];
+          offset += 3;
+        } else {
+          cell.fg = uint8[offset++];
+        }
+      }
+
+      // Background color
+      if (hasBg) {
+        if (isRgbBg) {
+          cell.bg = (uint8[offset] << 16) | (uint8[offset + 1] << 8) | uint8[offset + 2];
+          offset += 3;
+        } else {
+          cell.bg = uint8[offset++];
+        }
+      }
+    }
+
+    return { cell, offset };
   }
 }

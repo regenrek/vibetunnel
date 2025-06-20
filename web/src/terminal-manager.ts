@@ -331,20 +331,44 @@ export class TerminalManager {
   }
 
   /**
-   * Encode buffer snapshot to binary format
+   * Encode buffer snapshot to binary format - optimized for minimal data transmission
    */
   encodeSnapshot(snapshot: BufferSnapshot): Buffer {
     const { cols, rows, viewportY, cursorX, cursorY, cells } = snapshot;
 
-    // Calculate buffer size (rough estimate)
-    const estimatedSize = 32 + rows * cols * 4; // Increased header size
-    const buffer = Buffer.allocUnsafe(estimatedSize);
+    // Pre-calculate actual data size for efficiency
+    let dataSize = 32; // Header size
+
+    // First pass: calculate exact size needed
+    for (let row = 0; row < cells.length; row++) {
+      const rowCells = cells[row];
+      if (
+        rowCells.length === 0 ||
+        (rowCells.length === 1 &&
+          rowCells[0].char === ' ' &&
+          !rowCells[0].fg &&
+          !rowCells[0].bg &&
+          !rowCells[0].attributes)
+      ) {
+        // Empty row marker: 2 bytes
+        dataSize += 2;
+      } else {
+        // Row header: 3 bytes (marker + length)
+        dataSize += 3;
+
+        for (const cell of rowCells) {
+          dataSize += this.calculateCellSize(cell);
+        }
+      }
+    }
+
+    const buffer = Buffer.allocUnsafe(dataSize);
     let offset = 0;
 
     // Write header (32 bytes)
     buffer.writeUInt16LE(0x5654, offset);
     offset += 2; // Magic "VT"
-    buffer.writeUInt8(0x02, offset); // Version 2 with 32-bit values
+    buffer.writeUInt8(0x01, offset); // Version 1 - our only format
     offset += 1; // Version
     buffer.writeUInt8(0x00, offset);
     offset += 1; // Flags
@@ -361,93 +385,181 @@ export class TerminalManager {
     buffer.writeUInt32LE(0, offset);
     offset += 4; // Reserved
 
-    // Write cells with run-length encoding
-    let lastCell: BufferCell | null = null;
-    let runCount = 0;
+    // Write cells with new optimized format
+    for (let row = 0; row < cells.length; row++) {
+      const rowCells = cells[row];
 
-    const flushRun = () => {
-      if (lastCell && runCount > 0) {
-        if (runCount > 1) {
-          // Use RLE for repeated cells
-          buffer.writeUInt8(0xff, offset++);
-          buffer.writeUInt8(runCount, offset++);
-        }
+      // Check if this is an empty row
+      if (
+        rowCells.length === 0 ||
+        (rowCells.length === 1 &&
+          rowCells[0].char === ' ' &&
+          !rowCells[0].fg &&
+          !rowCells[0].bg &&
+          !rowCells[0].attributes)
+      ) {
+        // Empty row marker
+        buffer.writeUInt8(0xfe, offset++); // Empty row marker
+        buffer.writeUInt8(1, offset++); // Count of empty rows (for now just 1)
+      } else {
+        // Row with content
+        buffer.writeUInt8(0xfd, offset++); // Row marker
+        buffer.writeUInt16LE(rowCells.length, offset); // Number of cells in row
+        offset += 2;
 
-        // Write cell
-        const charCode = lastCell.char.charCodeAt(0);
-        const isExtended =
-          charCode > 127 ||
-          (lastCell.fg !== undefined && lastCell.fg > 255) ||
-          (lastCell.bg !== undefined && lastCell.bg > 255);
-
-        if (!isExtended) {
-          // Basic cell (4 bytes)
-          buffer.writeUInt8(charCode, offset++);
-          buffer.writeUInt8(lastCell.attributes || 0, offset++);
-          buffer.writeUInt8(lastCell.fg ?? 7, offset++); // Default white on black
-          buffer.writeUInt8(lastCell.bg ?? 0, offset++);
-        } else {
-          // Extended cell
-          const charBytes = Buffer.from(lastCell.char, 'utf8');
-          const hasRgbFg = lastCell.fg !== undefined && lastCell.fg > 255;
-          const hasRgbBg = lastCell.bg !== undefined && lastCell.bg > 255;
-
-          // Header byte
-          const header =
-            ((charBytes.length - 1) << 6) | (hasRgbFg ? 0x20 : 0) | (hasRgbBg ? 0x10 : 0) | 0x80; // Extended flag
-
-          buffer.writeUInt8(header, offset++);
-          buffer.writeUInt8((lastCell.attributes || 0) | 0x80, offset++);
-
-          // Character
-          charBytes.copy(buffer, offset);
-          offset += charBytes.length;
-
-          // Colors
-          if (hasRgbFg && lastCell.fg !== undefined) {
-            buffer.writeUInt8((lastCell.fg >> 16) & 0xff, offset++);
-            buffer.writeUInt8((lastCell.fg >> 8) & 0xff, offset++);
-            buffer.writeUInt8(lastCell.fg & 0xff, offset++);
-          } else {
-            buffer.writeUInt8(lastCell.fg ?? 7, offset++);
-          }
-
-          if (hasRgbBg && lastCell.bg !== undefined) {
-            buffer.writeUInt8((lastCell.bg >> 16) & 0xff, offset++);
-            buffer.writeUInt8((lastCell.bg >> 8) & 0xff, offset++);
-            buffer.writeUInt8(lastCell.bg & 0xff, offset++);
-          } else {
-            buffer.writeUInt8(lastCell.bg ?? 0, offset++);
-          }
-        }
-      }
-    };
-
-    // Process cells
-    for (const row of cells) {
-      for (const cell of row) {
-        if (
-          lastCell &&
-          cell.char === lastCell.char &&
-          cell.fg === lastCell.fg &&
-          cell.bg === lastCell.bg &&
-          cell.attributes === lastCell.attributes &&
-          runCount < 255
-        ) {
-          runCount++;
-        } else {
-          flushRun();
-          lastCell = cell;
-          runCount = 1;
+        // Write each cell
+        for (const cell of rowCells) {
+          offset = this.encodeCell(buffer, offset, cell);
         }
       }
     }
 
-    // Flush final run
-    flushRun();
-
-    // Return trimmed buffer
+    // Return exact size buffer
     return buffer.subarray(0, offset);
+  }
+
+  /**
+   * Calculate the size needed to encode a cell
+   */
+  private calculateCellSize(cell: BufferCell): number {
+    // Optimized encoding:
+    // - Simple space with default colors: 1 byte
+    // - ASCII char with default colors: 2 bytes
+    // - ASCII char with colors/attrs: 2-8 bytes
+    // - Unicode char: variable
+
+    const isSpace = cell.char === ' ';
+    const hasAttrs = cell.attributes && cell.attributes !== 0;
+    const hasFg = cell.fg !== undefined;
+    const hasBg = cell.bg !== undefined;
+    const isAscii = cell.char.charCodeAt(0) <= 127;
+
+    if (isSpace && !hasAttrs && !hasFg && !hasBg) {
+      return 1; // Just a space marker
+    }
+
+    let size = 1; // Type byte
+
+    if (isAscii) {
+      size += 1; // ASCII character
+    } else {
+      const charBytes = Buffer.byteLength(cell.char, 'utf8');
+      size += 1 + charBytes; // Length byte + UTF-8 bytes
+    }
+
+    // Attributes/colors byte
+    if (hasAttrs || hasFg || hasBg) {
+      size += 1; // Flags byte
+
+      if (hasFg && cell.fg !== undefined) {
+        size += cell.fg > 255 ? 3 : 1; // RGB or palette
+      }
+
+      if (hasBg && cell.bg !== undefined) {
+        size += cell.bg > 255 ? 3 : 1; // RGB or palette
+      }
+    }
+
+    return size;
+  }
+
+  /**
+   * Encode a single cell into the buffer
+   */
+  private encodeCell(buffer: Buffer, offset: number, cell: BufferCell): number {
+    const isSpace = cell.char === ' ';
+    const hasAttrs = cell.attributes && cell.attributes !== 0;
+    const hasFg = cell.fg !== undefined;
+    const hasBg = cell.bg !== undefined;
+    const isAscii = cell.char.charCodeAt(0) <= 127;
+
+    // Type byte format:
+    // Bit 7: Has extended data (attrs/colors)
+    // Bit 6: Is Unicode (vs ASCII)
+    // Bit 5: Has foreground color
+    // Bit 4: Has background color
+    // Bit 3: Is RGB foreground (vs palette)
+    // Bit 2: Is RGB background (vs palette)
+    // Bits 1-0: Character type (00=space, 01=ASCII, 10=Unicode)
+
+    if (isSpace && !hasAttrs && !hasFg && !hasBg) {
+      // Simple space - 1 byte
+      buffer.writeUInt8(0x00, offset++); // Type: space, no extended data
+      return offset;
+    }
+
+    let typeByte = 0;
+
+    if (hasAttrs || hasFg || hasBg) {
+      typeByte |= 0x80; // Has extended data
+    }
+
+    if (!isAscii) {
+      typeByte |= 0x40; // Is Unicode
+      typeByte |= 0x02; // Character type: Unicode
+    } else if (!isSpace) {
+      typeByte |= 0x01; // Character type: ASCII
+    }
+
+    if (hasFg && cell.fg !== undefined) {
+      typeByte |= 0x20; // Has foreground
+      if (cell.fg > 255) typeByte |= 0x08; // Is RGB
+    }
+
+    if (hasBg && cell.bg !== undefined) {
+      typeByte |= 0x10; // Has background
+      if (cell.bg > 255) typeByte |= 0x04; // Is RGB
+    }
+
+    buffer.writeUInt8(typeByte, offset++);
+
+    // Write character
+    if (!isAscii) {
+      const charBytes = Buffer.from(cell.char, 'utf8');
+      buffer.writeUInt8(charBytes.length, offset++);
+      charBytes.copy(buffer, offset);
+      offset += charBytes.length;
+    } else if (!isSpace) {
+      buffer.writeUInt8(cell.char.charCodeAt(0), offset++);
+    }
+
+    // Write extended data if present
+    if (typeByte & 0x80) {
+      // Attributes byte (if any)
+      if (hasAttrs && cell.attributes !== undefined) {
+        buffer.writeUInt8(cell.attributes, offset++);
+      } else if (hasFg || hasBg) {
+        buffer.writeUInt8(0, offset++); // No attributes but need the byte
+      }
+
+      // Foreground color
+      if (hasFg && cell.fg !== undefined) {
+        if (cell.fg > 255) {
+          // RGB
+          buffer.writeUInt8((cell.fg >> 16) & 0xff, offset++);
+          buffer.writeUInt8((cell.fg >> 8) & 0xff, offset++);
+          buffer.writeUInt8(cell.fg & 0xff, offset++);
+        } else {
+          // Palette
+          buffer.writeUInt8(cell.fg, offset++);
+        }
+      }
+
+      // Background color
+      if (hasBg && cell.bg !== undefined) {
+        if (cell.bg > 255) {
+          // RGB
+          buffer.writeUInt8((cell.bg >> 16) & 0xff, offset++);
+          buffer.writeUInt8((cell.bg >> 8) & 0xff, offset++);
+          buffer.writeUInt8(cell.bg & 0xff, offset++);
+        } else {
+          // Palette
+          buffer.writeUInt8(cell.bg, offset++);
+        }
+      }
+    }
+
+    return offset;
   }
 
   /**

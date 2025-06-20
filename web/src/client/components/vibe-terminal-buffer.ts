@@ -150,15 +150,15 @@ export class VibeTerminalBuffer extends LitElement {
 
       // Fetch buffer data - request enough lines for display
       const lines = Math.max(this.actualRows, stats.rows);
-      const response = await fetch(
-        `/api/sessions/${this.sessionId}/buffer?lines=${lines}&format=json`
-      );
+      const response = await fetch(`/api/sessions/${this.sessionId}/buffer?lines=${lines}`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch buffer: ${response.statusText}`);
       }
 
-      this.buffer = await response.json();
+      // Decode binary buffer
+      const arrayBuffer = await response.arrayBuffer();
+      this.buffer = TerminalRenderer.decodeBinaryBuffer(arrayBuffer);
       this.lastModified = stats.lastModified;
       this.error = null;
 
