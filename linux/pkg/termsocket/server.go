@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -227,7 +228,7 @@ func (s *Server) sendResponse(conn net.Conn, resp *SpawnResponse) {
 	}
 }
 
-// TryConnect attempts to connect to an existing terminal socket server
+// TryConnect attempts to connect to an existing terminal socket server with timeout
 func TryConnect(socketPath string) (net.Conn, error) {
 	if socketPath == "" {
 		socketPath = DefaultSocketPath
@@ -238,11 +239,17 @@ func TryConnect(socketPath string) (net.Conn, error) {
 		return nil, fmt.Errorf("socket not found: %w", err)
 	}
 
-	// Try to connect
-	conn, err := net.Dial("unix", socketPath)
+	// Try to connect with timeout
+	dialer := net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+	conn, err := dialer.Dial("unix", socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to socket: %w", err)
 	}
+
+	// Set read/write timeout for ongoing operations
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
 
 	return conn, nil
 }
