@@ -20,7 +20,7 @@ final class NetworkMonitor: ObservableObject {
     }
     
     deinit {
-        stopMonitoring()
+        monitor.cancel()
     }
     
     private func startMonitoring() {
@@ -62,33 +62,49 @@ final class NetworkMonitor: ObservableObject {
     func checkHostReachability(_ host: String) async -> Bool {
         // Try to resolve the host
         guard let url = URL(string: host),
-              let host = url.host else {
+              url.host != nil else {
             return false
+        }
+        
+        actor ResponseTracker {
+            private var hasResponded = false
+            
+            func checkAndRespond() -> Bool {
+                if hasResponded {
+                    return false
+                }
+                hasResponded = true
+                return true
+            }
         }
         
         return await withCheckedContinuation { continuation in
             let monitor = NWPathMonitor()
             let queue = DispatchQueue(label: "HostReachability")
-            
-            var hasResponded = false
+            let tracker = ResponseTracker()
             
             monitor.pathUpdateHandler = { path in
-                guard !hasResponded else { return }
-                hasResponded = true
-                
-                let isReachable = path.status == .satisfied
-                monitor.cancel()
-                continuation.resume(returning: isReachable)
+                Task {
+                    let shouldRespond = await tracker.checkAndRespond()
+                    if shouldRespond {
+                        let isReachable = path.status == .satisfied
+                        monitor.cancel()
+                        continuation.resume(returning: isReachable)
+                    }
+                }
             }
             
             monitor.start(queue: queue)
             
             // Timeout after 5 seconds
             queue.asyncAfter(deadline: .now() + 5) {
-                guard !hasResponded else { return }
-                hasResponded = true
-                monitor.cancel()
-                continuation.resume(returning: false)
+                Task {
+                    let shouldRespond = await tracker.checkAndRespond()
+                    if shouldRespond {
+                        monitor.cancel()
+                        continuation.resume(returning: false)
+                    }
+                }
             }
         }
     }
