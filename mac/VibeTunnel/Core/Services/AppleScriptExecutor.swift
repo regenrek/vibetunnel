@@ -190,6 +190,21 @@ final class AppleScriptExecutor {
         }
     }
 
+    /// Executes an AppleScript and returns its string result.
+    ///
+    /// This method is useful when you need to get a string result from AppleScript,
+    /// such as window IDs or other identifiers.
+    ///
+    /// - Parameters:
+    ///   - script: The AppleScript source code to execute
+    ///   - timeout: The timeout in seconds (default: 5.0, max: 30.0)
+    /// - Returns: The string result of the AppleScript execution
+    /// - Throws: `AppleScriptError` if execution fails
+    func executeWithResult(_ script: String, timeout: TimeInterval = 5.0) throws -> String {
+        let descriptor = try execute(script, timeout: timeout)
+        return descriptor?.stringValue ?? ""
+    }
+
     /// Checks if AppleScript permission is granted by executing a simple test script.
     ///
     /// - Returns: true if permission is granted, false otherwise

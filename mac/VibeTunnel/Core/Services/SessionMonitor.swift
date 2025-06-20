@@ -130,6 +130,9 @@ class SessionMonitor {
             // Count only running sessions
             self.sessionCount = sessionsArray.count { $0.isRunning }
             self.lastError = nil
+            
+            // Update WindowTracker with current sessions
+            WindowTracker.shared.updateFromSessions(sessionsArray)
         } catch {
             // Don't set error for connection issues when server is likely not running
             if !(error is URLError) {

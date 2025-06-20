@@ -263,8 +263,8 @@ struct SessionRowView: View {
 
     var body: some View {
         Button(action: {
-            // Open the session detail window
-            openWindow(id: "session-detail", value: session.key)
+            // Focus the terminal window for this session
+            WindowTracker.shared.focusWindow(for: session.key)
         }) {
             HStack {
                 Text("  • \(sessionName)")
@@ -290,6 +290,22 @@ struct SessionRowView: View {
         )
         .onHover { hovering in
             isHovered = hovering
+        }
+        .contextMenu {
+            Button("Focus Terminal Window") {
+                WindowTracker.shared.focusWindow(for: session.key)
+            }
+            
+            Button("View Session Details") {
+                openWindow(id: "session-detail", value: session.key)
+            }
+            
+            Divider()
+            
+            Button("Copy Session ID") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(session.key, forType: .string)
+            }
         }
     }
 
