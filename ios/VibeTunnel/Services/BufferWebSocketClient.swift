@@ -227,49 +227,340 @@ class BufferWebSocketClient: NSObject {
     }
 
     private func decodeTerminalEvent(from data: Data) -> TerminalWebSocketEvent? {
-        // Decode the JSON payload from the binary message
-        do {
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let type = json["type"] as? String
-            {
-                print("[BufferWebSocket] Received event type: \(type)")
-                
-                switch type {
-                case "header":
-                    if let width = json["width"] as? Int,
-                       let height = json["height"] as? Int
-                    {
-                        print("[BufferWebSocket] Terminal header: \(width)x\(height)")
-                        return .header(width: width, height: height)
-                    }
-
-                case "output":
-                    if let timestamp = json["timestamp"] as? Double,
-                       let outputData = json["data"] as? String
-                    {
-                        print("[BufferWebSocket] Terminal output: \(outputData.count) bytes")
-                        return .output(timestamp: timestamp, data: outputData)
-                    }
-
-                case "resize":
-                    if let timestamp = json["timestamp"] as? Double,
-                       let dimensions = json["dimensions"] as? String
-                    {
-                        return .resize(timestamp: timestamp, dimensions: dimensions)
-                    }
-
-                case "exit":
-                    let code = json["code"] as? Int ?? 0
-                    return .exit(code: code)
-
-                default:
-                    print("[BufferWebSocket] Unknown message type: \(type)")
-                }
-            }
-        } catch {
-            print("[BufferWebSocket] Failed to decode message: \(error)")
+        // This is binary buffer data, not JSON
+        // Decode the binary terminal buffer
+        guard let bufferSnapshot = decodeBinaryBuffer(data) else {
+            print("[BufferWebSocket] Failed to decode binary buffer")
+            return nil
         }
-        return nil
+        
+        // Convert buffer snapshot to terminal output
+        let outputData = convertBufferToANSI(bufferSnapshot)
+        print("[BufferWebSocket] Decoded buffer: \(bufferSnapshot.cols)x\(bufferSnapshot.rows), \(outputData.count) bytes output")
+        
+        // Return as output event with current timestamp
+        return .output(timestamp: Date().timeIntervalSince1970, data: outputData)
+    }
+    
+    private struct BufferSnapshot {
+        let cols: Int
+        let rows: Int
+        let viewportY: Int
+        let cursorX: Int
+        let cursorY: Int
+        let cells: [[BufferCell]]
+    }
+    
+    private struct BufferCell {
+        let char: String
+        let width: Int
+        let fg: Int?
+        let bg: Int?
+        let attributes: Int?
+    }
+    
+    private func decodeBinaryBuffer(_ data: Data) -> BufferSnapshot? {
+        var offset = 0
+        
+        // Read header
+        guard data.count >= 32 else {
+            print("[BufferWebSocket] Buffer too small for header")
+            return nil
+        }
+        
+        // Magic bytes "VT" (0x5654 in little endian)
+        let magic = data.withUnsafeBytes { bytes in
+            bytes.loadUnaligned(fromByteOffset: offset, as: UInt16.self).littleEndian
+        }
+        offset += 2
+        
+        guard magic == 0x5654 else {
+            print("[BufferWebSocket] Invalid magic bytes: \(String(format: "0x%04X", magic))")
+            return nil
+        }
+        
+        // Version
+        let version = data[offset]
+        offset += 1
+        
+        guard version == 0x01 else {
+            print("[BufferWebSocket] Unsupported version: \(version)")
+            return nil
+        }
+        
+        // Flags (unused)
+        offset += 1
+        
+        // Dimensions and cursor
+        let cols = data.withUnsafeBytes { bytes in
+            bytes.loadUnaligned(fromByteOffset: offset, as: UInt32.self).littleEndian
+        }
+        offset += 4
+        
+        let rows = data.withUnsafeBytes { bytes in
+            bytes.loadUnaligned(fromByteOffset: offset, as: UInt32.self).littleEndian
+        }
+        offset += 4
+        
+        let viewportY = data.withUnsafeBytes { bytes in
+            bytes.loadUnaligned(fromByteOffset: offset, as: Int32.self).littleEndian
+        }
+        offset += 4
+        
+        let cursorX = data.withUnsafeBytes { bytes in
+            bytes.loadUnaligned(fromByteOffset: offset, as: Int32.self).littleEndian
+        }
+        offset += 4
+        
+        let cursorY = data.withUnsafeBytes { bytes in
+            bytes.loadUnaligned(fromByteOffset: offset, as: Int32.self).littleEndian
+        }
+        offset += 4
+        
+        // Skip reserved
+        offset += 4
+        
+        // Decode cells
+        var cells: [[BufferCell]] = []
+        
+        while offset < data.count {
+            let marker = data[offset]
+            offset += 1
+            
+            if marker == 0xFE {
+                // Empty row(s)
+                let count = data[offset]
+                offset += 1
+                
+                for _ in 0..<count {
+                    cells.append([BufferCell(char: " ", width: 1, fg: nil, bg: nil, attributes: nil)])
+                }
+            } else if marker == 0xFD {
+                // Row with content
+                guard offset + 2 <= data.count else { break }
+                
+                let cellCount = data.withUnsafeBytes { bytes in
+                    bytes.loadUnaligned(fromByteOffset: offset, as: UInt16.self).littleEndian
+                }
+                offset += 2
+                
+                var rowCells: [BufferCell] = []
+                for _ in 0..<cellCount {
+                    if let (cell, newOffset) = decodeCell(data, offset: offset) {
+                        rowCells.append(cell)
+                        offset = newOffset
+                    } else {
+                        break
+                    }
+                }
+                cells.append(rowCells)
+            }
+        }
+        
+        return BufferSnapshot(
+            cols: Int(cols),
+            rows: Int(rows),
+            viewportY: Int(viewportY),
+            cursorX: Int(cursorX),
+            cursorY: Int(cursorY),
+            cells: cells
+        )
+    }
+    
+    private func decodeCell(_ data: Data, offset: Int) -> (BufferCell, Int)? {
+        guard offset < data.count else { return nil }
+        
+        var currentOffset = offset
+        let typeByte = data[currentOffset]
+        currentOffset += 1
+        
+        // Simple space optimization
+        if typeByte == 0x00 {
+            return (BufferCell(char: " ", width: 1, fg: nil, bg: nil, attributes: nil), currentOffset)
+        }
+        
+        // Decode type byte
+        let hasExtended = (typeByte & 0x80) != 0
+        let isUnicode = (typeByte & 0x40) != 0
+        let hasFg = (typeByte & 0x20) != 0
+        let hasBg = (typeByte & 0x10) != 0
+        let isRgbFg = (typeByte & 0x08) != 0
+        let isRgbBg = (typeByte & 0x04) != 0
+        
+        // Read character
+        var char: String
+        var width: Int = 1
+        
+        if isUnicode {
+            // UTF-8 encoded character
+            guard currentOffset < data.count else { return nil }
+            let firstByte = data[currentOffset]
+            
+            let utf8Length: Int
+            if firstByte & 0x80 == 0 {
+                utf8Length = 1
+            } else if firstByte & 0xE0 == 0xC0 {
+                utf8Length = 2
+            } else if firstByte & 0xF0 == 0xE0 {
+                utf8Length = 3
+            } else if firstByte & 0xF8 == 0xF0 {
+                utf8Length = 4
+            } else {
+                utf8Length = 1
+            }
+            
+            guard currentOffset + utf8Length <= data.count else { return nil }
+            
+            let charData = data.subdata(in: currentOffset..<(currentOffset + utf8Length))
+            char = String(data: charData, encoding: .utf8) ?? "?"
+            currentOffset += utf8Length
+            
+            // Read width for Unicode chars
+            guard currentOffset < data.count else { return nil }
+            width = Int(data[currentOffset])
+            currentOffset += 1
+        } else {
+            // ASCII character
+            guard currentOffset < data.count else { return nil }
+            char = String(Character(UnicodeScalar(data[currentOffset])))
+            currentOffset += 1
+        }
+        
+        // Read colors and attributes
+        var fg: Int?
+        var bg: Int?
+        var attributes: Int?
+        
+        if hasFg {
+            if isRgbFg {
+                // RGB color (3 bytes)
+                guard currentOffset + 3 <= data.count else { return nil }
+                let r = Int(data[currentOffset])
+                let g = Int(data[currentOffset + 1])
+                let b = Int(data[currentOffset + 2])
+                fg = (r << 16) | (g << 8) | b | 0xFF000000 // Add alpha for RGB
+                currentOffset += 3
+            } else {
+                // Palette color (1 byte)
+                guard currentOffset < data.count else { return nil }
+                fg = Int(data[currentOffset])
+                currentOffset += 1
+            }
+        }
+        
+        if hasBg {
+            if isRgbBg {
+                // RGB color (3 bytes)
+                guard currentOffset + 3 <= data.count else { return nil }
+                let r = Int(data[currentOffset])
+                let g = Int(data[currentOffset + 1])
+                let b = Int(data[currentOffset + 2])
+                bg = (r << 16) | (g << 8) | b | 0xFF000000 // Add alpha for RGB
+                currentOffset += 3
+            } else {
+                // Palette color (1 byte)
+                guard currentOffset < data.count else { return nil }
+                bg = Int(data[currentOffset])
+                currentOffset += 1
+            }
+        }
+        
+        if hasExtended {
+            // Read attributes byte
+            guard currentOffset < data.count else { return nil }
+            attributes = Int(data[currentOffset])
+            currentOffset += 1
+        }
+        
+        return (BufferCell(char: char, width: width, fg: fg, bg: bg, attributes: attributes), currentOffset)
+    }
+    
+    private func convertBufferToANSI(_ snapshot: BufferSnapshot) -> String {
+        var output = ""
+        
+        // Clear screen and move cursor to top
+        output += "\u{001B}[2J\u{001B}[H"
+        
+        // Render each row
+        for (rowIndex, row) in snapshot.cells.enumerated() {
+            if rowIndex > 0 {
+                output += "\n"
+            }
+            
+            var currentFg: Int?
+            var currentBg: Int?
+            var currentAttrs: Int = 0
+            
+            for cell in row {
+                // Handle attributes
+                if let attrs = cell.attributes, attrs != currentAttrs {
+                    // Reset all attributes
+                    output += "\u{001B}[0m"
+                    currentAttrs = attrs
+                    currentFg = nil
+                    currentBg = nil
+                    
+                    // Apply new attributes
+                    if (attrs & 0x01) != 0 { output += "\u{001B}[1m" } // Bold
+                    if (attrs & 0x02) != 0 { output += "\u{001B}[3m" } // Italic
+                    if (attrs & 0x04) != 0 { output += "\u{001B}[4m" } // Underline
+                    if (attrs & 0x08) != 0 { output += "\u{001B}[2m" } // Dim
+                    if (attrs & 0x10) != 0 { output += "\u{001B}[7m" } // Inverse
+                    if (attrs & 0x40) != 0 { output += "\u{001B}[9m" } // Strikethrough
+                }
+                
+                // Handle foreground color
+                if cell.fg != currentFg {
+                    currentFg = cell.fg
+                    if let fg = cell.fg {
+                        if fg & 0xFF000000 != 0 {
+                            // RGB color
+                            let r = (fg >> 16) & 0xFF
+                            let g = (fg >> 8) & 0xFF
+                            let b = fg & 0xFF
+                            output += "\u{001B}[38;2;\(r);\(g);\(b)m"
+                        } else if fg <= 255 {
+                            // Palette color
+                            output += "\u{001B}[38;5;\(fg)m"
+                        }
+                    } else {
+                        // Default foreground
+                        output += "\u{001B}[39m"
+                    }
+                }
+                
+                // Handle background color
+                if cell.bg != currentBg {
+                    currentBg = cell.bg
+                    if let bg = cell.bg {
+                        if bg & 0xFF000000 != 0 {
+                            // RGB color
+                            let r = (bg >> 16) & 0xFF
+                            let g = (bg >> 8) & 0xFF
+                            let b = bg & 0xFF
+                            output += "\u{001B}[48;2;\(r);\(g);\(b)m"
+                        } else if bg <= 255 {
+                            // Palette color
+                            output += "\u{001B}[48;5;\(bg)m"
+                        }
+                    } else {
+                        // Default background
+                        output += "\u{001B}[49m"
+                    }
+                }
+                
+                // Add the character
+                output += cell.char
+            }
+        }
+        
+        // Reset attributes at the end
+        output += "\u{001B}[0m"
+        
+        // Position cursor
+        output += "\u{001B}[\(snapshot.cursorY + 1);\(snapshot.cursorX + 1)H"
+        
+        return output
     }
 
     func subscribe(to sessionId: String, handler: @escaping (TerminalWebSocketEvent) -> Void) {
