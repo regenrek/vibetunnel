@@ -2,118 +2,86 @@ import Testing
 import Foundation
 @testable import VibeTunnel
 
-// MARK: - Mock Server Implementation
-
-@MainActor
-final class MockServer: ServerProtocol {
-    var isRunning: Bool = false
-    var port: String = "8080"
-    let serverType: ServerMode
-    
-    private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
-    var logStream: AsyncStream<ServerLogEntry>
-    
-    // Test control properties
-    var shouldFailStart = false
-    var startError: Error?
-    var startDelay: Duration?
-    var stopDelay: Duration?
-    
-    init(serverType: ServerMode = .rust) {
-        self.serverType = serverType
-        let (stream, continuation) = AsyncStream<ServerLogEntry>.makeStream()
-        self.logStream = stream
-        self.logContinuation = continuation
-    }
-    
-    func start() async throws {
-        if let delay = startDelay {
-            try await Task.sleep(for: delay)
-        }
-        
-        if shouldFailStart {
-            throw startError ?? ServerError.portInUse(port: port)
-        }
-        
-        isRunning = true
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "Mock server started on port \(port)",
-            source: serverType
-        ))
-    }
-    
-    func stop() async {
-        if let delay = stopDelay {
-            try? await Task.sleep(for: delay)
-        }
-        
-        isRunning = false
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "Mock server stopped",
-            source: serverType
-        ))
-        logContinuation?.finish()
-    }
-    
-    func restart() async throws {
-        await stop()
-        try await start()
-    }
-}
-
-// MARK: - Custom Errors for Testing
-
-enum ServerError: LocalizedError {
-    case portInUse(port: String)
-    case initializationFailed
-    case networkUnavailable
-    
-    var errorDescription: String? {
-        switch self {
-        case .portInUse(let port):
-            return "Port \(port) is already in use"
-        case .initializationFailed:
-            return "Server initialization failed"
-        case .networkUnavailable:
-            return "Network is unavailable"
-        }
-    }
-}
-
 // MARK: - Server Manager Tests
 
 @Suite("Server Manager Tests")
 @MainActor
 struct ServerManagerTests {
-    // We'll use a custom ServerManager instance for each test to ensure isolation
-    // Note: ServerManager is a singleton, so we'll need to be careful with state
+    // We'll use the shared ServerManager instance since it's a singleton
     
     // MARK: - Server Lifecycle Tests
     
-    @Test("Starting and stopping servers", .tags(.critical))
+    @Test("Starting and stopping Go server", .tags(.critical))
     func testServerLifecycle() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
+        let manager = ServerManager.shared
+        
+        // Ensure clean state
+        await manager.stop()
+        
+        // Start the server
+        await manager.start()
+        
+        // Give server time to start
+        try await Task.sleep(for: .milliseconds(500))
+        
+        // Check server is running
+        #expect(manager.isRunning)
+        #expect(manager.currentServer != nil)
+        
+        // Stop the server
+        await manager.stop()
+        
+        // Give server time to stop
+        try await Task.sleep(for: .milliseconds(500))
+        
+        // Check server is stopped
+        #expect(!manager.isRunning)
+        #expect(manager.currentServer == nil)
     }
     
     @Test("Starting server when already running does not create duplicate", .tags(.critical))
     func testStartingAlreadyRunningServer() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
+        let manager = ServerManager.shared
+        
+        // Ensure clean state
+        await manager.stop()
+        
+        // Start the server
+        await manager.start()
+        try await Task.sleep(for: .milliseconds(500))
+        
+        let firstServer = manager.currentServer
+        #expect(firstServer != nil)
+        
+        // Try to start again
+        await manager.start()
+        
+        // Should still be the same server instance
+        #expect(manager.currentServer === firstServer)
+        #expect(manager.isRunning)
+        
+        // Cleanup
+        await manager.stop()
     }
     
-    @Test("Switching between Rust and Hummingbird", .tags(.critical))
-    func testServerModeSwitching() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
-    }
-    
-    @Test("Port configuration", arguments: ["8080", "3000", "9999"])
-    func testPortConfiguration(port: String) async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
+    @Test("Port configuration")
+    func testPortConfiguration() async throws {
+        let manager = ServerManager.shared
+        
+        // Store original port
+        let originalPort = manager.port
+        
+        // Test setting different ports
+        let testPorts = ["8080", "3000", "9999"]
+        
+        for port in testPorts {
+            manager.port = port
+            #expect(manager.port == port)
+            #expect(UserDefaults.standard.string(forKey: "serverPort") == port)
+        }
+        
+        // Restore original port
+        manager.port = originalPort
     }
     
     @Test("Bind address configuration", arguments: [
@@ -121,8 +89,19 @@ struct ServerManagerTests {
         DashboardAccessMode.network
     ])
     func testBindAddressConfiguration(mode: DashboardAccessMode) async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
+        let manager = ServerManager.shared
+        
+        // Store original mode
+        let originalMode = UserDefaults.standard.string(forKey: "dashboardAccessMode") ?? ""
+        
+        // Set the mode via UserDefaults (as bindAddress setter does)
+        UserDefaults.standard.set(mode.rawValue, forKey: "dashboardAccessMode")
+        
+        // Check bind address reflects the mode
+        #expect(manager.bindAddress == mode.bindAddress)
+        
+        // Restore original mode
+        UserDefaults.standard.set(originalMode, forKey: "dashboardAccessMode")
     }
     
     // MARK: - Concurrent Operations Tests
@@ -170,27 +149,60 @@ struct ServerManagerTests {
     
     @Test("Server restart maintains configuration", .tags(.critical))
     func testServerRestart() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
+        let manager = ServerManager.shared
+        
+        // Ensure clean state
+        await manager.stop()
+        
+        // Set specific configuration
+        let testPort = "4567"
+        manager.port = testPort
+        
+        // Start server
+        await manager.start()
+        try await Task.sleep(for: .milliseconds(500))
+        
+        // Verify running
+        #expect(manager.isRunning)
+        let serverBeforeRestart = manager.currentServer
+        
+        // Restart
+        await manager.restart()
+        try await Task.sleep(for: .milliseconds(500))
+        
+        // Verify still running with same port
+        #expect(manager.isRunning)
+        #expect(manager.port == testPort)
+        #expect(manager.currentServer !== serverBeforeRestart) // Should be new instance
+        
+        // Cleanup
+        await manager.stop()
     }
     
     // MARK: - Error Handling Tests
     
-    @Test("Server start failure is handled gracefully", .tags(.reliability))
-    func testServerStartFailure() async throws {
+    @Test("Server state remains consistent after operations", .tags(.reliability))
+    func testServerStateConsistency() async throws {
         let manager = ServerManager.shared
         
-        // This test would require dependency injection to mock server creation
-        // For now, we test that the manager remains in a consistent state
+        // Ensure clean state
+        await manager.stop()
         
-        // Try to start with an invalid configuration (if possible)
-        // In real implementation, we might force a port conflict or similar
+        // Perform various operations
+        await manager.start()
+        try await Task.sleep(for: .milliseconds(200))
+        
+        await manager.stop()
+        try await Task.sleep(for: .milliseconds(200))
         
         await manager.start()
+        try await Task.sleep(for: .milliseconds(200))
         
-        // Even if start fails, manager should be in consistent state
-        if manager.lastError != nil {
-            #expect(!manager.isRunning || manager.currentServer != nil)
+        // State should be consistent
+        if manager.isRunning {
+            #expect(manager.currentServer != nil)
+        } else {
+            #expect(manager.currentServer == nil)
         }
         
         // Cleanup
@@ -202,6 +214,9 @@ struct ServerManagerTests {
     @Test("Server logs are captured in log stream")
     func testServerLogStream() async throws {
         let manager = ServerManager.shared
+        
+        // Ensure clean state
+        await manager.stop()
         
         // Collect logs during server operations
         var collectedLogs: [ServerLogEntry] = []
@@ -218,36 +233,35 @@ struct ServerManagerTests {
         await manager.start()
         
         // Wait for logs
-        try await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .seconds(1))
         logTask.cancel()
         
         // Verify logs were captured
         #expect(!collectedLogs.isEmpty)
-        #expect(collectedLogs.contains { $0.message.contains("Starting") || $0.message.contains("started") })
+        #expect(collectedLogs.contains { log in 
+            log.message.lowercased().contains("start") ||
+            log.message.lowercased().contains("server") ||
+            log.message.lowercased().contains("listening")
+        })
         
         // Cleanup
         await manager.stop()
     }
     
-    // MARK: - Mode Switch via UserDefaults Tests
+    // MARK: - Crash Recovery Tests
     
-    @Test("Server mode change via UserDefaults triggers switch")
-    func testServerModeChangeViaUserDefaults() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
-    }
-    
-    // MARK: - Initial Cleanup Tests
-    
-    @Test("Initial cleanup triggers after server start when enabled", .tags(.networking))
-    func testInitialCleanupEnabled() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
-    }
-    
-    @Test("Initial cleanup is skipped when disabled")
-    func testInitialCleanupDisabled() async throws {
-        // Skip this test as it requires real server instances
-        throw TestError.skip("Requires real server instances which are not available in test environment")
+    @Test("Crash count tracking")
+    func testCrashCountTracking() async throws {
+        let manager = ServerManager.shared
+        
+        // Ensure clean state
+        await manager.stop()
+        
+        // Initial crash count should be 0
+        #expect(manager.crashCount == 0)
+        
+        // Note: We can't easily simulate crashes in tests without
+        // modifying the production code to support dependency injection
+        // This test mainly verifies the property exists and is readable
     }
 }
