@@ -146,8 +146,8 @@ func (w *StreamWriter) scheduleFlush() {
 		w.flushTimer.Stop()
 	}
 
-	// Set up new timer for 5ms flush delay
-	w.flushTimer = time.AfterFunc(5*time.Millisecond, func() {
+	// Set up new timer for 1ms flush delay for better real-time performance
+	w.flushTimer = time.AfterFunc(1*time.Millisecond, func() {
 		w.mutex.Lock()
 		defer w.mutex.Unlock()
 
@@ -187,8 +187,8 @@ func (w *StreamWriter) scheduleBatchSync() {
 		w.syncTimer.Stop()
 	}
 
-	// Schedule sync after 5ms to batch multiple writes
-	w.syncTimer = time.AfterFunc(5*time.Millisecond, func() {
+	// Schedule sync after 1ms for better real-time performance
+	w.syncTimer = time.AfterFunc(1*time.Millisecond, func() {
 		if w.needsSync {
 			if file, ok := w.writer.(*os.File); ok {
 				if err := file.Sync(); err != nil {

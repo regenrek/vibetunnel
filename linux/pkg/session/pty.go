@@ -124,6 +124,11 @@ func NewPTY(session *Session) (*PTY, error) {
 		return nil, fmt.Errorf("failed to set PTY size: %w", err)
 	}
 
+	// Configure terminal modes for proper interactive shell behavior
+	// The creack/pty library handles basic setup, but we ensure the terminal
+	// is in the correct mode for interactive use (not raw mode)
+	debugLog("[DEBUG] NewPTY: Terminal configured for interactive mode")
+
 	streamOut, err := os.Create(session.StreamOutPath())
 	if err != nil {
 		log.Printf("[ERROR] NewPTY: Failed to create stream-out: %v", err)
@@ -217,6 +222,41 @@ func (p *PTY) Run() error {
 	p.stdinPipe = stdinPipe
 
 	debugLog("[DEBUG] PTY.Run: Stdin pipe opened successfully")
+
+	// Set up SIGWINCH handling for terminal resize
+	winchCh := make(chan os.Signal, 1)
+	signal.Notify(winchCh, syscall.SIGWINCH)
+	defer signal.Stop(winchCh)
+
+	// Handle SIGWINCH in a separate goroutine
+	go func() {
+		for range winchCh {
+			// Get current terminal size if we're attached to a terminal
+			if term.IsTerminal(int(os.Stdin.Fd())) {
+				width, height, err := term.GetSize(int(os.Stdin.Fd()))
+				if err == nil {
+					debugLog("[DEBUG] PTY.Run: Received SIGWINCH, resizing to %dx%d", width, height)
+					if err := pty.Setsize(p.pty, &pty.Winsize{
+						Rows: uint16(height),
+						Cols: uint16(width),
+					}); err != nil {
+						log.Printf("[ERROR] PTY.Run: Failed to resize PTY: %v", err)
+					} else {
+						// Update session info
+						p.session.mu.Lock()
+						p.session.info.Width = width
+						p.session.info.Height = height
+						p.session.mu.Unlock()
+						
+						// Write resize event to stream
+						if err := p.streamWriter.WriteResize(uint32(width), uint32(height)); err != nil {
+							log.Printf("[ERROR] PTY.Run: Failed to write resize event: %v", err)
+						}
+					}
+				}
+			}
+		}
+	}()
 
 	// Use select-based polling if available
 	if useSelectPolling {

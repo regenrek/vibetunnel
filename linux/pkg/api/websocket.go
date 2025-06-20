@@ -4,10 +4,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -288,40 +288,20 @@ func (h *BufferWebSocketHandler) processAndSendContent(sessionID, streamPath str
 		return
 	}
 
-	// Read new content
-	newContentSize := currentSize - *seenBytes
-	newContent := make([]byte, newContentSize)
-
-	bytesRead, err := file.Read(newContent)
-	if err != nil {
-		return
-	}
-
+	// Create a reader for the remaining content
+	reader := io.LimitReader(file, currentSize-*seenBytes)
+	decoder := json.NewDecoder(reader)
+	
+	// Update seen bytes to current position
 	*seenBytes = currentSize
 
-	// Process content line by line
-	content := string(newContent[:bytesRead])
-	lines := strings.Split(content, "\n")
-
-	// Handle incomplete last line
-	endIndex := len(lines)
-	if !strings.HasSuffix(content, "\n") && len(lines) > 0 {
-		incompleteLineBytes := int64(len(lines[len(lines)-1]))
-		*seenBytes -= incompleteLineBytes
-		endIndex = len(lines) - 1
-	}
-
-	// Process complete lines
-	for i := 0; i < endIndex; i++ {
-		line := lines[i]
-		if line == "" {
-			continue
-		}
-
-		// Try to parse as header first
+	// Process JSON objects as a stream
+	for {
+		// First, try to decode the header if not sent
 		if !*headerSent {
 			var header protocol.AsciinemaHeader
-			if err := json.Unmarshal([]byte(line), &header); err == nil && header.Version > 0 {
+			pos := decoder.InputOffset()
+			if err := decoder.Decode(&header); err == nil && header.Version > 0 {
 				*headerSent = true
 				// Send header as binary message
 				headerData, _ := json.Marshal(map[string]interface{}{
@@ -334,12 +314,31 @@ func (h *BufferWebSocketHandler) processAndSendContent(sessionID, streamPath str
 					return
 				}
 				continue
+			} else {
+				// Reset decoder position if header decode failed
+				file.Seek(*seenBytes-currentSize+pos, 1)
+				decoder = json.NewDecoder(io.LimitReader(file, currentSize-*seenBytes-pos))
 			}
 		}
 
-		// Try to parse as event array [timestamp, type, data]
+		// Try to decode as event array [timestamp, type, data]
 		var eventArray []interface{}
-		if err := json.Unmarshal([]byte(line), &eventArray); err == nil && len(eventArray) == 3 {
+		if err := decoder.Decode(&eventArray); err != nil {
+			if err == io.EOF {
+				// Update seenBytes to actual position read
+				actualRead, _ := file.Seek(0, 1)
+				*seenBytes = actualRead
+				return
+			}
+			// If JSON decode fails, we might have incomplete data
+			// Reset to last known good position
+			actualRead, _ := file.Seek(0, 1)
+			*seenBytes = actualRead
+			return
+		}
+
+		// Process the event
+		if len(eventArray) == 3 {
 			timestamp, ok1 := eventArray[0].(float64)
 			eventType, ok2 := eventArray[1].(string)
 			data, ok3 := eventArray[2].(string)
