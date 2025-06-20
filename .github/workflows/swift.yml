@@ -164,6 +164,10 @@ jobs:
         chmod +x build-universal.sh
         ./build-universal.sh
         
+    - name: Resolve Dependencies
+      run: |
+        xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace
+        
     - name: Build Debug
       timeout-minutes: 30
       run: |
@@ -176,7 +180,10 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_ENTITLEMENTS="" \
           ENABLE_HARDENED_RUNTIME=NO \
+          PROVISIONING_PROFILE_SPECIFIER="" \
+          DEVELOPMENT_TEAM="" \
           | xcbeautify
           
     - name: Build Release
@@ -191,7 +198,10 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_ENTITLEMENTS="" \
           ENABLE_HARDENED_RUNTIME=NO \
+          PROVISIONING_PROFILE_SPECIFIER="" \
+          DEVELOPMENT_TEAM="" \
           | xcbeautify
           
     - name: Run tests
@@ -207,7 +217,10 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_ENTITLEMENTS="" \
           ENABLE_HARDENED_RUNTIME=NO \
+          PROVISIONING_PROFILE_SPECIFIER="" \
+          DEVELOPMENT_TEAM="" \
           | xcbeautify
           
     - name: Upload test results
@@ -222,5 +235,5 @@ jobs:
       with:
         name: swift-build-artifacts
         path: |
-          build/Build/Products/Debug/VibeTunnel.app
-          build/Build/Products/Release/VibeTunnel.app
+          ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug/VibeTunnel.app
+          ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release/VibeTunnel.app
