@@ -335,7 +335,7 @@ private struct ServerSection: View {
 
         if let conflict = await PortConflictResolver.shared.detectConflict(on: port) {
             // Only show warning for non-VibeTunnel processes
-            // tty-fwd and other VibeTunnel instances will be auto-killed by ServerManager
+            // VibeTunnel instances will be auto-killed by ServerManager
             if case .reportExternalApp = conflict.suggestedAction {
                 portConflict = conflict
             } else {
