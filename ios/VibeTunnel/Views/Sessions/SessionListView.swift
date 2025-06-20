@@ -8,6 +8,7 @@ import SwiftUI
 struct SessionListView: View {
     @Environment(ConnectionManager.self) var connectionManager
     @Environment(NavigationManager.self) var navigationManager
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @State private var viewModel = SessionListViewModel()
     @State private var showingCreateSession = false
     @State private var selectedSession: Session?
@@ -50,18 +51,28 @@ struct SessionListView: View {
                 Theme.Colors.terminalBackground
                     .ignoresSafeArea()
 
-                if viewModel.isLoading && viewModel.sessions.isEmpty {
-                    ProgressView("Loading sessions...")
-                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
-                        .font(Theme.Typography.terminalSystem(size: 14))
-                        .foregroundColor(Theme.Colors.terminalForeground)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if filteredSessions.isEmpty && !searchText.isEmpty {
-                    noSearchResultsView
-                } else if viewModel.sessions.isEmpty {
-                    emptyStateView
-                } else {
-                    sessionList
+                VStack {
+                    // Error banner at the top
+                    if let errorMessage = viewModel.errorMessage {
+                        ErrorBanner(message: errorMessage, isOffline: !networkMonitor.isConnected)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
+                    if viewModel.isLoading && viewModel.sessions.isEmpty {
+                        ProgressView("Loading sessions...")
+                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
+                            .font(Theme.Typography.terminalSystem(size: 14))
+                            .foregroundColor(Theme.Colors.terminalForeground)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if !networkMonitor.isConnected && viewModel.sessions.isEmpty {
+                        offlineStateView
+                    } else if filteredSessions.isEmpty && !searchText.isEmpty {
+                        noSearchResultsView
+                    } else if viewModel.sessions.isEmpty {
+                        emptyStateView
+                    } else {
+                        sessionList
+                    }
                 }
             }
             .navigationTitle("Sessions")
@@ -267,6 +278,77 @@ struct SessionListView: View {
             .padding(.vertical)
             .animation(Theme.Animation.smooth, value: viewModel.sessions)
         }
+    }
+    
+    private var offlineStateView: some View {
+        VStack(spacing: Theme.Spacing.extraLarge) {
+            ZStack {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 60))
+                    .foregroundColor(Theme.Colors.errorAccent)
+                    .blur(radius: 20)
+                    .opacity(0.3)
+
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 60))
+                    .foregroundColor(Theme.Colors.errorAccent)
+            }
+
+            VStack(spacing: Theme.Spacing.small) {
+                Text("No Internet Connection")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Colors.terminalForeground)
+
+                Text("Unable to load sessions while offline")
+                    .font(Theme.Typography.terminalSystem(size: 14))
+                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: {
+                HapticFeedback.impact(.medium)
+                Task {
+                    await viewModel.loadSessions()
+                }
+            }, label: {
+                HStack(spacing: Theme.Spacing.small) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Retry")
+                }
+                .font(Theme.Typography.terminalSystem(size: 16))
+                .fontWeight(.medium)
+            })
+            .terminalButton()
+            .disabled(!networkMonitor.isConnected)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Error Banner
+
+struct ErrorBanner: View {
+    let message: String
+    let isOffline: Bool
+    
+    var body: some View {
+        HStack {
+            Image(systemName: isOffline ? "wifi.slash" : "exclamationmark.triangle")
+                .foregroundColor(.white)
+            
+            Text(message)
+                .font(Theme.Typography.terminalSystem(size: 14))
+                .foregroundColor(.white)
+                .lineLimit(2)
+            
+            Spacer()
+        }
+        .padding()
+        .background(isOffline ? Color.orange : Theme.Colors.errorAccent)
+        .cornerRadius(Theme.CornerRadius.small)
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 }
 

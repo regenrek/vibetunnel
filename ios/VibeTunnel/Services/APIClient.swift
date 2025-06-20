@@ -69,6 +69,7 @@ enum APIError: LocalizedError {
 /// Protocol defining the API client interface for VibeTunnel server communication.
 protocol APIClientProtocol {
     func getSessions() async throws -> [Session]
+    func getSession(_ sessionId: String) async throws -> Session
     func createSession(_ data: SessionCreateData) async throws -> String
     func killSession(_ sessionId: String) async throws
     func cleanupSession(_ sessionId: String) async throws
@@ -76,6 +77,7 @@ protocol APIClientProtocol {
     func killAllSessions() async throws
     func sendInput(sessionId: String, text: String) async throws
     func resizeTerminal(sessionId: String, cols: Int, rows: Int) async throws
+    func checkHealth() async throws -> Bool
 }
 
 /// Main API client for communicating with the VibeTunnel server.
@@ -115,6 +117,23 @@ class APIClient: APIClientProtocol {
 
         do {
             return try decoder.decode([Session].self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+    
+    func getSession(_ sessionId: String) async throws -> Session {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+
+        let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)")
+        let (data, response) = try await session.data(from: url)
+
+        try validateResponse(response)
+
+        do {
+            return try decoder.decode(Session.self, from: data)
         } catch {
             throw APIError.decodingError(error)
         }
@@ -318,6 +337,30 @@ class APIClient: APIClientProtocol {
         }
     }
 
+    // MARK: - Server Health
+    
+    func checkHealth() async throws -> Bool {
+        guard let baseURL else {
+            throw APIError.noServerConfigured
+        }
+
+        let url = baseURL.appendingPathComponent("api/health")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5.0 // Quick timeout for health check
+        
+        do {
+            let (_, response) = try await session.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                return httpResponse.statusCode == 200
+            }
+            return false
+        } catch {
+            // Health check failure doesn't throw, just returns false
+            return false
+        }
+    }
+
     // MARK: - Helpers
 
     private func validateResponse(_ response: URLResponse) throws {
@@ -410,82 +453,4 @@ class APIClient: APIClientProtocol {
         try validateResponse(response)
     }
     
-    // MARK: - File Operations
-    
-    /// Read a file's content
-    func readFile(path: String) async throws -> String {
-        guard let baseURL else { throw APIError.noServerConfigured }
-        
-        let url = baseURL.appendingPathComponent("api/files/read")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        addAuthenticationIfNeeded(&request)
-        
-        struct ReadFileRequest: Codable {
-            let path: String
-        }
-        
-        let requestBody = ReadFileRequest(path: path)
-        request.httpBody = try encoder.encode(requestBody)
-        
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
-        
-        struct ReadFileResponse: Codable {
-            let content: String
-        }
-        
-        let fileResponse = try decoder.decode(ReadFileResponse.self, from: data)
-        return fileResponse.content
-    }
-    
-    /// Create a new file with content
-    func createFile(path: String, content: String) async throws {
-        guard let baseURL else { throw APIError.noServerConfigured }
-        
-        let url = baseURL.appendingPathComponent("api/files/write")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        addAuthenticationIfNeeded(&request)
-        
-        struct WriteFileRequest: Codable {
-            let path: String
-            let content: String
-        }
-        
-        let requestBody = WriteFileRequest(path: path, content: content)
-        request.httpBody = try encoder.encode(requestBody)
-        
-        let (_, response) = try await session.data(for: request)
-        try validateResponse(response)
-    }
-    
-    /// Update an existing file's content
-    func updateFile(path: String, content: String) async throws {
-        // For VibeTunnel, write operation handles both create and update
-        try await createFile(path: path, content: content)
-    }
-    
-    /// Delete a file
-    func deleteFile(path: String) async throws {
-        guard let baseURL else { throw APIError.noServerConfigured }
-        
-        let url = baseURL.appendingPathComponent("api/files/delete")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        addAuthenticationIfNeeded(&request)
-        
-        struct DeleteFileRequest: Codable {
-            let path: String
-        }
-        
-        let requestBody = DeleteFileRequest(path: path)
-        request.httpBody = try encoder.encode(requestBody)
-        
-        let (_, response) = try await session.data(for: request)
-        try validateResponse(response)
-    }
 }

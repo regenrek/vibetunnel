@@ -80,13 +80,15 @@ struct FileBrowserView: View {
                                         if entry.isDir {
                                             viewModel.navigate(to: entry.path)
                                         } else if mode == .browseFiles {
-                                            // Open file editor for files in browse mode
-                                            selectedFile = entry
-                                            showingFileEditor = true
+                                            // File editing disabled - not implemented in backend
+                                            viewModel.errorMessage = "File viewing/editing is not available in the current server version"
+                                            viewModel.showError = true
                                         }
                                     }
                                 )
                                 .transition(.opacity)
+                                // Context menu disabled - file operations not implemented in backend
+                                /*
                                 .contextMenu {
                                     if mode == .browseFiles && !entry.isDir {
                                         Button(action: {
@@ -104,6 +106,7 @@ struct FileBrowserView: View {
                                         }
                                     }
                                 }
+                                */
                             }
                         }
                         .padding(.vertical, 8)
@@ -158,7 +161,9 @@ struct FileBrowserView: View {
                         })
                         .buttonStyle(TerminalButtonStyle())
                         
-                        // Create file button (only in browse mode)
+                        // Create file button (disabled - not implemented in backend)
+                        // Uncomment when file operations are implemented
+                        /*
                         if mode == .browseFiles {
                             Button(action: { showingNewFileAlert = true }, label: {
                                 Label("new file", systemImage: "doc.badge.plus")
@@ -174,6 +179,7 @@ struct FileBrowserView: View {
                             })
                             .buttonStyle(TerminalButtonStyle())
                         }
+                        */
 
                         // Select button (only in selectDirectory mode)
                         if mode == .selectDirectory {
@@ -471,17 +477,10 @@ class FileBrowserViewModel {
     }
     
     func deleteFile(path: String) async {
-        do {
-            try await apiClient.deleteFile(path: path)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            // Reload directory to reflect deletion
-            await loadDirectoryAsync(path: currentPath)
-        } catch {
-            print("[FileBrowser] Failed to delete file: \(error)")
-            errorMessage = "Failed to delete file: \(error.localizedDescription)"
-            showError = true
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
-        }
+        // File deletion is not yet implemented in the backend
+        errorMessage = "File deletion is not available in the current server version"
+        showError = true
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
 }
 

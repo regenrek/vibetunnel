@@ -6,14 +6,20 @@ import SwiftUI
 struct VibeTunnelApp: App {
     @State private var connectionManager = ConnectionManager()
     @State private var navigationManager = NavigationManager()
+    @State private var networkMonitor = NetworkMonitor.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(connectionManager)
                 .environment(navigationManager)
+                .offlineBanner()
                 .onOpenURL { url in
                     handleURL(url)
+                }
+                .task {
+                    // Initialize network monitoring
+                    _ = networkMonitor
                 }
         }
     }
@@ -37,6 +43,7 @@ struct VibeTunnelApp: App {
 /// tracking connection state, and providing a central point for
 /// connection-related operations.
 @Observable
+@MainActor
 class ConnectionManager {
     var isConnected: Bool = false {
         didSet {
@@ -93,6 +100,16 @@ class ConnectionManager {
         UserDefaults.standard.removeObject(forKey: "connectionState")
         UserDefaults.standard.removeObject(forKey: "lastConnectionTime")
     }
+    
+    var currentServerConfig: ServerConfig? {
+        serverConfig
+    }
+}
+
+// Make ConnectionManager accessible globally for APIClient
+extension ConnectionManager {
+    @MainActor
+    static let shared = ConnectionManager()
 }
 
 /// Manages app-wide navigation state.

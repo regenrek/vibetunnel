@@ -412,9 +412,9 @@ class TerminalViewModel {
             
             // Feed all output events to the terminal
             for event in snapshot.events {
-                if event.type == "o", let outputData = event.data {
+                if event.type == .output {
                     // Feed the actual terminal output data
-                    terminalCoordinator?.feedData(outputData)
+                    terminalCoordinator?.feedData(event.data)
                 }
             }
         } catch {

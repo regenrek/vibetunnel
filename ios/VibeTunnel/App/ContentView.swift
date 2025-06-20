@@ -53,7 +53,7 @@ struct ContentView: View {
     
     private func validateRestoredConnection() {
         guard connectionManager.isConnected,
-              let config = connectionManager.serverConfig else {
+              connectionManager.serverConfig != nil else {
             isValidatingConnection = false
             return
         }

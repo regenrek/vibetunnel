@@ -156,33 +156,16 @@ class FileEditorViewModel {
     }
     
     func loadFile() async {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            let fileContent = try await APIClient.shared.readFile(path: path)
-            content = fileContent
-            originalContent = fileContent
-        } catch {
-            errorMessage = "Failed to load file: \(error.localizedDescription)"
-            showError = true
-        }
+        // File editing is not yet implemented in the backend
+        errorMessage = "File editing is not available in the current server version"
+        showError = true
     }
     
     func save() async {
-        do {
-            if isNewFile {
-                try await APIClient.shared.createFile(path: path, content: content)
-            } else {
-                try await APIClient.shared.updateFile(path: path, content: content)
-            }
-            originalContent = content
-            HapticFeedback.notification(.success)
-        } catch {
-            errorMessage = "Failed to save file: \(error.localizedDescription)"
-            showError = true
-            HapticFeedback.notification(.error)
-        }
+        // File editing is not yet implemented in the backend
+        errorMessage = "File editing is not available in the current server version"
+        showError = true
+        HapticFeedback.notification(.error)
     }
 }
 
