@@ -169,6 +169,22 @@ func loadSession(controlPath, id string) (*Session, error) {
 		info:        info,
 	}
 
+	// Validate that essential session files exist
+	streamPath := filepath.Join(sessionPath, "stream-out")
+	if _, err := os.Stat(streamPath); os.IsNotExist(err) {
+		// Stream file doesn't exist - this might be an orphaned session
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] Session %s missing stream-out file, marking as exited", id[:8])
+		}
+		// Mark session as exited if it claims to be running but has no stream file
+		if info.Status == string(StatusRunning) {
+			info.Status = string(StatusExited)
+			exitCode := 1
+			info.ExitCode = &exitCode
+			info.Save(sessionPath)
+		}
+	}
+
 	// If session is running, we need to reconnect to the PTY for operations like resize
 	// For now, we'll handle this by checking if we need PTY access in individual methods
 
