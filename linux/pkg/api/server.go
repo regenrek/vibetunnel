@@ -17,6 +17,13 @@ import (
 	"github.com/vibetunnel/linux/pkg/termsocket"
 )
 
+// debugLog logs debug messages only if VIBETUNNEL_DEBUG is set
+func debugLog(format string, args ...interface{}) {
+	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+		log.Printf(format, args...)
+	}
+}
+
 type Server struct {
 	manager      *session.Manager
 	staticPath   string
@@ -119,7 +126,7 @@ func (s *Server) serveStaticWithIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log the request for debugging
-	log.Printf("[DEBUG] Static request: %s -> %s (static path: %s)", r.URL.Path, path, s.staticPath)
+	debugLog("[DEBUG] Static request: %s -> %s (static path: %s)", r.URL.Path, path, s.staticPath)
 
 	// Try to serve the file
 	fullPath := filepath.Join(s.staticPath, filepath.Clean(path))
@@ -130,7 +137,7 @@ func (s *Server) serveStaticWithIndex(w http.ResponseWriter, r *http.Request) {
 		// Try to serve index.html from the directory
 		indexPath := filepath.Join(fullPath, "index.html")
 		if _, err := os.Stat(indexPath); err == nil {
-			log.Printf("[DEBUG] Serving directory index: %s", indexPath)
+			debugLog("[DEBUG] Serving directory index: %s", indexPath)
 			http.ServeFile(w, r, indexPath)
 			return
 		}
@@ -139,7 +146,7 @@ func (s *Server) serveStaticWithIndex(w http.ResponseWriter, r *http.Request) {
 	// Check if file exists
 	if err == nil && !info.IsDir() {
 		// File exists, serve it
-		log.Printf("[DEBUG] Serving file: %s", fullPath)
+		debugLog("[DEBUG] Serving file: %s", fullPath)
 		http.ServeFile(w, r, fullPath)
 		return
 	}
@@ -149,7 +156,7 @@ func (s *Server) serveStaticWithIndex(w http.ResponseWriter, r *http.Request) {
 	// This allows client-side routing to handle the route
 	indexPath := filepath.Join(s.staticPath, "index.html")
 	if _, err := os.Stat(indexPath); err == nil {
-		log.Printf("[DEBUG] SPA fallback - serving index.html for: %s", r.URL.Path)
+		debugLog("[DEBUG] SPA fallback - serving index.html for: %s", r.URL.Path)
 		http.ServeFile(w, r, indexPath)
 		return
 	}
@@ -250,10 +257,26 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				Terminal:   req.Term,
 			}
 
+			// Create the session first with the specified ID
+			sess, err := s.manager.CreateSessionWithID(sessionID, session.Config{
+				Name:    req.Name,
+				Cmdline: cmdline,
+				Cwd:     cwd,
+				Width:   cols,
+				Height:  rows,
+			})
+			if err != nil {
+				log.Printf("[ERROR] Failed to create session: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			// Send spawn request to Mac app
 			resp, err := termsocket.SendSpawnRequest(conn, spawnReq)
 			if err != nil {
 				log.Printf("[ERROR] Failed to send terminal spawn request: %v", err)
+				// Clean up the session since spawn failed
+				s.manager.RemoveSession(sess.ID)
 				http.Error(w, fmt.Sprintf("Failed to spawn terminal: %v", err), http.StatusInternalServerError)
 				return
 			}
@@ -264,6 +287,8 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 					errorMsg = "Unknown error"
 				}
 				log.Printf("[ERROR] Terminal spawn failed: %s", errorMsg)
+				// Clean up the session since spawn failed
+				s.manager.RemoveSession(sess.ID)
 				http.Error(w, fmt.Sprintf("Terminal spawn failed: %s", errorMsg), http.StatusInternalServerError)
 				return
 			}
@@ -430,10 +455,10 @@ func (s *Server) handleSendInput(w http.ResponseWriter, r *http.Request) {
 
 	// Check if this is a special key (automatic detection like Swift version)
 	if mappedKey, isSpecialKey := specialKeys[input]; isSpecialKey {
-		log.Printf("[DEBUG] handleSendInput: Sending special key '%s' (%q) to session %s", input, mappedKey, sess.ID[:8])
+		debugLog("[DEBUG] handleSendInput: Sending special key '%s' (%q) to session %s", input, mappedKey, sess.ID[:8])
 		err = sess.SendKey(mappedKey)
 	} else {
-		log.Printf("[DEBUG] handleSendInput: Sending text '%s' to session %s", input, sess.ID[:8])
+		debugLog("[DEBUG] handleSendInput: Sending text '%s' to session %s", input, sess.ID[:8])
 		err = sess.SendText(input)
 	}
 
@@ -443,7 +468,7 @@ func (s *Server) handleSendInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[DEBUG] handleSendInput: Successfully sent input to session %s", sess.ID[:8])
+	debugLog("[DEBUG] handleSendInput: Successfully sent input to session %s", sess.ID[:8])
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -455,7 +480,24 @@ func (s *Server) handleKillSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update session status before attempting kill
+	sess.UpdateStatus()
+
+	// Check if session is already dead
+	info := sess.GetInfo()
+	if info != nil && info.Status == string(session.StatusExited) {
+		// Return 410 Gone for already dead sessions
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusGone)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Session already exited",
+		})
+		return
+	}
+
 	if err := sess.Kill(); err != nil {
+		log.Printf("[ERROR] Failed to kill session %s: %v", vars["id"], err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

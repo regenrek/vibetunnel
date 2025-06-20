@@ -45,6 +45,29 @@ func (m *Manager) CreateSession(config Config) (*Session, error) {
 	return session, nil
 }
 
+func (m *Manager) CreateSessionWithID(id string, config Config) (*Session, error) {
+	if err := os.MkdirAll(m.controlPath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create control directory: %w", err)
+	}
+
+	session, err := newSessionWithID(m.controlPath, id, config)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := session.Start(); err != nil {
+		os.RemoveAll(session.Path())
+		return nil, err
+	}
+
+	// Add to running sessions registry
+	m.mutex.Lock()
+	m.runningSessions[session.ID] = session
+	m.mutex.Unlock()
+
+	return session, nil
+}
+
 func (m *Manager) GetSession(id string) (*Session, error) {
 	// First check if we have this session in our running sessions registry
 	m.mutex.RLock()

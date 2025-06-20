@@ -64,10 +64,17 @@ type Session struct {
 
 func newSession(controlPath string, config Config) (*Session, error) {
 	id := uuid.New().String()
+	return newSessionWithID(controlPath, id, config)
+}
+
+func newSessionWithID(controlPath string, id string, config Config) (*Session, error) {
 	sessionPath := filepath.Join(controlPath, id)
 
-	log.Printf("[DEBUG] Creating new session %s with config: Name=%s, Cmdline=%v, Cwd=%s",
-		id[:8], config.Name, config.Cmdline, config.Cwd)
+	// Only log in debug mode
+	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+		log.Printf("[DEBUG] Creating new session %s with config: Name=%s, Cmdline=%v, Cwd=%s",
+			id[:8], config.Name, config.Cmdline, config.Cwd)
+	}
 
 	if err := os.MkdirAll(sessionPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create session directory: %w", err)
@@ -84,7 +91,9 @@ func newSession(controlPath string, config Config) (*Session, error) {
 			shell = "/bin/bash"
 		}
 		config.Cmdline = []string{shell}
-		log.Printf("[DEBUG] Session %s: Set default command to %v", id[:8], config.Cmdline)
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] Session %s: Set default command to %v", id[:8], config.Cmdline)
+		}
 	}
 
 	// Set default working directory if empty
@@ -98,7 +107,9 @@ func newSession(controlPath string, config Config) (*Session, error) {
 		} else {
 			config.Cwd = cwd
 		}
-		log.Printf("[DEBUG] Session %s: Set default working directory to %s", id[:8], config.Cwd)
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] Session %s: Set default working directory to %s", id[:8], config.Cwd)
+		}
 	}
 
 	term := os.Getenv("TERM")
@@ -193,9 +204,13 @@ func (s *Session) Start() error {
 
 	go func() {
 		if err := s.pty.Run(); err != nil {
-			log.Printf("[DEBUG] Session %s: PTY.Run() exited with error: %v", s.ID[:8], err)
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Session %s: PTY.Run() exited with error: %v", s.ID[:8], err)
+			}
 		} else {
-			log.Printf("[DEBUG] Session %s: PTY.Run() exited normally", s.ID[:8])
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Session %s: PTY.Run() exited normally", s.ID[:8])
+			}
 		}
 	}()
 
@@ -203,7 +218,9 @@ func (s *Session) Start() error {
 	s.startControlListener()
 
 	// Process status will be checked on first access - no artificial delay needed
-	log.Printf("[DEBUG] Session %s: Started successfully", s.ID[:8])
+	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+		log.Printf("[DEBUG] Session %s: Started successfully", s.ID[:8])
+	}
 
 	return nil
 }
@@ -252,6 +269,16 @@ func (s *Session) Signal(sig string) error {
 		return fmt.Errorf("no process to signal")
 	}
 
+	// Check if process is still alive before signaling
+	if !s.IsAlive() {
+		// Process is already dead, update status and return success
+		s.info.Status = string(StatusExited)
+		exitCode := 0
+		s.info.ExitCode = &exitCode
+		s.info.Save(s.Path())
+		return nil
+	}
+
 	proc, err := os.FindProcess(s.info.Pid)
 	if err != nil {
 		return err
@@ -261,7 +288,12 @@ func (s *Session) Signal(sig string) error {
 	case "SIGTERM":
 		return proc.Signal(os.Interrupt)
 	case "SIGKILL":
-		return proc.Kill()
+		err = proc.Kill()
+		// If kill fails with "process already finished", that's okay
+		if err != nil && strings.Contains(err.Error(), "process already finished") {
+			return nil
+		}
+		return err
 	default:
 		return fmt.Errorf("unsupported signal: %s", sig)
 	}
@@ -272,8 +304,23 @@ func (s *Session) Stop() error {
 }
 
 func (s *Session) Kill() error {
+	// First check if the session is already dead
+	if s.info.Status == string(StatusExited) {
+		// Already exited, just cleanup and return success
+		s.cleanup()
+		return nil
+	}
+
+	// Try to kill the process
 	err := s.Signal("SIGKILL")
 	s.cleanup()
+	
+	// If the error is because the process doesn't exist, that's fine
+	if err != nil && (strings.Contains(err.Error(), "no such process") || 
+		strings.Contains(err.Error(), "process already finished")) {
+		return nil
+	}
+	
 	return err
 }
 
@@ -342,6 +389,13 @@ func (s *Session) UpdateStatus() error {
 	}
 
 	return nil
+}
+
+// GetInfo returns the session info
+func (s *Session) GetInfo() *Info {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.info
 }
 
 func (i *Info) Save(sessionPath string) error {

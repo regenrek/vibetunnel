@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-const Version = "1.0.0"
+const Version = "1.0.2"
 
 type Config struct {
 	Server string `json:"server,omitempty"`

@@ -31,7 +31,7 @@ func (s *Session) createControlFIFO() error {
 		return fmt.Errorf("failed to create control FIFO: %w", err)
 	}
 
-	log.Printf("[DEBUG] Created control FIFO at %s", controlPath)
+	debugLog("[DEBUG] Created control FIFO at %s", controlPath)
 	return nil
 }
 
@@ -66,7 +66,7 @@ func (s *Session) startControlListener() {
 				if err := decoder.Decode(&cmd); err != nil {
 					// Check if it's just EOF (no data available)
 					if err.Error() != "EOF" && err.Error() != "read /dev/stdin: resource temporarily unavailable" {
-						log.Printf("[DEBUG] Control FIFO decode error: %v", err)
+						debugLog("[DEBUG] Control FIFO decode error: %v", err)
 					}
 					break
 				}
@@ -81,13 +81,13 @@ func (s *Session) startControlListener() {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		log.Printf("[DEBUG] Control listener stopped for session %s", s.ID[:8])
+		debugLog("[DEBUG] Control listener stopped for session %s", s.ID[:8])
 	}()
 }
 
 // handleControlCommand processes a control command
 func (s *Session) handleControlCommand(cmd *ControlCommand) {
-	log.Printf("[DEBUG] Received control command for session %s: %+v", s.ID[:8], cmd)
+	debugLog("[DEBUG] Received control command for session %s: %+v", s.ID[:8], cmd)
 
 	switch cmd.Cmd {
 	case "resize":

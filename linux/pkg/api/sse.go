@@ -38,7 +38,7 @@ func (s *SSEStreamer) Stream() {
 
 	streamPath := s.session.StreamOutPath()
 
-	log.Printf("[DEBUG] SSE: Starting live stream for session %s", s.session.ID[:8])
+	debugLog("[DEBUG] SSE: Starting live stream for session %s", s.session.ID[:8])
 
 	// Create file watcher for high-performance event detection
 	watcher, err := fsnotify.NewWatcher()
@@ -62,7 +62,7 @@ func (s *SSEStreamer) Stream() {
 
 	// Send initial content immediately and check for client disconnect
 	if err := s.processNewContent(streamPath, &headerSent, &seenBytes); err != nil {
-		log.Printf("[DEBUG] SSE: Client disconnected during initial content: %v", err)
+		debugLog("[DEBUG] SSE: Client disconnected during initial content: %v", err)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (s *SSEStreamer) Stream() {
 			// Process file writes (new content) and check for client disconnect
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				if err := s.processNewContent(streamPath, &headerSent, &seenBytes); err != nil {
-					log.Printf("[DEBUG] SSE: Client disconnected during content streaming: %v", err)
+					debugLog("[DEBUG] SSE: Client disconnected during content streaming: %v", err)
 					return
 				}
 			}
@@ -91,9 +91,9 @@ func (s *SSEStreamer) Stream() {
 		case <-time.After(1 * time.Second):
 			// Check if session is still alive less frequently for better performance
 			if !s.session.IsAlive() {
-				log.Printf("[DEBUG] SSE: Session %s is dead, ending stream", s.session.ID[:8])
+				debugLog("[DEBUG] SSE: Session %s is dead, ending stream", s.session.ID[:8])
 				if err := s.sendEvent(&protocol.StreamEvent{Type: "end"}); err != nil {
-					log.Printf("[DEBUG] SSE: Client disconnected during end event: %v", err)
+					debugLog("[DEBUG] SSE: Client disconnected during end event: %v", err)
 				}
 				return
 			}
@@ -169,7 +169,7 @@ func (s *SSEStreamer) processNewContent(streamPath string, headerSent *bool, see
 			var header protocol.AsciinemaHeader
 			if err := json.Unmarshal([]byte(line), &header); err == nil && header.Version > 0 {
 				*headerSent = true
-				log.Printf("[DEBUG] SSE: Sending event type=header")
+				debugLog("[DEBUG] SSE: Sending event type=header")
 				// Skip sending header for now, frontend doesn't need it
 				continue
 			}
@@ -192,7 +192,7 @@ func (s *SSEStreamer) processNewContent(streamPath string, headerSent *bool, see
 					},
 				}
 
-				log.Printf("[DEBUG] SSE: Sending event type=%s", event.Type)
+				debugLog("[DEBUG] SSE: Sending event type=%s", event.Type)
 				if err := s.sendRawEvent(event); err != nil {
 					log.Printf("[ERROR] SSE: Failed to send event: %v", err)
 					return err
