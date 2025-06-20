@@ -9,11 +9,11 @@ import (
 
 // SpawnInTerminal opens a new terminal window running the specified command
 // This is used as a fallback when the Mac app's terminal service is not available
-func SpawnInTerminal(sessionID, vibetunnelPath string, cmdline []string, workingDir string) error {
+func SpawnInTerminal(sessionID, vtBinaryPath string, cmdline []string, workingDir string) error {
 	// Format the command to run in the terminal
 	// This matches the format used by the Rust implementation
 	vtCommand := fmt.Sprintf("TTY_SESSION_ID=\"%s\" \"%s\" -- %s",
-		sessionID, vibetunnelPath, shellQuoteArgs(cmdline))
+		sessionID, vtBinaryPath, shellQuoteArgs(cmdline))
 
 	switch runtime.GOOS {
 	case "darwin":
