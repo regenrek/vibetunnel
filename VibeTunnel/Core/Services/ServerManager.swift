@@ -3,21 +3,15 @@ import Observation
 import OSLog
 import SwiftUI
 
-/// Manages the active server and handles switching between modes.
+/// Manages the VibeTunnel server lifecycle.
 ///
 /// `ServerManager` is the central coordinator for server lifecycle management in VibeTunnel.
-/// It handles starting, stopping, and switching between different server implementations (Rust/Hummingbird),
-/// manages server configuration, and provides logging capabilities. The manager ensures only one
-/// server instance runs at a time and coordinates smooth transitions between server modes.
+/// It handles starting, stopping, and restarting the Go server, manages server configuration,
+/// and provides logging capabilities.
 @MainActor
 @Observable
 class ServerManager {
     @MainActor static let shared = ServerManager()
-
-    private var serverModeString: String {
-        get { UserDefaults.standard.string(forKey: "serverMode") ?? ServerMode.rust.rawValue }
-        set { UserDefaults.standard.set(newValue, forKey: "serverMode") }
-    }
 
     var port: String {
         get { UserDefaults.standard.string(forKey: "serverPort") ?? "4020" }
@@ -44,9 +38,8 @@ class ServerManager {
         set { UserDefaults.standard.set(newValue, forKey: "cleanupOnStartup") }
     }
 
-    private(set) var currentServer: ServerProtocol?
+    private(set) var currentServer: GoServer?
     private(set) var isRunning = false
-    private(set) var isSwitching = false
     private(set) var isRestarting = false
     private(set) var lastError: Error?
     private(set) var crashCount = 0
@@ -58,11 +51,6 @@ class ServerManager {
     private var logContinuation: AsyncStream<ServerLogEntry>.Continuation?
     private var serverLogTask: Task<Void, Never>?
     private(set) var logStream: AsyncStream<ServerLogEntry>!
-
-    var serverMode: ServerMode {
-        get { ServerMode(rawValue: serverModeString) ?? .rust }
-        set { serverModeString = newValue.rawValue }
-    }
 
     private init() {
         setupLogStream()
@@ -103,9 +91,7 @@ class ServerManager {
 
     @objc
     private nonisolated func userDefaultsDidChange() {
-        Task { @MainActor in
-            await handleServerModeChange()
-        }
+        // Server mode is now fixed to Go, no need to handle changes
     }
 
     /// Start the server with current configuration
@@ -117,13 +103,11 @@ class ServerManager {
             // Ensure our state is synced
             isRunning = true
             lastError = nil
-            ServerMonitor.shared.isServerRunning = true
 
             // Log for clarity
             logContinuation?.yield(ServerLogEntry(
                 level: .info,
-                message: "\(serverMode.displayName) server already running on port \(self.port)",
-                source: serverMode
+                message: "Server already running on port \(self.port)"
             ))
             return
         }
@@ -138,16 +122,14 @@ class ServerManager {
                 logger.info("Attempting to kill conflicting process: \(processName) (PID: \(pid))")
                 logContinuation?.yield(ServerLogEntry(
                     level: .warning,
-                    message: "Port \(self.port) is used by another instance. Terminating conflicting process...",
-                    source: serverMode
+                    message: "Port \(self.port) is used by another instance. Terminating conflicting process..."
                 ))
 
                 do {
                     try await PortConflictResolver.shared.resolveConflict(conflict)
                     logContinuation?.yield(ServerLogEntry(
                         level: .info,
-                        message: "Conflicting process terminated successfully",
-                        source: serverMode
+                        message: "Conflicting process terminated successfully"
                     ))
 
                     // Wait a moment for port to be fully released
@@ -157,8 +139,7 @@ class ServerManager {
                     lastError = PortConflictError.failedToKillProcess(pid: pid)
                     logContinuation?.yield(ServerLogEntry(
                         level: .error,
-                        message: "Failed to terminate conflicting process. Please try a different port.",
-                        source: serverMode
+                        message: "Failed to terminate conflicting process. Please try a different port."
                     ))
                     return
                 }
@@ -172,8 +153,7 @@ class ServerManager {
                 )
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,
-                    message: "Port \(self.port) is used by \(appName). Please choose a different port.",
-                    source: serverMode
+                    message: "Port \(self.port) is used by \(appName). Please choose a different port."
                 ))
                 return
 
@@ -186,12 +166,11 @@ class ServerManager {
         // Log that we're starting a server
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Starting \(serverMode.displayName) server on port \(self.port)...",
-            source: serverMode
+            message: "Starting server on port \(self.port)..."
         ))
 
         do {
-            let server = createServer(for: serverMode)
+            let server = GoServer()
             server.port = port
 
             // Subscribe to server logs
@@ -207,10 +186,7 @@ class ServerManager {
             isRunning = true
             lastError = nil
 
-            logger.info("Started \(self.serverMode.displayName) server on port \(self.port)")
-
-            // Update ServerMonitor for compatibility
-            ServerMonitor.shared.isServerRunning = true
+            logger.info("Started server on port \(self.port)")
 
             // Trigger cleanup of old sessions after server starts
             await triggerInitialCleanup()
@@ -218,8 +194,7 @@ class ServerManager {
             logger.error("Failed to start server: \(error.localizedDescription)")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Failed to start \(serverMode.displayName) server: \(error.localizedDescription)",
-                source: serverMode
+                message: "Failed to start server: \(error.localizedDescription)"
             ))
             lastError = error
 
@@ -227,10 +202,8 @@ class ServerManager {
             if let server = currentServer, server.isRunning {
                 logger.warning("Server reported as running despite startup error, syncing state")
                 isRunning = true
-                ServerMonitor.shared.isServerRunning = true
             } else {
                 isRunning = false
-                ServerMonitor.shared.isServerRunning = false
             }
         }
     }
@@ -242,14 +215,12 @@ class ServerManager {
             return
         }
 
-        let serverType = server.serverType
-        logger.info("Stopping \(serverType.displayName) server")
+        logger.info("Stopping server")
 
         // Log that we're stopping the server
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Stopping \(serverType.displayName) server...",
-            source: serverType
+            message: "Stopping server..."
         ))
 
         await server.stop()
@@ -261,15 +232,8 @@ class ServerManager {
         // Log that the server has stopped
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "\(serverType.displayName) server stopped",
-            source: serverType
+            message: "Server stopped"
         ))
-
-        // Update ServerMonitor for compatibility
-        // Only set to false if we're not in the middle of a restart
-        if !isRestarting {
-            ServerMonitor.shared.isServerRunning = false
-        }
     }
 
     /// Restart the current server
@@ -281,92 +245,13 @@ class ServerManager {
         // Log that we're restarting
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Restarting server...",
-            source: serverMode
+            message: "Restarting server..."
         ))
 
         await stop()
         await start()
     }
 
-    /// Switch to a different server mode
-    func switchMode(to mode: ServerMode) async {
-        guard mode != serverMode else { return }
-
-        isSwitching = true
-        defer { isSwitching = false }
-
-        let oldMode = serverMode
-        logger.info("Switching from \(oldMode.displayName) to \(mode.displayName)")
-
-        // Log the mode switch with a clear separator
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "════════════════════════════════════════════════════════",
-            source: oldMode
-        ))
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "Switching server mode: \(oldMode.displayName) → \(mode.displayName)",
-            source: oldMode
-        ))
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "════════════════════════════════════════════════════════",
-            source: oldMode
-        ))
-
-        // Stop current server if running
-        if currentServer != nil {
-            await stop()
-        }
-
-        // Add a small delay for visual clarity in logs
-        try? await Task.sleep(for: .milliseconds(500))
-
-        // Update mode
-        serverMode = mode
-
-        // Update VT config file to match
-        await updateVTConfig(mode: mode)
-
-        // Start new server
-        await start()
-
-        // Log completion
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "════════════════════════════════════════════════════════",
-            source: mode
-        ))
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "Server mode switch completed successfully",
-            source: mode
-        ))
-        logContinuation?.yield(ServerLogEntry(
-            level: .info,
-            message: "════════════════════════════════════════════════════════",
-            source: mode
-        ))
-    }
-
-    private func handleServerModeChange() async {
-        // This is called when serverMode changes via AppStorage
-        // If we have a running server, switch to the new mode
-        if currentServer != nil {
-            await switchMode(to: serverMode)
-        }
-    }
-
-    private func createServer(for mode: ServerMode) -> ServerProtocol {
-        switch mode {
-        case .rust:
-            RustServer()
-        case .go:
-            GoServer()
-        }
-    }
 
     /// Trigger cleanup of exited sessions after server startup
     private func triggerInitialCleanup() async {
@@ -403,15 +288,13 @@ class ServerManager {
                         logger.info("Initial cleanup completed: cleaned \(cleanedCount) exited sessions")
                         logContinuation?.yield(ServerLogEntry(
                             level: .info,
-                            message: "Cleaned up \(cleanedCount) exited sessions on startup",
-                            source: serverMode
+                            message: "Cleaned up \(cleanedCount) exited sessions on startup"
                         ))
                     } else {
                         logger.info("Initial cleanup completed successfully")
                         logContinuation?.yield(ServerLogEntry(
                             level: .info,
-                            message: "Cleaned up exited sessions on startup",
-                            source: serverMode
+                            message: "Cleaned up exited sessions on startup"
                         ))
                     }
                 } else {
@@ -423,8 +306,7 @@ class ServerManager {
             logger.warning("Failed to trigger initial cleanup: \(error.localizedDescription)")
             logContinuation?.yield(ServerLogEntry(
                 level: .warning,
-                message: "Could not clean up old sessions: \(error.localizedDescription)",
-                source: serverMode
+                message: "Could not clean up old sessions: \(error.localizedDescription)"
             ))
         }
     }
@@ -440,10 +322,8 @@ class ServerManager {
 
                 guard let self else { return }
 
-                // Only monitor if we're in Rust mode and server should be running
-                guard serverMode == .rust,
-                      isRunning,
-                      !isSwitching,
+                // Only monitor if server should be running
+                guard isRunning,
                       !isRestarting else { continue }
 
                 // Check if server is responding
@@ -494,8 +374,7 @@ class ServerManager {
         logger.error("Server crashed (crash #\(self.crashCount))")
         logContinuation?.yield(ServerLogEntry(
             level: .error,
-            message: "Server crashed unexpectedly (crash #\(self.crashCount))",
-            source: serverMode
+            message: "Server crashed unexpectedly (crash #\(self.crashCount))"
         ))
 
         // Clear the current server reference
@@ -510,20 +389,18 @@ class ServerManager {
         logger.info("Waiting \(delay) seconds before restart attempt...")
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Waiting \(Int(delay)) seconds before restart attempt...",
-            source: serverMode
+            message: "Waiting \(Int(delay)) seconds before restart attempt..."
         ))
 
         // Wait with exponential backoff
         try? await Task.sleep(for: .seconds(delay))
 
         // Attempt to restart
-        if !Task.isCancelled && serverMode == .rust {
+        if !Task.isCancelled {
             logger.info("Attempting to restart server after crash...")
             logContinuation?.yield(ServerLogEntry(
                 level: .info,
-                message: "Attempting automatic restart after crash...",
-                source: serverMode
+                message: "Attempting automatic restart after crash..."
             ))
 
             await start()
@@ -556,30 +433,6 @@ class ServerManager {
         logger.info("Authentication cache clearing requested - handled by external server")
     }
 
-    /// Update VT config file with the preferred server
-    private func updateVTConfig(mode: ServerMode) async {
-        let configPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".vibetunnel")
-            .appendingPathComponent("config.json")
-
-        // Ensure .vibetunnel directory exists
-        let vibetunnelDir = configPath.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: vibetunnelDir, withIntermediateDirectories: true)
-
-        // Prepare config data
-        let serverValue = mode == .rust ? "rust" : "go" // Map hummingbird to go as well
-        let config = ["server": serverValue]
-
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(config)
-            try data.write(to: configPath)
-            logger.info("Updated VT config to use \(serverValue) server")
-        } catch {
-            logger.error("Failed to update VT config: \(error)")
-        }
-    }
 }
 
 // MARK: - Port Conflict Error Extension

@@ -140,15 +140,6 @@ struct ServerLogEntryView: View {
                 .frame(width: 6, height: 6)
                 .padding(.top, 6)
 
-            // Source badge
-            Text(entry.source.displayName)
-                .font(.caption2)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(entry.source.color.opacity(0.2))
-                .foregroundStyle(entry.source.color)
-                .clipShape(Capsule())
-
             // Message
             Text(entry.message)
                 .textSelection(.enabled)
@@ -205,8 +196,7 @@ class ServerConsoleViewModel {
         let logText = logs.map { entry in
             let timestamp = dateFormatter.string(from: entry.timestamp)
             let level = String(describing: entry.level).uppercased().padding(toLength: 7, withPad: " ", startingAt: 0)
-            let source = entry.source.displayName.padding(toLength: 12, withPad: " ", startingAt: 0)
-            return "[\(timestamp)] [\(level)] [\(source)] \(entry.message)"
+            return "[\(timestamp)] [\(level)] \(entry.message)"
         }
         .joined(separator: "\n")
 
@@ -215,7 +205,7 @@ class ServerConsoleViewModel {
         savePanel.nameFieldStringValue = "vibetunnel-server-logs.txt"
 
         if savePanel.runModal() == .OK, let url = savePanel.url {
-            try? logText.write(to: url, atomically: true, encoding: .utf8)
+            try? logText.write(to: url, atomically: true, encoding: String.Encoding.utf8)
         }
     }
 }
@@ -248,11 +238,3 @@ extension ServerLogEntry.Level {
     }
 }
 
-extension ServerMode {
-    var color: Color {
-        switch self {
-        case .rust: .orange
-        case .go: .cyan
-        }
-    }
-}

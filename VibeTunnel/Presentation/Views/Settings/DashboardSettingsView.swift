@@ -49,14 +49,9 @@ struct DashboardSettingsView: View {
     static func updateServerForPasswordChange(action: PasswordAction, logger: Logger) async {
         let serverManager = ServerManager.shared
 
-        if serverManager.serverMode == .rust {
-            // Rust server requires restart to apply password changes
-            logger.info("Restarting Rust server to \(action.logMessage)")
-            await serverManager.restart()
-        } else {
-            // Hummingbird server just needs cache clear
-            await serverManager.clearAuthCache()
-        }
+        // Go server handles authentication internally
+        logger.info("Clearing auth cache to \(action.logMessage)")
+        await serverManager.clearAuthCache()
     }
 
     enum PasswordAction {

@@ -4,13 +4,10 @@ import SwiftUI
 
 /// Debug settings tab for development and troubleshooting
 struct DebugSettingsView: View {
-    @State private var serverMonitor = ServerMonitor.shared
     @AppStorage("debugMode")
     private var debugMode = false
     @AppStorage("logLevel")
     private var logLevel = "info"
-    @AppStorage("serverMode")
-    private var serverModeString = ServerMode.rust.rawValue
     @State private var serverManager = ServerManager.shared
     @State private var isServerHealthy = false
     @State private var heartbeatTask: Task<Void, Never>?
@@ -19,11 +16,11 @@ struct DebugSettingsView: View {
     private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "DebugSettings")
 
     private var isServerRunning: Bool {
-        serverMonitor.isRunning
+        serverManager.isRunning
     }
 
     private var serverPort: Int {
-        serverMonitor.port
+        Int(serverManager.port) ?? 4020
     }
 
     var body: some View {
@@ -33,7 +30,6 @@ struct DebugSettingsView: View {
                     isServerHealthy: isServerHealthy,
                     isServerRunning: isServerRunning,
                     serverPort: serverPort,
-                    serverModeString: $serverModeString,
                     serverManager: serverManager,
                     getCurrentServerMode: getCurrentServerMode
                 )
@@ -54,8 +50,6 @@ struct DebugSettingsView: View {
             .scrollContentBackground(.hidden)
             .navigationTitle("Debug Settings")
             .onAppear {
-                // Ensure ServerMonitor is synced with ServerManager
-                serverMonitor.updateStatus()
                 // Start heartbeat monitoring
                 startHeartbeatMonitoring()
             }
@@ -67,10 +61,6 @@ struct DebugSettingsView: View {
             .onChange(of: serverManager.isRunning) { _, _ in
                 // Restart heartbeat monitoring when server state changes
                 startHeartbeatMonitoring()
-            }
-            .onChange(of: serverModeString) { _, _ in
-                // Clear health status when switching modes
-                isServerHealthy = false
             }
             .alert("Purge All User Defaults?", isPresented: $showPurgeConfirmation) {
                 Button("Cancel", role: .cancel) {}
@@ -151,13 +141,8 @@ struct DebugSettingsView: View {
     }
 
     private func getCurrentServerMode() -> String {
-        // If server is switching, show transitioning state
-        if serverManager.isSwitching {
-            return "Switching..."
-        }
-
-        // Always use the configured mode from settings to ensure immediate UI update
-        return ServerMode(rawValue: serverModeString)?.displayName ?? "None"
+        // Server mode is fixed to Go
+        return "Go"
     }
 
     private func openConsole() {
@@ -199,7 +184,6 @@ private struct ServerSection: View {
     let isServerHealthy: Bool
     let isServerRunning: Bool
     let serverPort: Int
-    @Binding var serverModeString: String
     let serverManager: ServerManager
     let getCurrentServerMode: () -> String
 
@@ -279,49 +263,6 @@ private struct ServerSection: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                }
-
-                Divider()
-
-                // Server Mode Configuration
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Server Mode")
-                        Text("Multiple server implementations cause reasons™.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { ServerMode(rawValue: serverModeString) ?? .rust },
-                        set: { newMode in
-                            serverModeString = newMode.rawValue
-                            Task {
-                                await serverManager.switchMode(to: newMode)
-                            }
-                        }
-                    )) {
-                        ForEach(ServerMode.allCases, id: \.self) { mode in
-                            VStack(alignment: .leading) {
-                                Text(mode.displayName)
-                                Text(mode.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(serverManager.isSwitching)
-                }
-
-                // Server mode switching status with consistent height
-                HStack {
-                    if serverManager.isSwitching {
-                        TextShimmer(text: "Switching server mode...", font: .caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
 
                 // Port conflict warning

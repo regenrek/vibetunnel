@@ -8,28 +8,27 @@ import SwiftUI
 struct MenuBarView: View {
     @Environment(SessionMonitor.self)
     var sessionMonitor
-    @Environment(ServerMonitor.self)
-    var serverMonitor
+    @State private var serverManager = ServerManager.shared
     @AppStorage("showInDock")
     private var showInDock = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Server status header
-            ServerStatusView(isRunning: serverMonitor.isRunning, port: serverMonitor.port)
+            ServerStatusView(isRunning: serverManager.isRunning, port: Int(serverManager.port) ?? 4020)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
 
             // Open Dashboard button
             Button(action: {
-                if let dashboardURL = URL(string: "http://127.0.0.1:\(serverMonitor.port)") {
+                if let dashboardURL = URL(string: "http://127.0.0.1:\(serverManager.port)") {
                     NSWorkspace.shared.open(dashboardURL)
                 }
             }, label: {
                 Label("Open Dashboard", systemImage: "safari")
             })
             .buttonStyle(MenuButtonStyle())
-            .disabled(!serverMonitor.isRunning)
+            .disabled(!serverManager.isRunning)
 
             Divider()
                 .padding(.vertical, 4)

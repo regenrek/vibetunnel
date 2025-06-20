@@ -1,14 +1,34 @@
 import Foundation
 import OSLog
 
+/// Log entry from the server.
+struct ServerLogEntry {
+    /// Severity level of the log entry.
+    enum Level {
+        case debug
+        case info
+        case warning
+        case error
+    }
+
+    let timestamp: Date
+    let level: Level
+    let message: String
+
+    init(level: Level = .info, message: String) {
+        self.timestamp = Date()
+        self.level = level
+        self.message = message
+    }
+}
+
 /// Go vibetunnel server implementation.
 ///
 /// Manages the external vibetunnel Go binary as a subprocess. This implementation
 /// provides high-performance terminal multiplexing by leveraging the Go-based
-/// vibetunnel server. It handles process lifecycle, log streaming, and error recovery
-/// while maintaining compatibility with the ServerProtocol interface.
+/// vibetunnel server. It handles process lifecycle, log streaming, and error recovery.
 @MainActor
-final class GoServer: ServerProtocol {
+final class GoServer {
     private var process: Process?
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
@@ -63,8 +83,6 @@ final class GoServer: ServerProtocol {
 
     private let processHandler = ProcessHandler()
 
-    var serverType: ServerMode { .go }
-
     private(set) var isRunning = false
 
     var port: String = "" {
@@ -97,15 +115,14 @@ final class GoServer: ServerProtocol {
         guard !port.isEmpty else {
             let error = GoServerError.invalidPort
             logger.error("Port not configured")
-            logContinuation?.yield(ServerLogEntry(level: .error, message: error.localizedDescription, source: .go))
+            logContinuation?.yield(ServerLogEntry(level: .error, message: error.localizedDescription))
             throw error
         }
 
         logger.info("Starting Go vibetunnel server on port \(self.port)")
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Initializing Go vibetunnel server...",
-            source: .go
+            message: "Initializing Go vibetunnel server..."
         ))
 
         // Get the vibetunnel binary path
@@ -118,8 +135,7 @@ final class GoServer: ServerProtocol {
             logger.error("Go was not available during build")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Go server is not available. Please install Go and rebuild the app to enable Go server support.",
-                source: .go
+                message: "Go server is not available. Please install Go and rebuild the app to enable Go server support."
             ))
             throw error
         }
@@ -127,7 +143,7 @@ final class GoServer: ServerProtocol {
         guard let binaryPath else {
             let error = GoServerError.binaryNotFound
             logger.error("vibetunnel binary not found in bundle")
-            logContinuation?.yield(ServerLogEntry(level: .error, message: error.localizedDescription, source: .go))
+            logContinuation?.yield(ServerLogEntry(level: .error, message: error.localizedDescription))
             throw error
         }
 
@@ -151,15 +167,13 @@ final class GoServer: ServerProtocol {
             // Log binary architecture info
             logContinuation?.yield(ServerLogEntry(
                 level: .debug,
-                message: "Binary path: \(binaryPath)",
-                source: .go
+                message: "Binary path: \(binaryPath)"
             ))
         } else if !fileExists {
             logger.error("vibetunnel binary NOT FOUND at: \(binaryPath)")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Binary not found at: \(binaryPath)",
-                source: .go
+                message: "Binary not found at: \(binaryPath)"
             ))
         }
 
@@ -182,8 +196,7 @@ final class GoServer: ServerProtocol {
             logger.error("Web directory not found at expected location: \(staticPath)")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Web directory not found at: \(staticPath)",
-                source: .go
+                message: "Web directory not found at: \(staticPath)"
             ))
         }
 
@@ -265,43 +278,36 @@ final class GoServer: ServerProtocol {
 
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,
-                    message: "Server failed to start: \(errorDetails)",
-                    source: .go
+                    message: "Server failed to start: \(errorDetails)"
                 ))
 
                 throw GoServerError.processFailedToStart
             }
 
             logger.info("Go server process started, performing health check...")
-            logContinuation?.yield(ServerLogEntry(level: .info, message: "Performing health check...", source: .go))
+            logContinuation?.yield(ServerLogEntry(level: .info, message: "Performing health check..."))
 
             // Perform health check to ensure server is actually responding
             let isHealthy = await performHealthCheck(maxAttempts: 10, delaySeconds: 0.5)
 
             if isHealthy {
                 logger.info("Go server started successfully and is responding")
-                logContinuation?.yield(ServerLogEntry(level: .info, message: "Health check passed ✓", source: .go))
+                logContinuation?.yield(ServerLogEntry(level: .info, message: "Health check passed ✓"))
                 logContinuation?.yield(ServerLogEntry(
                     level: .info,
-                    message: "Go vibetunnel server is ready",
-                    source: .go
+                    message: "Go vibetunnel server is ready"
                 ))
 
-                // Monitor process termination with task context
+                // Monitor process termination
                 Task {
-                    await ServerTaskContext.$taskName.withValue("GoServer-monitor-\(port)") {
-                        await ServerTaskContext.$serverType.withValue(.go) {
-                            await monitorProcessTermination()
-                        }
-                    }
+                    await monitorProcessTermination()
                 }
             } else {
                 // Server process is running but not responding
                 logger.error("Go server process started but is not responding to health checks")
                 logContinuation?.yield(ServerLogEntry(
                     level: .error,
-                    message: "Health check failed - server not responding",
-                    source: .go
+                    message: "Health check failed - server not responding"
                 ))
 
                 // Clean up the non-responsive process
@@ -332,8 +338,7 @@ final class GoServer: ServerProtocol {
             logger.error("Failed to start Go server: \(errorMessage)")
             logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Failed to start Go server: \(errorMessage)",
-                source: .go
+                message: "Failed to start Go server: \(errorMessage)"
             ))
             throw error
         }
@@ -348,8 +353,7 @@ final class GoServer: ServerProtocol {
         logger.info("Stopping Go server")
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Shutting down Go vibetunnel server...",
-            source: .go
+            message: "Shutting down Go vibetunnel server..."
         ))
 
         // Cancel output monitoring tasks
@@ -370,8 +374,7 @@ final class GoServer: ServerProtocol {
             logger.warning("Force killed Go server after timeout")
             logContinuation?.yield(ServerLogEntry(
                 level: .warning,
-                message: "Force killed server after timeout",
-                source: .go
+                message: "Force killed server after timeout"
             ))
         }
 
@@ -386,14 +389,13 @@ final class GoServer: ServerProtocol {
         logger.info("Go server stopped")
         logContinuation?.yield(ServerLogEntry(
             level: .info,
-            message: "Go vibetunnel server shutdown complete",
-            source: .go
+            message: "Go vibetunnel server shutdown complete"
         ))
     }
 
     func restart() async throws {
         logger.info("Restarting Go server")
-        logContinuation?.yield(ServerLogEntry(level: .info, message: "Restarting server", source: .go))
+        logContinuation?.yield(ServerLogEntry(level: .info, message: "Restarting server"))
 
         await stop()
         try await start()
@@ -414,8 +416,7 @@ final class GoServer: ServerProtocol {
 
                 logContinuation?.yield(ServerLogEntry(
                     level: .debug,
-                    message: "Health check attempt \(attempt)/\(maxAttempts)...",
-                    source: .go
+                    message: "Health check attempt \(attempt)/\(maxAttempts)..."
                 ))
 
                 let (_, response) = try await URLSession.shared.data(for: request)
@@ -429,8 +430,7 @@ final class GoServer: ServerProtocol {
                 if attempt == maxAttempts {
                     logContinuation?.yield(ServerLogEntry(
                         level: .warning,
-                        message: "Health check failed after \(maxAttempts) attempts",
-                        source: .go
+                        message: "Health check failed after \(maxAttempts) attempts"
                     ))
                 }
             }
@@ -452,79 +452,69 @@ final class GoServer: ServerProtocol {
 
         // Monitor stdout on background thread
         outputTask = Task.detached { [weak self] in
-            ServerTaskContext.$taskName.withValue("GoServer-stdout-\(currentPort)") {
-                ServerTaskContext.$serverType.withValue(.go) {
-                    guard let self, let pipe = stdoutPipe else { return }
+            guard let self, let pipe = stdoutPipe else { return }
 
-                    let handle = pipe.fileHandleForReading
-                    self.logger.debug("Starting stdout monitoring for Go server on port \(currentPort)")
+            let handle = pipe.fileHandleForReading
+            self.logger.debug("Starting stdout monitoring for Go server on port \(currentPort)")
 
-                    while !Task.isCancelled {
-                        autoreleasepool {
-                            let data = handle.availableData
-                            if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                                let lines = output.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    .components(separatedBy: .newlines)
-                                for line in lines where !line.isEmpty {
-                                    // Skip shell initialization messages
-                                    if line.contains("zsh:") || line.hasPrefix("Last login:") {
-                                        continue
-                                    }
-                                    Task { @MainActor [weak self] in
-                                        guard let self else { return }
-                                        let level = self.detectLogLevel(from: line)
-                                        self.logContinuation?.yield(ServerLogEntry(
-                                            level: level,
-                                            message: line,
-                                            source: .go
-                                        ))
-                                    }
-                                }
+            while !Task.isCancelled {
+                autoreleasepool {
+                    let data = handle.availableData
+                    if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
+                        let lines = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                            .components(separatedBy: .newlines)
+                        for line in lines where !line.isEmpty {
+                            // Skip shell initialization messages
+                            if line.contains("zsh:") || line.hasPrefix("Last login:") {
+                                continue
+                            }
+                            Task { @MainActor [weak self] in
+                                guard let self else { return }
+                                let level = self.detectLogLevel(from: line)
+                                self.logContinuation?.yield(ServerLogEntry(
+                                    level: level,
+                                    message: line
+                                ))
                             }
                         }
                     }
-
-                    self.logger.debug("Stopped stdout monitoring for Go server")
                 }
             }
+
+            self.logger.debug("Stopped stdout monitoring for Go server")
         }
 
         // Monitor stderr on background thread
         errorTask = Task.detached { [weak self] in
-            ServerTaskContext.$taskName.withValue("GoServer-stderr-\(currentPort)") {
-                ServerTaskContext.$serverType.withValue(.go) {
-                    guard let self, let pipe = stderrPipe else { return }
+            guard let self, let pipe = stderrPipe else { return }
 
-                    let handle = pipe.fileHandleForReading
-                    self.logger.debug("Starting stderr monitoring for Go server on port \(currentPort)")
+            let handle = pipe.fileHandleForReading
+            self.logger.debug("Starting stderr monitoring for Go server on port \(currentPort)")
 
-                    while !Task.isCancelled {
-                        autoreleasepool {
-                            let data = handle.availableData
-                            if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                                let lines = output.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    .components(separatedBy: .newlines)
-                                for line in lines where !line.isEmpty {
-                                    // Skip shell initialization messages
-                                    if line.contains("zsh:") || line.hasPrefix("Last login:") {
-                                        continue
-                                    }
-                                    Task { @MainActor [weak self] in
-                                        guard let self else { return }
-                                        self.logContinuation?.yield(ServerLogEntry(
-                                            level: .error,
-                                            message: line,
-                                            source: .go
-                                        ))
-                                    }
-                                }
+            while !Task.isCancelled {
+                autoreleasepool {
+                    let data = handle.availableData
+                    if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
+                        let lines = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                            .components(separatedBy: .newlines)
+                        for line in lines where !line.isEmpty {
+                            // Skip shell initialization messages
+                            if line.contains("zsh:") || line.hasPrefix("Last login:") {
+                                continue
+                            }
+                            Task { @MainActor [weak self] in
+                                guard let self else { return }
+                                self.logContinuation?.yield(ServerLogEntry(
+                                    level: .error,
+                                    message: line
+                                ))
                             }
                         }
                     }
-
-                    self.logger.debug("Stopped stderr monitoring for Go server")
                 }
             }
+
+            self.logger.debug("Stopped stderr monitoring for Go server")
         }
     }
 
@@ -540,8 +530,7 @@ final class GoServer: ServerProtocol {
             self.logger.error("Go server terminated unexpectedly with exit code: \(exitCode)")
             self.logContinuation?.yield(ServerLogEntry(
                 level: .error,
-                message: "Server terminated unexpectedly with exit code: \(exitCode)",
-                source: .go
+                message: "Server terminated unexpectedly with exit code: \(exitCode)"
             ))
 
             self.isRunning = false
@@ -553,8 +542,7 @@ final class GoServer: ServerProtocol {
                     self.logger.info("Auto-restarting Go server after crash")
                     self.logContinuation?.yield(ServerLogEntry(
                         level: .info,
-                        message: "Auto-restarting server after crash",
-                        source: .go
+                        message: "Auto-restarting server after crash"
                     ))
                     try? await self.start()
                 }

@@ -9,7 +9,6 @@ struct VibeTunnelApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
     @State private var sessionMonitor = SessionMonitor.shared
-    @State private var serverMonitor = ServerMonitor.shared
 
     init() {
         // No special initialization needed
@@ -73,7 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency UNUser
     private(set) var sparkleUpdaterManager: SparkleUpdaterManager?
     private let serverManager = ServerManager.shared
     private let sessionMonitor = SessionMonitor.shared
-    private let serverMonitor = ServerMonitor.shared
     private let ngrokService = NgrokService.shared
     private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "AppDelegate")
 

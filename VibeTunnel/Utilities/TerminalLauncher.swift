@@ -183,7 +183,7 @@ enum Terminal: String, CaseIterable {
         case .wezterm:
             // Use unified AppleScript approach for consistency
             .appleScript(script: unifiedAppleScript(for: config))
-            
+
         case .kitty:
             // Use unified AppleScript approach for consistency
             .appleScript(script: unifiedAppleScript(for: config))
