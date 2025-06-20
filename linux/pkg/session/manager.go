@@ -7,19 +7,30 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 )
 
 type Manager struct {
 	controlPath     string
 	runningSessions map[string]*Session
 	mutex           sync.RWMutex
+	stopChan        chan struct{}
+	cleanupInterval time.Duration
 }
 
 func NewManager(controlPath string) *Manager {
-	return &Manager{
+	m := &Manager{
 		controlPath:     controlPath,
 		runningSessions: make(map[string]*Session),
+		stopChan:        make(chan struct{}),
+		cleanupInterval: 30 * time.Second, // Clean up every 30 seconds
 	}
+	
+	// Start background cleanup goroutine
+	go m.backgroundCleanup()
+	
+	return m
 }
 
 func (m *Manager) CreateSession(config Config) (*Session, error) {
@@ -135,7 +146,50 @@ func (m *Manager) CleanupExitedSessions() error {
 
 	var errs []error
 	for _, info := range sessions {
-		if info.Status == string(StatusExited) {
+		// Check if the process is actually alive, not just the stored status
+		shouldRemove := false
+		
+		if info.Pid == 0 {
+			// No PID recorded, consider it exited
+			shouldRemove = true
+		} else {
+			// First check if it's a zombie process
+			statPath := fmt.Sprintf("/proc/%d/stat", info.Pid)
+			if data, err := os.ReadFile(statPath); err == nil {
+				statStr := string(data)
+				if lastParen := strings.LastIndex(statStr, ")"); lastParen != -1 {
+					fields := strings.Fields(statStr[lastParen+1:])
+					if len(fields) > 0 && fields[0] == "Z" {
+						// It's a zombie, should remove
+						shouldRemove = true
+						
+						// Try to reap the zombie
+						var status syscall.WaitStatus
+						syscall.Wait4(info.Pid, &status, syscall.WNOHANG, nil)
+					}
+				}
+			} else {
+				// Can't read stat, process doesn't exist
+				shouldRemove = true
+			}
+			
+			// If not already marked for removal, check if process is alive
+			if !shouldRemove {
+				proc, err := os.FindProcess(info.Pid)
+				if err != nil {
+					shouldRemove = true
+				} else {
+					// Signal 0 just checks if process exists without actually sending a signal
+					err = proc.Signal(syscall.Signal(0))
+					if err != nil {
+						// Process doesn't exist
+						shouldRemove = true
+					}
+				}
+			}
+		}
+		
+		if shouldRemove {
 			sessionPath := filepath.Join(m.controlPath, info.ID)
 			if err := os.RemoveAll(sessionPath); err != nil {
 				errs = append(errs, fmt.Errorf("failed to remove %s: %w", info.ID, err))
@@ -150,6 +204,48 @@ func (m *Manager) CleanupExitedSessions() error {
 	}
 
 	return nil
+}
+
+// backgroundCleanup runs periodic cleanup of dead sessions
+func (m *Manager) backgroundCleanup() {
+	ticker := time.NewTicker(m.cleanupInterval)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ticker.C:
+			// Update session statuses and clean up dead ones
+			if err := m.UpdateAllSessionStatuses(); err != nil {
+				fmt.Printf("Background cleanup error: %v\n", err)
+			}
+			if err := m.CleanupExitedSessions(); err != nil {
+				fmt.Printf("Background cleanup error: %v\n", err)
+			}
+		case <-m.stopChan:
+			return
+		}
+	}
+}
+
+// UpdateAllSessionStatuses updates the status of all sessions
+func (m *Manager) UpdateAllSessionStatuses() error {
+	sessions, err := m.ListSessions()
+	if err != nil {
+		return err
+	}
+	
+	for _, info := range sessions {
+		if sess, err := m.GetSession(info.ID); err == nil {
+			sess.UpdateStatus()
+		}
+	}
+	
+	return nil
+}
+
+// Stop stops the background cleanup goroutine
+func (m *Manager) Stop() {
+	close(m.stopChan)
 }
 
 func (m *Manager) RemoveSession(id string) error {
