@@ -148,8 +148,10 @@ export class VibeTerminalBuffer extends LitElement {
         return; // No changes
       }
 
-      // Fetch buffer data - request lines from bottom
-      const lines = Math.min(this.actualRows, stats.totalRows);
+      // Fetch buffer data - request at least one full terminal screen worth of lines
+      // This ensures we get the complete visible terminal state
+      const linesToFetch = Math.max(this.actualRows, stats.rows);
+      const lines = Math.min(linesToFetch, stats.totalRows);
       const response = await fetch(
         `/api/sessions/${this.sessionId}/buffer?lines=${lines}&format=json`
       );
@@ -208,9 +210,13 @@ export class VibeTerminalBuffer extends LitElement {
 
     const lineHeight = this.displayedFontSize * 1.2;
 
-    // Render lines
-    return this.buffer.cells.map((row, index) => {
-      const isCursorLine = index === this.buffer.cursorY;
+    // Render lines - if we have more lines than can fit, show the bottom portion
+    const startIndex = Math.max(0, this.buffer.cells.length - this.actualRows);
+    const visibleCells = this.buffer.cells.slice(startIndex);
+
+    return visibleCells.map((row, index) => {
+      const actualIndex = startIndex + index;
+      const isCursorLine = actualIndex === this.buffer.cursorY;
       const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
       const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
 
