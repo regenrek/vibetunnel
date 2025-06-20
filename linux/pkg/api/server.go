@@ -35,6 +35,7 @@ type Server struct {
 	password     string
 	ngrokService *ngrok.Service
 	port         int
+	noSpawn      bool
 }
 
 func NewServer(manager *session.Manager, staticPath, password string, port int) *Server {
@@ -45,6 +46,10 @@ func NewServer(manager *session.Manager, staticPath, password string, port int) 
 		ngrokService: ngrok.NewService(),
 		port:         port,
 	}
+}
+
+func (s *Server) SetNoSpawn(noSpawn bool) {
+	s.noSpawn = noSpawn
 }
 
 func (s *Server) Start(addr string) error {
@@ -348,7 +353,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if we should spawn in a terminal
-	if req.SpawnTerminal {
+	if req.SpawnTerminal && !s.noSpawn {
 		// Try to use the Mac app's terminal spawn service first
 		if conn, err := termsocket.TryConnect(""); err == nil {
 			defer conn.Close()

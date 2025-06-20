@@ -63,6 +63,7 @@ var (
 	cleanupStartup bool
 	serverMode     string
 	updateChannel  string
+	noSpawn        bool
 
 	// Configuration file
 	configFile string
@@ -127,6 +128,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&cleanupStartup, "cleanup-startup", false, "Clean up sessions on startup")
 	rootCmd.Flags().StringVar(&serverMode, "server-mode", "native", "Server mode (native, rust)")
 	rootCmd.Flags().StringVar(&updateChannel, "update-channel", "stable", "Update channel (stable, prerelease)")
+	rootCmd.Flags().BoolVar(&noSpawn, "no-spawn", false, "Disable terminal spawning")
 
 	// Configuration file
 	rootCmd.Flags().StringVarP(&configFile, "config", "c", defaultConfigPath, "Configuration file path")
@@ -283,6 +285,7 @@ func startServer(cfg *config.Config, manager *session.Manager) error {
 
 	// Create and configure server
 	server := api.NewServer(manager, staticPath, serverPassword, portInt)
+	server.SetNoSpawn(noSpawn)
 
 	// Configure ngrok if enabled
 	var ngrokURL string
