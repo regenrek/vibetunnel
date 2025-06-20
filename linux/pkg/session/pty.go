@@ -267,6 +267,17 @@ func (p *PTY) Run() error {
 		}
 		p.session.info.Status = string(StatusExited)
 		p.session.info.Save(p.session.Path())
+		
+		// Reap any zombie child processes
+		for {
+			var status syscall.WaitStatus
+			pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
+			if err != nil || pid <= 0 {
+				break
+			}
+			debugLog("[DEBUG] PTY.Run: Reaped zombie process PID %d", pid)
+		}
+		
 		debugLog("[DEBUG] PTY.Run: PROCESS WAIT GOROUTINE sending completion to errCh")
 		errCh <- err
 	}()

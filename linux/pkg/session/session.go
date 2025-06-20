@@ -367,6 +367,11 @@ func (s *Session) IsAlive() bool {
 		return false
 	}
 
+	// Check if process exists and is not a zombie
+	if isZombie(s.info.Pid) {
+		return false
+	}
+
 	proc, err := os.FindProcess(s.info.Pid)
 	if err != nil {
 		return false
@@ -374,6 +379,36 @@ func (s *Session) IsAlive() bool {
 
 	err = proc.Signal(syscall.Signal(0))
 	return err == nil
+}
+
+// isZombie checks if a process is in zombie state
+func isZombie(pid int) bool {
+	// Read process status from /proc/[pid]/stat
+	statPath := fmt.Sprintf("/proc/%d/stat", pid)
+	data, err := os.ReadFile(statPath)
+	if err != nil {
+		// If we can't read the stat file, process doesn't exist
+		return true
+	}
+
+	// The process state is the third field after the command name in parentheses
+	// Find the last ')' to handle processes with ')' in their names
+	statStr := string(data)
+	lastParen := strings.LastIndex(statStr, ")")
+	if lastParen == -1 {
+		return true
+	}
+
+	// Parse fields after the command name
+	fields := strings.Fields(statStr[lastParen+1:])
+	if len(fields) < 1 {
+		return true
+	}
+
+	// State is the first field after the command
+	// Z = zombie
+	state := fields[0]
+	return state == "Z"
 }
 
 func (s *Session) UpdateStatus() error {
