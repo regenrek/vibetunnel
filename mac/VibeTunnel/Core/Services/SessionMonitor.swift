@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Monitors tty-fwd sessions and provides real-time session count.
+/// Monitors terminal sessions and provides real-time session count.
 ///
 /// `SessionMonitor` is a singleton that periodically polls the local server to track active terminal sessions.
 /// It maintains a count of running sessions and provides detailed information about each session.
@@ -21,7 +21,7 @@ class SessionMonitor {
 
     /// Information about a terminal session.
     ///
-    /// Contains detailed metadata about a tty-fwd session including its process information,
+    /// Contains detailed metadata about a terminal session including its process information,
     /// status, and I/O stream paths.
     struct SessionInfo: Codable {
         let id: String

@@ -599,8 +599,8 @@ final class TerminalLauncher {
     // MARK: - Terminal Session Launching
 
     func launchTerminalSession(workingDirectory: String, command: String, sessionId: String) throws {
-        // Find tty-fwd binary path
-        let ttyFwdPath = findTTYFwdBinary()
+        // Find vibetunnel binary path
+        let vibetunnelPath = findVibeTunnelBinary()
 
         // Expand tilde in working directory path
         let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
@@ -608,10 +608,10 @@ final class TerminalLauncher {
         // Escape the working directory for shell
         let escapedWorkingDir = expandedWorkingDir.replacingOccurrences(of: "\"", with: "\\\"")
 
-        // Construct the full command with cd && tty-fwd && exit pattern
-        // tty-fwd will use TTY_SESSION_ID from environment or generate one
+        // Construct the full command with cd && vibetunnel && exit pattern
+        // vibetunnel will use TTY_SESSION_ID from environment
         let fullCommand =
-            "cd \"\(escapedWorkingDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(ttyFwdPath) -- \(command) && exit"
+            "cd \"\(escapedWorkingDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(vibetunnelPath) \(command) && exit"
 
         // Get the preferred terminal or fallback
         let terminal = getValidTerminal()
@@ -635,33 +635,33 @@ final class TerminalLauncher {
         )
     }
 
-    /// Optimized terminal session launching that receives pre-formatted command from Rust
+    /// Optimized terminal session launching that receives pre-formatted command from Go server
     func launchOptimizedTerminalSession(
         workingDirectory: String,
         command: String,
         sessionId: String,
-        ttyFwdPath: String? = nil
+        vibetunnelPath: String? = nil
     )
         throws
     {
         // Expand tilde in working directory path
         let expandedWorkingDir = (workingDirectory as NSString).expandingTildeInPath
 
-        // Use provided tty-fwd path or find bundled one
-        let ttyFwd = ttyFwdPath ?? findTTYFwdBinary()
+        // Use provided vibetunnel path or find bundled one
+        let vibetunnel = vibetunnelPath ?? findVibeTunnelBinary()
 
         // Properly escape the directory path for shell
         let escapedDir = expandedWorkingDir.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
 
-        // When called from Swift server, we need to construct the full command with tty-fwd
-        // When called from Rust via socket, command is already pre-formatted
+        // When called from Swift server, we need to construct the full command with vibetunnel
+        // When called from Go server via socket, command is already pre-formatted
         let fullCommand: String = if command.contains("TTY_SESSION_ID=") {
-            // Command is pre-formatted from Rust, add cd and exit
+            // Command is pre-formatted from Go server, add cd and exit
             "cd \"\(escapedDir)\" && \(command) && exit"
         } else {
-            // Command is just the user command, need to add tty-fwd
-            "cd \"\(escapedDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(ttyFwd) -- \(command) && exit"
+            // Command is just the user command, need to add vibetunnel
+            "cd \"\(escapedDir)\" && TTY_SESSION_ID=\"\(sessionId)\" \(vibetunnel) \(command) && exit"
         }
 
         // Get the preferred terminal or fallback
@@ -686,14 +686,14 @@ final class TerminalLauncher {
         )
     }
 
-    private func findTTYFwdBinary() -> String {
-        // Look for bundled tty-fwd binary (shipped with the app)
-        if let bundledTTYFwd = Bundle.main.path(forResource: "tty-fwd", ofType: nil) {
-            logger.info("Using bundled tty-fwd at: \(bundledTTYFwd)")
-            return bundledTTYFwd
+    private func findVibeTunnelBinary() -> String {
+        // Look for bundled vibetunnel binary (shipped with the app)
+        if let bundledVibetunnel = Bundle.main.path(forResource: "vibetunnel", ofType: nil) {
+            logger.info("Using bundled vibetunnel at: \(bundledVibetunnel)")
+            return bundledVibetunnel
         }
 
-        logger.error("No tty-fwd binary found in app bundle, command will fail")
-        return "echo 'VibeTunnel: tty-fwd binary not found in app bundle'; false"
+        logger.error("No vibetunnel binary found in app bundle, command will fail")
+        return "echo 'VibeTunnel: vibetunnel binary not found in app bundle'; false"
     }
 }
