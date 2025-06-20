@@ -227,7 +227,7 @@ func (p *PTY) Run() error {
 	if err != nil {
 		// Fall back to polling if watcher fails
 		log.Printf("[WARN] PTY.Run: Failed to create stdin watcher, falling back to polling: %v", err)
-		
+
 		stdinPipe, err := os.OpenFile(p.session.StdinPath(), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 		if err != nil {
 			log.Printf("[ERROR] PTY.Run: Failed to open stdin pipe: %v", err)
@@ -270,7 +270,7 @@ func (p *PTY) Run() error {
 						p.session.info.Width = width
 						p.session.info.Height = height
 						p.session.mu.Unlock()
-						
+
 						// Write resize event to stream
 						if err := p.streamWriter.WriteResize(uint32(width), uint32(height)); err != nil {
 							log.Printf("[ERROR] PTY.Run: Failed to write resize event: %v", err)

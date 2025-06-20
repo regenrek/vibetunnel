@@ -291,7 +291,7 @@ func (h *BufferWebSocketHandler) processAndSendContent(sessionID, streamPath str
 	// Create a reader for the remaining content
 	reader := io.LimitReader(file, currentSize-*seenBytes)
 	decoder := json.NewDecoder(reader)
-	
+
 	// Update seen bytes to current position
 	*seenBytes = currentSize
 
