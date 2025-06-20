@@ -227,25 +227,37 @@ func (s *SSEStreamer) sendEvent(event *protocol.StreamEvent) error {
 }
 
 func (s *SSEStreamer) sendRawEvent(event *protocol.StreamEvent) error {
-	var data interface{}
-
+	// Match Rust behavior exactly - send raw arrays for terminal events
 	if event.Type == "header" {
-		// For header events, we can skip them since the frontend might not expect them
-		// Or send them in a compatible format if needed
+		// Skip headers like Rust does
 		return nil
 	} else if event.Type == "event" && event.Event != nil {
-		// Convert to asciinema format: [timestamp, type, data]
-		data = []interface{}{
+		// Send raw array directly like Rust: [timestamp, type, data]
+		data := []interface{}{
 			event.Event.Time,
 			string(event.Event.Type),
 			event.Event.Data,
 		}
-	} else {
-		// For other event types, use the original format
-		data = event
+		
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		
+		// Send as SSE data
+		if _, err := fmt.Fprintf(s.w, "data: %s\n\n", jsonData); err != nil {
+			return err // Client disconnected
+		}
+		
+		if s.flusher != nil {
+			s.flusher.Flush()
+		}
+		
+		return nil
 	}
-
-	jsonData, err := json.Marshal(data)
+	
+	// For other event types (error, end), send without wrapping
+	jsonData, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}

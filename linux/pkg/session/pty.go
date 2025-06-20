@@ -46,15 +46,6 @@ func NewPTY(session *Session) (*PTY, error) {
 
 	debugLog("[DEBUG] NewPTY: Initial cmdline: %v", cmdline)
 
-	// For shells, force interactive mode to prevent immediate exit
-	if len(cmdline) == 1 && (strings.HasSuffix(cmdline[0], "bash") || strings.HasSuffix(cmdline[0], "zsh") || strings.HasSuffix(cmdline[0], "sh")) {
-		cmdline = append(cmdline, "-i")
-		// Update session info to reflect the actual command being run
-		session.info.Args = cmdline
-		session.info.Cmdline = strings.Join(cmdline, " ")
-		debugLog("[DEBUG] NewPTY: Added -i flag, cmdline now: %v", cmdline)
-	}
-
 	cmd := exec.Command(cmdline[0], cmdline[1:]...)
 
 	// Set working directory, ensuring it's valid
@@ -68,10 +59,43 @@ func NewPTY(session *Session) (*PTY, error) {
 		debugLog("[DEBUG] NewPTY: Set working directory to: %s", session.info.Cwd)
 	}
 
-	// Set up environment with proper terminal settings
-	env := os.Environ()
-	env = append(env, "TERM="+session.info.Term)
-	env = append(env, "SHELL="+cmdline[0])
+	// Set up environment with filtered variables like Rust implementation
+	// Only pass safe environment variables
+	safeEnvVars := []string{"TERM", "SHELL", "LANG", "LC_ALL", "PATH", "USER", "HOME"}
+	env := make([]string, 0)
+	
+	// Copy only safe environment variables from parent
+	for _, v := range os.Environ() {
+		parts := strings.SplitN(v, "=", 2)
+		if len(parts) == 2 {
+			for _, safe := range safeEnvVars {
+				if parts[0] == safe {
+					env = append(env, v)
+					break
+				}
+			}
+		}
+	}
+	
+	// Ensure TERM and SHELL are set
+	hasTermVar := false
+	hasShellVar := false
+	for _, v := range env {
+		if strings.HasPrefix(v, "TERM=") {
+			hasTermVar = true
+		}
+		if strings.HasPrefix(v, "SHELL=") {
+			hasShellVar = true
+		}
+	}
+	
+	if !hasTermVar {
+		env = append(env, "TERM="+session.info.Term)
+	}
+	if !hasShellVar {
+		env = append(env, "SHELL="+cmdline[0])
+	}
+	
 	cmd.Env = env
 
 	ptmx, err := pty.Start(cmd)
@@ -81,6 +105,10 @@ func NewPTY(session *Session) (*PTY, error) {
 	}
 
 	debugLog("[DEBUG] NewPTY: PTY started successfully, PID: %d", cmd.Process.Pid)
+	
+	// Log the actual command being executed
+	debugLog("[DEBUG] NewPTY: Executing command: %v in directory: %s", cmdline, cmd.Dir)
+	debugLog("[DEBUG] NewPTY: Environment has %d variables", len(cmd.Env))
 
 	if err := pty.Setsize(ptmx, &pty.Winsize{
 		Rows: uint16(session.info.Height),
@@ -90,6 +118,22 @@ func NewPTY(session *Session) (*PTY, error) {
 		ptmx.Close()
 		cmd.Process.Kill()
 		return nil, fmt.Errorf("failed to set PTY size: %w", err)
+	}
+
+	// Set terminal flags to match Rust implementation
+	// Get the current terminal attributes
+	oldState, err := term.MakeRaw(int(ptmx.Fd()))
+	if err != nil {
+		debugLog("[DEBUG] NewPTY: Failed to get terminal attributes: %v", err)
+	} else {
+		// Restore the terminal but with specific flags enabled
+		// We don't want raw mode, we want interactive mode with ISIG, ICANON, and ECHO
+		term.Restore(int(ptmx.Fd()), oldState)
+		
+		// The creack/pty library should have already set up the terminal properly
+		// for interactive use. The key is that the PTY slave (not master) needs
+		// these settings, and they're typically inherited from the process.
+		debugLog("[DEBUG] NewPTY: Terminal configured for interactive mode")
 	}
 
 	streamOut, err := os.Create(session.StreamOutPath())

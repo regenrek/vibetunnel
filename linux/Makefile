@@ -5,7 +5,7 @@
 
 # Variables
 APP_NAME := vibetunnel
-VERSION := 1.0.0
+VERSION := 1.0.3
 BUILD_DIR := build
 WEB_DIR := ../web
 DIST_DIR := $(WEB_DIR)/dist
@@ -56,12 +56,18 @@ dev: build ## Build and run in development mode
 install: build ## Install to /usr/local/bin
 	@echo "Installing $(APP_NAME) to /usr/local/bin..."
 	sudo cp $(BUILD_DIR)/$(APP_NAME) /usr/local/bin/
+	@echo "Installing vt command..."
+	sudo cp cmd/vt/vt /usr/local/bin/
+	sudo chmod +x /usr/local/bin/vt
 	@echo "Installation complete. Run 'vibetunnel --help' to get started."
 
 install-user: build ## Install to ~/bin
 	@echo "Installing $(APP_NAME) to ~/bin..."
 	@mkdir -p ~/bin
 	cp $(BUILD_DIR)/$(APP_NAME) ~/bin/
+	@echo "Installing vt command..."
+	cp cmd/vt/vt ~/bin/
+	chmod +x ~/bin/vt
 	@echo "Installation complete. Make sure ~/bin is in your PATH."
 	@echo "Run 'vibetunnel --help' to get started."
 

@@ -1,14 +1,18 @@
 package session
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -249,7 +253,11 @@ func (s *Session) sendInput(data []byte) error {
 		stdinPath := s.StdinPath()
 		pipe, err := os.OpenFile(stdinPath, os.O_WRONLY, 0)
 		if err != nil {
-			return fmt.Errorf("failed to open stdin pipe: %w", err)
+			// If pipe fails, try Node.js proxy fallback like Rust
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Failed to open stdin pipe, trying Node.js proxy fallback: %v", err)
+			}
+			return s.proxyInputToNodeJS(data)
 		}
 		s.stdinPipe = pipe
 	}
@@ -259,8 +267,55 @@ func (s *Session) sendInput(data []byte) error {
 		// If write fails, close and reset the pipe for next attempt
 		s.stdinPipe.Close()
 		s.stdinPipe = nil
-		return fmt.Errorf("failed to write to stdin pipe: %w", err)
+		
+		// Try Node.js proxy fallback like Rust
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] Failed to write to stdin pipe, trying Node.js proxy fallback: %v", err)
+		}
+		return s.proxyInputToNodeJS(data)
 	}
+	return nil
+}
+
+// proxyInputToNodeJS sends input via Node.js server fallback (like Rust implementation)
+func (s *Session) proxyInputToNodeJS(data []byte) error {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+	
+	url := fmt.Sprintf("http://localhost:3000/api/sessions/%s/input", s.ID)
+	
+	payload := map[string]interface{}{
+		"data": string(data),
+	}
+	
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal input data: %w", err)
+	}
+	
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create proxy request: %w", err)
+	}
+	
+	req.Header.Set("Content-Type", "application/json")
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("Node.js proxy fallback failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Node.js proxy returned status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+		log.Printf("[DEBUG] Successfully sent input via Node.js proxy for session %s", s.ID[:8])
+	}
+	
 	return nil
 }
 
@@ -364,59 +419,53 @@ func (s *Session) Resize(width, height int) error {
 
 func (s *Session) IsAlive() bool {
 	if s.info.Pid == 0 {
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] IsAlive: PID is 0 for session %s", s.ID[:8])
+		}
 		return false
 	}
 
-	// Check if process exists and is not a zombie
-	if isZombie(s.info.Pid) {
-		return false
-	}
-
-	proc, err := os.FindProcess(s.info.Pid)
+	// Use ps command to check process status (portable across Unix systems)
+	// This matches the Rust implementation
+	cmd := exec.Command("ps", "-p", strconv.Itoa(s.info.Pid), "-o", "stat=")
+	output, err := cmd.Output()
+	
 	if err != nil {
+		// Process doesn't exist
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] IsAlive: ps command failed for PID %d: %v", s.info.Pid, err)
+		}
 		return false
 	}
-
-	err = proc.Signal(syscall.Signal(0))
-	return err == nil
+	
+	// Check if it's a zombie process (status starts with 'Z')
+	stat := strings.TrimSpace(string(output))
+	if strings.HasPrefix(stat, "Z") {
+		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+			log.Printf("[DEBUG] IsAlive: Process %d is zombie (stat=%s) for session %s", s.info.Pid, stat, s.ID[:8])
+		}
+		return false
+	}
+	
+	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+		log.Printf("[DEBUG] IsAlive: Process %d is alive (stat=%s) for session %s", s.info.Pid, stat, s.ID[:8])
+	}
+	
+	return true
 }
 
-// isZombie checks if a process is in zombie state
-func isZombie(pid int) bool {
-	// Read process status from /proc/[pid]/stat
-	statPath := fmt.Sprintf("/proc/%d/stat", pid)
-	data, err := os.ReadFile(statPath)
-	if err != nil {
-		// If we can't read the stat file, process doesn't exist
-		return true
-	}
-
-	// The process state is the third field after the command name in parentheses
-	// Find the last ')' to handle processes with ')' in their names
-	statStr := string(data)
-	lastParen := strings.LastIndex(statStr, ")")
-	if lastParen == -1 {
-		return true
-	}
-
-	// Parse fields after the command name
-	fields := strings.Fields(statStr[lastParen+1:])
-	if len(fields) < 1 {
-		return true
-	}
-
-	// State is the first field after the command
-	// Z = zombie
-	state := fields[0]
-	return state == "Z"
-}
 
 func (s *Session) UpdateStatus() error {
 	if s.info.Status == string(StatusExited) {
 		return nil
 	}
 
-	if !s.IsAlive() {
+	alive := s.IsAlive()
+	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+		log.Printf("[DEBUG] UpdateStatus for session %s: PID=%d, alive=%v", s.ID[:8], s.info.Pid, alive)
+	}
+
+	if !alive {
 		s.info.Status = string(StatusExited)
 		exitCode := 0
 		s.info.ExitCode = &exitCode
@@ -434,7 +483,32 @@ func (s *Session) GetInfo() *Info {
 }
 
 func (i *Info) Save(sessionPath string) error {
-	data, err := json.MarshalIndent(i, "", "  ")
+	// Convert to Rust format for saving
+	rustInfo := RustSessionInfo{
+		ID:        i.ID,
+		Name:      i.Name,
+		Cmdline:   i.Args, // Use Args array instead of Cmdline string
+		Cwd:       i.Cwd,
+		Status:    i.Status,
+		ExitCode:  i.ExitCode,
+		Term:      i.Term,
+		SpawnType: "pty", // Default spawn type
+		Cols:      &i.Width,
+		Rows:      &i.Height,
+		Env:       i.Env,
+	}
+	
+	// Only include Pid if non-zero
+	if i.Pid > 0 {
+		rustInfo.Pid = &i.Pid
+	}
+	
+	// Only include StartedAt if not zero time
+	if !i.StartedAt.IsZero() {
+		rustInfo.StartedAt = &i.StartedAt
+	}
+	
+	data, err := json.MarshalIndent(rustInfo, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -465,21 +539,14 @@ func LoadInfo(sessionPath string) (*Info, error) {
 		return nil, err
 	}
 
-	// First try to unmarshal as Go format
-	var info Info
-	if err := json.Unmarshal(data, &info); err == nil {
-		// Successfully parsed as Go format
-		return &info, nil
-	}
-
-	// If that fails, try Rust format
+	// Load Rust format (the only format we support)
 	var rustInfo RustSessionInfo
 	if err := json.Unmarshal(data, &rustInfo); err != nil {
 		return nil, fmt.Errorf("failed to parse session.json: %w", err)
 	}
 
-	// Convert Rust format to Go format
-	info = Info{
+	// Convert Rust format to internal Info format
+	info := Info{
 		ID:        rustInfo.ID,
 		Name:      rustInfo.Name,
 		Cmdline:   strings.Join(rustInfo.Cmdline, " "),

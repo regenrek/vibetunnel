@@ -1,33 +1,28 @@
 #!/bin/bash
 set -e
 
-# Build universal vt binary for macOS
+# Copy vt bash script for macOS app bundle
 
-echo "Building vt universal binary..."
+echo "Preparing vt bash script..."
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Build for x86_64
-echo "Building vt for x86_64..."
-GOOS=darwin GOARCH=amd64 go build -o vt-x86_64 ./cmd/vt
-
-# Build for arm64 
-echo "Building vt for arm64..."
-GOOS=darwin GOARCH=arm64 go build -o vt-arm64 ./cmd/vt
-
-# Create universal binary
-echo "Creating universal binary..."
-lipo -create -output vt vt-x86_64 vt-arm64
-
-# Clean up architecture-specific binaries
-rm vt-x86_64 vt-arm64
+# Copy the bash script
+echo "Copying vt bash script..."
+cp cmd/vt/vt vt
 
 # Make it executable
 chmod +x vt
 
-echo "vt universal binary built successfully at: $SCRIPT_DIR/vt"
+# Sign it for macOS if codesign is available
+if command -v codesign >/dev/null 2>&1; then
+    echo "Signing vt script..."
+    codesign --force --sign - vt
+fi
+
+echo "vt script prepared successfully at: $SCRIPT_DIR/vt"
 
 # Copy to target location if provided
 if [ -n "$1" ]; then

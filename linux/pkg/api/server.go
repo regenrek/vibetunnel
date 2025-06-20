@@ -75,8 +75,6 @@ func (s *Server) Start(addr string) error {
 			}
 		}
 		
-		// Stop the manager's background tasks
-		s.manager.Stop()
 		
 		// Shutdown HTTP server
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -115,6 +113,15 @@ func (s *Server) createHandler() http.Handler {
 	api.HandleFunc("/ngrok/start", s.handleNgrokStart).Methods("POST")
 	api.HandleFunc("/ngrok/stop", s.handleNgrokStop).Methods("POST")
 	api.HandleFunc("/ngrok/status", s.handleNgrokStatus).Methods("GET")
+
+	// WebSocket endpoint for binary terminal streaming
+	bufferHandler := NewBufferWebSocketHandler(s.manager)
+	// Apply authentication middleware if password is set
+	if s.password != "" {
+		r.Handle("/buffers", s.basicAuthMiddleware(bufferHandler))
+	} else {
+		r.Handle("/buffers", bufferHandler)
+	}
 
 	if s.staticPath != "" {
 		// Serve static files with index.html fallback for directories
@@ -224,24 +231,24 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to Rust-compatible format
-	type RustSessionInfo struct {
+	// Convert to API response format
+	type APISessionInfo struct {
 		ID           string    `json:"id"`
 		Name         string    `json:"name"`
-		Command      string    `json:"command"`      // Changed from cmdline array to command string
-		WorkingDir   string    `json:"workingDir"`   // Changed from cwd to workingDir
+		Command      string    `json:"command"`      
+		WorkingDir   string    `json:"workingDir"`   
 		Pid          *int      `json:"pid,omitempty"`
 		Status       string    `json:"status"`
-		ExitCode     *int      `json:"exitCode,omitempty"`     // Changed from exit_code to exitCode
-		StartedAt    time.Time `json:"startedAt"`               // Changed from started_at to startedAt
+		ExitCode     *int      `json:"exitCode,omitempty"`     
+		StartedAt    time.Time `json:"startedAt"`               
 		Term         string    `json:"term"`
 		Width        int       `json:"width"`
 		Height       int       `json:"height"`
 		Env          map[string]string `json:"env,omitempty"`
-		LastModified time.Time `json:"lastModified"`           // Added to match Rust
+		LastModified time.Time `json:"lastModified"`           
 	}
 
-	rustSessions := make([]RustSessionInfo, len(sessions))
+	apiSessions := make([]APISessionInfo, len(sessions))
 	for i, s := range sessions {
 		// Convert PID to pointer for omitempty behavior
 		var pid *int
@@ -249,7 +256,7 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 			pid = &s.Pid
 		}
 		
-		rustSessions[i] = RustSessionInfo{
+		apiSessions[i] = APISessionInfo{
 			ID:           s.ID,
 			Name:         s.Name,
 			Command:      s.Cmdline,  // Already a string
@@ -267,7 +274,7 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rustSessions)
+	json.NewEncoder(w).Encode(apiSessions)
 }
 
 func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
@@ -493,10 +500,62 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return current session info without blocking on status update
-	// Status will be eventually consistent through background updates
+	// Get session info and convert to Rust-compatible format
+	info := sess.GetInfo()
+	if info == nil {
+		http.Error(w, "Session info not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Update status on-demand
+	sess.UpdateStatus()
+	
+	// Convert to Rust-compatible format like in handleListSessions
+	rustInfo := session.RustSessionInfo{
+		ID:        info.ID,
+		Name:      info.Name,
+		Cmdline:   info.Args,
+		Cwd:       info.Cwd,
+		Status:    info.Status,
+		ExitCode:  info.ExitCode,
+		Term:      info.Term,
+		SpawnType: "pty",
+		Cols:      &info.Width,
+		Rows:      &info.Height,
+		Env:       info.Env,
+	}
+	
+	if info.Pid > 0 {
+		rustInfo.Pid = &info.Pid
+	}
+	
+	if !info.StartedAt.IsZero() {
+		rustInfo.StartedAt = &info.StartedAt
+	}
+	
+	// Convert to API response format with camelCase like Rust
+	response := map[string]interface{}{
+		"id":          rustInfo.ID,
+		"name":        rustInfo.Name,
+		"command":     strings.Join(rustInfo.Cmdline, " "),
+		"workingDir":  rustInfo.Cwd,
+		"pid":         rustInfo.Pid,
+		"status":      rustInfo.Status,
+		"exitCode":    rustInfo.ExitCode,
+		"startedAt":   rustInfo.StartedAt,
+		"term":        rustInfo.Term,
+		"width":       rustInfo.Cols,
+		"height":      rustInfo.Rows,
+		"env":         rustInfo.Env,
+	}
+	
+	// Add lastModified like Rust does
+	if stat, err := os.Stat(sess.Path()); err == nil {
+		response["lastModified"] = stat.ModTime()
+	}
+	
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *Server) handleStreamSession(w http.ResponseWriter, r *http.Request) {
@@ -635,7 +694,7 @@ func (s *Server) handleCleanupSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCleanupExited(w http.ResponseWriter, r *http.Request) {
-	if err := s.manager.CleanupExitedSessions(); err != nil {
+	if err := s.manager.RemoveExitedSessions(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

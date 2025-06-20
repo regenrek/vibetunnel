@@ -16,6 +16,9 @@ import (
 )
 
 var (
+	// Version injected at build time
+	version = "dev"
+	
 	// Session management flags
 	controlPath       string
 	sessionName       string
@@ -71,10 +74,8 @@ var rootCmd = &cobra.Command{
 	Long: `VibeTunnel allows you to access your Linux terminal from any web browser.
 This is the Linux implementation compatible with the macOS VibeTunnel app.`,
 	RunE: run,
-	// Allow passing through unknown flags to the command being executed
-	FParseErrWhitelist: cobra.FParseErrWhitelist{
-		UnknownFlags: true,
-	},
+	// Allow positional arguments after flags (for command execution)
+	Args: cobra.ArbitraryArgs,
 }
 
 func init() {
@@ -135,7 +136,7 @@ func init() {
 		Use:   "version",
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("VibeTunnel Linux v1.0.2")
+			fmt.Printf("VibeTunnel Linux v%s\n", version)
 			fmt.Println("Compatible with VibeTunnel macOS app")
 		},
 	})
@@ -461,63 +462,103 @@ func main() {
 		if len(args) > 0 && (args[0] == "version" || args[0] == "config") {
 			// This is a subcommand, let Cobra handle it normally
 		} else {
-			// Check if any args look like VibeTunnel flags
-			hasVibeTunnelFlags := false
-			for _, arg := range args {
-				if strings.HasPrefix(arg, "-") {
-					// Check if this is one of our known flags
-					flag := strings.TrimLeft(arg, "-")
-					flag = strings.Split(flag, "=")[0] // Handle --flag=value format
-					
-					knownFlags := []string{
-						"serve", "port", "p", "bind", "localhost", "network",
-						"password", "password-enabled", "tls", "tls-port", "tls-domain",
-						"tls-self-signed", "tls-cert", "tls-key", "tls-redirect",
-						"ngrok", "ngrok-token", "debug", "cleanup-startup",
-						"server-mode", "update-channel", "config", "c",
-						"control-path", "session-name", "list-sessions",
-						"send-key", "send-text", "signal", "stop", "kill",
-						"cleanup-exited", "detached-session", "static-path", "help", "h",
-					}
-					
-					for _, known := range knownFlags {
-						if flag == known {
-							hasVibeTunnelFlags = true
-							break
-						}
-					}
-					if hasVibeTunnelFlags {
-						break
-					}
+			// Check if we have a -- separator (everything after it is the command)
+			dashDashIndex := -1
+			for i, arg := range args {
+				if arg == "--" {
+					dashDashIndex = i
+					break
 				}
 			}
 			
-			// If no VibeTunnel flags found, treat everything as a command
-			if !hasVibeTunnelFlags && len(args) > 0 {
-				homeDir, _ := os.UserHomeDir()
-				defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
-				cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
-				if cfg.ControlPath != "" {
-					defaultControlPath = cfg.ControlPath
+			if dashDashIndex >= 0 {
+				// We have a -- separator, everything after it is the command to execute
+				cmdArgs := args[dashDashIndex+1:]
+				if len(cmdArgs) > 0 {
+					homeDir, _ := os.UserHomeDir()
+					defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
+					cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
+					if cfg.ControlPath != "" {
+						defaultControlPath = cfg.ControlPath
+					}
+					
+					manager := session.NewManager(defaultControlPath)
+					sess, err := manager.CreateSession(session.Config{
+						Name:    "",
+						Cmdline: cmdArgs,
+						Cwd:     ".",
+					})
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+						os.Exit(1)
+					}
+					
+					// Attach to the session
+					if err := sess.Attach(); err != nil {
+						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+						os.Exit(1)
+					}
+					return
+				}
+			} else {
+				// No -- separator, check if any args look like VibeTunnel flags
+				hasVibeTunnelFlags := false
+				for _, arg := range args {
+					if strings.HasPrefix(arg, "-") {
+						// Check if this is one of our known flags
+						flag := strings.TrimLeft(arg, "-")
+						flag = strings.Split(flag, "=")[0] // Handle --flag=value format
+						
+						knownFlags := []string{
+							"serve", "port", "p", "bind", "localhost", "network",
+							"password", "password-enabled", "tls", "tls-port", "tls-domain",
+							"tls-self-signed", "tls-cert", "tls-key", "tls-redirect",
+							"ngrok", "ngrok-token", "debug", "cleanup-startup",
+							"server-mode", "update-channel", "config", "c",
+							"control-path", "session-name", "list-sessions",
+							"send-key", "send-text", "signal", "stop", "kill",
+							"cleanup-exited", "detached-session", "static-path", "help", "h",
+						}
+						
+						for _, known := range knownFlags {
+							if flag == known {
+								hasVibeTunnelFlags = true
+								break
+							}
+						}
+						if hasVibeTunnelFlags {
+							break
+						}
+					}
 				}
 				
-				manager := session.NewManager(defaultControlPath)
-				sess, err := manager.CreateSession(session.Config{
-					Name:    "",
-					Cmdline: args,
-					Cwd:     ".",
-				})
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-					os.Exit(1)
+				// If no VibeTunnel flags found, treat everything as a command
+				if !hasVibeTunnelFlags && len(args) > 0 {
+					homeDir, _ := os.UserHomeDir()
+					defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
+					cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
+					if cfg.ControlPath != "" {
+						defaultControlPath = cfg.ControlPath
+					}
+					
+					manager := session.NewManager(defaultControlPath)
+					sess, err := manager.CreateSession(session.Config{
+						Name:    "",
+						Cmdline: args,
+						Cwd:     ".",
+					})
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+						os.Exit(1)
+					}
+					
+					// Attach to the session
+					if err := sess.Attach(); err != nil {
+						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+						os.Exit(1)
+					}
+					return
 				}
-				
-				// Attach to the session
-				if err := sess.Attach(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-					os.Exit(1)
-				}
-				return
 			}
 		}
 	}

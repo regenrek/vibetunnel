@@ -101,18 +101,39 @@ func (m *MultiSSEStreamer) streamSession(sessionID string) {
 }
 
 func (m *MultiSSEStreamer) sendEvent(sessionID string, event *protocol.StreamEvent) error {
-	data := map[string]interface{}{
-		"session_id": sessionID,
-		"event":      event,
-	}
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	if _, err := fmt.Fprintf(m.w, "data: %s\n\n", jsonData); err != nil {
-		return err // Client disconnected
+	// Match Rust format: send raw arrays for terminal events
+	if event.Type == "event" && event.Event != nil {
+		// For terminal events, send as raw array
+		data := []interface{}{
+			event.Event.Time,
+			string(event.Event.Type),
+			event.Event.Data,
+		}
+		
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		
+		// Match Rust multistream format: sessionID:event_json
+		prefixedEvent := fmt.Sprintf("%s:%s", sessionID, jsonData)
+		
+		if _, err := fmt.Fprintf(m.w, "data: %s\n\n", prefixedEvent); err != nil {
+			return err // Client disconnected
+		}
+	} else {
+		// For other event types, serialize the event
+		jsonData, err := json.Marshal(event)
+		if err != nil {
+			return err
+		}
+		
+		// Match Rust multistream format: sessionID:event_json
+		prefixedEvent := fmt.Sprintf("%s:%s", sessionID, jsonData)
+		
+		if _, err := fmt.Fprintf(m.w, "data: %s\n\n", prefixedEvent); err != nil {
+			return err // Client disconnected
+		}
 	}
 
 	if m.flusher != nil {
