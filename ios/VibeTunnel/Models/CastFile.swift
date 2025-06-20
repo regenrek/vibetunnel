@@ -1,7 +1,10 @@
 import Foundation
 import Observation
 
-/// Cast file theme configuration
+/// Cast file theme configuration for terminal appearance.
+///
+/// This struct represents the theme settings that can be included in an Asciinema cast file,
+/// controlling the visual appearance of the terminal recording.
 struct CastTheme: Codable {
     let foreground: String?
     let background: String?
@@ -14,7 +17,11 @@ struct CastTheme: Codable {
     }
 }
 
-/// Asciinema cast v2 format support
+/// Represents the header structure of an Asciinema cast v2 file.
+///
+/// The CastFile struct contains metadata about a terminal recording,
+/// including dimensions, timing, and optional theme information.
+/// This follows the Asciinema cast v2 format specification.
 struct CastFile: Codable {
     let version: Int
     let width: Int
@@ -25,13 +32,30 @@ struct CastFile: Codable {
     let theme: CastTheme?
 }
 
+/// Represents a single event in a terminal recording.
+///
+/// Events capture terminal output, input, or resize operations
+/// with timestamps relative to the recording start.
 struct CastEvent: Codable {
     let time: TimeInterval
-    let type: String
+    let type: String // "o" for output, "i" for input, "r" for resize
     let data: String
 }
 
-/// Cast file recorder for terminal sessions
+/// Records terminal sessions in Asciinema cast v2 format.
+///
+/// CastRecorder captures terminal output and resize events during a session,
+/// allowing export of the recording as a standard cast file that can be
+/// played back with any Asciinema-compatible player.
+///
+/// ## Usage
+/// ```swift
+/// let recorder = CastRecorder(sessionId: "session123")
+/// recorder.startRecording()
+/// // Terminal output is recorded...
+/// recorder.stopRecording()
+/// let castData = recorder.exportCastFile()
+/// ```
 @MainActor
 @Observable
 class CastRecorder {
@@ -44,12 +68,22 @@ class CastRecorder {
     private let height: Int
     private var startTime: TimeInterval = 0
 
+    /// Creates a new cast recorder for a terminal session.
+    ///
+    /// - Parameters:
+    ///   - sessionId: Unique identifier for the session.
+    ///   - width: Terminal width in columns (default: 80).
+    ///   - height: Terminal height in rows (default: 24).
     init(sessionId: String, width: Int = 80, height: Int = 24) {
         self.sessionId = sessionId
         self.width = width
         self.height = height
     }
 
+    /// Begins recording terminal events.
+    ///
+    /// Clears any previous events and sets the recording start time.
+    /// Has no effect if recording is already in progress.
     func startRecording() {
         guard !isRecording else { return }
 
@@ -59,6 +93,9 @@ class CastRecorder {
         events.removeAll()
     }
 
+    /// Stops recording terminal events.
+    ///
+    /// Has no effect if recording is not in progress.
     func stopRecording() {
         guard isRecording else { return }
 
@@ -66,6 +103,12 @@ class CastRecorder {
         recordingStartTime = nil
     }
 
+    /// Records terminal output data.
+    ///
+    /// - Parameter data: The terminal output text to record.
+    ///
+    /// Output events are timestamped relative to the recording start time.
+    /// Has no effect if recording is not active.
     func recordOutput(_ data: String) {
         guard isRecording else { return }
 
@@ -81,6 +124,14 @@ class CastRecorder {
         events.append(event)
     }
 
+    /// Records a terminal resize event.
+    ///
+    /// - Parameters:
+    ///   - cols: New terminal width in columns.
+    ///   - rows: New terminal height in rows.
+    ///
+    /// Resize events are timestamped relative to the recording start time.
+    /// Has no effect if recording is not active.
     func recordResize(cols: Int, rows: Int) {
         guard isRecording else { return }
 
@@ -97,6 +148,12 @@ class CastRecorder {
         events.append(event)
     }
 
+    /// Exports the recording as an Asciinema cast v2 file.
+    ///
+    /// - Returns: The cast file data, or nil if export fails.
+    ///
+    /// The exported data contains a JSON header followed by
+    /// newline-delimited JSON arrays representing each event.
     func exportCastFile() -> Data? {
         // Create header
         let header = CastFile(
@@ -134,11 +191,36 @@ class CastRecorder {
     }
 }
 
-/// Cast file player for imported recordings
+/// Plays back terminal recordings from Asciinema cast files.
+///
+/// CastPlayer parses cast v2 files and provides playback functionality
+/// with proper timing between events.
+///
+/// ## Example
+/// ```swift
+/// if let player = CastPlayer(data: castFileData) {
+///     player.play(onEvent: { event in
+///         // Handle each event
+///     }, completion: {
+///         // Playback complete
+///     })
+/// }
+/// ```
 class CastPlayer {
+    /// The cast file header containing metadata.
     let header: CastFile
+
+    /// All events in the recording.
     let events: [CastEvent]
 
+    /// Creates a cast player from cast file data.
+    ///
+    /// - Parameter data: Raw cast file data.
+    ///
+    /// - Returns: A configured player, or nil if the data is invalid.
+    ///
+    /// The initializer parses the cast file format, extracting the header
+    /// from the first line and events from subsequent lines.
     init?(data: Data) {
         guard let content = String(data: data, encoding: .utf8) else {
             return nil
@@ -177,10 +259,21 @@ class CastPlayer {
         self.events = parsedEvents
     }
 
+    /// The total duration of the recording in seconds.
+    ///
+    /// Calculated from the timestamp of the last event.
     var duration: TimeInterval {
         events.last?.time ?? 0
     }
 
+    /// Plays back the recording with proper timing.
+    ///
+    /// - Parameters:
+    ///   - onEvent: Closure called for each event during playback.
+    ///   - completion: Closure called when playback completes.
+    ///
+    /// Events are delivered on the main actor with delays matching
+    /// their original timing. The playback runs asynchronously.
     func play(onEvent: @escaping @Sendable (CastEvent) -> Void, completion: @escaping @Sendable () -> Void) {
         let eventsToPlay = self.events
         Task { @Sendable in

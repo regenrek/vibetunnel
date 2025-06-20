@@ -1,5 +1,10 @@
 import Foundation
 
+/// A snapshot of terminal session output and events.
+///
+/// TerminalSnapshot captures the current state of a terminal session,
+/// including all output events and metadata, useful for previews
+/// and session history.
 struct TerminalSnapshot: Codable {
     let sessionId: String
     let header: AsciinemaHeader?
@@ -12,21 +17,38 @@ struct TerminalSnapshot: Codable {
     }
 }
 
+/// Represents a single event in the Asciinema format.
+///
+/// Events capture terminal interactions with timestamps
+/// and can represent output, input, resize, or marker events.
 struct AsciinemaEvent: Codable {
     let time: Double
     let type: EventType
     let data: String
 
+    /// Types of events that can occur in a terminal session.
     enum EventType: String, Codable {
+        /// Terminal output event.
         case output = "o"
+
+        /// User input event.
         case input = "i"
+
+        /// Terminal resize event.
         case resize = "r"
+
+        /// Marker event (for annotations).
         case marker = "m"
     }
 }
 
 extension TerminalSnapshot {
-    /// Get the last few lines of terminal output for preview
+    /// Generates a preview of the terminal output.
+    ///
+    /// - Returns: The last 4 non-empty lines of terminal output.
+    ///
+    /// This property combines all output events and extracts
+    /// the most recent lines for display in session lists.
     var outputPreview: String {
         // Combine all output events
         let outputEvents = events.filter { $0.type == .output }
@@ -41,7 +63,13 @@ extension TerminalSnapshot {
         return previewLines.joined(separator: "\n")
     }
 
-    /// Get a cleaned version without ANSI escape codes (basic implementation)
+    /// Generates a preview with ANSI escape codes removed.
+    ///
+    /// - Returns: Clean text suitable for display in UI elements
+    ///   that don't support ANSI formatting.
+    ///
+    /// This implementation removes common ANSI escape sequences
+    /// for colors, cursor movement, and formatting.
     var cleanOutputPreview: String {
         let output = outputPreview
         // Remove common ANSI escape sequences (this is a simplified version)

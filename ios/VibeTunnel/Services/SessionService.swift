@@ -1,5 +1,9 @@
 import Foundation
 
+/// Service layer for managing terminal sessions.
+///
+/// SessionService provides a simplified interface for session-related operations,
+/// wrapping the APIClient functionality with additional logging and error handling.
 @MainActor
 class SessionService {
     static let shared = SessionService()

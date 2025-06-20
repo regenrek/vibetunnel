@@ -166,7 +166,11 @@ jobs:
         
     - name: Resolve Dependencies
       run: |
-        xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace
+        echo "Resolving Swift package dependencies..."
+        xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace -quiet || {
+          echo "Failed to resolve dependencies. Retrying with verbose output..."
+          xcodebuild -resolvePackageDependencies -workspace VibeTunnel.xcworkspace
+        }
         
     - name: Build Debug
       timeout-minutes: 30
@@ -229,6 +233,12 @@ jobs:
       with:
         name: swift-test-results
         path: TestResults
+        
+    - name: List build products
+      if: always()
+      run: |
+        echo "Searching for build products..."
+        find ~/Library/Developer/Xcode/DerivedData -name "VibeTunnel.app" -type d 2>/dev/null || echo "No build products found"
         
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4

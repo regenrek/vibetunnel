@@ -1,8 +1,14 @@
 import SwiftUI
+import UIKit
 
+/// Design system for the VibeTunnel app.
+///
+/// Centralizes all visual styling including colors, typography,
+/// spacing, corner radii, and animations for consistent UI.
 enum Theme {
     // MARK: - Colors
 
+    /// Color palette for the app.
     enum Colors {
         // Terminal-inspired colors
         static let terminalBackground = Color(hex: "0A0E14")
@@ -51,6 +57,7 @@ enum Theme {
 
     // MARK: - Typography
 
+    /// Typography styles for the app.
     enum Typography {
         static let terminalFont = "SF Mono"
         static let terminalFontFallback = "Menlo"
@@ -68,6 +75,7 @@ enum Theme {
 
     // MARK: - Spacing
 
+    /// Consistent spacing values.
     enum Spacing {
         static let extraSmall: CGFloat = 4
         static let small: CGFloat = 8
@@ -79,6 +87,7 @@ enum Theme {
 
     // MARK: - Corner Radius
 
+    /// Standard corner radius values.
     enum CornerRadius {
         static let small: CGFloat = 6
         static let medium: CGFloat = 10
@@ -88,6 +97,7 @@ enum Theme {
 
     // MARK: - Animation
 
+    /// Animation presets.
     enum Animation {
         static let quick = SwiftUI.Animation.easeInOut(duration: 0.2)
         static let standard = SwiftUI.Animation.easeInOut(duration: 0.3)
@@ -183,8 +193,8 @@ extension View {
 
 @MainActor
 struct HapticFeedback {
-    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        let generator = UIImpactFeedbackGenerator(style: style)
+    static func impact(_ style: ImpactStyle) {
+        let generator = UIImpactFeedbackGenerator(style: style.uiKitStyle)
         generator.impactOccurred()
     }
 
@@ -193,8 +203,75 @@ struct HapticFeedback {
         generator.selectionChanged()
     }
 
-    static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+    static func notification(_ type: NotificationType) {
         let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(type)
+        generator.notificationOccurred(type.uiKitType)
+    }
+
+    /// SwiftUI-native style enums
+    enum ImpactStyle {
+        case light
+        case medium
+        case heavy
+        case soft
+        case rigid
+
+        var uiKitStyle: UIImpactFeedbackGenerator.FeedbackStyle {
+            switch self {
+            case .light: .light
+            case .medium: .medium
+            case .heavy: .heavy
+            case .soft: .soft
+            case .rigid: .rigid
+            }
+        }
+    }
+
+    enum NotificationType {
+        case success
+        case warning
+        case error
+
+        var uiKitType: UINotificationFeedbackGenerator.FeedbackType {
+            switch self {
+            case .success: .success
+            case .warning: .warning
+            case .error: .error
+            }
+        }
+    }
+}
+
+// MARK: - SwiftUI Haptic View Modifiers
+
+extension View {
+    /// Provides haptic feedback when the view is tapped
+    func hapticOnTap(_ style: HapticFeedback.ImpactStyle = .light) -> some View {
+        self.onTapGesture {
+            HapticFeedback.impact(style)
+        }
+    }
+
+    /// Provides haptic feedback when a value changes
+    func hapticOnChange(of value: some Equatable, style: HapticFeedback.ImpactStyle = .light) -> some View {
+        self.onChange(of: value) { _, _ in
+            HapticFeedback.impact(style)
+        }
+    }
+
+    /// Provides selection haptic feedback when a value changes
+    func hapticSelection(on value: some Equatable) -> some View {
+        self.onChange(of: value) { _, _ in
+            HapticFeedback.selection()
+        }
+    }
+
+    /// Provides notification haptic feedback
+    func hapticNotification(_ type: HapticFeedback.NotificationType, when condition: Bool) -> some View {
+        self.onChange(of: condition) { _, newValue in
+            if newValue {
+                HapticFeedback.notification(type)
+            }
+        }
     }
 }

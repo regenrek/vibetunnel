@@ -1,6 +1,10 @@
 import Observation
 import SwiftUI
 
+/// File browser for navigating the server's file system.
+///
+/// Provides a hierarchical view of directories and files with
+/// navigation, selection, and directory creation capabilities.
 struct FileBrowserView: View {
     @State private var viewModel = FileBrowserViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -268,6 +272,7 @@ struct TerminalButtonStyle: ButtonStyle {
     }
 }
 
+/// View model for file browser navigation and operations.
 @MainActor
 @Observable
 class FileBrowserViewModel {

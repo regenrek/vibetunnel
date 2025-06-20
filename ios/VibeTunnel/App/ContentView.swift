@@ -1,6 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Root content view that manages the main app navigation.
+///
+/// Displays either the connection view or session list based on
+/// connection state, and handles opening cast files.
 struct ContentView: View {
     @Environment(ConnectionManager.self) var connectionManager
     @State private var showingFilePicker = false

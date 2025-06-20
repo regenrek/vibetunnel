@@ -3,6 +3,10 @@ import SwiftTerm
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// View for playing back terminal recordings from cast files.
+///
+/// Displays recorded terminal sessions with playback controls,
+/// supporting the Asciinema cast v2 format.
 struct CastPlayerView: View {
     let castFileURL: URL
     @Environment(\.dismiss) var dismiss
@@ -250,6 +254,7 @@ struct CastTerminalView: UIViewRepresentable {
     }
 }
 
+/// View model for cast file playback control.
 @MainActor
 @Observable
 class CastPlayerViewModel {

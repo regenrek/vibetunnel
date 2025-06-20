@@ -1,6 +1,10 @@
 import SwiftTerm
 import SwiftUI
 
+/// UIKit bridge for the SwiftTerm terminal emulator.
+///
+/// Wraps SwiftTerm's TerminalView in a UIViewRepresentable to integrate
+/// with SwiftUI, handling terminal configuration, input/output, and resizing.
 struct TerminalHostingView: UIViewRepresentable {
     let session: Session
     @Binding var fontSize: CGFloat

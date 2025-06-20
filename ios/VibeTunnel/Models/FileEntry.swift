@@ -1,5 +1,10 @@
 import Foundation
 
+/// Represents a file or directory entry in the file system.
+///
+/// FileEntry contains metadata about a file or directory, including
+/// its name, path, size, permissions, and modification time.
+/// This model is typically used for file browser functionality.
 struct FileEntry: Codable, Identifiable {
     let name: String
     let path: String
@@ -19,6 +24,12 @@ struct FileEntry: Codable, Identifiable {
         case modTime = "mod_time"
     }
 
+    /// Creates a FileEntry from a decoder.
+    ///
+    /// - Parameter decoder: The decoder to read data from.
+    ///
+    /// This custom initializer handles the special parsing of the modification
+    /// time from ISO8601 format, supporting both fractional and non-fractional seconds.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
@@ -48,12 +59,20 @@ struct FileEntry: Codable, Identifiable {
         }
     }
 
+    /// Returns a human-readable file size string.
+    ///
+    /// Uses binary units (KiB, MiB, GiB) for formatting.
+    /// Example: "1.5 MiB" for a file of 1,572,864 bytes.
     var formattedSize: String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .binary
         return formatter.string(fromByteCount: size)
     }
 
+    /// Returns a relative date string for the modification time.
+    ///
+    /// Formats the modification time relative to the current date.
+    /// Examples: "2 hours ago", "yesterday", "3 days ago".
     var formattedDate: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
@@ -61,7 +80,14 @@ struct FileEntry: Codable, Identifiable {
     }
 }
 
+/// Represents a directory listing with its contents.
+///
+/// DirectoryListing contains the absolute path of a directory
+/// and an array of FileEntry objects representing its contents.
 struct DirectoryListing: Codable {
+    /// The absolute path of the directory being listed.
     let absolutePath: String
+
+    /// Array of file and subdirectory entries in this directory.
     let files: [FileEntry]
 }

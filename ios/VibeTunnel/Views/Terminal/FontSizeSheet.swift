@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Sheet for adjusting terminal font size.
+///
+/// Provides a selection of font sizes with live preview
+/// of how the terminal text will appear.
 struct FontSizeSheet: View {
     @Binding var fontSize: CGFloat
     @Environment(\.dismiss) var dismiss

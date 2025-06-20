@@ -1,5 +1,6 @@
 import Foundation
 
+/// Errors that can occur during API operations.
 enum APIError: LocalizedError {
     case invalidURL
     case noData
@@ -65,6 +66,7 @@ enum APIError: LocalizedError {
     }
 }
 
+/// Protocol defining the API client interface for VibeTunnel server communication.
 protocol APIClientProtocol {
     func getSessions() async throws -> [Session]
     func createSession(_ data: SessionCreateData) async throws -> String
@@ -75,6 +77,11 @@ protocol APIClientProtocol {
     func resizeTerminal(sessionId: String, cols: Int, rows: Int) async throws
 }
 
+/// Main API client for communicating with the VibeTunnel server.
+///
+/// APIClient handles all HTTP requests to the server including session management,
+/// terminal I/O, and file system operations. It uses URLSession for networking
+/// and provides async/await interfaces for all operations.
 @MainActor
 class APIClient: APIClientProtocol {
     static let shared = APIClient()

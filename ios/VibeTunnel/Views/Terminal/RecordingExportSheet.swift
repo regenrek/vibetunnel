@@ -1,6 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Sheet for exporting terminal recordings.
+///
+/// Provides interface for exporting recorded terminal sessions
+/// as Asciinema cast files with sharing functionality.
 struct RecordingExportSheet: View {
     var recorder: CastRecorder
     let sessionName: String

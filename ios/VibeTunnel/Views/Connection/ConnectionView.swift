@@ -1,6 +1,10 @@
 import Observation
 import SwiftUI
 
+/// View for establishing connection to a VibeTunnel server.
+///
+/// Displays the app branding and provides interface for entering
+/// server connection details with saved server management.
 struct ConnectionView: View {
     @Environment(ConnectionManager.self) var connectionManager
     @State private var viewModel = ConnectionViewModel()
@@ -92,6 +96,7 @@ struct ConnectionView: View {
     }
 }
 
+/// View model for managing connection form state and validation.
 @Observable
 class ConnectionViewModel {
     var host: String = "127.0.0.1"

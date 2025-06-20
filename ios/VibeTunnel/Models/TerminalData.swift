@@ -1,11 +1,31 @@
 import Foundation
 
+/// Represents different types of events that can occur in a terminal session.
+///
+/// TerminalEvent encapsulates the various event types from the Asciinema
+/// streaming format, including headers, output, resize events, and session exits.
 enum TerminalEvent {
+    /// Header event containing session metadata.
     case header(AsciinemaHeader)
+
+    /// Terminal output event with timestamp and text data.
     case output(timestamp: Double, data: String)
+
+    /// Terminal resize event with timestamp and dimensions.
     case resize(timestamp: Double, dimensions: String)
+
+    /// Session exit event with exit code and session ID.
     case exit(code: Int, sessionId: String)
 
+    /// Creates a terminal event from a JSON line.
+    ///
+    /// - Parameter line: A JSON-formatted string representing an event.
+    /// - Returns: A parsed TerminalEvent, or nil if parsing fails.
+    ///
+    /// This initializer handles multiple event formats:
+    /// - Asciinema header objects
+    /// - Array-based events for output/resize
+    /// - Exit events with status information
     init?(from line: String) {
         guard let data = line.data(using: .utf8) else { return nil }
 
@@ -51,6 +71,10 @@ enum TerminalEvent {
     }
 }
 
+/// Header structure for Asciinema format streams.
+///
+/// Contains metadata about the terminal session including
+/// dimensions, timing, and environment information.
 struct AsciinemaHeader: Codable {
     let version: Int
     let width: Int
@@ -61,43 +85,76 @@ struct AsciinemaHeader: Codable {
     let env: [String: String]?
 }
 
+/// Represents input to be sent to the terminal.
+///
+/// TerminalInput handles both regular text input and special
+/// key sequences like arrow keys, control combinations, etc.
 struct TerminalInput: Codable {
     let text: String
 
+    /// Special key sequences that can be sent to the terminal.
     enum SpecialKey: String {
-        // Arrow keys use ANSI escape sequences
+        // MARK: - Arrow Keys
+
+        /// Up arrow key (ANSI escape sequence).
         case arrowUp = "\u{001B}[A"
+        /// Down arrow key (ANSI escape sequence).
         case arrowDown = "\u{001B}[B"
+        /// Right arrow key (ANSI escape sequence).
         case arrowRight = "\u{001B}[C"
+        /// Left arrow key (ANSI escape sequence).
         case arrowLeft = "\u{001B}[D"
 
-        // Special keys
+        // MARK: - Special Keys
+
+        /// Escape key.
         case escape = "\u{001B}"
+        /// Enter/Return key (carriage return).
         case enter = "\r"
+        /// Tab key.
         case tab = "\t"
 
-        // Control keys
+        // MARK: - Control Keys
+
+        /// Control-C (interrupt signal).
         case ctrlC = "\u{0003}"
+        /// Control-D (end of transmission).
         case ctrlD = "\u{0004}"
+        /// Control-Z (suspend signal).
         case ctrlZ = "\u{001A}"
+        /// Control-L (clear screen).
         case ctrlL = "\u{000C}"
+        /// Control-A (move to beginning of line).
         case ctrlA = "\u{0001}"
+        /// Control-E (move to end of line).
         case ctrlE = "\u{0005}"
 
-        // For compatibility with web frontend
+        // MARK: - Web Compatibility
+
+        /// Control-Enter combination (web frontend compatibility).
         case ctrlEnter = "ctrl_enter"
+        /// Shift-Enter combination (web frontend compatibility).
         case shiftEnter = "shift_enter"
     }
 
+    /// Creates a terminal input from a special key.
+    ///
+    /// - Parameter specialKey: The special key to send.
     init(specialKey: SpecialKey) {
         self.text = specialKey.rawValue
     }
 
+    /// Creates a terminal input from regular text.
+    ///
+    /// - Parameter text: The text to send to the terminal.
     init(text: String) {
         self.text = text
     }
 }
 
+/// Represents a terminal resize request.
+///
+/// Used to notify the server when the terminal dimensions change.
 struct TerminalResize: Codable {
     let cols: Int
     let rows: Int

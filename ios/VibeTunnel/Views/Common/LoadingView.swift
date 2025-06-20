@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Reusable loading indicator with message.
+///
+/// Displays an animated spinner with a customizable message,
+/// styled to match the terminal theme.
 struct LoadingView: View {
     let message: String
     @State private var isAnimating = false

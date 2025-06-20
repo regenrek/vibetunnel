@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Form component for entering server connection details.
+///
+/// Provides input fields for host, port, name, and password
+/// with validation and recent servers functionality.
 struct ServerConfigForm: View {
     @Binding var host: String
     @Binding var port: String

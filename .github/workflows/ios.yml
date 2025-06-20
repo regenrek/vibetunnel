@@ -50,6 +50,15 @@ jobs:
         cd ios
         xcodebuild -showBuildSettings -project VibeTunnel.xcodeproj -scheme VibeTunnel -destination generic/platform=iOS
 
+    - name: Resolve Dependencies
+      run: |
+        cd ios
+        echo "Resolving iOS package dependencies..."
+        xcodebuild -resolvePackageDependencies -project VibeTunnel.xcodeproj -quiet || {
+          echo "Failed to resolve dependencies. Retrying with verbose output..."
+          xcodebuild -resolvePackageDependencies -project VibeTunnel.xcodeproj
+        }
+        
     - name: Build iOS app
       run: |
         cd ios
@@ -63,6 +72,13 @@ jobs:
           ONLY_ACTIVE_ARCH=NO \
           -derivedDataPath build/DerivedData
 
+    - name: List build products
+      if: always()
+      run: |
+        echo "Searching for iOS build products..."
+        find ios/build -name "*.app" -type d 2>/dev/null || echo "No build products found"
+        ls -la ios/build/DerivedData/Build/Products/ 2>/dev/null || echo "Build products directory not found"
+        
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       if: success()

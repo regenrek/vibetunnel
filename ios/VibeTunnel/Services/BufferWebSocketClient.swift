@@ -1,7 +1,6 @@
-import Combine
 import Foundation
 
-/// Terminal event types that match the server's output
+/// Terminal event types that match the server's output.
 enum TerminalWebSocketEvent {
     case header(width: Int, height: Int)
     case output(timestamp: Double, data: String)
@@ -9,6 +8,7 @@ enum TerminalWebSocketEvent {
     case exit(code: Int)
 }
 
+/// Errors that can occur during WebSocket operations.
 enum WebSocketError: Error {
     case invalidURL
     case connectionFailed
@@ -16,7 +16,13 @@ enum WebSocketError: Error {
     case invalidMagicByte
 }
 
+/// WebSocket client for real-time terminal buffer streaming.
+///
+/// BufferWebSocketClient establishes a WebSocket connection to the server
+/// to receive terminal output and events in real-time. It handles automatic
+/// reconnection, binary message parsing, and event distribution to subscribers.
 @MainActor
+@Observable
 class BufferWebSocketClient: NSObject {
     /// Magic byte for binary messages
     private static let bufferMagicByte: UInt8 = 0xBF
@@ -24,14 +30,14 @@ class BufferWebSocketClient: NSObject {
     private var webSocketTask: URLSessionWebSocketTask?
     private let session = URLSession(configuration: .default)
     private var subscriptions = [String: (TerminalWebSocketEvent) -> Void]()
-    private var reconnectTimer: Timer?
+    private var reconnectTask: Task<Void, Never>?
     private var reconnectAttempts = 0
     private var isConnecting = false
-    private var pingTimer: Timer?
+    private var pingTask: Task<Void, Never>?
 
-    // Published events
-    @Published private(set) var isConnected = false
-    @Published private(set) var connectionError: Error?
+    // Observable properties
+    private(set) var isConnected = false
+    private(set) var connectionError: Error?
 
     private var baseURL: URL? {
         guard let config = UserDefaults.standard.data(forKey: "savedServerConfig"),
@@ -93,7 +99,7 @@ class BufferWebSocketClient: NSObject {
                 isConnected = true
                 isConnecting = false
                 reconnectAttempts = 0
-                startPingTimer()
+                startPingTask()
 
                 // Re-subscribe to all sessions
                 for sessionId in subscriptions.keys {
@@ -283,48 +289,54 @@ class BufferWebSocketClient: NSObject {
         try await sendMessage(["type": "ping"])
     }
 
-    private func startPingTimer() {
-        stopPingTimer()
+    private func startPingTask() {
+        stopPingTask()
 
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
-            Task { [weak self] in
-                try? await self?.sendPing()
+        pingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+                if !Task.isCancelled {
+                    try? await self?.sendPing()
+                }
             }
         }
     }
 
-    private func stopPingTimer() {
-        pingTimer?.invalidate()
-        pingTimer = nil
+    private func stopPingTask() {
+        pingTask?.cancel()
+        pingTask = nil
     }
 
     private func handleDisconnection() {
         isConnected = false
         webSocketTask = nil
-        stopPingTimer()
+        stopPingTask()
         scheduleReconnect()
     }
 
     private func scheduleReconnect() {
-        guard reconnectTimer == nil else { return }
+        guard reconnectTask == nil else { return }
 
         let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0)
         reconnectAttempts += 1
 
         print("[BufferWebSocket] Reconnecting in \(delay)s (attempt \(reconnectAttempts))")
 
-        reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
-            Task { @MainActor [weak self] in
-                self?.reconnectTimer = nil
+        reconnectTask = Task { @MainActor [weak self] in
+            let nanoseconds = UInt64(delay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+
+            if !Task.isCancelled {
+                self?.reconnectTask = nil
                 self?.connect()
             }
         }
     }
 
     func disconnect() {
-        reconnectTimer?.invalidate()
-        reconnectTimer = nil
-        stopPingTimer()
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        stopPingTask()
 
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
@@ -336,6 +348,6 @@ class BufferWebSocketClient: NSObject {
     deinit {
         // Cancel the WebSocket task
         webSocketTask?.cancel(with: .goingAway, reason: nil)
-        // Timers will be cleaned up automatically when the object is deallocated
+        // Tasks will be cancelled automatically when the object is deallocated
     }
 }

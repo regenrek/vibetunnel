@@ -1,6 +1,7 @@
 import Observation
 import SwiftUI
 
+/// Main entry point for the VibeTunnel iOS application.
 @main
 struct VibeTunnelApp: App {
     @State private var connectionManager = ConnectionManager()
@@ -30,6 +31,11 @@ struct VibeTunnelApp: App {
     }
 }
 
+/// Manages the server connection state and configuration.
+///
+/// ConnectionManager handles saving and loading server configurations,
+/// tracking connection state, and providing a central point for
+/// connection-related operations.
 @Observable
 class ConnectionManager {
     var isConnected: Bool = false
@@ -59,6 +65,10 @@ class ConnectionManager {
     }
 }
 
+/// Manages app-wide navigation state.
+///
+/// NavigationManager handles deep linking and programmatic navigation,
+/// particularly for opening specific sessions via URL schemes.
 @Observable
 class NavigationManager {
     var selectedSessionId: String?

@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Card component displaying session information in the list.
+///
+/// Shows session details including status, command, working directory,
+/// and provides quick actions for managing the session.
 struct SessionCardView: View {
     let session: Session
     let onTap: () -> Void

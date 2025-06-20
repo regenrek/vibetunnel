@@ -18,6 +18,10 @@ struct TerminalTextFieldStyle: TextFieldStyle {
     }
 }
 
+/// View for creating new terminal sessions.
+///
+/// Provides form inputs for command, working directory, and session name
+/// with file browser integration for directory selection.
 struct SessionCreateView: View {
     @Binding var isPresented: Bool
     let onCreated: (String) -> Void

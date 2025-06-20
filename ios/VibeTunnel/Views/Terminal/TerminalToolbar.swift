@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Toolbar providing quick access to special terminal keys.
+///
+/// Displays commonly used terminal keys like Tab, Ctrl, arrows, and
+/// provides access to additional keys through an expandable menu.
 struct TerminalToolbar: View {
     let onSpecialKey: (TerminalInput.SpecialKey) -> Void
     let onDismissKeyboard: () -> Void

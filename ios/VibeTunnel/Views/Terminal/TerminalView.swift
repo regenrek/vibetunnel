@@ -2,6 +2,10 @@ import Observation
 import SwiftTerm
 import SwiftUI
 
+/// Interactive terminal view for a session.
+///
+/// Displays a full terminal emulator using SwiftTerm with support for
+/// input, output, recording, and font size adjustment.
 struct TerminalView: View {
     let session: Session
     @Environment(\.dismiss) var dismiss
@@ -264,6 +268,7 @@ struct TerminalView: View {
     }
 }
 
+/// View model for terminal session management.
 @MainActor
 @Observable
 class TerminalViewModel {
