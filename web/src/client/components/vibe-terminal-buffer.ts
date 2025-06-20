@@ -206,7 +206,7 @@ export class VibeTerminalBuffer extends LitElement {
           line-height: ${lineHeight}px;
         }
       </style>
-      <div class="relative w-full h-full overflow-hidden bg-[#1e1e1e]">
+      <div class="relative w-full h-full overflow-hidden bg-black">
         ${this.error
           ? html`
               <div class="absolute inset-0 flex items-center justify-center">
