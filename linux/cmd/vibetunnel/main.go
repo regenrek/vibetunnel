@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/vibetunnel/linux/pkg/api"
@@ -128,7 +131,7 @@ func init() {
 		Use:   "version",
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("VibeTunnel Linux v1.0.0")
+			fmt.Println("VibeTunnel Linux v1.0.2")
 			fmt.Println("Compatible with VibeTunnel macOS app")
 		},
 	})
@@ -395,6 +398,93 @@ func determineBind(cfg *config.Config) string {
 }
 
 func main() {
+	// Check if we're being run with TTY_SESSION_ID (spawned by Mac app)
+	if sessionID := os.Getenv("TTY_SESSION_ID"); sessionID != "" {
+		// We're running in a terminal spawned by the Mac app
+		// Redirect logs to avoid polluting the terminal
+		logFile, err := os.OpenFile("/tmp/vibetunnel-session.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err == nil {
+			log.SetOutput(logFile)
+			defer logFile.Close()
+		}
+		
+		// Use the existing session ID instead of creating a new one
+		homeDir, _ := os.UserHomeDir()
+		defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
+		cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
+		if cfg.ControlPath != "" {
+			defaultControlPath = cfg.ControlPath
+		}
+		
+		manager := session.NewManager(defaultControlPath)
+		
+		// Wait for the session to be created by the API server
+		// The server creates the session before sending the spawn request
+		var sess *session.Session
+		for i := 0; i < 50; i++ { // Try for up to 5 seconds
+			sess, err = manager.GetSession(sessionID)
+			if err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: Session %s not found\n", sessionID)
+			os.Exit(1)
+		}
+		
+		// Attach to the session
+		if err := sess.Attach(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	
+	// Simple argument forwarding like the old Rust binary
+	// If no flags are present and we're just passing commands, forward them directly
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") && os.Args[1] != "version" && os.Args[1] != "config" {
+		// Check if this looks like a direct command execution (no flags)
+		hasFlags := false
+		for _, arg := range os.Args[1:] {
+			if strings.HasPrefix(arg, "-") {
+				hasFlags = true
+				break
+			}
+		}
+		
+		if !hasFlags {
+			// Direct command execution - create a session and run it
+			// This mimics the old behavior where "vt command args" would just run the command
+			homeDir, _ := os.UserHomeDir()
+			defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
+			cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
+			if cfg.ControlPath != "" {
+				defaultControlPath = cfg.ControlPath
+			}
+			
+			manager := session.NewManager(defaultControlPath)
+			sess, err := manager.CreateSession(session.Config{
+				Name:    "",
+				Cmdline: os.Args[1:],
+				Cwd:     ".",
+			})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			
+			// Attach to the session
+			if err := sess.Attach(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+	
+	// Fall back to Cobra command handling for flags and structured commands
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
