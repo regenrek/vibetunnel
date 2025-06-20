@@ -22,28 +22,31 @@ func configurePTYTerminal(ptyFile *os.File) error {
 	fd := int(ptyFile.Fd())
 
 	// Get current terminal attributes
-	termios, err := unix.IoctlGetTermios(fd, unix.TIOCGETA)
+	termios, err := unix.IoctlGetTermios(fd, ioctlGetTermios)
 	if err != nil {
-		return fmt.Errorf("failed to get terminal attributes: %w", err)
+		// Non-fatal: some systems may not support this
+		debugLog("[DEBUG] Could not get terminal attributes, using defaults: %v", err)
+		return nil
 	}
 
-	// Configure input flags (similar to node-pty's handleFlowControl)
-	// IXON: Enable start/stop output control (Ctrl+S/Ctrl+Q)
-	// IXOFF: Enable start/stop input control
-	// IXANY: Any character will restart output after stop
-	// ICRNL: Map CR to NL on input
-	termios.Iflag |= unix.IXON | unix.IXOFF | unix.IXANY | unix.ICRNL
+	// Match node-pty's default behavior: keep most settings from the parent terminal
+	// but ensure proper signal handling and character processing
+	
+	// Ensure proper input processing
+	// ICRNL: Map CR to NL on input (important for Enter key)
+	termios.Iflag |= unix.ICRNL
+	// Clear software flow control by default to match node-pty
+	termios.Iflag &^= (unix.IXON | unix.IXOFF | unix.IXANY)
 
 	// Configure output flags
 	// OPOST: Enable output processing
-	// ONLCR: Map NL to CR-NL on output
+	// ONLCR: Map NL to CR-NL on output (important for proper line endings)
 	termios.Oflag |= unix.OPOST | unix.ONLCR
 
 	// Configure control flags
 	// CS8: 8-bit characters
 	// CREAD: Enable receiver
-	// HUPCL: Hang up on last close
-	termios.Cflag |= unix.CS8 | unix.CREAD | unix.HUPCL
+	termios.Cflag |= unix.CS8 | unix.CREAD
 	termios.Cflag &^= unix.PARENB // Disable parity
 
 	// Configure local flags
@@ -52,29 +55,27 @@ func configurePTYTerminal(ptyFile *os.File) error {
 	// ECHO: Enable echo
 	// ECHOE: Echo erase character as BS-SP-BS
 	// ECHOK: Echo kill character
-	// ECHONL: Echo NL even if ECHO is off
 	// IEXTEN: Enable extended functions
-	termios.Lflag |= unix.ISIG | unix.ICANON | unix.ECHO | unix.ECHOE | unix.ECHOK | unix.ECHONL | unix.IEXTEN
+	termios.Lflag |= unix.ISIG | unix.ICANON | unix.ECHO | unix.ECHOE | unix.ECHOK | unix.IEXTEN
 
-	// Set control characters
+	// Set control characters to sensible defaults
 	termios.Cc[unix.VEOF] = 4     // Ctrl+D
-	termios.Cc[unix.VEOL] = 0     // Additional end-of-line
 	termios.Cc[unix.VERASE] = 127 // DEL
 	termios.Cc[unix.VINTR] = 3    // Ctrl+C
 	termios.Cc[unix.VKILL] = 21   // Ctrl+U
 	termios.Cc[unix.VMIN] = 1     // Minimum characters for read
-	termios.Cc[unix.VQUIT] = 28   // Ctrl+\
-	termios.Cc[unix.VSTART] = 17  // Ctrl+Q
-	termios.Cc[unix.VSTOP] = 19   // Ctrl+S
+	termios.Cc[unix.VQUIT] = 28   // Ctrl+\ 
 	termios.Cc[unix.VSUSP] = 26   // Ctrl+Z
 	termios.Cc[unix.VTIME] = 0    // Timeout for read
 
 	// Apply the terminal attributes
-	if err := unix.IoctlSetTermios(fd, unix.TIOCSETA, termios); err != nil {
-		return fmt.Errorf("failed to set terminal attributes: %w", err)
+	if err := unix.IoctlSetTermios(fd, ioctlSetTermios, termios); err != nil {
+		// Non-fatal: log but continue
+		debugLog("[DEBUG] Could not set terminal attributes: %v", err)
+		return nil
 	}
 
-	debugLog("[DEBUG] PTY terminal configured with proper flow control and signal handling")
+	debugLog("[DEBUG] PTY terminal configured to match node-pty defaults")
 	return nil
 }
 
@@ -128,6 +129,6 @@ func sendSignalToPTY(ptyFile *os.File, signal syscall.Signal) error {
 
 // isTerminal checks if a file descriptor is a terminal
 func isTerminal(fd int) bool {
-	_, err := unix.IoctlGetTermios(fd, unix.TIOCGETA)
+	_, err := unix.IoctlGetTermios(fd, ioctlGetTermios)
 	return err == nil
 }
