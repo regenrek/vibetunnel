@@ -179,7 +179,24 @@ class APIClient: APIClientProtocol {
                 print("[APIClient] Response body: \(responseString)")
             }
 
-            try validateResponse(response)
+            // Check if the response is an error
+            if let httpResponse = response as? HTTPURLResponse, !(200..<300).contains(httpResponse.statusCode) {
+                // Try to parse error response
+                struct ErrorResponse: Codable {
+                    let error: String?
+                    let details: String?
+                    let code: String?
+                }
+                
+                if let errorResponse = try? decoder.decode(ErrorResponse.self, from: responseData) {
+                    let errorMessage = errorResponse.details ?? errorResponse.error ?? "Unknown error"
+                    print("[APIClient] Server error: \(errorMessage)")
+                    throw APIError.serverError(httpResponse.statusCode, errorMessage)
+                } else {
+                    // Fallback to generic error
+                    throw APIError.serverError(httpResponse.statusCode, nil)
+                }
+            }
 
             struct CreateResponse: Codable {
                 let sessionId: String
