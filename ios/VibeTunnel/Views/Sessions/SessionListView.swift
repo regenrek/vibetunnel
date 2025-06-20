@@ -2,9 +2,11 @@ import SwiftUI
 
 struct SessionListView: View {
     @EnvironmentObject var connectionManager: ConnectionManager
+    @EnvironmentObject var navigationManager: NavigationManager
     @StateObject private var viewModel = SessionListViewModel()
     @State private var showingCreateSession = false
     @State private var selectedSession: Session?
+    @State private var showExitedSessions = true
     
     var body: some View {
         NavigationView {
@@ -79,6 +81,14 @@ struct SessionListView: View {
         .navigationViewStyle(StackNavigationViewStyle())
         .preferredColorScheme(.dark)
         .environmentObject(connectionManager)
+        .onChange(of: navigationManager.shouldNavigateToSession) { shouldNavigate in
+            if shouldNavigate,
+               let sessionId = navigationManager.selectedSessionId,
+               let session = viewModel.sessions.first(where: { $0.id == sessionId }) {
+                selectedSession = session
+                navigationManager.clearNavigation()
+            }
+        }
     }
     
     private var emptyStateView: some View {
@@ -128,12 +138,63 @@ struct SessionListView: View {
             VStack(spacing: Theme.Spacing.lg) {
                 // Header with session count and kill all button
                 HStack {
-                    Text("\(viewModel.sessions.count) Session\(viewModel.sessions.count == 1 ? "" : "s")")
-                        .font(Theme.Typography.terminalSystem(size: 16))
-                        .fontWeight(.medium)
-                        .foregroundColor(Theme.Colors.terminalForeground)
+                    let runningCount = viewModel.sessions.filter { $0.isRunning }.count
+                    let exitedCount = viewModel.sessions.filter { !$0.isRunning }.count
+                    
+                    HStack(spacing: Theme.Spacing.md) {
+                        if runningCount > 0 {
+                            HStack(spacing: 4) {
+                                Text("Running:")
+                                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                                Text("\(runningCount)")
+                                    .foregroundColor(Theme.Colors.successAccent)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        
+                        if exitedCount > 0 {
+                            HStack(spacing: 4) {
+                                Text("Exited:")
+                                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                                Text("\(exitedCount)")
+                                    .foregroundColor(Theme.Colors.errorAccent)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        
+                        if runningCount == 0 && exitedCount == 0 {
+                            Text("No Sessions")
+                                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                        }
+                    }
+                    .font(Theme.Typography.terminalSystem(size: 16))
                     
                     Spacer()
+                    
+                    // Toggle to show/hide exited sessions
+                    if exitedCount > 0 {
+                        Button(action: {
+                            HapticFeedback.selection()
+                            withAnimation(Theme.Animation.smooth) {
+                                showExitedSessions.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: showExitedSessions ? "eye.slash" : "eye")
+                                    .font(.caption)
+                                Text(showExitedSessions ? "Hide Exited" : "Show Exited")
+                                    .font(Theme.Typography.terminalSystem(size: 12))
+                            }
+                            .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                            .padding(.horizontal, Theme.Spacing.sm)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
+                                    .fill(Theme.Colors.terminalForeground.opacity(0.1))
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                     
                     if viewModel.sessions.contains(where: { $0.isRunning }) {
                         Button(action: {
@@ -170,7 +231,7 @@ struct SessionListView: View {
                     GridItem(.flexible(), spacing: Theme.Spacing.md)
                 ], spacing: Theme.Spacing.md) {
                 // Clean up all button if there are exited sessions
-                if viewModel.sessions.contains(where: { !$0.isRunning }) {
+                if showExitedSessions && viewModel.sessions.contains(where: { !$0.isRunning }) {
                     Button(action: {
                         HapticFeedback.impact(.medium)
                         Task {
@@ -201,7 +262,7 @@ struct SessionListView: View {
                     ))
                 }
                 
-                    ForEach(viewModel.sessions) { session in
+                    ForEach(viewModel.sessions.filter { showExitedSessions || $0.isRunning }) { session in
                         SessionCardView(session: session) {
                             HapticFeedback.selection()
                             if session.isRunning {

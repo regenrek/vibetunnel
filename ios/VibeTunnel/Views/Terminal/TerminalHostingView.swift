@@ -7,6 +7,7 @@ struct TerminalHostingView: UIViewRepresentable {
     let onInput: (String) -> Void
     let onResize: (Int, Int) -> Void
     @ObservedObject var viewModel: TerminalViewModel
+    @State private var isAutoScrollEnabled = true
     
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let terminal = SwiftTerm.TerminalView()
@@ -23,6 +24,10 @@ struct TerminalHostingView: UIViewRepresentable {
         // Configure terminal options
         terminal.allowMouseReporting = false
         terminal.optionAsMetaKey = true
+        
+        // Enable URL detection
+        // TODO: Check SwiftTerm API for link detection
+        // terminal.linkRecognizer = .autodetect
         
         // Configure font
         updateFont(terminal, size: fontSize)
@@ -87,8 +92,19 @@ struct TerminalHostingView: UIViewRepresentable {
         func feedData(_ data: String) {
             Task { @MainActor in
                 guard let terminal = terminal else { return }
+                
+                // Store current scroll position before feeding data
+                let wasAtBottom = viewModel.isAutoScrollEnabled
+                
                 // Feed the output to the terminal
                 terminal.feed(text: data)
+                
+                // Auto-scroll to bottom if enabled
+                if wasAtBottom {
+                    // SwiftTerm automatically scrolls when feeding data at bottom
+                    // TODO: Check SwiftTerm API for explicit scrolling if needed
+                    // terminal.scrollToBottom()
+                }
             }
         }
         
@@ -105,7 +121,30 @@ struct TerminalHostingView: UIViewRepresentable {
         }
         
         func scrolled(source: SwiftTerm.TerminalView, position: Double) {
-            // Handle scroll if needed
+            // TODO: Implement scroll position tracking with SwiftTerm API
+            // The current implementation needs to be updated for the actual SwiftTerm API
+            /*
+            // Check if user manually scrolled away from bottom
+            if let terminal = terminal {
+                let buffer = terminal.buffer
+                let totalRows = buffer.lines.count
+                let viewportHeight = terminal.rows
+                let maxScroll = Double(max(0, totalRows - viewportHeight))
+                
+                // If user scrolled away from bottom (with some tolerance)
+                let isAtBottom = position >= maxScroll - 5
+                
+                Task { @MainActor in
+                    if !isAtBottom && viewModel.isAutoScrollEnabled {
+                        // User manually scrolled up - disable auto-scroll
+                        viewModel.isAutoScrollEnabled = false
+                    } else if isAtBottom && !viewModel.isAutoScrollEnabled {
+                        // User scrolled back to bottom - re-enable auto-scroll
+                        viewModel.isAutoScrollEnabled = true
+                    }
+                }
+            }
+            */
         }
         
         func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {

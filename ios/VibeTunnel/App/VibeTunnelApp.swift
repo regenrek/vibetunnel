@@ -3,11 +3,27 @@ import SwiftUI
 @main
 struct VibeTunnelApp: App {
     @StateObject private var connectionManager = ConnectionManager()
+    @StateObject private var navigationManager = NavigationManager()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(connectionManager)
+                .environmentObject(navigationManager)
+                .onOpenURL { url in
+                    handleURL(url)
+                }
+        }
+    }
+    
+    private func handleURL(_ url: URL) {
+        // Handle vibetunnel://session/{sessionId} URLs
+        guard url.scheme == "vibetunnel" else { return }
+        
+        if url.host == "session",
+           let sessionId = url.pathComponents.last,
+           !sessionId.isEmpty {
+            navigationManager.navigateToSession(sessionId)
         }
     }
 }
@@ -36,5 +52,20 @@ class ConnectionManager: ObservableObject {
     
     func disconnect() {
         isConnected = false
+    }
+}
+
+class NavigationManager: ObservableObject {
+    @Published var selectedSessionId: String?
+    @Published var shouldNavigateToSession: Bool = false
+    
+    func navigateToSession(_ sessionId: String) {
+        selectedSessionId = sessionId
+        shouldNavigateToSession = true
+    }
+    
+    func clearNavigation() {
+        selectedSessionId = nil
+        shouldNavigateToSession = false
     }
 }

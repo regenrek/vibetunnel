@@ -7,6 +7,11 @@ struct SessionCardView: View {
     let onCleanup: () -> Void
     
     @State private var isPressed = false
+    @State private var terminalSnapshot: TerminalSnapshot?
+    @State private var isLoadingSnapshot = false
+    @State private var isKilling = false
+    @State private var opacity: Double = 1.0
+    @State private var scale: CGFloat = 1.0
     
     private var displayWorkingDir: String {
         // Convert absolute paths back to ~ notation for display
@@ -35,9 +40,9 @@ struct SessionCardView: View {
                     Button(action: {
                         HapticFeedback.impact(.medium)
                         if session.isRunning {
-                            onKill()
+                            animateKill()
                         } else {
-                            onCleanup()
+                            animateCleanup()
                         }
                     }) {
                         Text(session.isRunning ? "kill" : "clean")
@@ -53,37 +58,80 @@ struct SessionCardView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                // Terminal content area showing command and working directory
+                // Terminal content area showing command and terminal output preview
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.small)
                     .fill(Theme.Colors.terminalBackground)
                     .frame(height: 120)
                     .overlay(
                         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                             if session.isRunning {
-                                // Show command and working directory info
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 4) {
-                                        Text("$")
-                                            .font(Theme.Typography.terminalSystem(size: 12))
-                                            .foregroundColor(Theme.Colors.primaryAccent)
-                                        Text(session.command)
-                                            .font(Theme.Typography.terminalSystem(size: 12))
-                                            .foregroundColor(Theme.Colors.terminalForeground)
+                                if let snapshot = terminalSnapshot, !snapshot.cleanOutputPreview.isEmpty {
+                                    // Show terminal output preview
+                                    ScrollView(.vertical, showsIndicators: false) {
+                                        Text(snapshot.cleanOutputPreview)
+                                            .font(Theme.Typography.terminalSystem(size: 10))
+                                            .foregroundColor(Theme.Colors.terminalForeground.opacity(0.8))
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .lineLimit(nil)
+                                            .multilineTextAlignment(.leading)
                                     }
+                                    .padding(Theme.Spacing.sm)
+                                } else {
+                                    // Show command and working directory info as fallback
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 4) {
+                                            Text("$")
+                                                .font(Theme.Typography.terminalSystem(size: 12))
+                                                .foregroundColor(Theme.Colors.primaryAccent)
+                                            Text(session.command)
+                                                .font(Theme.Typography.terminalSystem(size: 12))
+                                                .foregroundColor(Theme.Colors.terminalForeground)
+                                        }
+                                        
+                                        Text(displayWorkingDir)
+                                            .font(Theme.Typography.terminalSystem(size: 10))
+                                            .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
+                                            .lineLimit(1)
+                                        
+                                        if isLoadingSnapshot {
+                                            HStack {
+                                                ProgressView()
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primaryAccent))
+                                                    .scaleEffect(0.8)
+                                                Text("Loading output...")
+                                                    .font(Theme.Typography.terminalSystem(size: 10))
+                                                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
+                                            }
+                                            .padding(.top, Theme.Spacing.xs)
+                                        }
+                                    }
+                                    .padding(Theme.Spacing.sm)
                                     
-                                    Text(displayWorkingDir)
-                                        .font(Theme.Typography.terminalSystem(size: 10))
-                                        .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
-                                        .lineLimit(1)
+                                    Spacer()
                                 }
-                                .padding(Theme.Spacing.sm)
-                                
-                                Spacer()
                             } else {
-                                Text("Session exited")
-                                    .font(Theme.Typography.terminalSystem(size: 12))
-                                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                if let snapshot = terminalSnapshot, !snapshot.cleanOutputPreview.isEmpty {
+                                    // Show last output for exited sessions
+                                    ScrollView(.vertical, showsIndicators: false) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Session exited")
+                                                .font(Theme.Typography.terminalSystem(size: 10))
+                                                .foregroundColor(Theme.Colors.errorAccent)
+                                            Text(snapshot.cleanOutputPreview)
+                                                .font(Theme.Typography.terminalSystem(size: 10))
+                                                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .lineLimit(nil)
+                                                .multilineTextAlignment(.leading)
+                                        }
+                                    }
+                                    .padding(Theme.Spacing.sm)
+                                } else {
+                                    Text("Session exited")
+                                        .font(Theme.Typography.terminalSystem(size: 12))
+                                        .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
                             }
                         }
                     )
@@ -123,7 +171,8 @@ struct SessionCardView: View {
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.card)
                     .stroke(Theme.Colors.cardBorder, lineWidth: 1)
             )
-            .scaleEffect(isPressed ? 0.98 : 1.0)
+            .scaleEffect(isPressed ? 0.98 : scale)
+            .opacity(opacity)
         }
         .buttonStyle(PlainButtonStyle())
         .onLongPressGesture(
@@ -138,14 +187,77 @@ struct SessionCardView: View {
         )
         .contextMenu {
             if session.isRunning {
-                Button(action: onKill) {
+                Button(action: animateKill) {
                     Label("Kill Session", systemImage: "stop.circle")
                 }
             } else {
-                Button(action: onCleanup) {
+                Button(action: animateCleanup) {
                     Label("Clean Up", systemImage: "trash")
                 }
             }
+        }
+        .onAppear {
+            loadSnapshot()
+        }
+    }
+    
+    private func loadSnapshot() {
+        guard terminalSnapshot == nil else { return }
+        
+        isLoadingSnapshot = true
+        Task {
+            do {
+                let snapshot = try await APIClient.shared.getSessionSnapshot(sessionId: session.id)
+                await MainActor.run {
+                    self.terminalSnapshot = snapshot
+                    self.isLoadingSnapshot = false
+                }
+            } catch {
+                // Silently fail - we'll just show the command/cwd fallback
+                await MainActor.run {
+                    self.isLoadingSnapshot = false
+                }
+            }
+        }
+    }
+    
+    private func animateKill() {
+        guard !isKilling else { return }
+        isKilling = true
+        
+        // Shake animation
+        withAnimation(.linear(duration: 0.05).repeatCount(4, autoreverses: true)) {
+            scale = 0.97
+        }
+        
+        // Fade out after shake
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                opacity = 0.5
+                scale = 0.95
+            }
+            onKill()
+            
+            // Reset after a delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                isKilling = false
+                withAnimation(.easeIn(duration: 0.2)) {
+                    opacity = 1.0
+                    scale = 1.0
+                }
+            }
+        }
+    }
+    
+    private func animateCleanup() {
+        // Shrink and fade animation for cleanup
+        withAnimation(.easeOut(duration: 0.3)) {
+            scale = 0.8
+            opacity = 0
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            onCleanup()
         }
     }
 }

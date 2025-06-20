@@ -3,7 +3,16 @@ import SwiftUI
 struct TerminalToolbar: View {
     let onSpecialKey: (TerminalInput.SpecialKey) -> Void
     let onDismissKeyboard: () -> Void
+    let onRawInput: ((String) -> Void)?
     @State private var showMoreKeys = false
+    
+    init(onSpecialKey: @escaping (TerminalInput.SpecialKey) -> Void,
+         onDismissKeyboard: @escaping () -> Void,
+         onRawInput: ((String) -> Void)? = nil) {
+        self.onSpecialKey = onSpecialKey
+        self.onDismissKeyboard = onDismissKeyboard
+        self.onRawInput = onRawInput
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -75,29 +84,81 @@ struct TerminalToolbar: View {
                 Divider()
                     .background(Theme.Colors.cardBorder)
                 
-                HStack(spacing: Theme.Spacing.xs) {
-                    // Control keys
-                    ToolbarButton(label: "CTRL+C") {
-                        HapticFeedback.impact(.medium)
-                        onSpecialKey(.ctrlC)
+                VStack(spacing: Theme.Spacing.xs) {
+                    // First row of control keys
+                    HStack(spacing: Theme.Spacing.xs) {
+                        ToolbarButton(label: "CTRL+A") {
+                            HapticFeedback.impact(.medium)
+                            onSpecialKey(.ctrlA)
+                        }
+                        
+                        ToolbarButton(label: "CTRL+C") {
+                            HapticFeedback.impact(.medium)
+                            onSpecialKey(.ctrlC)
+                        }
+                        
+                        ToolbarButton(label: "CTRL+D") {
+                            HapticFeedback.impact(.medium)
+                            onSpecialKey(.ctrlD)
+                        }
+                        
+                        ToolbarButton(label: "CTRL+E") {
+                            HapticFeedback.impact(.medium)
+                            onSpecialKey(.ctrlE)
+                        }
                     }
                     
-                    ToolbarButton(label: "CTRL+D") {
-                        HapticFeedback.impact(.medium)
-                        onSpecialKey(.ctrlD)
+                    // Second row of control keys
+                    HStack(spacing: Theme.Spacing.xs) {
+                        ToolbarButton(label: "CTRL+L") {
+                            HapticFeedback.impact(.medium)
+                            onSpecialKey(.ctrlL)
+                        }
+                        
+                        ToolbarButton(label: "CTRL+Z") {
+                            HapticFeedback.impact(.medium)
+                            onSpecialKey(.ctrlZ)
+                        }
+                        
+                        ToolbarButton(label: "ENTER") {
+                            HapticFeedback.impact(.light)
+                            onSpecialKey(.enter)
+                        }
+                        
+                        ToolbarButton(label: "HOME") {
+                            HapticFeedback.impact(.light)
+                            // Send Ctrl+A for home
+                            onSpecialKey(.ctrlA)
+                        }
                     }
                     
-                    ToolbarButton(label: "CTRL+Z") {
-                        HapticFeedback.impact(.medium)
-                        onSpecialKey(.ctrlZ)
+                    // Third row - custom Ctrl key input
+                    HStack(spacing: Theme.Spacing.xs) {
+                        Text("CTRL +")
+                            .font(Theme.Typography.terminalSystem(size: 12))
+                            .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                            .padding(.leading, Theme.Spacing.sm)
+                        
+                        ForEach(["K", "U", "W", "R", "T"], id: \.self) { letter in
+                            ToolbarButton(label: letter, width: 44) {
+                                HapticFeedback.impact(.medium)
+                                // Send the control character for the letter
+                                if let charCode = letter.first?.asciiValue {
+                                    let controlCharCode = Int(charCode - 64) // A=1, B=2, etc.
+                                    let controlChar = String(UnicodeScalar(controlCharCode)!)
+                                    // Use raw input if available, otherwise fall back to sending as text
+                                    if let onRawInput = onRawInput {
+                                        onRawInput(controlChar)
+                                    } else {
+                                        // Fallback - just send Ctrl+C
+                                        onSpecialKey(.ctrlC)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer()
                     }
-                    
-                    ToolbarButton(label: "ENTER") {
-                        HapticFeedback.impact(.light)
-                        onSpecialKey(.enter)
-                    }
-                    
-                    Spacer()
                 }
                 .padding(.horizontal, Theme.Spacing.sm)
                 .padding(.vertical, Theme.Spacing.xs)

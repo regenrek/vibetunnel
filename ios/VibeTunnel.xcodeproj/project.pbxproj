@@ -3,37 +3,69 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		10655A6075D28A2A6565A0A3 /* SessionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C9F52961C0CE3C11D19B4AA /* SessionListView.swift */; };
+		10A85D034A743E712DC7EC9C /* SessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BADCA88F0695AF46222B3AB /* SessionService.swift */; };
+		252F7C50197317C1DD320C5D /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD2A3A081E2D10E2EEB45CA /* LoadingView.swift */; };
+		2F16BC1DC3080F71DA9CBAFF /* FileEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05B14A3AD2EAB350D390626 /* FileEntry.swift */; };
+		3957A92AFDDD4125A06826C5 /* CastPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6F30F9F8BF1042B1062802 /* CastPlayerView.swift */; };
+		3B6417754B3785129AEAABD9 /* TerminalSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0223E64AC1DC79EF399917A /* TerminalSnapshot.swift */; };
+		45EBF8786E05DF1026766DB2 /* FontSizeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71EAA6D6962071517130743C /* FontSizeSheet.swift */; };
+		538B160DCA0BC2DF4752A363 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34681CD05E181BE71AC6A00 /* SessionCardView.swift */; };
+		562BA6B4D1BB3797259A29E8 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8B3691F13D288B60A420A0 /* FileBrowserView.swift */; };
+		671399118731954CBF63B4C0 /* ServerConfigForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8250BC491000BA2517528BC /* ServerConfigForm.swift */; };
+		7125A00FFE081D6A721ABF63 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A74BA890E4D1DF214A766499 /* Assets.xcassets */; };
 		7272E2FE084BB86440A69701 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 51D59A51D50DE7492ECEAA6F /* SwiftTerm */; };
+		736787173E49F49A351AA43C /* ServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBBE21208D5FB72E5E43BC8 /* ServerConfig.swift */; };
+		7B665F33A07E379DA41E9291 /* TerminalToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3F9DE217D8030C0E4BAA4F /* TerminalToolbar.swift */; };
+		7D5D17EE18D016FB9633A634 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D5E795FF5B9B26E1632820 /* Session.swift */; };
+		901CD6449111764E95CA6625 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3CFA0FABA146069CF88DF9 /* ContentView.swift */; };
+		A7BC95D91D6DD1A10C3E6DCC /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A35878ADF0225DB9359CB3B /* TerminalView.swift */; };
+		A882FB20F660EAB0650A11BD /* VibeTunnelApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7195183E692F0E3F7FB6BD46 /* VibeTunnelApp.swift */; };
+		A99CE758ED28F123B74D6DDD /* BufferWebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C03EA6806BCDCDAB311FFD3 /* BufferWebSocketClient.swift */; };
+		B1F788D114A1145E96939A07 /* SessionCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C1575896A90B1A29B06863 /* SessionCreateView.swift */; };
+		B41BEF522D66FA483804F671 /* TerminalData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490C9252E0C8919CEA6975E1 /* TerminalData.swift */; };
+		B611B173C0E3141B0A651056 /* TerminalHostingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BD0BD408900CC6C0B1F89C /* TerminalHostingView.swift */; };
+		C6835CF39EAEEAA03DDBDB44 /* RecordingExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C288DF07D7B08AE2F9D629 /* RecordingExportSheet.swift */; };
+		E756EC021E402CB2F40ED3E5 /* CastFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6CC60E9A331AF6B07BAE2B3 /* CastFile.swift */; };
+		E872C6E384B4E05935EFD17F /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2241BAA58600E11E79753A /* ConnectionView.swift */; };
+		F36C0895F603390F3CAD3DCD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B067C79374E10C55450BE1 /* APIClient.swift */; };
+		F828114315E4A151327A556B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CDE7FCB586F0B97ABA6643B /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		216D52E392D8F0CDC6358BB8 /* VibeTunnel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibeTunnel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0BADCA88F0695AF46222B3AB /* SessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionService.swift; sourceTree = "<group>"; };
+		0C9F52961C0CE3C11D19B4AA /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
+		1A35878ADF0225DB9359CB3B /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		216D52E392D8F0CDC6358BB8 /* VibeTunnel.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VibeTunnel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		22B067C79374E10C55450BE1 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		2A8B3691F13D288B60A420A0 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
+		2C03EA6806BCDCDAB311FFD3 /* BufferWebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferWebSocketClient.swift; sourceTree = "<group>"; };
+		39C1575896A90B1A29B06863 /* SessionCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCreateView.swift; sourceTree = "<group>"; };
+		3A3CFA0FABA146069CF88DF9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		490C9252E0C8919CEA6975E1 /* TerminalData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalData.swift; sourceTree = "<group>"; };
+		55C288DF07D7B08AE2F9D629 /* RecordingExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingExportSheet.swift; sourceTree = "<group>"; };
+		64D5E795FF5B9B26E1632820 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
+		6C3F9DE217D8030C0E4BAA4F /* TerminalToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalToolbar.swift; sourceTree = "<group>"; };
+		6CDE7FCB586F0B97ABA6643B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		7195183E692F0E3F7FB6BD46 /* VibeTunnelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeTunnelApp.swift; sourceTree = "<group>"; };
+		71EAA6D6962071517130743C /* FontSizeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSizeSheet.swift; sourceTree = "<group>"; };
+		8BBBE21208D5FB72E5E43BC8 /* ServerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfig.swift; sourceTree = "<group>"; };
+		A34681CD05E181BE71AC6A00 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
+		A74BA890E4D1DF214A766499 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A8250BC491000BA2517528BC /* ServerConfigForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigForm.swift; sourceTree = "<group>"; };
+		ABD2A3A081E2D10E2EEB45CA /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
+		AE2241BAA58600E11E79753A /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
+		B1BD0BD408900CC6C0B1F89C /* TerminalHostingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalHostingView.swift; sourceTree = "<group>"; };
+		BC6F30F9F8BF1042B1062802 /* CastPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastPlayerView.swift; sourceTree = "<group>"; };
+		DB644C5EB44BF1B46E31349C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E0223E64AC1DC79EF399917A /* TerminalSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSnapshot.swift; sourceTree = "<group>"; };
+		E6CC60E9A331AF6B07BAE2B3 /* CastFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastFile.swift; sourceTree = "<group>"; };
+		F05B14A3AD2EAB350D390626 /* FileEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileEntry.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		78868B612DFF808300B22C15 /* Exceptions for "VibeTunnel" folder in "VibeTunnel" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Resources/Info.plist,
-			);
-			target = 788687F02DFF4FCB00B22C15 /* VibeTunnel */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		A4640175A87A16583F0A76A8 /* VibeTunnel */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				78868B612DFF808300B22C15 /* Exceptions for "VibeTunnel" folder in "VibeTunnel" target */,
-			);
-			path = VibeTunnel;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		2FD464BF4BA1F22E2EBF0847 /* Frameworks */ = {
@@ -55,6 +87,27 @@
 			);
 			sourceTree = "<group>";
 		};
+		1F5FB514206922162C034878 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				6CDE7FCB586F0B97ABA6643B /* Theme.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		65A45DAAB11ECFC66DA7A032 /* Terminal */ = {
+			isa = PBXGroup;
+			children = (
+				BC6F30F9F8BF1042B1062802 /* CastPlayerView.swift */,
+				71EAA6D6962071517130743C /* FontSizeSheet.swift */,
+				55C288DF07D7B08AE2F9D629 /* RecordingExportSheet.swift */,
+				B1BD0BD408900CC6C0B1F89C /* TerminalHostingView.swift */,
+				6C3F9DE217D8030C0E4BAA4F /* TerminalToolbar.swift */,
+				1A35878ADF0225DB9359CB3B /* TerminalView.swift */,
+			);
+			path = Terminal;
+			sourceTree = "<group>";
+		};
 		7866022B46DD9C411CAEDA26 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -63,23 +116,113 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		86B28FA8FD27668A273B1C3E /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				22B067C79374E10C55450BE1 /* APIClient.swift */,
+				2C03EA6806BCDCDAB311FFD3 /* BufferWebSocketClient.swift */,
+				0BADCA88F0695AF46222B3AB /* SessionService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		9E3F35439BD7C1A5A0F15879 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				3A3CFA0FABA146069CF88DF9 /* ContentView.swift */,
+				7195183E692F0E3F7FB6BD46 /* VibeTunnelApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A4640175A87A16583F0A76A8 /* VibeTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				9E3F35439BD7C1A5A0F15879 /* App */,
+				FCC1EFC1E57CFF81577BF71B /* Models */,
+				AC551FF9D498BF578D8F8A28 /* Resources */,
+				86B28FA8FD27668A273B1C3E /* Services */,
+				1F5FB514206922162C034878 /* Utils */,
+				C8CD45CB08E314A8A25890CA /* Views */,
+			);
+			path = VibeTunnel;
+			sourceTree = "<group>";
+		};
+		AC551FF9D498BF578D8F8A28 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A74BA890E4D1DF214A766499 /* Assets.xcassets */,
+				DB644C5EB44BF1B46E31349C /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		C8CD45CB08E314A8A25890CA /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D36708B0030B5480E17544B5 /* Common */,
+				EA3CCEFC5FA2D00712C2F0B4 /* Connection */,
+				F6E767797FA3FEE7AEA9782C /* Sessions */,
+				65A45DAAB11ECFC66DA7A032 /* Terminal */,
+				2A8B3691F13D288B60A420A0 /* FileBrowserView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D36708B0030B5480E17544B5 /* Common */ = {
+			isa = PBXGroup;
+			children = (
+				ABD2A3A081E2D10E2EEB45CA /* LoadingView.swift */,
+			);
+			path = Common;
+			sourceTree = "<group>";
+		};
+		EA3CCEFC5FA2D00712C2F0B4 /* Connection */ = {
+			isa = PBXGroup;
+			children = (
+				AE2241BAA58600E11E79753A /* ConnectionView.swift */,
+				A8250BC491000BA2517528BC /* ServerConfigForm.swift */,
+			);
+			path = Connection;
+			sourceTree = "<group>";
+		};
+		F6E767797FA3FEE7AEA9782C /* Sessions */ = {
+			isa = PBXGroup;
+			children = (
+				A34681CD05E181BE71AC6A00 /* SessionCardView.swift */,
+				39C1575896A90B1A29B06863 /* SessionCreateView.swift */,
+				0C9F52961C0CE3C11D19B4AA /* SessionListView.swift */,
+			);
+			path = Sessions;
+			sourceTree = "<group>";
+		};
+		FCC1EFC1E57CFF81577BF71B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E6CC60E9A331AF6B07BAE2B3 /* CastFile.swift */,
+				F05B14A3AD2EAB350D390626 /* FileEntry.swift */,
+				8BBBE21208D5FB72E5E43BC8 /* ServerConfig.swift */,
+				64D5E795FF5B9B26E1632820 /* Session.swift */,
+				490C9252E0C8919CEA6975E1 /* TerminalData.swift */,
+				E0223E64AC1DC79EF399917A /* TerminalSnapshot.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		788687F02DFF4FCB00B22C15 /* VibeTunnel */ = {
+		9F82885C40F6FE67B5339EB3 /* VibeTunnel */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5D02E41CC1F088CA3F2F4A4C /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
+			buildConfigurationList = 8D99F6108356CC0D04FBF9FD /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
 			buildPhases = (
-				E978695B99EFF28BD859BBBB /* Sources */,
+				B4E21600DA0180F73AA29DAB /* Sources */,
+				1C0E69C8ECC6DD66167C8DED /* Resources */,
 				2FD464BF4BA1F22E2EBF0847 /* Frameworks */,
-				04DC09B2F6FC36DD72CA87FE /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				A4640175A87A16583F0A76A8 /* VibeTunnel */,
 			);
 			name = VibeTunnel;
 			packageProductDependencies = (
@@ -92,201 +235,153 @@
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		0DD83B4196D66608380E46BA /* Project object */ = {
+		4C82CEFDA8E4EFE0B37538D7 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 1600;
 				TargetAttributes = {
-					788687F02DFF4FCB00B22C15 = {
-						CreatedOnToolsVersion = 16.0;
+					9F82885C40F6FE67B5339EB3 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
-			buildConfigurationList = F88CDE43C19B6F98C24FAE6B /* Build configuration list for PBXProject "VibeTunnel" */;
+			buildConfigurationList = 6D69C4974433AED85B9B8A62 /* Build configuration list for PBXProject "VibeTunnel" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				en,
 			);
 			mainGroup = 0DD83B4196D66608380E46BB;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				D39DDAD08E6E965F2F02ED4B /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				99D7F1C619326805A282313E /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
-			preferredProjectObjectVersion = 77;
-			productRefGroup = 7866022B46DD9C411CAEDA26 /* Products */;
+			preferredProjectObjectVersion = 54;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				788687F02DFF4FCB00B22C15 /* VibeTunnel */,
+				9F82885C40F6FE67B5339EB3 /* VibeTunnel */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		04DC09B2F6FC36DD72CA87FE /* Resources */ = {
+		1C0E69C8ECC6DD66167C8DED /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7125A00FFE081D6A721ABF63 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		E978695B99EFF28BD859BBBB /* Sources */ = {
+		B4E21600DA0180F73AA29DAB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F36C0895F603390F3CAD3DCD /* APIClient.swift in Sources */,
+				A99CE758ED28F123B74D6DDD /* BufferWebSocketClient.swift in Sources */,
+				E756EC021E402CB2F40ED3E5 /* CastFile.swift in Sources */,
+				3957A92AFDDD4125A06826C5 /* CastPlayerView.swift in Sources */,
+				E872C6E384B4E05935EFD17F /* ConnectionView.swift in Sources */,
+				901CD6449111764E95CA6625 /* ContentView.swift in Sources */,
+				562BA6B4D1BB3797259A29E8 /* FileBrowserView.swift in Sources */,
+				2F16BC1DC3080F71DA9CBAFF /* FileEntry.swift in Sources */,
+				45EBF8786E05DF1026766DB2 /* FontSizeSheet.swift in Sources */,
+				252F7C50197317C1DD320C5D /* LoadingView.swift in Sources */,
+				C6835CF39EAEEAA03DDBDB44 /* RecordingExportSheet.swift in Sources */,
+				736787173E49F49A351AA43C /* ServerConfig.swift in Sources */,
+				671399118731954CBF63B4C0 /* ServerConfigForm.swift in Sources */,
+				7D5D17EE18D016FB9633A634 /* Session.swift in Sources */,
+				538B160DCA0BC2DF4752A363 /* SessionCardView.swift in Sources */,
+				B1F788D114A1145E96939A07 /* SessionCreateView.swift in Sources */,
+				10655A6075D28A2A6565A0A3 /* SessionListView.swift in Sources */,
+				10A85D034A743E712DC7EC9C /* SessionService.swift in Sources */,
+				B41BEF522D66FA483804F671 /* TerminalData.swift in Sources */,
+				B611B173C0E3141B0A651056 /* TerminalHostingView.swift in Sources */,
+				3B6417754B3785129AEAABD9 /* TerminalSnapshot.swift in Sources */,
+				7B665F33A07E379DA41E9291 /* TerminalToolbar.swift in Sources */,
+				A7BC95D91D6DD1A10C3E6DCC /* TerminalView.swift in Sources */,
+				F828114315E4A151327A556B /* Theme.swift in Sources */,
+				A882FB20F660EAB0650A11BD /* VibeTunnelApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		01B44B31B4E8DD38FB9D84EC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
-				MTL_FAST_MATH = YES;
-				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-			};
-			name = Debug;
-		};
-		2EB7D99F6AAB1EF82CFA5C1A /* Release */ = {
+		2287F1E073ABA2294F8D65E6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = VibeTunnel/Resources/Info.plist;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vibetunnel.app;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				PRODUCT_BUNDLE_IDENTIFIER = com.vibetunnel.ios;
+				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6BDD461861CF6891A0D3CAAA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				INFOPLIST_FILE = VibeTunnel/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vibetunnel.ios;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
-		7C3A8A0F577E7AD8E7C60A66 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = VibeTunnel/Resources/Info.plist;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vibetunnel.app;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		DD6BC2F25AD96D9BD4FC49E0 /* Release */ = {
+		E5ADA5251EC344824C852777 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -312,12 +407,90 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VibeTunnel/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vibetunnel.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F5CF3F9AC6801B6BE276B81C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -325,42 +498,49 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VibeTunnel/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vibetunnel.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
-				VALIDATE_PRODUCT = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5D02E41CC1F088CA3F2F4A4C /* Build configuration list for PBXNativeTarget "VibeTunnel" */ = {
+		6D69C4974433AED85B9B8A62 /* Build configuration list for PBXProject "VibeTunnel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				7C3A8A0F577E7AD8E7C60A66 /* Debug */,
-				2EB7D99F6AAB1EF82CFA5C1A /* Release */,
+				E5ADA5251EC344824C852777 /* Debug */,
+				F5CF3F9AC6801B6BE276B81C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
-		F88CDE43C19B6F98C24FAE6B /* Build configuration list for PBXProject "VibeTunnel" */ = {
+		8D99F6108356CC0D04FBF9FD /* Build configuration list for PBXNativeTarget "VibeTunnel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				01B44B31B4E8DD38FB9D84EC /* Debug */,
-				DD6BC2F25AD96D9BD4FC49E0 /* Release */,
+				2287F1E073ABA2294F8D65E6 /* Debug */,
+				6BDD461861CF6891A0D3CAAA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		D39DDAD08E6E965F2F02ED4B /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+		99D7F1C619326805A282313E /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
 			requirement = {
@@ -373,10 +553,10 @@
 /* Begin XCSwiftPackageProductDependency section */
 		51D59A51D50DE7492ECEAA6F /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = D39DDAD08E6E965F2F02ED4B /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			package = 99D7F1C619326805A282313E /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 0DD83B4196D66608380E46BA /* Project object */;
+	rootObject = 4C82CEFDA8E4EFE0B37538D7 /* Project object */;
 }

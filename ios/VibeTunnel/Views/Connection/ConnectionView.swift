@@ -56,6 +56,7 @@ struct ConnectionView: View {
                         host: $viewModel.host,
                         port: $viewModel.port,
                         name: $viewModel.name,
+                        password: $viewModel.password,
                         isConnecting: viewModel.isConnecting,
                         errorMessage: viewModel.errorMessage,
                         onConnect: connectToServer
@@ -94,6 +95,7 @@ class ConnectionViewModel: ObservableObject {
     @Published var host: String = "127.0.0.1"
     @Published var port: String = "4020"
     @Published var name: String = ""
+    @Published var password: String = ""
     @Published var isConnecting: Bool = false
     @Published var errorMessage: String?
     
@@ -103,6 +105,7 @@ class ConnectionViewModel: ObservableObject {
             self.host = serverConfig.host
             self.port = String(serverConfig.port)
             self.name = serverConfig.name ?? ""
+            self.password = serverConfig.password ?? ""
         }
     }
     
@@ -125,13 +128,18 @@ class ConnectionViewModel: ObservableObject {
         let config = ServerConfig(
             host: host,
             port: portNumber,
-            name: name.isEmpty ? nil : name
+            name: name.isEmpty ? nil : name,
+            password: password.isEmpty ? nil : password
         )
         
         do {
             // Test connection by fetching sessions
             let url = config.baseURL.appendingPathComponent("api/sessions")
-            let (_, response) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            if let authHeader = config.authorizationHeader {
+                request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+            }
+            let (_, response) = try await URLSession.shared.data(for: request)
             
             if let httpResponse = response as? HTTPURLResponse,
                httpResponse.statusCode == 200 {

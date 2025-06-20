@@ -4,6 +4,7 @@ struct ServerConfigForm: View {
     @Binding var host: String
     @Binding var port: String
     @Binding var name: String
+    @Binding var password: String
     let isConnecting: Bool
     let errorMessage: String?
     let onConnect: () -> Void
@@ -12,7 +13,7 @@ struct ServerConfigForm: View {
     @State private var recentServers: [ServerConfig] = []
     
     enum Field {
-        case host, port, name
+        case host, port, name, password
     }
     
     var body: some View {
@@ -61,6 +62,21 @@ struct ServerConfigForm: View {
                     TextField("My Mac", text: $name)
                         .textFieldStyle(TerminalTextFieldStyle())
                         .focused($focusedField, equals: .name)
+                        .submitLabel(.next)
+                        .onSubmit {
+                            focusedField = .password
+                        }
+                }
+                
+                // Password Field (Optional)
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    Label("Password (Optional)", systemImage: "lock")
+                        .font(Theme.Typography.terminalSystem(size: 12))
+                        .foregroundColor(Theme.Colors.primaryAccent)
+                    
+                    SecureField("Enter password if required", text: $password)
+                        .textFieldStyle(TerminalTextFieldStyle())
+                        .focused($focusedField, equals: .password)
                         .submitLabel(.done)
                         .onSubmit {
                             focusedField = nil
@@ -141,6 +157,7 @@ struct ServerConfigForm: View {
                                     host = server.host
                                     port = String(server.port)
                                     name = server.name ?? ""
+                                    password = server.password ?? ""
                                     HapticFeedback.selection()
                                 }) {
                                     VStack(alignment: .leading, spacing: 4) {

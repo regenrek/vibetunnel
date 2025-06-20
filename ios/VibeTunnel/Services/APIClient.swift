@@ -123,6 +123,7 @@ class APIClient: APIClientProtocol {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
         
         do {
             request.httpBody = try encoder.encode(data)
@@ -173,6 +174,7 @@ class APIClient: APIClientProtocol {
         let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)")
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        addAuthenticationIfNeeded(&request)
         
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
@@ -186,6 +188,7 @@ class APIClient: APIClientProtocol {
         let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)/cleanup")
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        addAuthenticationIfNeeded(&request)
         
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
@@ -199,6 +202,7 @@ class APIClient: APIClientProtocol {
         let url = baseURL.appendingPathComponent("api/cleanup-exited")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addAuthenticationIfNeeded(&request)
         
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
@@ -232,6 +236,7 @@ class APIClient: APIClientProtocol {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
         
         let input = TerminalInput(text: text)
         request.httpBody = try encoder.encode(input)
@@ -249,6 +254,7 @@ class APIClient: APIClientProtocol {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
         
         let resize = TerminalResize(cols: cols, rows: rows)
         request.httpBody = try encoder.encode(resize)
@@ -267,6 +273,23 @@ class APIClient: APIClientProtocol {
     func snapshotURL(for sessionId: String) -> URL? {
         guard let baseURL = baseURL else { return nil }
         return baseURL.appendingPathComponent("api/sessions/\(sessionId)/snapshot")
+    }
+    
+    func getSessionSnapshot(sessionId: String) async throws -> TerminalSnapshot {
+        guard let baseURL = baseURL else {
+            throw APIError.noServerConfigured
+        }
+        
+        let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)/snapshot")
+        let (data, response) = try await session.data(from: url)
+        
+        try validateResponse(response)
+        
+        do {
+            return try decoder.decode(TerminalSnapshot.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
     }
     
     // MARK: - Helpers
@@ -342,6 +365,7 @@ class APIClient: APIClientProtocol {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuthenticationIfNeeded(&request)
         
         struct CreateDirectoryRequest: Codable {
             let path: String

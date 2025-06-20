@@ -8,6 +8,7 @@ struct TerminalView: View {
     @StateObject private var viewModel: TerminalViewModel
     @State private var fontSize: CGFloat = 14
     @State private var showingFontSizeSheet = false
+    @State private var showingRecordingSheet = false
     @State private var keyboardHeight: CGFloat = 0
     @FocusState private var isInputFocused: Bool
     
@@ -36,6 +37,9 @@ struct TerminalView: View {
             }
             .navigationTitle(session.displayName)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .bottomBar)
+            .toolbarBackground(.visible, for: .bottomBar)
+            .toolbarBackground(Theme.Colors.cardBackground, for: .bottomBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Close") {
@@ -57,6 +61,27 @@ struct TerminalView: View {
                         Button(action: { viewModel.copyBuffer() }) {
                             Label("Copy All", systemImage: "doc.on.doc")
                         }
+                        
+                        Divider()
+                        
+                        if viewModel.castRecorder.isRecording {
+                            Button(action: { 
+                                viewModel.stopRecording()
+                                showingRecordingSheet = true
+                            }) {
+                                Label("Stop Recording", systemImage: "stop.circle.fill")
+                                    .foregroundColor(.red)
+                            }
+                        } else {
+                            Button(action: { viewModel.startRecording() }) {
+                                Label("Start Recording", systemImage: "record.circle")
+                            }
+                        }
+                        
+                        Button(action: { showingRecordingSheet = true }) {
+                            Label("Export Recording", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(viewModel.castRecorder.events.isEmpty)
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .foregroundColor(Theme.Colors.primaryAccent)
@@ -65,6 +90,71 @@ struct TerminalView: View {
             }
             .sheet(isPresented: $showingFontSizeSheet) {
                 FontSizeSheet(fontSize: $fontSize)
+            }
+            .sheet(isPresented: $showingRecordingSheet) {
+                RecordingExportSheet(recorder: viewModel.castRecorder, sessionName: session.displayName)
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    if viewModel.terminalCols > 0 && viewModel.terminalRows > 0 {
+                        HStack(spacing: Theme.Spacing.xs) {
+                            Image(systemName: "rectangle.split.3x1")
+                                .font(.caption)
+                                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
+                            Text("\(viewModel.terminalCols) × \(viewModel.terminalRows)")
+                                .font(Theme.Typography.terminalSystem(size: 12))
+                                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Session status
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(session.isRunning ? Theme.Colors.successAccent : Theme.Colors.terminalForeground.opacity(0.3))
+                            .frame(width: 6, height: 6)
+                        Text(session.isRunning ? "Running" : "Exited")
+                            .font(Theme.Typography.terminalSystem(size: 12))
+                            .foregroundColor(session.isRunning ? Theme.Colors.successAccent : Theme.Colors.terminalForeground.opacity(0.5))
+                    }
+                    
+                    if let pid = session.pid {
+                        Spacer()
+                        
+                        Text("PID: \(pid)")
+                            .font(Theme.Typography.terminalSystem(size: 12))
+                            .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
+                            .onTapGesture {
+                                UIPasteboard.general.string = String(pid)
+                                HapticFeedback.notification(.success)
+                            }
+                    }
+                }
+                
+                // Recording indicator
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if viewModel.castRecorder.isRecording {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .overlay(
+                                    Circle()
+                                        .fill(Color.red.opacity(0.3))
+                                        .frame(width: 16, height: 16)
+                                        .scaleEffect(viewModel.recordingPulse ? 1.5 : 1.0)
+                                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: viewModel.recordingPulse)
+                                )
+                            Text("REC")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.red)
+                        }
+                        .onAppear {
+                            viewModel.recordingPulse = true
+                        }
+                    }
+                }
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
@@ -137,6 +227,8 @@ struct TerminalView: View {
                     viewModel.sendInput(text)
                 },
                 onResize: { cols, rows in
+                    viewModel.terminalCols = cols
+                    viewModel.terminalRows = rows
                     viewModel.resize(cols: cols, rows: rows)
                 },
                 viewModel: viewModel
@@ -153,6 +245,9 @@ struct TerminalView: View {
                     },
                     onDismissKeyboard: {
                         isInputFocused = false
+                    },
+                    onRawInput: { input in
+                        viewModel.sendInput(input)
                     }
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -167,14 +262,20 @@ class TerminalViewModel: ObservableObject {
     @Published var isConnected = false
     @Published var errorMessage: String?
     @Published var terminalViewId = UUID()
+    @Published var terminalCols: Int = 0
+    @Published var terminalRows: Int = 0
+    @Published var isAutoScrollEnabled = true
+    @Published var recordingPulse = false
     
     let session: Session
-    private var sseClient: SSEClient?
+    let castRecorder: CastRecorder
+    private var bufferWebSocketClient: BufferWebSocketClient?
     var cancellables = Set<AnyCancellable>()
     weak var terminalCoordinator: TerminalHostingView.Coordinator?
     
     init(session: Session) {
         self.session = session
+        self.castRecorder = CastRecorder(sessionId: session.id, width: 80, height: 24)
         setupTerminal()
     }
     
@@ -182,33 +283,58 @@ class TerminalViewModel: ObservableObject {
         // Terminal setup now handled by SimpleTerminalView
     }
     
+    func startRecording() {
+        castRecorder.startRecording()
+    }
+    
+    func stopRecording() {
+        castRecorder.stopRecording()
+    }
+    
     func connect() {
         isConnecting = true
         errorMessage = nil
         
-        guard let streamURL = APIClient.shared.streamURL(for: session.id) else {
-            errorMessage = "Failed to create stream URL"
-            isConnecting = false
-            return
+        // Create WebSocket client if needed
+        if bufferWebSocketClient == nil {
+            bufferWebSocketClient = BufferWebSocketClient()
         }
         
-        // Load existing terminal snapshot first if session is already running
-        if session.isRunning {
-            Task {
-                await loadSnapshot()
+        // Connect to WebSocket
+        bufferWebSocketClient?.connect()
+        
+        // Subscribe to terminal events
+        bufferWebSocketClient?.subscribe(to: session.id) { [weak self] event in
+            Task { @MainActor in
+                self?.handleWebSocketEvent(event)
             }
         }
         
-        sseClient = SSEClient()
-        
-        Task {
-            for await event in sseClient!.connect(to: streamURL) {
-                handleTerminalEvent(event)
+        // Monitor connection status
+        bufferWebSocketClient?.$isConnected
+            .sink { [weak self] connected in
+                Task { @MainActor in
+                    self?.isConnecting = false
+                    self?.isConnected = connected
+                    if !connected {
+                        self?.errorMessage = "WebSocket disconnected"
+                    } else {
+                        self?.errorMessage = nil
+                    }
+                }
             }
-        }
+            .store(in: &cancellables)
         
-        isConnecting = false
-        isConnected = true
+        // Monitor connection errors
+        bufferWebSocketClient?.$connectionError
+            .compactMap { $0 }
+            .sink { [weak self] error in
+                Task { @MainActor in
+                    self?.errorMessage = error.localizedDescription
+                    self?.isConnecting = false
+                }
+            }
+            .store(in: &cancellables)
     }
     
     @MainActor
@@ -227,38 +353,51 @@ class TerminalViewModel: ObservableObject {
     }
     
     func disconnect() {
-        sseClient?.disconnect()
-        sseClient = nil
+        bufferWebSocketClient?.unsubscribe(from: session.id)
+        bufferWebSocketClient?.disconnect()
+        bufferWebSocketClient = nil
         isConnected = false
     }
     
     @MainActor
-    private func handleTerminalEvent(_ event: TerminalEvent) {
+    private func handleWebSocketEvent(_ event: TerminalWebSocketEvent) {
         switch event {
-        case .header(let header):
+        case .header(let width, let height):
             // Initial terminal setup
-            print("Terminal initialized: \(header.width)x\(header.height)")
+            print("Terminal initialized: \(width)x\(height)")
+            terminalCols = width
+            terminalRows = height
             // The terminal will be resized when created
             
-        case .output(_, let data):
+        case .output(let timestamp, let data):
             // Feed output data directly to the terminal
             terminalCoordinator?.feedData(data)
+            // Record output if recording
+            castRecorder.recordOutput(data)
             
-        case .resize(_, let dimensions):
+        case .resize(let timestamp, let dimensions):
             // Parse dimensions like "120x30"
             let parts = dimensions.split(separator: "x")
             if parts.count == 2,
                let cols = Int(parts[0]),
                let rows = Int(parts[1]) {
-                // Handle resize if needed
+                // Update terminal dimensions
+                terminalCols = cols
+                terminalRows = rows
                 print("Terminal resize: \(cols)x\(rows)")
+                // Record resize event
+                castRecorder.recordResize(cols: cols, rows: rows)
             }
             
-        case .exit(let code, _):
+        case .exit(let code):
             // Session has exited
             isConnected = false
             if code != 0 {
                 errorMessage = "Session exited with code \(code)"
+            }
+            // Stop recording if active
+            if castRecorder.isRecording {
+                stopRecording()
             }
         }
     }
