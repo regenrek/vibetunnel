@@ -140,62 +140,109 @@ struct HoverableLink: View {
 struct InteractiveAppIcon: View {
     @State private var isHovering = false
     @State private var isPressed = false
+    @State private var floatingOffset: CGFloat = 0
     @Environment(\.colorScheme)
     private var colorScheme
 
     var body: some View {
-        ZStack {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 128, height: 128)
-                .clipShape(RoundedRectangle(cornerRadius: 22))
-                .scaleEffect(isPressed ? 0.95 : (isHovering ? 1.05 : 1.0))
-                .shadow(
-                    color: shadowColor,
-                    radius: shadowRadius,
-                    x: 0,
-                    y: shadowOffset
-                )
-                .animation(.easeInOut(duration: 0.2), value: isHovering)
-                .animation(.easeInOut(duration: 0.1), value: isPressed)
-
-            // Invisible button overlay for click handling
-            Button(action: openWebsite) {
-                Rectangle()
-                    .fill(Color.clear)
+        Button(action: openWebsite) {
+            ZStack {
+                // Glow effect layers (multiple shadows for a more intense glow)
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
                     .frame(width: 128, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .opacity(0.3)
+                    .blur(radius: 20)
+                    .scaleEffect(1.2)
+                    .shadow(color: glowColor, radius: 30, x: 0, y: 0)
+                    .allowsHitTesting(false)
+                
+                // Secondary glow layer
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 128, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .opacity(0.2)
+                    .blur(radius: 10)
+                    .scaleEffect(1.1)
+                    .shadow(color: glowColor, radius: 20, x: 0, y: 0)
+                    .allowsHitTesting(false)
+                
+                // Main icon with shadow
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 128, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .scaleEffect(isPressed ? 0.95 : (isHovering ? 1.05 : 1.0))
+                    .shadow(
+                        color: shadowColor,
+                        radius: shadowRadius,
+                        x: 0,
+                        y: shadowOffset
+                    )
+                    .animation(.easeInOut(duration: 0.2), value: isHovering)
+                    .animation(.easeInOut(duration: 0.1), value: isPressed)
             }
-            .buttonStyle(PlainButtonStyle())
         }
+        .buttonStyle(PlainButtonStyle())
+        .offset(y: floatingOffset)
         .pointingHandCursor()
         .onHover { hovering in
             isHovering = hovering
         }
-        .pressEvents(
-            onPress: { isPressed = true },
-            onRelease: { isPressed = false }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    isPressed = true
+                }
+                .onEnded { _ in
+                    isPressed = false
+                }
         )
+        .onAppear {
+            startFloatingAnimation()
+        }
+    }
+    
+    private var glowColor: Color {
+        if colorScheme == .dark {
+            // Greenish-gold glow for dark mode
+            Color(red: 0.6, green: 0.8, blue: 0.4).opacity(isHovering ? 0.8 : 0.6)
+        } else {
+            // Softer golden glow for light mode
+            Color(red: 0.8, green: 0.7, blue: 0.3).opacity(isHovering ? 0.6 : 0.4)
+        }
     }
 
     private var shadowColor: Color {
         if colorScheme == .dark {
-            .black.opacity(isHovering ? 0.6 : 0.4)
+            .black.opacity(isHovering ? 0.8 : 0.6)
         } else {
-            .black.opacity(isHovering ? 0.3 : 0.2)
+            .black.opacity(isHovering ? 0.4 : 0.3)
         }
     }
 
     private var shadowRadius: CGFloat {
-        isHovering ? 20 : 12
+        isHovering ? 25 : 15
     }
 
     private var shadowOffset: CGFloat {
-        isHovering ? 8 : 4
+        isHovering ? 10 : 6
+    }
+    
+    private func startFloatingAnimation() {
+        withAnimation(
+            Animation.easeInOut(duration: 3.0)
+                .repeatForever(autoreverses: true)
+        ) {
+            floatingOffset = -8
+        }
     }
 
     @MainActor
     private func openWebsite() {
-        guard let url = URL(string: "https://vibetunnel.ai") else { return }
+        guard let url = URL(string: "https://vibetunnel.sh") else { return }
         NSWorkspace.shared.open(url)
     }
 }
