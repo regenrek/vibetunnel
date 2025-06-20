@@ -1,6 +1,5 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { TerminalRenderer, type BufferCell } from '../utils/terminal-renderer.js';
 
 interface BufferSnapshot {
@@ -36,10 +35,7 @@ export class VibeTerminalBuffer extends LitElement {
   private resizeObserver: ResizeObserver | null = null;
   private lastModified: string | null = null;
 
-  connectedCallback() {
-    super.connectedCallback();
-    this.startPolling();
-  }
+  // Moved to render() method above
 
   disconnectedCallback() {
     this.stopPolling();
@@ -59,6 +55,8 @@ export class VibeTerminalBuffer extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>) {
+    super.updated(changedProperties);
+
     if (changedProperties.has('sessionId')) {
       this.buffer = null;
       this.error = null;
@@ -73,6 +71,11 @@ export class VibeTerminalBuffer extends LitElement {
     }
     if (changedProperties.has('fontSize') || changedProperties.has('fitHorizontally')) {
       this.calculateDimensions();
+    }
+
+    // Update buffer content after any render
+    if (this.container && this.buffer) {
+      this.updateBufferContent();
     }
   }
 
@@ -172,6 +175,7 @@ export class VibeTerminalBuffer extends LitElement {
       this.lastModified = stats.lastModified;
       this.error = null;
 
+      // Request update which will trigger updated() lifecycle
       this.requestUpdate();
     } catch (error) {
       console.error('Error fetching buffer:', error);
@@ -181,51 +185,25 @@ export class VibeTerminalBuffer extends LitElement {
     }
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    this.startPolling();
+  }
+
   render() {
+    const lineHeight = this.displayedFontSize * 1.2;
+
     return html`
       <style>
-        /* Import terminal color variables from parent scope */
-        .terminal-container {
-          /* Ensure CSS variables are inherited */
-          color: #d4d4d4;
-          background-color: transparent;
+        /* Dynamic terminal sizing for this instance */
+        vibe-terminal-buffer .terminal-container {
+          font-size: ${this.displayedFontSize}px;
+          line-height: ${lineHeight}px;
         }
 
-        /* Terminal character styling */
-        .terminal-char {
-          font-variant-ligatures: none;
-          font-feature-settings: 'liga' 0;
-          white-space: pre;
-        }
-
-        .terminal-char.bold {
-          font-weight: bold;
-        }
-
-        .terminal-char.italic {
-          font-style: italic;
-        }
-
-        .terminal-char.underline {
-          text-decoration: underline;
-        }
-
-        .terminal-char.dim {
-          opacity: 0.5;
-        }
-
-        .terminal-char.strikethrough {
-          text-decoration: line-through;
-        }
-
-        .terminal-char.cursor {
-          background-color: #23d18b !important;
-        }
-
-        /* Terminal line styling */
-        .terminal-line {
-          white-space: pre;
-          overflow: hidden;
+        vibe-terminal-buffer .terminal-line {
+          height: ${lineHeight}px;
+          line-height: ${lineHeight}px;
         }
       </style>
       <div class="relative w-full h-full overflow-hidden bg-[#1e1e1e]">
@@ -239,53 +217,34 @@ export class VibeTerminalBuffer extends LitElement {
               <div
                 id="buffer-container"
                 class="terminal-container w-full h-full overflow-x-auto overflow-y-hidden font-mono antialiased"
-                style="font-size: ${this.displayedFontSize}px; line-height: 1.2;"
-              >
-                ${this.renderBuffer()}
-              </div>
+              ></div>
             `}
       </div>
     `;
   }
 
-  private renderBuffer() {
-    if (!this.buffer) {
-      return html`<div class="terminal-line"></div>`;
-    }
+  private updateBufferContent() {
+    if (!this.container || !this.buffer) return;
 
     const lineHeight = this.displayedFontSize * 1.2;
+    let html = '';
 
     // In fitHorizontally mode, we show all content scaled to fit
     // Otherwise, we show from the top and let it overflow
-    if (this.fitHorizontally) {
-      // Render all lines - the buffer is already trimmed of blank lines from the bottom
-      return this.buffer.cells.map((row, index) => {
-        const isCursorLine = index === this.buffer.cursorY;
-        const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
-        const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
+    const cellsToRender = this.fitHorizontally
+      ? this.buffer.cells
+      : this.buffer.cells.slice(0, this.actualRows);
 
-        return html`
-          <div class="terminal-line" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">
-            ${unsafeHTML(lineContent)}
-          </div>
-        `;
-      });
-    } else {
-      // Show only what fits in the viewport
-      const visibleCells = this.buffer.cells.slice(0, this.actualRows);
+    cellsToRender.forEach((row, index) => {
+      const isCursorLine = index === this.buffer.cursorY;
+      const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
+      const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
 
-      return visibleCells.map((row, index) => {
-        const isCursorLine = index === this.buffer.cursorY;
-        const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
-        const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
+      html += `<div class="terminal-line" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">${lineContent}</div>`;
+    });
 
-        return html`
-          <div class="terminal-line" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">
-            ${unsafeHTML(lineContent)}
-          </div>
-        `;
-      });
-    }
+    // Set innerHTML directly like terminal.ts does
+    this.container.innerHTML = html;
   }
 
   /**

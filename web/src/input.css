@@ -110,15 +110,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Terminal line styling */
-.terminal-line {
+/* Terminal container styling */
+.terminal-container {
+  color: #d4d4d4;
   white-space: pre;
   overflow: hidden;
-  color: #d4d4d4;
+}
+
+/* Terminal line styling */
+.terminal-line {
+  display: block;
+  white-space: pre;
+  overflow: hidden;
 }
 
 /* Terminal character specific styling */
 .terminal-char {
+  display: inline-block;
+  font-family: inherit;
   font-variant-ligatures: none;
   font-feature-settings: 'liga' 0;
   white-space: pre;
@@ -149,12 +158,20 @@ body {
   text-decoration: overline;
 }
 
-/* Cursor styling */
-.terminal-char.cursor {
-  animation: blink 1s infinite;
+.terminal-char.inverse {
+  filter: invert(1);
 }
 
-@keyframes blink {
+.terminal-char.invisible {
+  opacity: 0;
+}
+
+/* Cursor styling */
+.terminal-char.cursor {
+  animation: cursor-blink 1s infinite;
+}
+
+@keyframes cursor-blink {
   0%,
   50% {
     opacity: 1;
@@ -221,23 +238,23 @@ body {
   opacity: 0 !important;
 }
 
-/* XTerm 256-color palette - Complete */
+/* Terminal color palette - Bright colors for dark backgrounds */
 :root {
   --terminal-color-0: #000000;
-  --terminal-color-1: #800000;
-  --terminal-color-2: #008000;
-  --terminal-color-3: #808000;
-  --terminal-color-4: #000080;
-  --terminal-color-5: #800080;
-  --terminal-color-6: #008080;
-  --terminal-color-7: #c0c0c0;
-  --terminal-color-8: #808080;
-  --terminal-color-9: #ff0000;
-  --terminal-color-10: #00ff00;
-  --terminal-color-11: #ffff00;
-  --terminal-color-12: #0000ff;
-  --terminal-color-13: #ff00ff;
-  --terminal-color-14: #00ffff;
+  --terminal-color-1: #f14c4c;
+  --terminal-color-2: #23d18b;
+  --terminal-color-3: #f5f543;
+  --terminal-color-4: #3b8eea;
+  --terminal-color-5: #d670d6;
+  --terminal-color-6: #29b8db;
+  --terminal-color-7: #e5e5e5;
+  --terminal-color-8: #666666;
+  --terminal-color-9: #ff6b6b;
+  --terminal-color-10: #5af78e;
+  --terminal-color-11: #f4f99d;
+  --terminal-color-12: #70a5ed;
+  --terminal-color-13: #d670d6;
+  --terminal-color-14: #5fb3d3;
   --terminal-color-15: #ffffff;
   --terminal-color-16: #000000;
   --terminal-color-17: #00005f;
@@ -479,4 +496,115 @@ body {
   --terminal-color-253: #dadada;
   --terminal-color-254: #e4e4e4;
   --terminal-color-255: #eeeeee;
+}
+
+/* Terminal link styling */
+.terminal-link {
+  color: #4fc3f7;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.terminal-link:hover {
+  background-color: rgba(79, 195, 247, 0.2);
+}
+
+/* Scroll to bottom button */
+.scroll-to-bottom {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #444;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #d4d4d4;
+  font-size: 24px;
+  transition: all 0.2s ease;
+  user-select: none;
+  z-index: 10;
+}
+
+.scroll-to-bottom:hover {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: #666;
+  transform: translateY(-1px);
+}
+
+.scroll-to-bottom:active {
+  transform: translateY(0px);
+}
+
+/* Debug overlay */
+.debug-overlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: #d4d4d4;
+  user-select: none;
+  z-index: 10;
+  line-height: 1.4;
+}
+
+.debug-overlay .metric {
+  display: flex;
+  justify-content: space-between;
+  min-width: 120px;
+}
+
+.debug-overlay .metric-label {
+  opacity: 0.7;
+}
+
+.debug-overlay .metric-value {
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+/* Fit toggle button */
+.fit-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #444;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #d4d4d4;
+  font-size: 20px;
+  transition: all 0.2s ease;
+  user-select: none;
+  z-index: 10;
+}
+
+.fit-toggle:hover {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: #666;
+  transform: translateY(-1px);
+}
+
+.fit-toggle:active {
+  transform: translateY(0px);
+}
+
+.fit-toggle.active {
+  border-color: #569cd6;
+  color: #569cd6;
 }
