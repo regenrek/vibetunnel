@@ -301,29 +301,29 @@ export class TerminalManager {
     const { cols, rows, viewportY, cursorX, cursorY, cells } = snapshot;
 
     // Calculate buffer size (rough estimate)
-    const estimatedSize = 16 + rows * cols * 4;
+    const estimatedSize = 32 + rows * cols * 4; // Increased header size
     const buffer = Buffer.allocUnsafe(estimatedSize);
     let offset = 0;
 
-    // Write header (16 bytes)
+    // Write header (32 bytes)
     buffer.writeUInt16LE(0x5654, offset);
     offset += 2; // Magic "VT"
-    buffer.writeUInt8(0x01, offset);
+    buffer.writeUInt8(0x02, offset); // Version 2 with 32-bit values
     offset += 1; // Version
     buffer.writeUInt8(0x00, offset);
     offset += 1; // Flags
-    buffer.writeUInt16LE(cols, offset);
-    offset += 2; // Cols
-    buffer.writeUInt16LE(rows, offset);
-    offset += 2; // Rows
-    buffer.writeUInt16LE(viewportY, offset);
-    offset += 2; // ViewportY
-    buffer.writeUInt16LE(cursorX, offset);
-    offset += 2; // CursorX
-    buffer.writeUInt16LE(cursorY, offset);
-    offset += 2; // CursorY
-    buffer.writeUInt16LE(0, offset);
-    offset += 2; // Reserved
+    buffer.writeUInt32LE(cols, offset);
+    offset += 4; // Cols (32-bit)
+    buffer.writeUInt32LE(rows, offset);
+    offset += 4; // Rows (32-bit)
+    buffer.writeInt32LE(viewportY, offset); // Signed for large buffers
+    offset += 4; // ViewportY (32-bit signed)
+    buffer.writeInt32LE(cursorX, offset); // Signed for consistency
+    offset += 4; // CursorX (32-bit signed)
+    buffer.writeInt32LE(cursorY, offset); // Signed for relative positions
+    offset += 4; // CursorY (32-bit signed)
+    buffer.writeUInt32LE(0, offset);
+    offset += 4; // Reserved
 
     // Write cells with run-length encoding
     let lastCell: BufferCell | null = null;

@@ -11,25 +11,27 @@ The snapshot format is a compact binary representation of terminal buffer state,
 ```
 ┌──────────────┬─────────────────────────────────┐
 │    Header    │         Cell Stream             │
-│   (16 bytes) │    (variable, 4+ bytes/cell)   │
+│   (32 bytes) │    (variable, 4+ bytes/cell)   │
 └──────────────┴─────────────────────────────────┘
 ```
 
-## Header Format (16 bytes)
+## Header Format (32 bytes) - Version 2
 
 ```
 Offset  Size  Field         Description
 ------  ----  ----------    -----------
 0x00    2     Magic         0x5654 ("VT" in ASCII)
-0x02    1     Version       Format version (currently 0x01)
+0x02    1     Version       Format version (0x02 for 32-bit support)
 0x03    1     Flags         Reserved for future use
-0x04    2     Cols          Terminal width (little-endian)
-0x06    2     Rows          Number of rows in this snapshot (little-endian)
-0x08    2     ViewportY     Starting line number in buffer (little-endian)
-0x0A    2     CursorX       Cursor column position (little-endian)
-0x0C    2     CursorY       Cursor row position relative to viewport (little-endian)
-0x0E    2     Reserved      Reserved for future use
+0x04    4     Cols          Terminal width (32-bit unsigned, little-endian)
+0x08    4     Rows          Number of rows in this snapshot (32-bit unsigned, little-endian)
+0x0C    4     ViewportY     Starting line number in buffer (32-bit signed, little-endian)
+0x10    4     CursorX       Cursor column position (32-bit signed, little-endian)
+0x14    4     CursorY       Cursor row position relative to viewport (32-bit signed, little-endian)
+0x18    4     Reserved      Reserved for future use
 ```
+
+Note: CursorY is relative to the viewport and can be negative if the cursor is above the visible area.
 
 ## Cell Format
 
@@ -131,16 +133,17 @@ Content-Length: {size}
 For a 80x24 terminal showing "Hello" on black background:
 
 ```
-Header (16 bytes):
-56 54 01 00  50 00 18 00  00 00 05 00  00 00 00 00
-│  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │
-│  │  │  │   │  │  │  │   │  │  │  │   │  │  └─┴─ Reserved
-│  │  │  │   │  │  │  │   │  │  │  └───┴─┴─ Cursor (5,0)
-│  │  │  │   │  │  │  │   └─┴─ ViewportY (0)
-│  │  │  │   │  │  └─┴─ Rows (24)
-│  │  │  │   └─┴─ Cols (80)
+Header (32 bytes):
+56 54 02 00  50 00 00 00  18 00 00 00  00 00 00 00  05 00 00 00  00 00 00 00  00 00 00 00
+│  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │
+│  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   └─┴─┴─┴─ Reserved
+│  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   └─┴─┴─┴─ CursorY (0)
+│  │  │  │   │  │  │  │   │  │  │  │   │  │  │  │   └─┴─┴─┴─ CursorX (5)
+│  │  │  │   │  │  │  │   │  │  │  │   └─┴─┴─┴─ ViewportY (0)
+│  │  │  │   │  │  │  │   └─┴─┴─┴─ Rows (24)
+│  │  │  │   └─┴─┴─┴─ Cols (80)
 │  │  │  └─ Flags (0)
-│  │  └─ Version (1)
+│  │  └─ Version (2)
 └─┴─ Magic "VT"
 
 Cells:

@@ -286,22 +286,22 @@ export class TerminalRenderer {
     }
 
     const version = view.getUint8(offset++);
-    if (version !== 0x01) {
-      throw new Error('Unsupported buffer version');
+    if (version !== 0x02) {
+      throw new Error(`Unsupported buffer version: ${version}`);
     }
 
     const _flags = view.getUint8(offset++);
-    const cols = view.getUint16(offset, true);
-    offset += 2;
-    const rows = view.getUint16(offset, true);
-    offset += 2;
-    const viewportY = view.getUint16(offset, true);
-    offset += 2;
-    const cursorX = view.getUint16(offset, true);
-    offset += 2;
-    const cursorY = view.getUint16(offset, true);
-    offset += 2;
-    offset += 2; // Skip reserved
+    const cols = view.getUint32(offset, true);
+    offset += 4;
+    const rows = view.getUint32(offset, true);
+    offset += 4;
+    const viewportY = view.getInt32(offset, true); // Signed
+    offset += 4;
+    const cursorX = view.getInt32(offset, true); // Signed
+    offset += 4;
+    const cursorY = view.getInt32(offset, true); // Signed
+    offset += 4;
+    offset += 4; // Skip reserved
 
     // Decode cells
     const cells: BufferCell[][] = [];
