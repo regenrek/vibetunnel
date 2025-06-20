@@ -8,7 +8,8 @@ import QuickLook
 /// navigation, selection, and directory creation capabilities.
 struct FileBrowserView: View {
     @State private var viewModel = FileBrowserViewModel()
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
     @State private var showingFileEditor = false
     @State private var showingNewFileAlert = false
     @State private var newFileName = ""
@@ -39,18 +40,44 @@ struct FileBrowserView: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Current path display
-                    HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .foregroundColor(Theme.Colors.terminalAccent)
-                            .font(.system(size: 16))
+                    // Navigation header
+                    HStack(spacing: 16) {
+                        // Back button
+                        if viewModel.canGoUp {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                viewModel.navigateToParent()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Back")
+                                        .font(.custom("SF Mono", size: 14))
+                                }
+                                .foregroundColor(Theme.Colors.terminalAccent)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Theme.Colors.terminalAccent.opacity(0.1))
+                                )
+                            }
+                            .buttonStyle(TerminalButtonStyle())
+                        }
+                        
+                        // Current path display
+                        HStack(spacing: 8) {
+                            Image(systemName: "folder.fill")
+                                .foregroundColor(Theme.Colors.terminalAccent)
+                                .font(.system(size: 16))
 
-                        Text(viewModel.currentPath)
-                            .font(.custom("SF Mono", size: 14))
-                            .foregroundColor(Theme.Colors.terminalGray)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(viewModel.displayPath)
+                                .font(.custom("SF Mono", size: 14))
+                                .foregroundColor(Theme.Colors.terminalGray)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
@@ -59,38 +86,24 @@ struct FileBrowserView: View {
                     // File list
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            // Parent directory
-                            if viewModel.canGoUp {
-                                FileBrowserRow(
-                                    name: "..",
-                                    isDirectory: true,
-                                    isParent: true,
-                                    onTap: {
-                                        viewModel.navigateToParent()
-                                    }
-                                )
-                                .transition(.opacity)
-                            }
-
                             // Directories first, then files
                             ForEach(viewModel.sortedEntries) { entry in
                                 FileBrowserRow(
                                     name: entry.name,
                                     isDirectory: entry.isDir,
                                     size: entry.isDir ? nil : entry.formattedSize,
-                                    modifiedTime: entry.formattedDate,
-                                    onTap: {
-                                        if entry.isDir {
-                                            viewModel.navigate(to: entry.path)
-                                        } else if mode == .browseFiles {
-                                            // Preview file with Quick Look
-                                            selectedFile = entry
-                                            Task {
-                                                await viewModel.previewFile(entry)
-                                            }
+                                    modifiedTime: entry.formattedDate
+                                ) {
+                                    if entry.isDir {
+                                        viewModel.navigate(to: entry.path)
+                                    } else if mode == .browseFiles {
+                                        // Preview file with Quick Look
+                                        selectedFile = entry
+                                        Task {
+                                            await viewModel.previewFile(entry)
                                         }
                                     }
-                                )
+                                }
                                 .transition(.opacity)
                                 // Context menu disabled - file operations not implemented in backend
                                 /*
@@ -278,7 +291,7 @@ struct FileBrowserView: View {
                 if let file = selectedFile {
                     FileEditorView(
                         path: file.path,
-                        isNewFile: !viewModel.entries.contains(where: { $0.path == file.path })
+                        isNewFile: !viewModel.entries.contains { $0.path == file.path }
                     )
                     .onDisappear {
                         // Reload directory to show any new files
@@ -450,6 +463,24 @@ class FileBrowserViewModel {
     var canGoUp: Bool {
         currentPath != "/" && currentPath != "~"
     }
+    
+    var displayPath: String {
+        // Show a more user-friendly path
+        if currentPath == "/" {
+            return "/"
+        } else if currentPath.hasPrefix("/Users/") {
+            // Extract username from path like /Users/username/...
+            let components = currentPath.components(separatedBy: "/")
+            if components.count > 2 {
+                let username = components[2]
+                let homePath = "/Users/\(username)"
+                if currentPath == homePath || currentPath.hasPrefix(homePath + "/") {
+                    return currentPath.replacingOccurrences(of: homePath, with: "~")
+                }
+            }
+        }
+        return currentPath
+    }
 
     func loadDirectory(path: String) {
         Task {
@@ -470,7 +501,7 @@ class FileBrowserViewModel {
                 entries = result.files
             }
         } catch {
-            print("[FileBrowser] Failed to load directory: \(error)")
+            // Failed to load directory: \(error)
             errorMessage = "Failed to load directory: \(error.localizedDescription)"
             showError = true
         }
@@ -505,7 +536,7 @@ class FileBrowserViewModel {
             // Reload directory to show new folder
             await loadDirectoryAsync(path: currentPath)
         } catch {
-            print("[FileBrowser] Failed to create folder: \(error)")
+            // Failed to create folder: \(error)
             errorMessage = "Failed to create folder: \(error.localizedDescription)"
             showError = true
             UINotificationFeedbackGenerator().notificationOccurred(.error)
@@ -532,7 +563,7 @@ class FileBrowserViewModel {
 }
 
 #Preview {
-    FileBrowserView { path in
-        print("Selected path: \(path)")
+    FileBrowserView { _ in
+        // Selected path
     }
 }
