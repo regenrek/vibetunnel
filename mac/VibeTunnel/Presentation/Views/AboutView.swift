@@ -38,6 +38,7 @@ struct AboutView: View {
     private var appInfoSection: some View {
         VStack(spacing: 16) {
             InteractiveAppIcon()
+                .padding(.bottom, 20)
 
             Text(appName)
                 .font(.largeTitle)
@@ -47,7 +48,7 @@ struct AboutView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .padding(.top, 20)
+        .padding(.top, 40)
     }
 
     private var descriptionSection: some View {
