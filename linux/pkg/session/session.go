@@ -275,13 +275,52 @@ func (s *Session) AttachSpawnedSession() error {
 	}
 	s.pty = pty
 
-	// Start the PTY with the command from session info
-	if err := s.pty.Start(); err != nil {
-		return fmt.Errorf("failed to start PTY: %w", err)
+	// Update session status
+	s.info.Status = string(StatusRunning)
+	s.info.Pid = pty.Pid()
+	
+	if err := s.info.Save(s.Path()); err != nil {
+		if err := pty.Close(); err != nil {
+			log.Printf("[ERROR] Failed to close PTY: %v", err)
+		}
+		return fmt.Errorf("failed to update session info: %w", err)
 	}
 
+	// Create a channel to signal when PTY.Run() completes
+	ptyDone := make(chan struct{})
+	
+	// Start the PTY I/O loop in a goroutine (like Start() does)
+	go func() {
+		defer close(ptyDone)
+		if err := s.pty.Run(); err != nil {
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Session %s: PTY.Run() exited with error: %v", s.ID[:8], err)
+			}
+		} else {
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Session %s: PTY.Run() exited normally", s.ID[:8])
+			}
+		}
+		// Ensure session status is updated
+		s.UpdateStatus()
+	}()
+
+	// Start control listener
+	s.startControlListener()
+
 	// Attach to the PTY to connect stdin/stdout
-	return s.pty.Attach()
+	attachErr := s.pty.Attach()
+	
+	// Wait a moment for PTY cleanup to complete
+	select {
+	case <-ptyDone:
+		// PTY.Run() already completed
+	case <-time.After(500 * time.Millisecond):
+		// Give it a bit more time to update status
+		s.UpdateStatus()
+	}
+	
+	return attachErr
 }
 
 func (s *Session) SendKey(key string) error {
