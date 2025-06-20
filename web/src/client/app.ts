@@ -171,6 +171,71 @@ export class VibeTunnelApp extends LitElement {
     this.showCreateModal = false;
   }
 
+  private async handleNavigateToSession(e: CustomEvent): Promise<void> {
+    const { sessionId } = e.detail;
+
+    // Check if View Transitions API is supported
+    if ('startViewTransition' in document && typeof document.startViewTransition === 'function') {
+      // Debug: Check what elements have view-transition-name before transition
+      console.log('Before transition - elements with view-transition-name:');
+      document.querySelectorAll('[style*="view-transition-name"]').forEach((el) => {
+        console.log('Element:', el, 'Style:', el.getAttribute('style'));
+      });
+
+      // Use View Transitions API for smooth animation
+      const transition = document.startViewTransition(async () => {
+        // Update state which will trigger a re-render
+        this.selectedSessionId = sessionId;
+        this.currentView = 'session';
+        this.updateUrl(sessionId);
+
+        // Wait for LitElement to complete its update
+        await this.updateComplete;
+
+        // Debug: Check what elements have view-transition-name after transition
+        console.log('After transition - elements with view-transition-name:');
+        document.querySelectorAll('[style*="view-transition-name"]').forEach((el) => {
+          console.log('Element:', el, 'Style:', el.getAttribute('style'));
+        });
+      });
+
+      // Log if transition is ready
+      transition.ready
+        .then(() => {
+          console.log('View transition ready');
+        })
+        .catch((err) => {
+          console.error('View transition failed:', err);
+        });
+    } else {
+      // Fallback for browsers without View Transitions support
+      this.selectedSessionId = sessionId;
+      this.currentView = 'session';
+      this.updateUrl(sessionId);
+    }
+  }
+
+  private handleNavigateToList(): void {
+    // Check if View Transitions API is supported
+    if ('startViewTransition' in document && typeof document.startViewTransition === 'function') {
+      // Use View Transitions API for smooth animation
+      document.startViewTransition(() => {
+        // Update state which will trigger a re-render
+        this.selectedSessionId = null;
+        this.currentView = 'list';
+        this.updateUrl();
+
+        // Force update to ensure DOM changes happen within the transition
+        return this.updateComplete;
+      });
+    } else {
+      // Fallback for browsers without View Transitions support
+      this.selectedSessionId = null;
+      this.currentView = 'list';
+      this.updateUrl();
+    }
+  }
+
   private async handleKillAll() {
     // Find all session cards and trigger their kill buttons
     const sessionCards = this.querySelectorAll<SessionCard>('session-card');

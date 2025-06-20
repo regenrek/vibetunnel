@@ -40,7 +40,15 @@ export class SessionList extends LitElement {
 
   private handleSessionSelect(e: CustomEvent) {
     const session = e.detail as Session;
-    window.location.search = `?session=${session.id}`;
+
+    // Dispatch a custom event that the app can handle with view transitions
+    this.dispatchEvent(
+      new CustomEvent('navigate-to-session', {
+        detail: { sessionId: session.id },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   private handleSessionKilled(e: CustomEvent) {
