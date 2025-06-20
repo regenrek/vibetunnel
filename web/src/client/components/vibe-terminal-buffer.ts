@@ -162,9 +162,10 @@ export class VibeTerminalBuffer extends LitElement {
         return; // No changes
       }
 
-      // Always fetch the entire buffer to show all content
+      // Fetch buffer data - let server decide the viewport
+      const lines = Math.max(this.actualRows, stats.rows);
       const response = await fetch(
-        `/api/sessions/${this.sessionId}/buffer?viewportY=0&lines=${stats.totalRows}&format=json`
+        `/api/sessions/${this.sessionId}/buffer?lines=${lines}&format=json`
       );
 
       if (!response.ok) {
