@@ -304,8 +304,8 @@ private struct ServerSection: View {
                                 .fill(isServerHealthy ? .green : (isServerRunning ? .orange : .red))
                                 .frame(width: 8, height: 8)
                             if isServerRunning && !isServerHealthy {
-                                ProgressView()
-                                    .scaleEffect(0.6)
+                                TextShimmer(text: "...", font: .caption)
+                                    .frame(width: 20, height: 8)
                             }
                         }
                         Text(isServerHealthy ? "Server is running on port \(serverPort)" :
@@ -369,15 +369,18 @@ private struct ServerSection: View {
                     .disabled(serverManager.isSwitching)
                 }
 
-                if serverManager.isSwitching {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Switching server mode...")
-                            .font(.caption)
+                // Server mode switching status with consistent height
+                HStack {
+                    if serverManager.isSwitching {
+                        TextShimmer(text: "Switching server mode...", font: .caption)
                             .foregroundStyle(.secondary)
+                    } else {
+                        Text(" ") // Invisible spacer to maintain height
+                            .font(.caption)
+                            .opacity(0)
                     }
                 }
+                .frame(height: 16)
                 
                 // Port conflict warning
                 if let conflict = portConflict {
