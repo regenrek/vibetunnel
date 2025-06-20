@@ -21,6 +21,9 @@ cd "$(dirname "$0")"
 # Create build directory if it doesn't exist
 mkdir -p $TARGET_DIR
 
+# Set CGO flags to suppress GNU folding constant warning
+export CGO_CFLAGS="-Wno-gnu-folding-constant"
+
 # Build for x86_64
 echo "Building x86_64 target..."
 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o $TARGET_DIR/vibetunnel-x86_64 ./cmd/vibetunnel

@@ -12,6 +12,8 @@ DIST_DIR := $(WEB_DIR)/dist
 
 # Go build flags
 GO_FLAGS := -ldflags "-X main.version=$(VERSION)"
+# Suppress GNU folding constant warning
+export CGO_CFLAGS := -Wno-gnu-folding-constant
 GO_BUILD := go build $(GO_FLAGS)
 
 # Default target
