@@ -66,13 +66,19 @@ final class CLIInstaller {
             // Update state without animation
             isInstalled = installed
 
+            // Capture values for use in detached task
+            let capturedVtInstalled = vtInstalled
+            let capturedVibetunnelInstalled = vibetunnelInstalled
+            let capturedVtIsSymlink = vtIsSymlink
+            let capturedNeedsVtMigration = needsVtMigration
+
             // Move version checks to background
             Task.detached(priority: .userInitiated) {
                 var installedVer: String?
                 var bundledVer: String?
 
                 // Only check vibetunnel version if it's installed
-                if vibetunnelInstalled {
+                if capturedVibetunnelInstalled {
                     // Check version of installed tools
                     installedVer = await self.getInstalledVersionAsync()
                 }
@@ -89,12 +95,12 @@ final class CLIInstaller {
                     // 1. If vt needs migration (not a symlink)
                     // 2. If vibetunnel is not installed
                     // 3. If versions don't match
-                    self.needsUpdate = needsVtMigration || !vibetunnelInstalled || 
-                        (vibetunnelInstalled && installedVer != nil && bundledVer != nil && installedVer != bundledVer)
+                    self.needsUpdate = capturedNeedsVtMigration || !capturedVibetunnelInstalled || 
+                        (capturedVibetunnelInstalled && installedVer != nil && bundledVer != nil && installedVer != bundledVer)
 
                     self.logger
                         .info(
-                            "CLIInstaller: CLI tools installed: \(self.isInstalled) (vt: \(vtInstalled), vibetunnel: \(vibetunnelInstalled)), vt is symlink: \(vtIsSymlink), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)"
+                            "CLIInstaller: CLI tools installed: \(self.isInstalled) (vt: \(capturedVtInstalled), vibetunnel: \(capturedVibetunnelInstalled)), vt is symlink: \(capturedVtIsSymlink), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)"
                         )
                 }
             }
