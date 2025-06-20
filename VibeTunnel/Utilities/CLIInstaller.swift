@@ -39,24 +39,38 @@ final class CLIInstaller {
 
     /// Checks if the CLI tool is installed
     func checkInstallationStatus() {
-        let targetPath = "/usr/local/bin/vt"
-        let installed = FileManager.default.fileExists(atPath: targetPath)
+        Task { @MainActor in
+            let targetPath = "/usr/local/bin/vt"
+            let installed = FileManager.default.fileExists(atPath: targetPath)
 
-        // Update state without animation
-        isInstalled = installed
-        
-        if installed {
-            // Check version of installed tool
-            installedVersion = getInstalledVersion()
+            // Update state without animation
+            isInstalled = installed
+            
+            // Move version checks to background
+            Task.detached(priority: .userInitiated) {
+                var installedVer: String? = nil
+                var bundledVer: String? = nil
+                
+                if installed {
+                    // Check version of installed tool
+                    installedVer = await self.getInstalledVersionAsync()
+                }
+                
+                // Get bundled version
+                bundledVer = await self.getBundledVersionAsync()
+                
+                // Update UI on main thread
+                await MainActor.run {
+                    self.installedVersion = installedVer
+                    self.bundledVersion = bundledVer
+                    
+                    // Check if update is needed
+                    self.needsUpdate = installed && self.installedVersion != self.bundledVersion
+
+                    self.logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)")
+                }
+            }
         }
-        
-        // Get bundled version
-        bundledVersion = getBundledVersion()
-        
-        // Check if update is needed
-        needsUpdate = installed && installedVersion != bundledVersion
-
-        logger.info("CLIInstaller: CLI tool installed: \(self.isInstalled), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)")
     }
     
     /// Gets the version of the installed vt tool
@@ -123,6 +137,72 @@ final class CLIInstaller {
             return output
         } catch {
             logger.error("Failed to get bundled vt version: \(error)")
+            return nil
+        }
+    }
+    
+    /// Gets the version of the installed vt tool (async version for background execution)
+    private nonisolated func getInstalledVersionAsync() async -> String? {
+        let task = Process()
+        task.launchPath = "/usr/local/bin/vt"
+        task.arguments = ["--version"]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Parse version from output like "vt version 2.0.0"
+            if let output = output, output.contains("version") {
+                let components = output.components(separatedBy: " ")
+                if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
+                    return components[versionIndex + 1]
+                }
+            }
+            
+            return output
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Gets the version of the bundled vt tool (async version for background execution)
+    private nonisolated func getBundledVersionAsync() async -> String? {
+        guard let vtPath = Bundle.main.path(forResource: "vt", ofType: nil) else {
+            return nil
+        }
+        
+        let task = Process()
+        task.launchPath = vtPath
+        task.arguments = ["--version"]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Parse version from output like "vt version 2.0.0"
+            if let output = output, output.contains("version") {
+                let components = output.components(separatedBy: " ")
+                if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
+                    return components[versionIndex + 1]
+                }
+            }
+            
+            return output
+        } catch {
             return nil
         }
     }
