@@ -9,6 +9,7 @@ import { TerminalManager } from './terminal-manager.js';
 import { StreamWatcher } from './stream-watcher.js';
 import { RemoteRegistry } from './remote-registry.js';
 import { HQClient } from './hq-client.js';
+import { createSessionProxyMiddleware } from './hq-utils.js';
 
 type BufferSnapshot = Awaited<ReturnType<TerminalManager['getBufferSnapshot']>>;
 
@@ -184,6 +185,9 @@ if (basicAuthPassword) {
   });
 }
 
+// Create session proxy middleware
+const sessionProxy = createSessionProxyMiddleware(isHQMode, remoteRegistry, basicAuthPassword);
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Hot reload functionality for development
@@ -194,9 +198,10 @@ const hotReloadClients = new Set<WebSocket>();
 // List all sessions
 app.get('/api/sessions', async (req, res) => {
   try {
-    const sessions = ptyService.listSessions();
+    // Get local sessions
+    const localSessions = ptyService.listSessions();
 
-    const sessionData = sessions.map((sessionInfo) => {
+    const localSessionData = localSessions.map((sessionInfo) => {
       // Get actual last modified time from stream-out file
       let lastModified = sessionInfo.started_at || new Date().toISOString();
       try {
@@ -221,14 +226,55 @@ app.get('/api/sessions', async (req, res) => {
         lastModified: lastModified,
         pid: sessionInfo.pid,
         waiting: sessionInfo.waiting,
+        remoteId: 'local', // Mark as local session
+        remoteName: 'Local',
       };
     });
 
+    let allSessions = localSessionData;
+
+    // If in HQ mode, fetch sessions from all online remotes
+    if (isHQMode && remoteRegistry) {
+      const onlineRemotes = remoteRegistry.getOnlineRemotes();
+
+      // Fetch sessions from each remote in parallel
+      const remoteSessionPromises = onlineRemotes.map(async (remote) => {
+        try {
+          const response = await fetch(`${remote.url}/api/sessions`, {
+            headers: {
+              Authorization: `Basic ${Buffer.from(`user:${basicAuthPassword}`).toString('base64')}`,
+            },
+            signal: AbortSignal.timeout(5000), // 5 second timeout
+          });
+
+          if (response.ok) {
+            const remoteSessions = await response.json();
+            // Add remote info to each session
+            return remoteSessions.map((session: any) => ({
+              ...session,
+              id: `${remote.id}:${session.id}`, // Namespace the session ID
+              remoteId: remote.id,
+              remoteName: remote.name,
+            }));
+          }
+        } catch (error) {
+          console.error(`Failed to fetch sessions from remote ${remote.name}:`, error);
+        }
+        return [];
+      });
+
+      const remoteSessionArrays = await Promise.all(remoteSessionPromises);
+      const remoteSessions = remoteSessionArrays.flat();
+
+      allSessions = [...localSessionData, ...remoteSessions];
+    }
+
     // Sort by lastModified, most recent first
-    sessionData.sort(
+    allSessions.sort(
       (a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
     );
-    res.json(sessionData);
+
+    res.json(allSessions);
   } catch (error) {
     console.error('Failed to list sessions:', error);
     res.status(500).json({ error: 'Failed to list sessions' });
@@ -238,12 +284,50 @@ app.get('/api/sessions', async (req, res) => {
 // Create new session
 app.post('/api/sessions', async (req, res) => {
   try {
-    const { command, workingDir, name } = req.body;
+    const { command, workingDir, name, remoteId } = req.body;
 
     if (!command || !Array.isArray(command) || command.length === 0) {
       return res.status(400).json({ error: 'Command array is required and cannot be empty' });
     }
 
+    // If remoteId is specified and we're in HQ mode, forward to remote
+    if (remoteId && remoteId !== 'local' && isHQMode && remoteRegistry) {
+      const remote = remoteRegistry.getRemote(remoteId);
+      if (!remote) {
+        return res.status(404).json({ error: 'Remote server not found' });
+      }
+
+      if (remote.status !== 'online') {
+        return res.status(503).json({ error: 'Remote server is offline' });
+      }
+
+      try {
+        const response = await fetch(`${remote.url}/api/sessions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${Buffer.from(`user:${basicAuthPassword}`).toString('base64')}`,
+          },
+          body: JSON.stringify({ command, workingDir, name }),
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+          return res.status(response.status).json(error);
+        }
+
+        const result = await response.json();
+        // Namespace the session ID
+        res.json({ sessionId: `${remoteId}:${result.sessionId}` });
+        return;
+      } catch (error) {
+        console.error(`Failed to create session on remote ${remote.name}:`, error);
+        return res.status(503).json({ error: 'Failed to create session on remote server' });
+      }
+    }
+
+    // Create local session
     const sessionName = name || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const cwd = resolvePath(workingDir, process.cwd());
 
@@ -270,7 +354,7 @@ app.post('/api/sessions', async (req, res) => {
 });
 
 // Kill session (just kill the process)
-app.delete('/api/sessions/:sessionId', async (req, res) => {
+app.delete('/api/sessions/:sessionId', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
 
   try {
@@ -295,7 +379,7 @@ app.delete('/api/sessions/:sessionId', async (req, res) => {
 });
 
 // Cleanup session files
-app.delete('/api/sessions/:sessionId/cleanup', async (req, res) => {
+app.delete('/api/sessions/:sessionId/cleanup', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
 
   try {
@@ -452,7 +536,7 @@ app.get('/api/remotes', (req, res) => {
 // === TERMINAL I/O ===
 
 // Live streaming cast file for XTerm renderer
-app.get('/api/sessions/:sessionId/stream', async (req, res) => {
+app.get('/api/sessions/:sessionId/stream', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
   const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
 
@@ -488,7 +572,7 @@ app.get('/api/sessions/:sessionId/stream', async (req, res) => {
 });
 
 // Get session snapshot (optimized cast with only content after last clear)
-app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
+app.get('/api/sessions/:sessionId/snapshot', sessionProxy, (req, res) => {
   const sessionId = req.params.sessionId;
   const streamOutPath = path.join(TTY_FWD_CONTROL_DIR, sessionId, 'stream-out');
 
@@ -611,7 +695,7 @@ app.get('/api/sessions/:sessionId/snapshot', (req, res) => {
 });
 
 // Get session buffer stats
-app.get('/api/sessions/:sessionId/buffer/stats', async (req, res) => {
+app.get('/api/sessions/:sessionId/buffer/stats', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
 
   try {
@@ -645,7 +729,7 @@ app.get('/api/sessions/:sessionId/buffer/stats', async (req, res) => {
 });
 
 // Get session buffer in binary or JSON format
-app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
+app.get('/api/sessions/:sessionId/buffer', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
   const format = (req.query.format as string) || 'binary';
 
@@ -684,7 +768,7 @@ app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
 });
 
 // Send input to session
-app.post('/api/sessions/:sessionId/input', async (req, res) => {
+app.post('/api/sessions/:sessionId/input', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
   const { text } = req.body;
 
@@ -746,7 +830,7 @@ app.post('/api/sessions/:sessionId/input', async (req, res) => {
 });
 
 // Resize session terminal
-app.post('/api/sessions/:sessionId/resize', async (req, res) => {
+app.post('/api/sessions/:sessionId/resize', sessionProxy, async (req, res) => {
   const sessionId = req.params.sessionId;
   const { cols, rows } = req.body;
 
