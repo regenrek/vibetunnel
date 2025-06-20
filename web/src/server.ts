@@ -114,7 +114,7 @@ let remoteRegistry: RemoteRegistry | null = null;
 let hqClient: HQClient | null = null;
 
 if (isHQMode) {
-  remoteRegistry = new RemoteRegistry(basicAuthPassword);
+  remoteRegistry = new RemoteRegistry();
   console.log(`${GREEN}Running in HQ mode${RESET}`);
 }
 
@@ -157,36 +157,59 @@ function resolvePath(inputPath: string, fallback?: string): string {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Basic authentication middleware
-if (basicAuthPassword) {
-  app.use((req, res, next) => {
-    // Skip auth for WebSocket upgrade requests (handled separately)
-    if (req.headers.upgrade === 'websocket') {
+// Authentication middleware - supports both Basic Auth and Bearer token (for remotes)
+const authMiddleware = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  // Skip auth if not configured
+  if (!basicAuthPassword && !hqClient) {
+    return next();
+  }
+
+  // Skip auth for WebSocket upgrade requests (handled separately)
+  if (req.headers.upgrade === 'websocket') {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="VibeTunnel"');
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // Check Bearer token first (if we're a remote that registered with HQ)
+  if (authHeader.startsWith('Bearer ') && hqClient) {
+    const token = authHeader.slice(7);
+    if (token === hqClient.getToken()) {
       return next();
     }
+  }
 
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-      res.setHeader('WWW-Authenticate', 'Basic realm="VibeTunnel"');
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
+  // Check Basic Auth
+  if (authHeader.startsWith('Basic ') && basicAuthPassword) {
     const base64Credentials = authHeader.slice(6);
     const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-    const [_username, password] = credentials.split(':');
+    const [username, password] = credentials.split(':');
 
-    if (password !== basicAuthPassword) {
-      res.setHeader('WWW-Authenticate', 'Basic realm="VibeTunnel"');
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (username === 'admin' && password === basicAuthPassword) {
+      return next();
     }
+  }
 
-    next();
-  });
+  res.setHeader('WWW-Authenticate', 'Basic realm="VibeTunnel"');
+  return res.status(401).json({ error: 'Invalid credentials' });
+};
+
+// Apply auth middleware if authentication is configured
+if (basicAuthPassword || hqClient) {
+  app.use(authMiddleware);
 }
 
 // Create session proxy middleware
-const sessionProxy = createSessionProxyMiddleware(isHQMode, remoteRegistry, basicAuthPassword);
+const sessionProxy = createSessionProxyMiddleware(isHQMode, remoteRegistry);
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -242,7 +265,7 @@ app.get('/api/sessions', async (req, res) => {
         try {
           const response = await fetch(`${remote.url}/api/sessions`, {
             headers: {
-              Authorization: `Basic ${Buffer.from(`user:${basicAuthPassword}`).toString('base64')}`,
+              Authorization: `Bearer ${remote.token}`,
             },
             signal: AbortSignal.timeout(5000), // 5 second timeout
           });
@@ -426,22 +449,20 @@ app.post('/api/remotes/register', (req, res) => {
     return res.status(404).json({ error: 'HQ mode not enabled' });
   }
 
-  const { id, name, url, token, password } = req.body;
+  const { id, name, url, token } = req.body;
 
-  if (!id || !name || !url || !token || !password) {
+  if (!id || !name || !url || !token) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // Verify the password matches
-  if (password !== basicAuthPassword) {
-    return res.status(401).json({ error: 'Invalid password' });
-  }
+  // Note: Basic auth is already validated by the middleware for this endpoint
+  // The token provided here is for HQ to authenticate with the remote
 
   const remote = remoteRegistry.register({
     id,
     name,
     url,
-    token,
+    token, // This token is for HQ to use when calling remote's APIs
     sessionCount: 0,
   });
 
@@ -455,21 +476,12 @@ app.delete('/api/remotes/:remoteId', (req, res) => {
   }
 
   const { remoteId } = req.params;
-  const authHeader = req.headers.authorization;
 
-  // Verify token
+  // Note: Basic auth is already validated by the middleware for this endpoint
+  // Only allow unregistering if the remote exists
   const remote = remoteRegistry.getRemote(remoteId);
   if (!remote) {
     return res.status(404).json({ error: 'Remote not found' });
-  }
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization' });
-  }
-
-  const token = authHeader.slice(7);
-  if (token !== remote.token) {
-    return res.status(401).json({ error: 'Invalid token' });
   }
 
   const success = remoteRegistry.unregister(remoteId);
@@ -1137,20 +1149,37 @@ function sendBinaryBuffer(ws: WebSocket, sessionId: string, snapshot: BufferSnap
 
 // WebSocket connections
 wss.on('connection', (ws, req) => {
-  // Check basic auth for WebSocket connections if password is set
-  if (basicAuthPassword) {
+  // Check authentication for WebSocket connections
+  if (basicAuthPassword || hqClient) {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
+    if (!authHeader) {
       ws.close(1008, 'Authentication required');
       return;
     }
 
-    const base64Credentials = authHeader.slice(6);
-    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-    const [_username, password] = credentials.split(':');
+    let authenticated = false;
 
-    if (password !== basicAuthPassword) {
+    // Check Bearer token first (if we're a remote that registered with HQ)
+    if (authHeader.startsWith('Bearer ') && hqClient) {
+      const token = authHeader.slice(7);
+      if (token === hqClient.getToken()) {
+        authenticated = true;
+      }
+    }
+
+    // Check Basic Auth
+    if (!authenticated && authHeader.startsWith('Basic ') && basicAuthPassword) {
+      const base64Credentials = authHeader.slice(6);
+      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+      const [username, password] = credentials.split(':');
+
+      if (username === 'admin' && password === basicAuthPassword) {
+        authenticated = true;
+      }
+    }
+
+    if (!authenticated) {
       ws.close(1008, 'Invalid credentials');
       return;
     }
@@ -1201,13 +1230,18 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
     if (basicAuthPassword) {
       console.log(`${GREEN}Basic authentication: ENABLED${RESET}`);
-      console.log('Username: <any username>');
+      console.log('Username: admin');
       console.log(`Password: ${basicAuthPassword}`);
     } else {
       console.log(`${RED}⚠️  WARNING: Server running without authentication!${RESET}`);
       console.log(
         `${YELLOW}Anyone can access this server. Use --password or set VIBETUNNEL_PASSWORD.${RESET}`
       );
+    }
+
+    if (hqClient) {
+      console.log(`${GREEN}Remote mode: Will accept Bearer token for HQ access${RESET}`);
+      console.log(`Token: ${hqClient.getToken()}`);
     }
 
     // Register with HQ if configured

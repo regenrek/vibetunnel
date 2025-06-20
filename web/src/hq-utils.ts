@@ -44,8 +44,7 @@ export function createNamespacedId(remoteId: string, sessionId: string): string 
  */
 export function createSessionProxyMiddleware(
   isHQMode: boolean,
-  remoteRegistry: RemoteRegistry | null,
-  basicAuthPassword: string | null
+  remoteRegistry: RemoteRegistry | null
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Only proxy in HQ mode
@@ -90,10 +89,8 @@ export function createSessionProxyMiddleware(
         'Content-Type': req.get('Content-Type') || 'application/json',
       };
 
-      if (basicAuthPassword) {
-        headers['Authorization'] =
-          `Basic ${Buffer.from(`user:${basicAuthPassword}`).toString('base64')}`;
-      }
+      // Use the remote's token for authentication
+      headers['Authorization'] = `Bearer ${remote.token}`;
 
       const response = await fetch(targetUrl, {
         method: req.method,

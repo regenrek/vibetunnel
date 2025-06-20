@@ -14,10 +14,8 @@ export class RemoteRegistry {
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private readonly HEALTH_CHECK_INTERVAL = 15000; // Check every 15 seconds
   private readonly HEALTH_CHECK_TIMEOUT = 5000; // 5 second timeout per check
-  private password: string | null;
 
-  constructor(password: string | null = null) {
-    this.password = password;
+  constructor() {
     this.startHealthChecker();
   }
 
@@ -69,11 +67,10 @@ export class RemoteRegistry {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.HEALTH_CHECK_TIMEOUT);
 
-      const headers: Record<string, string> = {};
-      if (this.password) {
-        headers['Authorization'] =
-          `Basic ${Buffer.from(`user:${this.password}`).toString('base64')}`;
-      }
+      // Use the token provided by the remote for authentication
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${remote.token}`,
+      };
 
       const response = await fetch(`${remote.url}/api/sessions`, {
         headers,

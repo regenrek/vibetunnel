@@ -23,13 +23,13 @@ export class HQClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Basic ${Buffer.from(`user:${this.password}`).toString('base64')}`,
         },
         body: JSON.stringify({
           id: this.remoteId,
           name: this.remoteName,
           url: `http://localhost:${process.env.PORT || 4020}`,
-          token: this.token,
-          password: this.password,
+          token: this.token, // Token for HQ to authenticate with this remote
         }),
       });
 
@@ -56,7 +56,7 @@ export class HQClient {
     fetch(`${this.hqUrl}/api/remotes/${this.remoteId}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Basic ${Buffer.from(`user:${this.password}`).toString('base64')}`,
       },
     }).catch(() => {
       // Ignore errors during shutdown
