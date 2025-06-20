@@ -80,7 +80,7 @@ struct SessionListView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onChange(of: navigationManager.shouldNavigateToSession) { shouldNavigate in
+        .onChange(of: navigationManager.shouldNavigateToSession) { _, shouldNavigate in
             if shouldNavigate,
                let sessionId = navigationManager.selectedSessionId,
                let session = viewModel.sessions.first(where: { $0.id == sessionId }) {
