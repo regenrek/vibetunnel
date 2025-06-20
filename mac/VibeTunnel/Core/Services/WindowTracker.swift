@@ -225,14 +225,14 @@ final class WindowTracker {
         }
     }
     
-    /// Focuses an iTerm2 window/tab.
+    /// Focuses an iTerm2 window.
     private func focusiTerm2Window(_ windowInfo: WindowInfo) {
-        if let tabID = windowInfo.tabID {
-            // Use tab ID for focusing
+        if let windowID = windowInfo.tabID {
+            // Use window ID for focusing (stored in tabID for consistency)
             let script = """
             tell application "iTerm2"
                 activate
-                tell tab id "\(tabID)"
+                tell window id "\(windowID)"
                     select
                 end tell
             end tell
@@ -240,9 +240,9 @@ final class WindowTracker {
             
             do {
                 try AppleScriptExecutor.shared.execute(script)
-                logger.info("Focused iTerm2 tab using ID")
+                logger.info("Focused iTerm2 window using ID")
             } catch {
-                logger.error("Failed to focus iTerm2 tab: \(error)")
+                logger.error("Failed to focus iTerm2 window: \(error)")
                 focusWindowUsingAccessibility(windowInfo)
             }
         } else {
@@ -299,7 +299,7 @@ final class WindowTracker {
             let activeSessionIDs = Set(sessions.map { $0.id })
             sessionWindowMap = sessionWindowMap.filter { activeSessionIDs.contains($0.key) }
             
-            logger.debug("Updated window tracker: \(self.sessionWindowMap.count) active windows")
+            //logger.debug("Updated window tracker: \(self.sessionWindowMap.count) active windows")
         }
     }
     

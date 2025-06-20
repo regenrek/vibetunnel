@@ -143,11 +143,32 @@ enum Terminal: String, CaseIterable {
         // For all other terminals, use clipboard approach for reliability
         // This avoids issues with special characters and long commands
         // Note: The command is already copied to clipboard before this script runs
+        
+        // Special handling for iTerm2 to ensure new window (not tab)
+        if self == .iTerm2 {
+            return """
+            tell application "\(processName)"
+                activate
+                tell application "System Events"
+                    -- Create new window (Cmd+Shift+N for iTerm2)
+                    keystroke "n" using {command down, shift down}
+                    delay 0.5
+                    -- Paste command from clipboard
+                    keystroke "v" using {command down}
+                    delay 0.1
+                    -- Execute the command
+                    key code 36
+                end tell
+            end tell
+            """
+        }
+        
+        // For other terminals, Cmd+N typically creates a new window
         return """
         tell application "\(processName)"
             activate
             tell application "System Events"
-                -- Create new window/tab
+                -- Create new window
                 keystroke "n" using {command down}
                 delay 0.5
                 -- Paste command from clipboard
@@ -399,8 +420,10 @@ final class TerminalLauncher {
                         tabReference = "tab id \(components[1]) of window id \(components[0])"
                     }
                 } else if config.terminal == .iTerm2 {
-                    // iTerm2 returns tab ID
-                    tabID = result.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // iTerm2 returns window ID
+                    let windowIDString = result.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // For iTerm2, we store the window ID as tabID for consistency
+                    tabID = windowIDString
                 }
             } else {
                 // For non-Terminal.app terminals, copy command to clipboard first
@@ -555,16 +578,15 @@ final class TerminalLauncher {
             """
             
         case .iTerm2:
-            // iTerm2 script that returns tab info
+            // iTerm2 script that returns window info
             return """
             tell application "iTerm2"
-                tell current window
-                    set newTab to (create tab with default profile)
-                    tell current session of newTab
-                        write text "\(config.appleScriptEscapedCommand)"
-                    end tell
-                    return id of newTab
+                activate
+                set newWindow to (create window with default profile)
+                tell current session of newWindow
+                    write text "\(config.appleScriptEscapedCommand)"
                 end tell
+                return id of newWindow
             end tell
             """
             
