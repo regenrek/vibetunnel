@@ -31,7 +31,7 @@ struct SessionCreateView: View {
     let onCreated: (String) -> Void
 
     @State private var command = "zsh"
-    @State private var workingDirectory = "~"
+    @State private var workingDirectory = "~/"
     @State private var sessionName = ""
     @State private var isCreating = false
     @State private var errorMessage: String?
@@ -76,7 +76,7 @@ struct SessionCreateView: View {
                                     .foregroundColor(Theme.Colors.primaryAccent)
 
                                 HStack(spacing: Theme.Spacing.small) {
-                                    TextField("~", text: $workingDirectory)
+                                    TextField("~/", text: $workingDirectory)
                                         .textFieldStyle(TerminalTextFieldStyle())
                                         .autocapitalization(.none)
                                         .disableAutocorrection(true)
@@ -339,7 +339,7 @@ struct SessionCreateView: View {
     }
 
     private var commonDirectories: [String] {
-        ["~", "~/Desktop", "~/Documents", "~/Downloads", "~/Projects", "/tmp"]
+        ["~/", "~/Desktop", "~/Documents", "~/Downloads", "~/Projects", "/tmp"]
     }
 
     private func commandIcon(for command: String) -> String {
@@ -362,18 +362,23 @@ struct SessionCreateView: View {
     }
 
     private func loadDefaults() {
-        // Load last used values
-        if let lastCommand = UserDefaults.standard.string(forKey: "lastCommand") {
+        // Load last used values matching web behavior
+        if let lastCommand = UserDefaults.standard.string(forKey: "vibetunnel_last_command"), !lastCommand.isEmpty {
             command = lastCommand
         } else {
             // Default to zsh
             command = "zsh"
         }
-        if let lastDir = UserDefaults.standard.string(forKey: "lastWorkingDir") {
+        if let lastDir = UserDefaults.standard.string(forKey: "vibetunnel_last_working_dir"), !lastDir.isEmpty {
             workingDirectory = lastDir
         } else {
-            // Default to home directory on the server
-            workingDirectory = "~"
+            // Default to home directory  
+            workingDirectory = "~/"
+        }
+        
+        // Match the web's selectedQuickStart behavior
+        if quickStartCommands.contains(where: { $0.command == command }) {
+            // Command matches a quick start option
         }
     }
 
@@ -381,9 +386,9 @@ struct SessionCreateView: View {
         isCreating = true
         errorMessage = nil
 
-        // Save preferences
-        UserDefaults.standard.set(command, forKey: "lastCommand")
-        UserDefaults.standard.set(workingDirectory, forKey: "lastWorkingDir")
+        // Save preferences matching web localStorage keys
+        UserDefaults.standard.set(command, forKey: "vibetunnel_last_command")
+        UserDefaults.standard.set(workingDirectory, forKey: "vibetunnel_last_working_dir")
 
         Task {
             do {

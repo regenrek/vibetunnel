@@ -14,6 +14,7 @@ struct SessionListView: View {
     @State private var selectedSession: Session?
     @State private var showExitedSessions = true
     @State private var showingFileBrowser = false
+    @State private var showingSettings = false
     @State private var searchText = ""
     
     var filteredSessions: [Session] {
@@ -33,7 +34,7 @@ struct SessionListView: View {
                 return true
             }
             // Search in working directory
-            if session.cwd.localizedCaseInsensitiveContains(searchText) {
+            if session.workingDir.localizedCaseInsensitiveContains(searchText) {
                 return true
             }
             // Search in PID
@@ -95,6 +96,15 @@ struct SessionListView: View {
                     HStack(spacing: Theme.Spacing.medium) {
                         Button(action: {
                             HapticFeedback.impact(.light)
+                            showingSettings = true
+                        }, label: {
+                            Image(systemName: "gearshape.fill")
+                                .font(.title3)
+                                .foregroundColor(Theme.Colors.primaryAccent)
+                        })
+                        
+                        Button(action: {
+                            HapticFeedback.impact(.light)
                             showingFileBrowser = true
                         }, label: {
                             Image(systemName: "folder.fill")
@@ -131,6 +141,9 @@ struct SessionListView: View {
                 FileBrowserView(mode: .browseFiles) { path in
                     // For browse mode, we don't need to handle path selection
                 }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
             }
             .refreshable {
                 await viewModel.loadSessions()

@@ -9,6 +9,7 @@ enum APIError: LocalizedError {
     case networkError(Error)
     case noServerConfigured
     case invalidResponse
+    case resizeDisabledByServer
 
     var errorDescription: String? {
         switch self {
@@ -62,6 +63,8 @@ enum APIError: LocalizedError {
             return "No server configured"
         case .invalidResponse:
             return "Invalid server response"
+        case .resizeDisabledByServer:
+            return "Terminal resizing is disabled by the server"
         }
     }
 }

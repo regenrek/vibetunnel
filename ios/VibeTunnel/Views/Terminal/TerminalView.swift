@@ -18,6 +18,7 @@ struct TerminalView: View {
     @State private var selectedTerminalWidth: Int?
     @State private var selectedTheme = TerminalTheme.selected
     @State private var keyboardHeight: CGFloat = 0
+    @State private var showScrollToBottom = false
     @FocusState private var isInputFocused: Bool
 
     init(session: Session) {
@@ -69,6 +70,11 @@ struct TerminalView: View {
                         Button(action: { showingTerminalWidthSheet = true }, label: {
                             Label("Terminal Width", systemImage: "arrow.left.and.right")
                         })
+                        
+                        Button(action: { viewModel.toggleFitToWidth() }, label: {
+                            Label(viewModel.fitToWidth ? "Fixed Width" : "Fit to Width", 
+                                  systemImage: viewModel.fitToWidth ? "arrow.left.and.right.square" : "arrow.left.and.right.square.fill")
+                        })
 
                         Button(action: { showingTerminalThemeSheet = true }, label: {
                             Label("Theme", systemImage: "paintbrush")
@@ -111,7 +117,7 @@ struct TerminalView: View {
                 RecordingExportSheet(recorder: viewModel.castRecorder, sessionName: session.displayName)
             }
             .sheet(isPresented: $showingTerminalWidthSheet) {
-                TerminalWidthSheet(selectedWidth: $selectedTerminalWidth)
+                TerminalWidthSheet(selectedWidth: $selectedTerminalWidth, isResizeBlockedByServer: viewModel.isResizeBlockedByServer)
                     .onAppear {
                         selectedTerminalWidth = viewModel.terminalCols
                     }
@@ -219,6 +225,12 @@ struct TerminalView: View {
                 viewModel.resize(cols: width, rows: newHeight)
             }
         }
+        .onChange(of: viewModel.isAtBottom) { oldValue, newValue in
+            // Update scroll button visibility
+            withAnimation(Theme.Animation.smooth) {
+                showScrollToBottom = !newValue
+            }
+        }
     }
 
     private var loadingView: some View {
@@ -278,6 +290,13 @@ struct TerminalView: View {
             .id(viewModel.terminalViewId)
             .background(selectedTheme.background)
             .focused($isInputFocused)
+            .scrollToBottomOverlay(
+                isVisible: showScrollToBottom,
+                action: {
+                    viewModel.scrollToBottom()
+                    showScrollToBottom = false
+                }
+            )
 
             // Keyboard toolbar
             if keyboardHeight > 0 {
@@ -310,6 +329,9 @@ class TerminalViewModel {
     var terminalRows: Int = 0
     var isAutoScrollEnabled = true
     var recordingPulse = false
+    var isResizeBlockedByServer = false
+    var isAtBottom = true
+    var fitToWidth = false
 
     let session: Session
     let castRecorder: CastRecorder
@@ -501,8 +523,14 @@ class TerminalViewModel {
         Task {
             do {
                 try await SessionService.shared.resizeTerminal(sessionId: session.id, cols: cols, rows: rows)
+                // If resize succeeded, ensure the flag is cleared
+                isResizeBlockedByServer = false
             } catch {
                 print("Failed to resize terminal: \(error)")
+                // Check if the error is specifically about resize being disabled
+                if case APIError.resizeDisabledByServer = error {
+                    isResizeBlockedByServer = true
+                }
             }
         }
     }
@@ -516,5 +544,34 @@ class TerminalViewModel {
     func copyBuffer() {
         // Terminal copy is handled by SwiftTerm's built-in functionality
         HapticFeedback.notification(.success)
+    }
+    
+    func scrollToBottom() {
+        // Signal the terminal to scroll to bottom
+        isAutoScrollEnabled = true
+        isAtBottom = true
+        // The actual scrolling is handled by the terminal coordinator
+        terminalCoordinator?.scrollToBottom()
+    }
+    
+    func updateScrollState(isAtBottom: Bool) {
+        self.isAtBottom = isAtBottom
+        self.isAutoScrollEnabled = isAtBottom
+    }
+    
+    func toggleFitToWidth() {
+        fitToWidth.toggle()
+        HapticFeedback.impact(.light)
+        
+        if fitToWidth {
+            // Calculate optimal width to fit the screen
+            let screenWidth = UIScreen.main.bounds.width
+            let padding: CGFloat = 32 // Account for UI padding
+            let charWidth: CGFloat = 9 // Approximate character width
+            let optimalCols = Int((screenWidth - padding) / charWidth)
+            
+            // Resize to fit
+            resize(cols: optimalCols, rows: terminalRows)
+        }
     }
 }
