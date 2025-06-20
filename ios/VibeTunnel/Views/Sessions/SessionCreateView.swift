@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Custom text field style for terminal-like appearance
 struct TerminalTextFieldStyle: TextFieldStyle {
-    func makeBody(configuration: TextField<Self._Label>) -> some View {
+    func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .font(Theme.Typography.terminalSystem(size: 16))
             .foregroundColor(Theme.Colors.terminalForeground)
@@ -376,7 +376,7 @@ struct SessionCreateView: View {
                 print("  Command: \(sessionData.command)")
                 print("  Working Dir: \(sessionData.workingDir)")
                 print("  Name: \(sessionData.name ?? "nil")")
-                print("  Spawn Terminal: \(sessionData.spawn_terminal ?? false)")
+                print("  Spawn Terminal: \(sessionData.spawnTerminal ?? false)")
                 print("  Cols: \(sessionData.cols ?? 0), Rows: \(sessionData.rows ?? 0)")
 
                 let sessionId = try await SessionService.shared.createSession(sessionData)
