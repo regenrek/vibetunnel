@@ -70,7 +70,7 @@ func fdIsSet(set *syscall.FdSet, fd int) bool {
 // pollWithSelect polls multiple file descriptors using select
 func (p *PTY) pollWithSelect() error {
 	// Buffer for reading
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, 4*1024) // 4KB buffer for more responsive output
 
 	// Get file descriptors
 	ptyFd := int(p.pty.Fd())
@@ -106,8 +106,8 @@ func (p *PTY) pollWithSelect() error {
 			fds = append(fds, controlFd)
 		}
 
-		// Wait for activity with 100ms timeout for better responsiveness
-		ready, err := selectRead(fds, 100*time.Millisecond)
+		// Wait for activity with 10ms timeout for real-time responsiveness
+		ready, err := selectRead(fds, 10*time.Millisecond)
 		if err != nil {
 			log.Printf("[ERROR] select error: %v", err)
 			return err

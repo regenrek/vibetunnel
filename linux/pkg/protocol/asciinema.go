@@ -137,6 +137,11 @@ func (w *StreamWriter) writeEvent(eventType EventType, data []byte) error {
 		return err
 	}
 
+	// Immediately flush if the writer supports it for real-time output
+	if flusher, ok := w.writer.(interface{ Flush() error }); ok {
+		flusher.Flush()
+	}
+
 	// Schedule sync instead of immediate sync for better performance
 	w.scheduleBatchSync()
 
@@ -150,8 +155,8 @@ func (w *StreamWriter) scheduleFlush() {
 		w.flushTimer.Stop()
 	}
 
-	// Set up new timer for 1ms flush delay for better real-time performance
-	w.flushTimer = time.AfterFunc(1*time.Millisecond, func() {
+	// Set up immediate flush for real-time performance
+	w.flushTimer = time.AfterFunc(0, func() {
 		w.mutex.Lock()
 		defer w.mutex.Unlock()
 
@@ -186,6 +191,11 @@ func (w *StreamWriter) scheduleFlush() {
 			return
 		}
 
+		// Immediately flush if the writer supports it for real-time output
+		if flusher, ok := w.writer.(interface{ Flush() error }); ok {
+			flusher.Flush()
+		}
+
 		// Schedule sync instead of immediate sync for better performance
 		w.scheduleBatchSync()
 
@@ -203,8 +213,8 @@ func (w *StreamWriter) scheduleBatchSync() {
 		w.syncTimer.Stop()
 	}
 
-	// Schedule sync after 1ms for better real-time performance
-	w.syncTimer = time.AfterFunc(1*time.Millisecond, func() {
+	// Schedule immediate sync for real-time performance
+	w.syncTimer = time.AfterFunc(0, func() {
 		if w.needsSync {
 			if file, ok := w.writer.(*os.File); ok {
 				if err := file.Sync(); err != nil {
