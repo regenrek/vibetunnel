@@ -115,6 +115,18 @@ struct SessionIdHandlingTests {
     
     @Test("Parse tty-fwd session list response")
     func testParseTtyFwdSessionList() throws {
+        // Define a local type for parsing tty-fwd session JSON
+        struct TtyFwdSession: Codable {
+            let cmdline: [String]
+            let cwd: String
+            let name: String
+            let pid: Int
+            let status: String
+            let started_at: String
+            let stdin: String
+            let streamOut: String
+        }
+        
         // Test parsing the JSON response from tty-fwd --list-sessions
         let ttyFwdResponse = """
         {
