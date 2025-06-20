@@ -77,10 +77,7 @@ struct AdvancedSettingsView: View {
                             }
                         }
                         
-                        if cliInstaller.isInstalling {
-                            TextShimmer(text: "Installing CLI Tool...", font: .caption)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else if let error = cliInstaller.lastError {
+                        if let error = cliInstaller.lastError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundColor(.red)

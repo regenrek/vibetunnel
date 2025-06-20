@@ -340,7 +340,7 @@ private struct ServerSection: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Server Mode")
-                        Text("Play with this if you're feeling dangerous. Multiple servers cause reasons™.")
+                        Text("Multiple server implementations cause reasons™.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
