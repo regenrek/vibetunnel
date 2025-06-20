@@ -232,13 +232,13 @@ export class SessionCreateForm extends LitElement {
 
     return html`
       <div class="modal-backdrop flex items-center justify-center">
-        <div class="modal-content font-mono text-sm w-96 max-w-full mx-4">
+        <div class="modal-content font-mono text-sm w-96 lg:w-[768px] max-w-full mx-4">
           <div class="pb-6 mb-6 border-b border-dark-border">
             <h2 class="text-accent-green text-lg font-bold">Create New Session</h2>
           </div>
 
-          <div class="p-4">
-            <div class="mb-4">
+          <div class="p-4 lg:p-8">
+            <div class="mb-6">
               <label class="form-label">Session Name (optional):</label>
               <input
                 type="text"
@@ -250,38 +250,40 @@ export class SessionCreateForm extends LitElement {
               />
             </div>
 
-            <div class="mb-4">
-              <label class="form-label">Working Directory:</label>
-              <div class="flex gap-4">
+            <div class="lg:grid lg:grid-cols-2 lg:gap-6">
+              <div class="mb-6">
+                <label class="form-label">Working Directory:</label>
+                <div class="flex gap-4">
+                  <input
+                    type="text"
+                    class="input-field"
+                    .value=${this.workingDir}
+                    @input=${this.handleWorkingDirChange}
+                    placeholder="~/"
+                    ?disabled=${this.disabled || this.isCreating}
+                  />
+                  <button
+                    class="btn-secondary font-mono px-4"
+                    @click=${this.handleBrowse}
+                    ?disabled=${this.disabled || this.isCreating}
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+
+              <div class="mb-6">
+                <label class="form-label">Command:</label>
                 <input
                   type="text"
                   class="input-field"
-                  .value=${this.workingDir}
-                  @input=${this.handleWorkingDirChange}
-                  placeholder="~/"
+                  .value=${this.command}
+                  @input=${this.handleCommandChange}
+                  @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
+                  placeholder="zsh"
                   ?disabled=${this.disabled || this.isCreating}
                 />
-                <button
-                  class="btn-secondary font-mono px-4"
-                  @click=${this.handleBrowse}
-                  ?disabled=${this.disabled || this.isCreating}
-                >
-                  Browse
-                </button>
               </div>
-            </div>
-
-            <div class="mb-4">
-              <label class="form-label">Command:</label>
-              <input
-                type="text"
-                class="input-field"
-                .value=${this.command}
-                @input=${this.handleCommandChange}
-                @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.handleCreate()}
-                placeholder="zsh"
-                ?disabled=${this.disabled || this.isCreating}
-              />
             </div>
 
             <div class="flex gap-4 mt-6">

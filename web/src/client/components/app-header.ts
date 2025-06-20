@@ -49,11 +49,11 @@ export class AppHeader extends LitElement {
       <div class="app-header bg-dark-bg-secondary border-b border-dark-border p-6">
         <!-- Mobile layout -->
         <div class="flex flex-col gap-4 sm:hidden">
-          <!-- Centered Sessions title with stats -->
+          <!-- Centered VibeTunnel title with stats -->
           <div class="text-center flex flex-col items-center gap-2">
             <h1 class="text-2xl font-bold text-accent-green flex items-center gap-3">
               <terminal-icon size="28"></terminal-icon>
-              <span>Sessions</span>
+              <span>VibeTunnel</span>
             </h1>
             <p class="text-dark-text-muted text-sm">
               ${runningSessions.length} ${runningSessions.length === 1 ? 'Session' : 'Sessions'}
