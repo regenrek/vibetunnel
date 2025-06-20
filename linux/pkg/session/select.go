@@ -37,8 +37,8 @@ func selectRead(fds []int, timeout time.Duration) ([]int, error) {
 	// Convert timeout to timeval
 	tv := syscall.NsecToTimeval(timeout.Nanoseconds())
 
-	// Perform select
-	err := syscall.Select(maxFd+1, &readSet, nil, nil, &tv)
+	// Perform select - handle platform differences
+	err := selectCall(maxFd+1, &readSet, nil, nil, &tv)
 	if err != nil {
 		if err == syscall.EINTR || err == syscall.EAGAIN {
 			return []int{}, nil // Interrupted or would block

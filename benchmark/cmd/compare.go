@@ -17,15 +17,15 @@ Tests session management, streaming, and provides performance comparison.`,
 }
 
 var (
-	goPort     int
-	rustPort   int
-	runs       int
-	testType   string
+	goPort   int
+	rustPort int
+	runs     int
+	testType string
 )
 
 func init() {
 	rootCmd.AddCommand(compareCmd)
-	
+
 	compareCmd.Flags().IntVar(&goPort, "go-port", 4031, "Go server port")
 	compareCmd.Flags().IntVar(&rustPort, "rust-port", 4044, "Rust server port")
 	compareCmd.Flags().IntVarP(&runs, "runs", "r", 10, "Number of test runs (10-1000)")
@@ -33,16 +33,16 @@ func init() {
 }
 
 type BenchmarkResult struct {
-	ServerType      string
-	TestType        string
-	Runs            int
-	TotalDuration   time.Duration
-	AvgLatency      time.Duration
-	MinLatency      time.Duration
-	MaxLatency      time.Duration
-	Throughput      float64
-	SuccessRate     float64
-	ErrorCount      int
+	ServerType    string
+	TestType      string
+	Runs          int
+	TotalDuration time.Duration
+	AvgLatency    time.Duration
+	MinLatency    time.Duration
+	MaxLatency    time.Duration
+	Throughput    float64
+	SuccessRate   float64
+	ErrorCount    int
 }
 
 func runCompareBenchmark(cmd *cobra.Command, args []string) error {
@@ -62,7 +62,7 @@ func runCompareBenchmark(cmd *cobra.Command, args []string) error {
 	fmt.Printf("📊 Testing Go Server (port %d)\n", goPort)
 	fmt.Printf("-----------------------------\n")
 	goClient := client.NewClient(hostname, goPort)
-	
+
 	if err := goClient.Ping(); err != nil {
 		fmt.Printf("❌ Go server not accessible: %v\n\n", err)
 	} else {
@@ -74,7 +74,7 @@ func runCompareBenchmark(cmd *cobra.Command, args []string) error {
 				goResults = append(goResults, result)
 			}
 		}
-		
+
 		if testType == "stream" || testType == "both" {
 			result, err := runStreamBenchmarkRuns(goClient, "Go", runs)
 			if err != nil {
@@ -88,7 +88,7 @@ func runCompareBenchmark(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n📊 Testing Rust Server (port %d)\n", rustPort)
 	fmt.Printf("-------------------------------\n")
 	rustClient := client.NewClient(hostname, rustPort)
-	
+
 	if err := rustClient.Ping(); err != nil {
 		fmt.Printf("❌ Rust server not accessible: %v\n\n", err)
 	} else {
@@ -100,7 +100,7 @@ func runCompareBenchmark(cmd *cobra.Command, args []string) error {
 				rustResults = append(rustResults, result)
 			}
 		}
-		
+
 		if testType == "stream" || testType == "both" {
 			result, err := runStreamBenchmarkRuns(rustClient, "Rust", runs)
 			if err != nil {
@@ -121,18 +121,18 @@ func runCompareBenchmark(cmd *cobra.Command, args []string) error {
 
 func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRuns int) (BenchmarkResult, error) {
 	fmt.Printf("Running %d session lifecycle tests...\n", numRuns)
-	
+
 	var totalLatencies []time.Duration
 	var errors int
 	startTime := time.Now()
-	
+
 	for run := 1; run <= numRuns; run++ {
 		if verbose {
 			fmt.Printf("  Run %d/%d... ", run, numRuns)
 		}
-		
+
 		runStart := time.Now()
-		
+
 		// Create session using unified API format
 		config := client.SessionConfig{
 			Name:       fmt.Sprintf("bench-run-%d", run),
@@ -142,7 +142,7 @@ func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numR
 			Height:     24,
 			Term:       "xterm-256color",
 		}
-		
+
 		session, err := c.CreateSession(config)
 		if err != nil {
 			errors++
@@ -151,7 +151,7 @@ func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numR
 			}
 			continue
 		}
-		
+
 		// Get session
 		_, err = c.GetSession(session.ID)
 		if err != nil {
@@ -161,7 +161,7 @@ func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numR
 			}
 			// Still try to delete
 		}
-		
+
 		// Delete session
 		err = c.DeleteSession(session.ID)
 		if err != nil {
@@ -170,17 +170,17 @@ func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numR
 				fmt.Printf("❌ Delete failed: %v\n", err)
 			}
 		}
-		
+
 		runDuration := time.Since(runStart)
 		totalLatencies = append(totalLatencies, runDuration)
-		
+
 		if verbose {
 			fmt.Printf("✅ %.2fms\n", float64(runDuration.Nanoseconds())/1e6)
 		}
 	}
-	
+
 	totalDuration := time.Since(startTime)
-	
+
 	// Calculate statistics
 	var min, max, total time.Duration
 	if len(totalLatencies) > 0 {
@@ -196,17 +196,17 @@ func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numR
 			}
 		}
 	}
-	
+
 	var avgLatency time.Duration
 	if len(totalLatencies) > 0 {
 		avgLatency = total / time.Duration(len(totalLatencies))
 	}
-	
+
 	successRate := float64(len(totalLatencies)) / float64(numRuns) * 100
 	throughput := float64(len(totalLatencies)) / totalDuration.Seconds()
-	
+
 	fmt.Printf("✅ Completed %d/%d runs (%.1f%% success rate)\n", len(totalLatencies), numRuns, successRate)
-	
+
 	return BenchmarkResult{
 		ServerType:    serverType,
 		TestType:      "session",
@@ -223,18 +223,18 @@ func runSessionBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numR
 
 func runStreamBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRuns int) (BenchmarkResult, error) {
 	fmt.Printf("Running %d stream tests...\n", numRuns)
-	
+
 	var totalLatencies []time.Duration
 	var errors int
 	startTime := time.Now()
-	
+
 	for run := 1; run <= numRuns; run++ {
 		if verbose {
 			fmt.Printf("  Stream run %d/%d... ", run, numRuns)
 		}
-		
+
 		runStart := time.Now()
-		
+
 		// Create session for streaming using unified API format
 		config := client.SessionConfig{
 			Name:       fmt.Sprintf("stream-run-%d", run),
@@ -244,7 +244,7 @@ func runStreamBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRu
 			Height:     24,
 			Term:       "xterm-256color",
 		}
-		
+
 		session, err := c.CreateSession(config)
 		if err != nil {
 			errors++
@@ -253,7 +253,7 @@ func runStreamBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRu
 			}
 			continue
 		}
-		
+
 		// Stream for 2 seconds
 		stream, err := c.StreamSession(session.ID)
 		if err != nil {
@@ -264,12 +264,12 @@ func runStreamBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRu
 			}
 			continue
 		}
-		
+
 		// Collect events for 2 seconds
 		timeout := time.After(2 * time.Second)
 		eventCount := 0
 		streamOk := true
-		
+
 	StreamLoop:
 		for {
 			select {
@@ -286,24 +286,24 @@ func runStreamBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRu
 				break StreamLoop
 			}
 		}
-		
+
 		stream.Close()
 		c.DeleteSession(session.ID)
-		
+
 		runDuration := time.Since(runStart)
 		if streamOk {
 			totalLatencies = append(totalLatencies, runDuration)
 		}
-		
+
 		if verbose {
 			if streamOk {
 				fmt.Printf("✅ %d events, %.2fms\n", eventCount, float64(runDuration.Nanoseconds())/1e6)
 			}
 		}
 	}
-	
+
 	totalDuration := time.Since(startTime)
-	
+
 	// Calculate statistics
 	var min, max, total time.Duration
 	if len(totalLatencies) > 0 {
@@ -319,17 +319,17 @@ func runStreamBenchmarkRuns(c *client.VibeTunnelClient, serverType string, numRu
 			}
 		}
 	}
-	
+
 	var avgLatency time.Duration
 	if len(totalLatencies) > 0 {
 		avgLatency = total / time.Duration(len(totalLatencies))
 	}
-	
+
 	successRate := float64(len(totalLatencies)) / float64(numRuns) * 100
 	throughput := float64(len(totalLatencies)) / totalDuration.Seconds()
-	
+
 	fmt.Printf("✅ Completed %d/%d stream runs (%.1f%% success rate)\n", len(totalLatencies), numRuns, successRate)
-	
+
 	return BenchmarkResult{
 		ServerType:    serverType,
 		TestType:      "stream",
@@ -349,12 +349,12 @@ func displayComparison(goResults, rustResults []BenchmarkResult) {
 		fmt.Println("No results to compare")
 		return
 	}
-	
-	fmt.Printf("%-12s %-8s %-6s %-12s %-12s %-12s %-10s %-8s\n", 
+
+	fmt.Printf("%-12s %-8s %-6s %-12s %-12s %-12s %-10s %-8s\n",
 		"Server", "Test", "Runs", "Avg Latency", "Min Latency", "Max Latency", "Throughput", "Success%")
-	fmt.Printf("%-12s %-8s %-6s %-12s %-12s %-12s %-10s %-8s\n", 
+	fmt.Printf("%-12s %-8s %-6s %-12s %-12s %-12s %-10s %-8s\n",
 		"------", "----", "----", "-----------", "-----------", "-----------", "----------", "--------")
-	
+
 	for _, result := range goResults {
 		fmt.Printf("%-12s %-8s %-6d %-12s %-12s %-12s %-10.1f %-8.1f\n",
 			result.ServerType,
@@ -366,7 +366,7 @@ func displayComparison(goResults, rustResults []BenchmarkResult) {
 			result.Throughput,
 			result.SuccessRate)
 	}
-	
+
 	for _, result := range rustResults {
 		fmt.Printf("%-12s %-8s %-6d %-12s %-12s %-12s %-10.1f %-8.1f\n",
 			result.ServerType,
@@ -378,7 +378,7 @@ func displayComparison(goResults, rustResults []BenchmarkResult) {
 			result.Throughput,
 			result.SuccessRate)
 	}
-	
+
 	// Show winner analysis
 	fmt.Printf("\n🏆 Performance Analysis:\n")
 	analyzeResults(goResults, rustResults)
@@ -388,13 +388,13 @@ func analyzeResults(goResults, rustResults []BenchmarkResult) {
 	for i := 0; i < len(goResults) && i < len(rustResults); i++ {
 		goResult := goResults[i]
 		rustResult := rustResults[i]
-		
+
 		if goResult.TestType != rustResult.TestType {
 			continue
 		}
-		
+
 		fmt.Printf("\n%s Test:\n", goResult.TestType)
-		
+
 		// Compare latency
 		if goResult.AvgLatency < rustResult.AvgLatency {
 			improvement := float64(rustResult.AvgLatency-goResult.AvgLatency) / float64(rustResult.AvgLatency) * 100
@@ -405,7 +405,7 @@ func analyzeResults(goResults, rustResults []BenchmarkResult) {
 		} else {
 			fmt.Printf("  🤝 Similar average latency\n")
 		}
-		
+
 		// Compare throughput
 		if goResult.Throughput > rustResult.Throughput {
 			improvement := (goResult.Throughput - rustResult.Throughput) / rustResult.Throughput * 100
@@ -416,7 +416,7 @@ func analyzeResults(goResults, rustResults []BenchmarkResult) {
 		} else {
 			fmt.Printf("  🤝 Similar throughput\n")
 		}
-		
+
 		// Compare success rate
 		if goResult.SuccessRate > rustResult.SuccessRate {
 			fmt.Printf("  🥇 Go has higher success rate (%.1f%% vs %.1f%%)\n", goResult.SuccessRate, rustResult.SuccessRate)

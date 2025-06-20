@@ -30,13 +30,13 @@ func debugLog(format string, args ...interface{}) {
 }
 
 type Server struct {
-	manager              *session.Manager
-	staticPath           string
-	password             string
-	ngrokService         *ngrok.Service
-	port                 int
-	noSpawn              bool
-	doNotAllowColumnSet  bool
+	manager             *session.Manager
+	staticPath          string
+	password            string
+	ngrokService        *ngrok.Service
+	port                int
+	noSpawn             bool
+	doNotAllowColumnSet bool
 }
 
 func NewServer(manager *session.Manager, staticPath, password string, port int) *Server {
@@ -59,21 +59,21 @@ func (s *Server) SetDoNotAllowColumnSet(doNotAllowColumnSet bool) {
 
 func (s *Server) Start(addr string) error {
 	handler := s.createHandler()
-	
+
 	// Setup graceful shutdown
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: handler,
 	}
-	
+
 	// Handle shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	
+
 	go func() {
 		<-sigChan
 		fmt.Println("\nShutting down server...")
-		
+
 		// Mark all running sessions as exited
 		if sessions, err := s.manager.ListSessions(); err == nil {
 			for _, session := range sessions {
@@ -86,8 +86,7 @@ func (s *Server) Start(addr string) error {
 				}
 			}
 		}
-		
-		
+
 		// Shutdown HTTP server
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -95,7 +94,7 @@ func (s *Server) Start(addr string) error {
 			log.Printf("Failed to shutdown server: %v", err)
 		}
 	}()
-	
+
 	return srv.ListenAndServe()
 }
 
@@ -249,19 +248,19 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 
 	// Convert to API response format
 	type APISessionInfo struct {
-		ID           string    `json:"id"`
-		Name         string    `json:"name"`
-		Command      string    `json:"command"`      
-		WorkingDir   string    `json:"workingDir"`   
-		Pid          *int      `json:"pid,omitempty"`
-		Status       string    `json:"status"`
-		ExitCode     *int      `json:"exitCode,omitempty"`     
-		StartedAt    time.Time `json:"startedAt"`               
-		Term         string    `json:"term"`
-		Width        int       `json:"width"`
-		Height       int       `json:"height"`
+		ID           string            `json:"id"`
+		Name         string            `json:"name"`
+		Command      string            `json:"command"`
+		WorkingDir   string            `json:"workingDir"`
+		Pid          *int              `json:"pid,omitempty"`
+		Status       string            `json:"status"`
+		ExitCode     *int              `json:"exitCode,omitempty"`
+		StartedAt    time.Time         `json:"startedAt"`
+		Term         string            `json:"term"`
+		Width        int               `json:"width"`
+		Height       int               `json:"height"`
 		Env          map[string]string `json:"env,omitempty"`
-		LastModified time.Time `json:"lastModified"`           
+		LastModified time.Time         `json:"lastModified"`
 	}
 
 	apiSessions := make([]APISessionInfo, len(sessions))
@@ -271,11 +270,11 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 		if s.Pid > 0 {
 			pid = &s.Pid
 		}
-		
+
 		apiSessions[i] = APISessionInfo{
 			ID:           s.ID,
 			Name:         s.Name,
-			Command:      s.Cmdline,  // Already a string
+			Command:      s.Cmdline, // Already a string
 			WorkingDir:   s.Cwd,
 			Pid:          pid,
 			Status:       s.Status,
@@ -345,7 +344,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		
+
 		// Validate the working directory exists
 		if _, err := os.Stat(cwd); err != nil {
 			log.Printf("[WARN] Working directory '%s' not accessible: %v. Using home directory instead.", cwd, err)
@@ -551,7 +550,7 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 	if err := sess.UpdateStatus(); err != nil {
 		log.Printf("Failed to update session status: %v", err)
 	}
-	
+
 	// Convert to Rust-compatible format like in handleListSessions
 	rustInfo := session.RustSessionInfo{
 		ID:        info.ID,
@@ -566,36 +565,36 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 		Rows:      &info.Height,
 		Env:       info.Env,
 	}
-	
+
 	if info.Pid > 0 {
 		rustInfo.Pid = &info.Pid
 	}
-	
+
 	if !info.StartedAt.IsZero() {
 		rustInfo.StartedAt = &info.StartedAt
 	}
-	
+
 	// Convert to API response format with camelCase like Rust
 	response := map[string]interface{}{
-		"id":          rustInfo.ID,
-		"name":        rustInfo.Name,
-		"command":     strings.Join(rustInfo.Cmdline, " "),
-		"workingDir":  rustInfo.Cwd,
-		"pid":         rustInfo.Pid,
-		"status":      rustInfo.Status,
-		"exitCode":    rustInfo.ExitCode,
-		"startedAt":   rustInfo.StartedAt,
-		"term":        rustInfo.Term,
-		"width":       rustInfo.Cols,
-		"height":      rustInfo.Rows,
-		"env":         rustInfo.Env,
+		"id":         rustInfo.ID,
+		"name":       rustInfo.Name,
+		"command":    strings.Join(rustInfo.Cmdline, " "),
+		"workingDir": rustInfo.Cwd,
+		"pid":        rustInfo.Pid,
+		"status":     rustInfo.Status,
+		"exitCode":   rustInfo.ExitCode,
+		"startedAt":  rustInfo.StartedAt,
+		"term":       rustInfo.Term,
+		"width":      rustInfo.Cols,
+		"height":     rustInfo.Rows,
+		"env":        rustInfo.Env,
 	}
-	
+
 	// Add lastModified like Rust does
 	if stat, err := os.Stat(sess.Path()); err == nil {
 		response["lastModified"] = stat.ModTime()
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode response: %v", err)
@@ -807,8 +806,8 @@ func (s *Server) handleBrowseFS(w http.ResponseWriter, r *http.Request) {
 
 	// Create response in the format expected by the web client
 	response := struct {
-		AbsolutePath string     `json:"absolutePath"`
-		Files        []FSEntry  `json:"files"`
+		AbsolutePath string    `json:"absolutePath"`
+		Files        []FSEntry `json:"files"`
 	}{
 		AbsolutePath: absPath,
 		Files:        entries,

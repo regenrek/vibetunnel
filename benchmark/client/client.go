@@ -287,7 +287,7 @@ func (s *SSEStream) readLoop() {
 
 			if strings.HasPrefix(eventData, "data: ") {
 				jsonData := strings.TrimPrefix(eventData, "data: ")
-				
+
 				var event StreamEvent
 				if err := json.Unmarshal([]byte(jsonData), &event); err != nil {
 					s.Errors <- fmt.Errorf("unmarshal event: %w", err)
