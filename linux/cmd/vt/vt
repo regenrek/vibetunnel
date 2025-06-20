@@ -2,7 +2,7 @@
 # vt - VibeTunnel CLI wrapper
 # Simple bash wrapper that passes through to vibetunnel with shell expansion
 
-VERSION="1.0.3"
+VERSION="1.0.4"
 
 # Handle version flag
 if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
