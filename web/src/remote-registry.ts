@@ -70,7 +70,7 @@ export class RemoteRegistry {
     return Array.from(this.remotes.values()).find((r) => r.url === url);
   }
 
-  getAllRemotes(): RemoteServer[] {
+  getRemotes(): RemoteServer[] {
     return Array.from(this.remotes.values());
   }
 

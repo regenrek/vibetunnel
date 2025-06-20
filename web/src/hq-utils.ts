@@ -14,8 +14,8 @@ export function createSessionProxyMiddleware(
       return next();
     }
 
-    // Extract session ID from various possible locations
-    const sessionId = req.params.sessionId || (req.query.sessionId as string);
+    // Extract session ID from params
+    const sessionId = req.params.sessionId;
     if (!sessionId) {
       return next();
     }
@@ -46,8 +46,7 @@ export function createSessionProxyMiddleware(
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
 
-      // Forward the response
-      const data = await response.text();
+      // Set status code
       res.status(response.status);
 
       // Copy headers
@@ -57,14 +56,37 @@ export function createSessionProxyMiddleware(
         }
       });
 
-      // Send response
-      try {
-        // Try to parse as JSON
-        const jsonData = JSON.parse(data);
-        res.json(jsonData);
-      } catch {
-        // Send as text if not JSON
-        res.send(data);
+      // Check content type to determine how to forward response
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/octet-stream')) {
+        // Binary data - forward as buffer
+        const buffer = await response.arrayBuffer();
+        res.send(Buffer.from(buffer));
+      } else if (contentType.includes('text/event-stream')) {
+        // SSE - forward as stream
+        const reader = response.body?.getReader();
+        if (reader) {
+          const decoder = new TextDecoder();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(decoder.decode(value, { stream: true }));
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        }
+        res.end();
+      } else {
+        // Text or JSON - forward as before
+        const data = await response.text();
+        try {
+          const jsonData = JSON.parse(data);
+          res.json(jsonData);
+        } catch {
+          res.send(data);
+        }
       }
     } catch (error) {
       console.error(`Failed to proxy request to remote ${remote.name}:`, error);
