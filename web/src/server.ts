@@ -7,6 +7,8 @@ import * as os from 'os';
 import { PtyService, PtyError } from './pty/index.js';
 import { TerminalManager } from './terminal-manager.js';
 import { StreamWatcher } from './stream-watcher.js';
+import { RemoteRegistry } from './remote-registry.js';
+import { HQClient } from './hq-client.js';
 
 type BufferSnapshot = Awaited<ReturnType<TerminalManager['getBufferSnapshot']>>;
 
@@ -14,7 +16,60 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4020;
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+let basicAuthPassword: string | null = null;
+let isHQMode = false;
+let joinHQUrl: string | null = null;
+
+// Check for command line arguments
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--password' && i + 1 < args.length) {
+    basicAuthPassword = args[i + 1];
+    i++; // Skip the password value in next iteration
+  } else if (args[i] === '--hq') {
+    isHQMode = true;
+  } else if (args[i] === '--join-hq' && i + 1 < args.length) {
+    joinHQUrl = args[i + 1];
+    i++; // Skip the URL value in next iteration
+  }
+}
+
+// Fall back to environment variable if no --password argument
+if (!basicAuthPassword && process.env.VIBETUNNEL_PASSWORD) {
+  basicAuthPassword = process.env.VIBETUNNEL_PASSWORD;
+}
+
+// Validate join-hq URL
+if (joinHQUrl) {
+  try {
+    const url = new URL(joinHQUrl);
+    if (url.protocol !== 'https:') {
+      console.error(`${RED}ERROR: --join-hq URL must use HTTPS protocol${RESET}`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(`${RED}ERROR: Invalid --join-hq URL: ${joinHQUrl}${RESET}`);
+    process.exit(1);
+  }
+}
+
+// ANSI color codes
+const RED = '\x1b[31m';
+const YELLOW = '\x1b[33m';
+const GREEN = '\x1b[32m';
+const RESET = '\x1b[0m';
+
+if (basicAuthPassword) {
+  console.log(`${GREEN}Basic authentication enabled${RESET}`);
+} else {
+  console.log(`${RED}WARNING: No authentication configured!${RESET}`);
+  console.log(
+    `${YELLOW}Set VIBETUNNEL_PASSWORD environment variable or use --password flag to enable authentication.${RESET}`
+  );
+}
 
 // tty-fwd binary path - check multiple possible locations
 const possibleTtyFwdPaths = [
@@ -53,6 +108,23 @@ const terminalManager = new TerminalManager(TTY_FWD_CONTROL_DIR);
 // Initialize Stream Watcher for efficient file streaming
 const streamWatcher = new StreamWatcher();
 
+// Initialize HQ components
+let remoteRegistry: RemoteRegistry | null = null;
+let hqClient: HQClient | null = null;
+
+if (isHQMode) {
+  remoteRegistry = new RemoteRegistry();
+  console.log(`${GREEN}Running in HQ mode${RESET}`);
+}
+
+if (joinHQUrl && basicAuthPassword) {
+  hqClient = new HQClient(joinHQUrl, basicAuthPassword);
+  console.log(`${GREEN}Will register with HQ at: ${joinHQUrl}${RESET}`);
+} else if (joinHQUrl && !basicAuthPassword) {
+  console.error(`${RED}ERROR: --join-hq requires --password to be set${RESET}`);
+  process.exit(1);
+}
+
 // Ensure control directory exists
 if (!fs.existsSync(TTY_FWD_CONTROL_DIR)) {
   fs.mkdirSync(TTY_FWD_CONTROL_DIR, { recursive: true });
@@ -83,6 +155,35 @@ function resolvePath(inputPath: string, fallback?: string): string {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Basic authentication middleware
+if (basicAuthPassword) {
+  app.use((req, res, next) => {
+    // Skip auth for WebSocket upgrade requests (handled separately)
+    if (req.headers.upgrade === 'websocket') {
+      return next();
+    }
+
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="VibeTunnel"');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const base64Credentials = authHeader.slice(6);
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+    const [_username, password] = credentials.split(':');
+
+    if (password !== basicAuthPassword) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="VibeTunnel"');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    next();
+  });
+}
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Hot reload functionality for development
@@ -231,6 +332,121 @@ app.post('/api/cleanup-exited', async (req, res) => {
       res.status(500).json({ error: 'Failed to cleanup exited sessions' });
     }
   }
+});
+
+// === HQ MODE ENDPOINTS ===
+
+// Register a remote server (HQ mode only)
+app.post('/api/remotes/register', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(404).json({ error: 'HQ mode not enabled' });
+  }
+
+  const { id, name, url, token, password } = req.body;
+
+  if (!id || !name || !url || !token || !password) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // Verify the password matches
+  if (password !== basicAuthPassword) {
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+
+  const remote = remoteRegistry.register({
+    id,
+    name,
+    url,
+    token,
+    sessionCount: 0,
+  });
+
+  res.json({ success: true, remote: { id: remote.id, name: remote.name } });
+});
+
+// Heartbeat from remote server
+app.post('/api/remotes/:remoteId/heartbeat', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(404).json({ error: 'HQ mode not enabled' });
+  }
+
+  const { remoteId } = req.params;
+  const { sessionCount } = req.body;
+  const authHeader = req.headers.authorization;
+
+  // Verify token
+  const remote = remoteRegistry.getRemote(remoteId);
+  if (!remote) {
+    return res.status(404).json({ error: 'Remote not found' });
+  }
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing authorization' });
+  }
+
+  const token = authHeader.slice(7);
+  if (token !== remote.token) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  const success = remoteRegistry.updateHeartbeat(remoteId, sessionCount || 0);
+
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Remote not found' });
+  }
+});
+
+// Unregister remote
+app.delete('/api/remotes/:remoteId', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(404).json({ error: 'HQ mode not enabled' });
+  }
+
+  const { remoteId } = req.params;
+  const authHeader = req.headers.authorization;
+
+  // Verify token
+  const remote = remoteRegistry.getRemote(remoteId);
+  if (!remote) {
+    return res.status(404).json({ error: 'Remote not found' });
+  }
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing authorization' });
+  }
+
+  const token = authHeader.slice(7);
+  if (token !== remote.token) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  const success = remoteRegistry.unregister(remoteId);
+
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Remote not found' });
+  }
+});
+
+// List all remotes (HQ mode only)
+app.get('/api/remotes', (req, res) => {
+  if (!isHQMode || !remoteRegistry) {
+    return res.status(404).json({ error: 'HQ mode not enabled' });
+  }
+
+  const remotes = remoteRegistry.getAllRemotes().map((r) => ({
+    id: r.id,
+    name: r.name,
+    url: r.url,
+    status: r.status,
+    sessionCount: r.sessionCount,
+    lastHeartbeat: r.lastHeartbeat,
+  }));
+
+  res.json(remotes);
 });
 
 // === TERMINAL I/O ===
@@ -416,9 +632,12 @@ app.get('/api/sessions/:sessionId/buffer/stats', async (req, res) => {
 
     // Add last modified time from stream file
     const fileStats = fs.statSync(streamOutPath);
-    stats.lastModified = fileStats.mtime.toISOString();
+    const statsWithLastModified = {
+      ...stats,
+      lastModified: fileStats.mtime.toISOString(),
+    };
 
-    res.json(stats);
+    res.json(statsWithLastModified);
   } catch (error) {
     console.error('Error getting session buffer stats:', error);
     res.status(500).json({ error: 'Failed to get session buffer stats' });
@@ -868,6 +1087,25 @@ function sendBinaryBuffer(ws: WebSocket, sessionId: string, snapshot: BufferSnap
 
 // WebSocket connections
 wss.on('connection', (ws, req) => {
+  // Check basic auth for WebSocket connections if password is set
+  if (basicAuthPassword) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
+    const base64Credentials = authHeader.slice(6);
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+    const [_username, password] = credentials.split(':');
+
+    if (password !== basicAuthPassword) {
+      ws.close(1008, 'Invalid credentials');
+      return;
+    }
+  }
+
   const url = new URL(req.url ?? '', `http://${req.headers.host}`);
   const isHotReload = url.searchParams.get('hotReload') === 'true';
 
@@ -911,6 +1149,23 @@ if (process.env.NODE_ENV !== 'test') {
   server.listen(PORT, () => {
     console.log(`VibeTunnel New Server running on http://localhost:${PORT}`);
     console.log(`Using tty-fwd: ${TTY_FWD_PATH}`);
+    if (basicAuthPassword) {
+      console.log(`${GREEN}Basic authentication: ENABLED${RESET}`);
+      console.log('Username: <any username>');
+      console.log(`Password: ${basicAuthPassword}`);
+    } else {
+      console.log(`${RED}⚠️  WARNING: Server running without authentication!${RESET}`);
+      console.log(
+        `${YELLOW}Anyone can access this server. Use --password or set VIBETUNNEL_PASSWORD.${RESET}`
+      );
+    }
+
+    // Register with HQ if configured
+    if (hqClient) {
+      hqClient.register().catch((err) => {
+        console.error('Failed to register with HQ:', err);
+      });
+    }
   });
 
   // Cleanup old terminals every 5 minutes
@@ -920,6 +1175,23 @@ if (process.env.NODE_ENV !== 'test') {
     },
     5 * 60 * 1000
   );
+
+  // Graceful shutdown
+  process.on('SIGINT', () => {
+    console.log('\nShutting down...');
+
+    if (hqClient) {
+      hqClient.destroy();
+    }
+
+    if (remoteRegistry) {
+      remoteRegistry.destroy();
+    }
+
+    server.close(() => {
+      process.exit(0);
+    });
+  });
 }
 
 // Export for testing
