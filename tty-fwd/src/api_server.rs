@@ -993,14 +993,16 @@ fn handle_session_resize(
     if let Some(session_id) = extract_session_id(path) {
         let body_bytes = req.body();
         let body = String::from_utf8_lossy(body_bytes);
-        
+
         if let Ok(resize_req) = serde_json::from_str::<ResizeRequest>(&body) {
             // Validate dimensions
             if resize_req.cols == 0 || resize_req.rows == 0 {
                 let error = ApiResponse {
                     success: None,
                     message: None,
-                    error: Some("Invalid dimensions: cols and rows must be greater than 0".to_string()),
+                    error: Some(
+                        "Invalid dimensions: cols and rows must be greater than 0".to_string(),
+                    ),
                     session_id: None,
                 };
                 return json_response(StatusCode::BAD_REQUEST, &error);
@@ -1022,11 +1024,19 @@ fn handle_session_resize(
                         }
 
                         // Perform the resize
-                        match sessions::resize_session(control_path, &session_id, resize_req.cols, resize_req.rows) {
+                        match sessions::resize_session(
+                            control_path,
+                            &session_id,
+                            resize_req.cols,
+                            resize_req.rows,
+                        ) {
                             Ok(()) => {
                                 let response = ApiResponse {
                                     success: Some(true),
-                                    message: Some(format!("Session resized to {}x{}", resize_req.cols, resize_req.rows)),
+                                    message: Some(format!(
+                                        "Session resized to {}x{}",
+                                        resize_req.cols, resize_req.rows
+                                    )),
                                     error: None,
                                     session_id: None,
                                 };
@@ -1066,7 +1076,9 @@ fn handle_session_resize(
             let error = ApiResponse {
                 success: None,
                 message: None,
-                error: Some("Invalid request body. Expected JSON with 'cols' and 'rows' fields".to_string()),
+                error: Some(
+                    "Invalid request body. Expected JSON with 'cols' and 'rows' fields".to_string(),
+                ),
                 session_id: None,
             };
             json_response(StatusCode::BAD_REQUEST, &error)

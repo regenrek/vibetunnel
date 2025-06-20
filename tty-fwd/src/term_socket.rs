@@ -1,3 +1,4 @@
+use crate::tty_spawn;
 use anyhow::Result;
 use serde_json::json;
 use signal_hook::{
@@ -8,7 +9,6 @@ use std::env;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use uuid::Uuid;
-use crate::tty_spawn;
 
 /// Spawn a terminal session with PTY fallback
 pub fn spawn_terminal_via_socket(command: &[String], working_dir: Option<&str>) -> Result<String> {
@@ -100,7 +100,6 @@ fn spawn_via_socket_impl(command: &[String], working_dir: Option<&str>) -> Resul
 fn spawn_via_pty(command: &[String], working_dir: Option<&str>) -> Result<String> {
     tty_spawn::spawn_with_pty_fallback(command, working_dir).map_err(|e| anyhow::anyhow!("{}", e))
 }
-
 
 /// Update all running sessions to "exited" status when server shuts down
 pub fn update_all_sessions_to_exited() -> Result<()> {

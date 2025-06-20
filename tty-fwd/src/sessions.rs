@@ -169,7 +169,10 @@ pub fn send_key_to_session(
         Ok(()) => Ok(()),
         Err(pipe_error) => {
             // If pipe write fails, try to proxy to Node.js server
-            eprintln!("Direct pipe write failed: {}, trying Node.js proxy for key", pipe_error);
+            eprintln!(
+                "Direct pipe write failed: {}, trying Node.js proxy for key",
+                pipe_error
+            );
             proxy_key_to_nodejs_server(session_id, key)
         }
     }
@@ -192,7 +195,10 @@ pub fn send_text_to_session(
         Ok(()) => Ok(()),
         Err(pipe_error) => {
             // If pipe write fails, try to proxy to Node.js server
-            eprintln!("Direct pipe write failed: {}, trying Node.js proxy", pipe_error);
+            eprintln!(
+                "Direct pipe write failed: {}, trying Node.js proxy",
+                pipe_error
+            );
             proxy_input_to_nodejs_server(session_id, text)
         }
     }
@@ -200,14 +206,14 @@ pub fn send_text_to_session(
 
 fn proxy_input_to_nodejs_server(session_id: &str, text: &str) -> Result<(), anyhow::Error> {
     use std::collections::HashMap;
-    
+
     // Create HTTP client
     let client = reqwest::blocking::Client::new();
-    
+
     // Create request body
     let mut body = HashMap::new();
     body.insert("text", text);
-    
+
     // Send request to Node.js server
     let url = format!("http://localhost:3000/api/sessions/{}/input", session_id);
     let response = client
@@ -215,11 +221,14 @@ fn proxy_input_to_nodejs_server(session_id: &str, text: &str) -> Result<(), anyh
         .json(&body)
         .send()
         .map_err(|e| anyhow!("Failed to proxy to Node.js server: {}", e))?;
-    
+
     if response.status().is_success() {
         Ok(())
     } else {
-        Err(anyhow!("Node.js server returned error: {}", response.status()))
+        Err(anyhow!(
+            "Node.js server returned error: {}",
+            response.status()
+        ))
     }
 }
 
@@ -227,7 +236,7 @@ fn proxy_key_to_nodejs_server(session_id: &str, key: &str) -> Result<(), anyhow:
     // Convert key to equivalent text sequence for Node.js server
     let text = match key {
         "arrow_up" => "\x1b[A",
-        "arrow_down" => "\x1b[B", 
+        "arrow_down" => "\x1b[B",
         "arrow_right" => "\x1b[C",
         "arrow_left" => "\x1b[D",
         "escape" => "\x1b",
@@ -235,7 +244,7 @@ fn proxy_key_to_nodejs_server(session_id: &str, key: &str) -> Result<(), anyhow:
         "shift_enter" => "\x1b\x0d",
         _ => return Err(anyhow!("Unknown key for proxy: {}", key)),
     };
-    
+
     proxy_input_to_nodejs_server(session_id, text)
 }
 
@@ -361,7 +370,7 @@ pub fn resize_session(
     // Update dimensions in session.json
     session_info["cols"] = serde_json::json!(cols);
     session_info["rows"] = serde_json::json!(rows);
-    
+
     // Write updated session info
     let updated_content = serde_json::to_string_pretty(&session_info)?;
     fs::write(&session_json_path, updated_content)?;
@@ -526,7 +535,6 @@ pub fn spawn_command(
     if cmdline.is_empty() {
         return Err(anyhow!("No command provided"));
     }
-
 
     let session_id = session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let session_path = control_path.join(session_id);
@@ -1050,7 +1058,7 @@ mod tests {
         session_info.pid = Some(std::process::id());
         session_info.cols = Some(80);
         session_info.rows = Some(24);
-        
+
         create_test_session(control_path, "test-session", &session_info).unwrap();
 
         // Create control FIFO
@@ -1062,7 +1070,7 @@ mod tests {
 
         // Note: Actually testing resize would require a real PTY and process
         // This test just verifies the session.json update logic
-        
+
         // Read back session.json to verify initial dimensions
         let session_json_path = control_path.join("test-session").join("session.json");
         let content = std::fs::read_to_string(&session_json_path).unwrap();
