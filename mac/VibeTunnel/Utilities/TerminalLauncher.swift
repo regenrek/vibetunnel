@@ -411,19 +411,24 @@ final class TerminalLauncher {
                 let enhancedScript = generateEnhancedScript(for: config, sessionId: sessionId)
                 let result = try executeAppleScriptWithResult(enhancedScript)
                 
+                logger.debug("Enhanced script result for \(config.terminal.rawValue): '\(result)'")
+                
                 // Parse the result to extract tab/window info
                 if config.terminal == .terminal {
                     // Terminal.app returns "windowID|tabID"
                     let components = result.split(separator: "|").map(String.init)
+                    logger.debug("Terminal.app components: \(components)")
                     if components.count >= 2 {
                         windowID = CGWindowID(components[0]) ?? nil
                         tabReference = "tab id \(components[1]) of window id \(components[0])"
+                        logger.info("Terminal.app window ID: \(windowID ?? 0), tab reference: \(tabReference ?? "")")
                     }
                 } else if config.terminal == .iTerm2 {
                     // iTerm2 returns window ID
                     let windowIDString = result.trimmingCharacters(in: .whitespacesAndNewlines)
                     // For iTerm2, we store the window ID as tabID for consistency
                     tabID = windowIDString
+                    logger.info("iTerm2 window ID: \(windowIDString)")
                 }
             } else {
                 // For non-Terminal.app terminals, copy command to clipboard first

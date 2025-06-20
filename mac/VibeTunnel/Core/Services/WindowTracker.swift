@@ -165,10 +165,20 @@ final class WindowTracker {
         mapLock.withLock {
             guard let windowInfo = sessionWindowMap[sessionID] else {
                 logger.warning("No window found for session: \(sessionID)")
+                logger.debug("Available sessions: \(self.sessionWindowMap.keys.joined(separator: ", "))")
+                
+                // Try to scan for the session one more time
+                Task {
+                    await scanForSession(sessionID)
+                    // Try focusing again after scan
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.focusWindow(for: sessionID)
+                    }
+                }
                 return
             }
             
-            logger.info("Focusing window for session: \(sessionID), terminal: \(windowInfo.terminalApp.rawValue)")
+            logger.info("Focusing window for session: \(sessionID), terminal: \(windowInfo.terminalApp.rawValue), windowID: \(windowInfo.windowID)")
             
             switch windowInfo.terminalApp {
             case .terminal:
@@ -289,6 +299,72 @@ final class WindowTracker {
         logger.warning("Could not find matching window in AXUIElement list")
     }
     
+    // MARK: - Permissions
+    
+    /// Checks if we have the required permissions for window tracking.
+    private func checkPermissions() -> Bool {
+        // Check for Screen Recording permission (required for CGWindowListCopyWindowInfo)
+        let options: CGWindowListOption = [.excludeDesktopElements]
+        if let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]],
+           !windowList.isEmpty {
+            return true
+        }
+        return false
+    }
+    
+    /// Requests the required permissions.
+    private func requestPermissions() {
+        logger.info("Requesting Screen Recording permission")
+        
+        // Open System Preferences to Privacy & Security > Screen Recording
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+    
+    // MARK: - Session Scanning
+    
+    /// Scans for a terminal window containing a specific session.
+    /// This is used for sessions attached via `vt` that weren't launched through our app.
+    private func scanForSession(_ sessionID: String) async {
+        logger.info("Scanning for window containing session: \(sessionID)")
+        
+        // Get all terminal windows
+        let allWindows = Self.getAllTerminalWindows()
+        
+        // Look for windows that might contain this session
+        // Sessions typically show their ID in the window title
+        for window in allWindows {
+            // Check if window title contains session ID
+            if let title = window.title,
+               (title.contains(sessionID) || title.contains("vt") || title.contains("vibetunnel")) {
+                logger.info("Found potential window for session \(sessionID): \(title)")
+                
+                // Create window info for this session
+                let windowInfo = WindowInfo(
+                    windowID: window.windowID,
+                    ownerPID: window.ownerPID,
+                    terminalApp: window.terminalApp,
+                    sessionID: sessionID,
+                    createdAt: Date(),
+                    tabReference: nil,
+                    tabID: nil,
+                    bounds: window.bounds,
+                    title: window.title
+                )
+                
+                mapLock.withLock {
+                    sessionWindowMap[sessionID] = windowInfo
+                }
+                
+                logger.info("Successfully mapped window \(window.windowID) to session \(sessionID)")
+                return
+            }
+        }
+        
+        logger.debug("Could not find window for session \(sessionID) in \(allWindows.count) terminal windows")
+    }
+    
     // MARK: - Session Monitoring
     
     /// Updates the window tracker based on active sessions.
@@ -299,7 +375,17 @@ final class WindowTracker {
             let activeSessionIDs = Set(sessions.map { $0.id })
             sessionWindowMap = sessionWindowMap.filter { activeSessionIDs.contains($0.key) }
             
-            //logger.debug("Updated window tracker: \(self.sessionWindowMap.count) active windows")
+            // Scan for untracked sessions (e.g., attached via vt command)
+            for session in sessions where session.isRunning {
+                if sessionWindowMap[session.id] == nil {
+                    // This session isn't tracked yet, try to find its window
+                    Task {
+                        await scanForSession(session.id)
+                    }
+                }
+            }
+            
+            logger.debug("Updated window tracker: \(self.sessionWindowMap.count) active windows, \(sessions.count) total sessions")
         }
     }
     
