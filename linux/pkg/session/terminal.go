@@ -52,11 +52,13 @@ func configurePTYTerminal(ptyFile *os.File) error {
 	// Configure local flags
 	// ISIG: Enable signal generation (SIGINT on Ctrl+C, etc)
 	// ICANON: Enable canonical mode (line editing)
-	// ECHO: Enable echo
-	// ECHOE: Echo erase character as BS-SP-BS
-	// ECHOK: Echo kill character
 	// IEXTEN: Enable extended functions
-	termios.Lflag |= unix.ISIG | unix.ICANON | unix.ECHO | unix.ECHOE | unix.ECHOK | unix.IEXTEN
+	termios.Lflag |= unix.ISIG | unix.ICANON | unix.IEXTEN
+	
+	// IMPORTANT: Don't enable ECHO for PTY master
+	// The terminal emulator (slave) handles echo, not the master
+	// Enabling echo on the master causes duplicate output
+	termios.Lflag &^= (unix.ECHO | unix.ECHOE | unix.ECHOK | unix.ECHONL)
 
 	// Set control characters to sensible defaults
 	termios.Cc[unix.VEOF] = 4     // Ctrl+D
