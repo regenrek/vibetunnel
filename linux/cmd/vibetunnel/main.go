@@ -463,7 +463,75 @@ func showHelp() {
 	fmt.Println("    VibeTunnel from the Resources folder.")
 }
 
+func handleVTMode() {
+	// VT mode provides simplified command execution
+	// All arguments are treated as a command to execute
+
+	// Special handling for common shortcuts
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--claude":
+			// vt --claude -> vibetunnel -- claude
+			os.Args = append([]string{"vibetunnel", "--"}, append([]string{"claude"}, os.Args[2:]...)...)
+		case "--claude-yolo":
+			// vt --claude-yolo -> vibetunnel -- claude --dangerously-skip-permissions
+			claudeArgs := []string{"claude", "--dangerously-skip-permissions"}
+			claudeArgs = append(claudeArgs, os.Args[2:]...)
+			os.Args = append([]string{"vibetunnel", "--"}, claudeArgs...)
+		case "--shell", "-i":
+			// vt --shell or vt -i -> vibetunnel -- $SHELL
+			shell := os.Getenv("SHELL")
+			if shell == "" {
+				shell = "/bin/bash"
+			}
+			os.Args = []string{"vibetunnel", "--", shell}
+		case "--help", "-h":
+			// Show vt-specific help
+			showHelp()
+			return
+		case "--show-session-info", "--show-session-id":
+			// Pass through to vibetunnel
+			os.Args = append([]string{"vibetunnel"}, os.Args[1:]...)
+		case "--no-shell-wrap", "-S":
+			// Direct command execution without shell wrapper
+			if len(os.Args) > 2 {
+				os.Args = append([]string{"vibetunnel", "--"}, os.Args[2:]...)
+			} else {
+				fmt.Fprintf(os.Stderr, "Error: --no-shell-wrap requires a command\n")
+				os.Exit(1)
+			}
+		default:
+			// Regular command: vt <cmd> -> vibetunnel -- <cmd>
+			os.Args = append([]string{"vibetunnel", "--"}, os.Args[1:]...)
+		}
+	} else {
+		// No args - open interactive shell
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "/bin/bash"
+		}
+		os.Args = []string{"vibetunnel", "--", shell}
+	}
+
+	// Always add column set restriction for vt mode
+	os.Args = append(os.Args, "--do-not-allow-column-set=true")
+
+	// Execute root command with modified args
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func main() {
+	// Check if we're running as "vt" via symlink
+	execName := filepath.Base(os.Args[0])
+	if execName == "vt" {
+		// VT mode - simplified command execution
+		handleVTMode()
+		return
+	}
+
 	// Check if we're being run with TTY_SESSION_ID (spawned by Mac app)
 	if sessionID := os.Getenv("TTY_SESSION_ID"); sessionID != "" {
 		// We're running in a terminal spawned by the Mac app
