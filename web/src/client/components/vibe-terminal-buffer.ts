@@ -228,15 +228,27 @@ export class VibeTerminalBuffer extends LitElement {
 
     const lineHeight = this.displayedFontSize * 1.2;
     let html = '';
+    let cellsToRender: BufferCell[][];
+    let startIndex = 0;
 
-    // In fitHorizontally mode, we show all content scaled to fit
-    // Otherwise, we show from the top and let it overflow
-    const cellsToRender = this.fitHorizontally
-      ? this.buffer.cells
-      : this.buffer.cells.slice(0, this.actualRows);
+    if (this.fitHorizontally) {
+      // In fitHorizontally mode, we show all content scaled to fit
+      cellsToRender = this.buffer.cells;
+    } else {
+      // Show the bottom portion that fits, ensuring last non-empty line is visible
+      if (this.buffer.cells.length <= this.actualRows) {
+        // All content fits
+        cellsToRender = this.buffer.cells;
+      } else {
+        // Content exceeds viewport, show bottom portion
+        startIndex = this.buffer.cells.length - this.actualRows;
+        cellsToRender = this.buffer.cells.slice(startIndex);
+      }
+    }
 
     cellsToRender.forEach((row, index) => {
-      const isCursorLine = index === this.buffer.cursorY;
+      const actualIndex = startIndex + index;
+      const isCursorLine = actualIndex === this.buffer.cursorY;
       const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
       const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
 
