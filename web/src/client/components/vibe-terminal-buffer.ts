@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { TerminalRenderer, type BufferCell } from '../utils/terminal-renderer.js';
+import { bufferSubscriptionService } from '../services/buffer-subscription-service.js';
 
 interface BufferSnapshot {
   cols: number;
@@ -19,23 +20,19 @@ export class VibeTerminalBuffer extends LitElement {
   }
 
   @property({ type: String }) sessionId = '';
-  @property({ type: Number }) pollInterval = 1000; // Poll interval in ms
 
   @state() private buffer: BufferSnapshot | null = null;
   @state() private error: string | null = null;
-  @state() private loading = false;
-  @state() private actualRows = 0;
   @state() private displayedFontSize = 14;
 
   private container: HTMLElement | null = null;
-  private pollTimer: NodeJS.Timeout | null = null;
   private resizeObserver: ResizeObserver | null = null;
-  private lastModified: string | null = null;
+  private unsubscribe: (() => void) | null = null;
 
   // Moved to render() method above
 
   disconnectedCallback() {
-    this.stopPolling();
+    this.unsubscribeFromBuffer();
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -47,7 +44,9 @@ export class VibeTerminalBuffer extends LitElement {
     this.container = this.querySelector('#buffer-container') as HTMLElement;
     if (this.container) {
       this.setupResize();
-      this.fetchBuffer();
+      if (this.sessionId) {
+        this.subscribeToBuffer();
+      }
     }
   }
 
@@ -57,14 +56,10 @@ export class VibeTerminalBuffer extends LitElement {
     if (changedProperties.has('sessionId')) {
       this.buffer = null;
       this.error = null;
-      this.lastModified = null;
+      this.unsubscribeFromBuffer();
       if (this.sessionId) {
-        this.fetchBuffer();
+        this.subscribeToBuffer();
       }
-    }
-    if (changedProperties.has('pollInterval')) {
-      this.stopPolling();
-      this.startPolling();
     }
 
     // Update buffer content after any render
@@ -86,7 +81,6 @@ export class VibeTerminalBuffer extends LitElement {
     if (!this.container) return;
 
     const containerWidth = this.container.clientWidth;
-    const containerHeight = this.container.clientHeight;
 
     // Always fit horizontally
     // Step 1: Measure container width
@@ -99,67 +93,18 @@ export class VibeTerminalBuffer extends LitElement {
     const calculatedFontSize = targetCharWidth / 0.6;
     this.displayedFontSize = Math.max(4, Math.min(32, Math.floor(calculatedFontSize)));
 
-    // Step 4: Calculate how many lines are visible based on scaled font size
-    const lineHeight = this.displayedFontSize * 1.2;
-    const newActualRows = Math.max(1, Math.floor(containerHeight / lineHeight));
-
-    if (newActualRows !== this.actualRows) {
-      this.actualRows = newActualRows;
-      this.fetchBuffer();
-    } else if (this.buffer) {
-      // If rows didn't change but we have a buffer, just update the display
+    // Always update when dimensions change
+    if (this.buffer) {
       this.requestUpdate();
     }
   }
 
-  private startPolling() {
-    if (this.pollInterval > 0) {
-      this.pollTimer = setInterval(() => {
-        if (!this.loading) {
-          this.fetchBuffer();
-        }
-      }, this.pollInterval);
-    }
-  }
+  private subscribeToBuffer() {
+    if (!this.sessionId) return;
 
-  private stopPolling() {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
-  }
-
-  private async fetchBuffer() {
-    if (!this.sessionId || this.actualRows === 0) return;
-
-    try {
-      this.loading = true;
-
-      // First fetch stats to check if we need to update
-      const statsResponse = await fetch(`/api/sessions/${this.sessionId}/buffer/stats`);
-      if (!statsResponse.ok) {
-        throw new Error(`Failed to fetch buffer stats: ${statsResponse.statusText}`);
-      }
-      const stats = await statsResponse.json();
-
-      // Check if buffer changed
-      if (this.lastModified && this.lastModified === stats.lastModified) {
-        this.loading = false;
-        return; // No changes
-      }
-
-      // Fetch buffer data - request enough lines for display
-      const lines = Math.max(this.actualRows, stats.rows);
-      const response = await fetch(`/api/sessions/${this.sessionId}/buffer?lines=${lines}`);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch buffer: ${response.statusText}`);
-      }
-
-      // Decode binary buffer
-      const arrayBuffer = await response.arrayBuffer();
-      this.buffer = TerminalRenderer.decodeBinaryBuffer(arrayBuffer);
-      this.lastModified = stats.lastModified;
+    // Subscribe to buffer updates
+    this.unsubscribe = bufferSubscriptionService.subscribe(this.sessionId, (snapshot) => {
+      this.buffer = snapshot;
       this.error = null;
 
       // Recalculate dimensions now that we have the actual cols
@@ -167,17 +112,19 @@ export class VibeTerminalBuffer extends LitElement {
 
       // Request update which will trigger updated() lifecycle
       this.requestUpdate();
-    } catch (error) {
-      console.error('Error fetching buffer:', error);
-      this.error = error instanceof Error ? error.message : 'Failed to fetch buffer';
-    } finally {
-      this.loading = false;
+    });
+  }
+
+  private unsubscribeFromBuffer() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
     }
   }
 
   connectedCallback() {
     super.connectedCallback();
-    this.startPolling();
+    // Subscription happens in firstUpdated or when sessionId changes
   }
 
   render() {
@@ -219,22 +166,12 @@ export class VibeTerminalBuffer extends LitElement {
     const lineHeight = this.displayedFontSize * 1.2;
     let html = '';
 
-    // Step 5: Draw the bottom n lines
-    let cellsToRender: BufferCell[][];
-    let startIndex = 0;
-
-    if (this.buffer.cells.length <= this.actualRows) {
-      // All content fits
-      cellsToRender = this.buffer.cells;
-    } else {
-      // Content exceeds viewport, show bottom portion
-      startIndex = this.buffer.cells.length - this.actualRows;
-      cellsToRender = this.buffer.cells.slice(startIndex);
-    }
-
-    cellsToRender.forEach((row, index) => {
-      const actualIndex = startIndex + index;
-      const isCursorLine = actualIndex === this.buffer.cursorY;
+    // Render all cells from the buffer
+    // The buffer contains the bottom portion of the terminal, starting at viewportY
+    this.buffer.cells.forEach((row, index) => {
+      // Check if cursor is on this line
+      // cursorY is relative to the viewport (can be negative if cursor is above viewport)
+      const isCursorLine = index === this.buffer.cursorY;
       const cursorCol = isCursorLine ? this.buffer.cursorX : -1;
       const lineContent = TerminalRenderer.renderLineFromCells(row, cursorCol);
 
@@ -246,9 +183,11 @@ export class VibeTerminalBuffer extends LitElement {
   }
 
   /**
-   * Public method to fetch buffer on demand
+   * Public method to refresh buffer display
    */
-  async refresh() {
-    await this.fetchBuffer();
+  refresh() {
+    if (this.buffer) {
+      this.requestUpdate();
+    }
   }
 }

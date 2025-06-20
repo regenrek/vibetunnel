@@ -209,7 +209,6 @@ export class SessionCard extends LitElement {
             : html`
                 <vibe-terminal-buffer
                   .sessionId=${this.session.id}
-                  .pollInterval=${1000}
                   class="w-full h-full"
                   style="pointer-events: none;"
                 ></vibe-terminal-buffer>

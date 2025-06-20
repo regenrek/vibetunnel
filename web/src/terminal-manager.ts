@@ -8,6 +8,8 @@ interface SessionTerminal {
   lastUpdate: number;
 }
 
+type BufferChangeListener = (sessionId: string, snapshot: BufferSnapshot) => void;
+
 interface BufferCell {
   char: string;
   width: number;
@@ -28,6 +30,8 @@ interface BufferSnapshot {
 export class TerminalManager {
   private terminals: Map<string, SessionTerminal> = new Map();
   private controlDir: string;
+  private bufferListeners: Map<string, Set<BufferChangeListener>> = new Map();
+  private changeTimers: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(controlDir: string) {
     this.controlDir = controlDir;
@@ -146,6 +150,7 @@ export class TerminalManager {
       // Handle asciinema header
       if (data.version && data.width && data.height) {
         sessionTerminal.terminal.resize(data.width, data.height);
+        this.notifyBufferChange(sessionId);
         return;
       }
 
@@ -165,6 +170,7 @@ export class TerminalManager {
         if (type === 'o') {
           // Output event - write to terminal
           sessionTerminal.terminal.write(eventData);
+          this.scheduleBufferChangeNotification(sessionId);
         } else if (type === 'r') {
           // Resize event
           const match = eventData.match(/^(\d+)x(\d+)$/);
@@ -172,6 +178,7 @@ export class TerminalManager {
             const cols = parseInt(match[1], 10);
             const rows = parseInt(match[2], 10);
             sessionTerminal.terminal.resize(cols, rows);
+            this.notifyBufferChange(sessionId);
           }
         }
         // Ignore 'i' (input) events
@@ -200,35 +207,20 @@ export class TerminalManager {
   }
 
   /**
-   * Get buffer snapshot for a session
+   * Get buffer snapshot for a session - always returns full terminal buffer (cols x rows)
    */
-  async getBufferSnapshot(
-    sessionId: string,
-    viewportY: number | undefined,
-    lines: number
-  ): Promise<BufferSnapshot> {
+  async getBufferSnapshot(sessionId: string): Promise<BufferSnapshot> {
     const terminal = await this.getTerminal(sessionId);
     const buffer = terminal.buffer.active;
 
-    let startLine: number;
-    let actualViewportY: number;
-
-    if (viewportY === undefined) {
-      // Get lines from bottom - calculate start position
-      startLine = Math.max(0, buffer.length - lines);
-      actualViewportY = startLine;
-    } else {
-      // Use specified viewport position
-      startLine = Math.max(0, viewportY);
-      actualViewportY = viewportY;
-    }
-
-    const endLine = Math.min(buffer.length, startLine + lines);
+    // Always get the visible terminal area from bottom
+    const startLine = Math.max(0, buffer.length - terminal.rows);
+    const endLine = buffer.length;
     const actualLines = endLine - startLine;
 
     // Get cursor position relative to our viewport
     const cursorX = buffer.cursorX;
-    const cursorY = buffer.cursorY + buffer.viewportY - actualViewportY;
+    const cursorY = buffer.cursorY + buffer.viewportY - startLine;
 
     // Extract cells
     const cells: BufferCell[][] = [];
@@ -323,7 +315,7 @@ export class TerminalManager {
     return {
       cols: terminal.cols,
       rows: trimmedCells.length,
-      viewportY: actualViewportY,
+      viewportY: startLine,
       cursorX,
       cursorY,
       cells: trimmedCells,
@@ -600,5 +592,76 @@ export class TerminalManager {
    */
   getActiveTerminals(): string[] {
     return Array.from(this.terminals.keys());
+  }
+
+  /**
+   * Subscribe to buffer changes for a session
+   */
+  async subscribeToBufferChanges(
+    sessionId: string,
+    listener: BufferChangeListener
+  ): Promise<() => void> {
+    // Ensure terminal exists and is watching
+    await this.getTerminal(sessionId);
+
+    if (!this.bufferListeners.has(sessionId)) {
+      this.bufferListeners.set(sessionId, new Set());
+    }
+
+    this.bufferListeners.get(sessionId)!.add(listener);
+
+    // Return unsubscribe function
+    return () => {
+      const listeners = this.bufferListeners.get(sessionId);
+      if (listeners) {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          this.bufferListeners.delete(sessionId);
+        }
+      }
+    };
+  }
+
+  /**
+   * Schedule buffer change notification (debounced)
+   */
+  private scheduleBufferChangeNotification(sessionId: string) {
+    // Cancel existing timer
+    const existingTimer = this.changeTimers.get(sessionId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    // Schedule new notification in 50ms
+    const timer = setTimeout(() => {
+      this.changeTimers.delete(sessionId);
+      this.notifyBufferChange(sessionId);
+    }, 50);
+
+    this.changeTimers.set(sessionId, timer);
+  }
+
+  /**
+   * Notify listeners of buffer change
+   */
+  private async notifyBufferChange(sessionId: string) {
+    const listeners = this.bufferListeners.get(sessionId);
+    if (!listeners || listeners.size === 0) return;
+
+    try {
+      // Get full buffer snapshot
+      const snapshot = await this.getBufferSnapshot(sessionId);
+
+      // Notify all listeners
+      listeners.forEach((listener) => {
+        try {
+          listener(sessionId, snapshot);
+        } catch (error) {
+          console.error(`Error notifying buffer change listener for ${sessionId}:`, error);
+        }
+      });
+    } catch (error) {
+      console.error(`Error getting buffer snapshot for notification ${sessionId}:`, error);
+    }
   }
 }

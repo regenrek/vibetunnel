@@ -8,6 +8,8 @@ import { PtyService, PtyError } from './pty/index.js';
 import { TerminalManager } from './terminal-manager.js';
 import { StreamWatcher } from './stream-watcher.js';
 
+type BufferSnapshot = Awaited<ReturnType<TerminalManager['getBufferSnapshot']>>;
+
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
@@ -426,8 +428,6 @@ app.get('/api/sessions/:sessionId/buffer/stats', async (req, res) => {
 // Get session buffer in binary or JSON format
 app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
   const sessionId = req.params.sessionId;
-  const viewportY = req.query.viewportY ? parseInt(req.query.viewportY as string) : undefined;
-  const lines = parseInt(req.query.lines as string) || 24;
   const format = (req.query.format as string) || 'binary';
 
   try {
@@ -443,9 +443,8 @@ app.get('/api/sessions/:sessionId/buffer', async (req, res) => {
       return res.status(404).json({ error: 'Session stream not found' });
     }
 
-    // Get buffer snapshot
-    // If viewportY is not specified, get lines from bottom
-    const snapshot = await terminalManager.getBufferSnapshot(sessionId, viewportY, lines);
+    // Get full buffer snapshot
+    const snapshot = await terminalManager.getBufferSnapshot(sessionId);
 
     if (format === 'json') {
       // Send JSON response
@@ -716,7 +715,158 @@ app.post('/api/mkdir', (req, res) => {
 
 // === WEBSOCKETS ===
 
-// WebSocket for hot reload
+// Buffer magic byte
+const BUFFER_MAGIC_BYTE = 0xbf;
+
+// Handle buffer WebSocket connections
+function handleBufferWebSocket(ws: WebSocket) {
+  const subscriptions = new Map<string, () => void>();
+  let pingInterval: NodeJS.Timeout | null = null;
+  let lastPong = Date.now();
+
+  console.log('[BUFFER WS] New client connected');
+
+  // Start ping/pong heartbeat
+  pingInterval = setInterval(() => {
+    if (Date.now() - lastPong > 30000) {
+      // No pong received for 30 seconds, close connection
+      console.log('[BUFFER WS] Client timed out, closing connection');
+      ws.close();
+      return;
+    }
+
+    ws.send(JSON.stringify({ type: 'ping' }));
+  }, 10000); // Ping every 10 seconds
+
+  // Handle incoming messages
+  ws.on('message', async (data) => {
+    try {
+      const message = JSON.parse(data.toString());
+
+      switch (message.type) {
+        case 'subscribe': {
+          const { sessionId } = message;
+          if (!sessionId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'sessionId required' }));
+            return;
+          }
+
+          // Check if already subscribed
+          if (subscriptions.has(sessionId)) {
+            console.log(`[BUFFER WS] Already subscribed to ${sessionId}`);
+            return;
+          }
+
+          console.log(`[BUFFER WS] Subscribing to session ${sessionId}`);
+
+          try {
+            // Subscribe to buffer changes
+            const unsubscribe = await terminalManager.subscribeToBufferChanges(
+              sessionId,
+              (sessionId: string, snapshot: BufferSnapshot) => {
+                // Send binary buffer update
+                sendBinaryBuffer(ws, sessionId, snapshot);
+              }
+            );
+
+            subscriptions.set(sessionId, unsubscribe);
+
+            // Send initial buffer state
+            const initialSnapshot = await terminalManager.getBufferSnapshot(sessionId);
+            sendBinaryBuffer(ws, sessionId, initialSnapshot);
+          } catch (error) {
+            console.error(`[BUFFER WS] Error subscribing to ${sessionId}:`, error);
+            ws.send(JSON.stringify({ type: 'error', message: 'Failed to subscribe to session' }));
+          }
+          break;
+        }
+
+        case 'unsubscribe': {
+          const { sessionId } = message;
+          if (!sessionId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'sessionId required' }));
+            return;
+          }
+
+          const unsubscribe = subscriptions.get(sessionId);
+          if (unsubscribe) {
+            console.log(`[BUFFER WS] Unsubscribing from session ${sessionId}`);
+            unsubscribe();
+            subscriptions.delete(sessionId);
+          }
+          break;
+        }
+
+        case 'pong': {
+          lastPong = Date.now();
+          break;
+        }
+
+        default:
+          ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
+      }
+    } catch (error) {
+      console.error('[BUFFER WS] Error handling message:', error);
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
+    }
+  });
+
+  // Clean up on disconnect
+  ws.on('close', () => {
+    console.log('[BUFFER WS] Client disconnected');
+
+    // Unsubscribe from all sessions
+    subscriptions.forEach((unsubscribe) => unsubscribe());
+    subscriptions.clear();
+
+    // Clear ping interval
+    if (pingInterval) {
+      clearInterval(pingInterval);
+    }
+  });
+
+  ws.on('error', (error) => {
+    console.error('[BUFFER WS] WebSocket error:', error);
+  });
+}
+
+// Send binary buffer to WebSocket client
+function sendBinaryBuffer(ws: WebSocket, sessionId: string, snapshot: BufferSnapshot) {
+  try {
+    // Encode buffer
+    const bufferData = terminalManager.encodeSnapshot(snapshot);
+
+    // Create binary message: [magic byte][4 bytes: session ID length][session ID][buffer data]
+    const sessionIdBuffer = Buffer.from(sessionId, 'utf8');
+    const message = Buffer.allocUnsafe(1 + 4 + sessionIdBuffer.length + bufferData.length);
+
+    let offset = 0;
+
+    // Magic byte
+    message.writeUInt8(BUFFER_MAGIC_BYTE, offset);
+    offset += 1;
+
+    // Session ID length (4 bytes, little-endian)
+    message.writeUInt32LE(sessionIdBuffer.length, offset);
+    offset += 4;
+
+    // Session ID
+    sessionIdBuffer.copy(message, offset);
+    offset += sessionIdBuffer.length;
+
+    // Buffer data
+    bufferData.copy(message, offset);
+
+    // Send binary message
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(message);
+    }
+  } catch (error) {
+    console.error(`[BUFFER WS] Error sending buffer for ${sessionId}:`, error);
+  }
+}
+
+// WebSocket connections
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url ?? '', `http://${req.headers.host}`);
   const isHotReload = url.searchParams.get('hotReload') === 'true';
@@ -729,7 +879,13 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  ws.close(1008, 'Only hot reload connections supported');
+  // Check if this is a buffer subscription connection
+  if (url.pathname === '/buffers') {
+    handleBufferWebSocket(ws);
+    return;
+  }
+
+  ws.close(1008, 'Unknown WebSocket endpoint');
 });
 
 // Hot reload file watching in development
