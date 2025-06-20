@@ -93,6 +93,6 @@ iOSInjectionProject/
 .DS_Store
 
 # VibeTunnel specific
-*.xcodeproj/
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
+# Track xcodeproj but ignore user-specific data
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
