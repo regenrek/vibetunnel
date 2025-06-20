@@ -118,6 +118,12 @@ export class TerminalRenderer {
     // Flush remaining chars
     flushGroup();
 
+    // If the line is empty or has no visible content, add a non-breaking space
+    // to ensure the line maintains its height
+    if (!html) {
+      html = '<span class="terminal-char">&nbsp;</span>';
+    }
+
     return html;
   }
 

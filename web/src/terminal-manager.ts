@@ -274,11 +274,29 @@ export class TerminalManager {
 
           rowCells.push(bufferCell);
         }
-      } else {
-        // Empty line - fill with spaces
-        for (let col = 0; col < terminal.cols; col++) {
-          rowCells.push({ char: ' ', width: 1 });
+
+        // Trim blank cells from the end of the line
+        let lastNonBlankCell = rowCells.length - 1;
+        while (lastNonBlankCell >= 0) {
+          const cell = rowCells[lastNonBlankCell];
+          if (
+            cell.char !== ' ' ||
+            cell.fg !== undefined ||
+            cell.bg !== undefined ||
+            cell.attributes !== undefined
+          ) {
+            break;
+          }
+          lastNonBlankCell--;
         }
+
+        // Trim the array, but keep at least one cell
+        if (lastNonBlankCell < rowCells.length - 1) {
+          rowCells.splice(Math.max(1, lastNonBlankCell + 1));
+        }
+      } else {
+        // Empty line - just add a single space
+        rowCells.push({ char: ' ', width: 1 });
       }
 
       cells.push(rowCells);
