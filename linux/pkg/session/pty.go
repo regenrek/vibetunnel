@@ -27,7 +27,6 @@ type PTY struct {
 	pty                 *os.File
 	oldState            *term.State
 	streamWriter        *protocol.StreamWriter
-	bufferWriter        *BufferWriter // Direct buffer integration
 	stdinPipe           *os.File
 	useEventDrivenStdin bool
 	resizeMutex         sync.Mutex
@@ -204,11 +203,6 @@ func (p *PTY) Pid() int {
 	return 0
 }
 
-// SetBufferWriter sets a direct buffer writer for real-time terminal emulation
-func (p *PTY) SetBufferWriter(bw *BufferWriter) {
-	p.bufferWriter = bw
-}
-
 func (p *PTY) Run() error {
 	defer func() {
 		if err := p.Close(); err != nil {
@@ -273,15 +267,9 @@ func (p *PTY) Run() error {
 						p.session.info.Height = height
 						p.session.mu.Unlock()
 
-						// Write resize event
-						if p.bufferWriter != nil {
-							if err := p.bufferWriter.WriteResize(uint32(width), uint32(height)); err != nil {
-								log.Printf("[ERROR] PTY.Run: Failed to write resize to buffer: %v", err)
-							}
-						} else {
-							if err := p.streamWriter.WriteResize(uint32(width), uint32(height)); err != nil {
-								log.Printf("[ERROR] PTY.Run: Failed to write resize event: %v", err)
-							}
+						// Write resize event to stream
+						if err := p.streamWriter.WriteResize(uint32(width), uint32(height)); err != nil {
+							log.Printf("[ERROR] PTY.Run: Failed to write resize event: %v", err)
 						}
 					}
 				}
@@ -307,20 +295,10 @@ func (p *PTY) Run() error {
 			n, err := p.pty.Read(buf)
 			if n > 0 {
 				debugLog("[DEBUG] PTY.Run: Read %d bytes of output from PTY", n)
-				// Use buffer writer if available for direct integration
-				if p.bufferWriter != nil {
-					if _, err := p.bufferWriter.Write(buf[:n]); err != nil {
-						log.Printf("[ERROR] PTY.Run: Failed to write to buffer: %v", err)
-						errCh <- fmt.Errorf("failed to write to buffer: %w", err)
-						return
-					}
-				} else {
-					// Fallback to stream writer
-					if err := p.streamWriter.WriteOutput(buf[:n]); err != nil {
-						log.Printf("[ERROR] PTY.Run: Failed to write output: %v", err)
-						errCh <- fmt.Errorf("failed to write output: %w", err)
-						return
-					}
+				if err := p.streamWriter.WriteOutput(buf[:n]); err != nil {
+					log.Printf("[ERROR] PTY.Run: Failed to write output: %v", err)
+					errCh <- fmt.Errorf("failed to write output: %w", err)
+					return
 				}
 				// Continue reading immediately if we got data
 				continue
@@ -539,16 +517,6 @@ func (p *PTY) Resize(width, height int) error {
 
 func (p *PTY) Close() error {
 	var firstErr error
-	
-	// Close buffer writer if present
-	if p.bufferWriter != nil {
-		if err := p.bufferWriter.Close(); err != nil {
-			log.Printf("[ERROR] PTY.Close: Failed to close buffer writer: %v", err)
-			if firstErr == nil {
-				firstErr = err
-			}
-		}
-	}
 	
 	if p.streamWriter != nil {
 		if err := p.streamWriter.Close(); err != nil {

@@ -45,16 +45,6 @@ func NewManager(sessionManager *session.Manager) *Manager {
 
 // GetOrCreateBuffer gets or creates a terminal buffer for a session
 func (m *Manager) GetOrCreateBuffer(sessionID string) (*SessionBuffer, error) {
-	return m.getOrCreateBuffer(sessionID, false)
-}
-
-// GetOrCreateBufferForDirectIntegration gets or creates a terminal buffer for direct PTY integration
-func (m *Manager) GetOrCreateBufferForDirectIntegration(sessionID string) (*SessionBuffer, error) {
-	return m.getOrCreateBuffer(sessionID, true)
-}
-
-// getOrCreateBuffer is the internal implementation
-func (m *Manager) getOrCreateBuffer(sessionID string, directIntegration bool) (*SessionBuffer, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -82,15 +72,12 @@ func (m *Manager) getOrCreateBuffer(sessionID string, directIntegration bool) (*
 
 	m.buffers[sessionID] = sb
 
-	// Only start monitoring if NOT using direct integration
-	if !directIntegration {
-		// Start monitoring the session's output
-		m.wg.Add(1)
-		go func() {
-			defer m.wg.Done()
-			m.monitorSession(sessionID, sb)
-		}()
-	}
+	// Start monitoring the session's output
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.monitorSession(sessionID, sb)
+	}()
 
 	return sb, nil
 }
@@ -331,24 +318,6 @@ func (m *Manager) notifySubscribers(sessionID string, snapshot *terminal.BufferS
 			// Channel full, skip
 		}
 	}
-}
-
-// NotifyBufferUpdate notifies subscribers when buffer is updated through direct integration
-func (m *Manager) NotifyBufferUpdate(sessionID string) error {
-	m.mu.RLock()
-	sb, exists := m.buffers[sessionID]
-	m.mu.RUnlock()
-	
-	if !exists {
-		return fmt.Errorf("session buffer not found: %s", sessionID)
-	}
-	
-	sb.mu.RLock()
-	snapshot := sb.Buffer.GetSnapshot()
-	sb.mu.RUnlock()
-	
-	m.notifySubscribers(sessionID, snapshot)
-	return nil
 }
 
 // StreamUpdate represents an update from the stream file
