@@ -149,6 +149,7 @@ func TestSession_Signal(t *testing.T) {
 
 	// Test with already exited session
 	session.info.Status = string(StatusExited)
+	session.info.Pid = 99999 // Non-existent process
 	err = session.Signal("SIGTERM")
 	if err != nil {
 		t.Errorf("Signal should succeed for exited session: %v", err)
@@ -288,6 +289,7 @@ func TestSession_KillWithSignal(t *testing.T) {
 		ID: "test-kill-signal",
 		info: &Info{
 			Status: string(StatusExited),
+			Pid:    99999, // Non-existent process
 		},
 		stdinPipe: nil,
 	}

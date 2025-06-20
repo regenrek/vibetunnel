@@ -35,7 +35,15 @@ func TestNewStdinWatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStdinWatcher() error = %v", err)
 	}
-	defer watcher.Stop()
+	defer func() {
+		// Only stop if it was started
+		if watcher.watcher != nil {
+			watcher.watcher.Close()
+		}
+		if watcher.stdinFile != nil {
+			watcher.stdinFile.Close()
+		}
+	}()
 
 	if watcher.stdinPath != pipePath {
 		t.Errorf("stdinPath = %v, want %v", watcher.stdinPath, pipePath)

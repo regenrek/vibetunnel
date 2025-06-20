@@ -3,6 +3,7 @@ package session
 import (
 	"log"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -128,7 +129,7 @@ func waitForProcessExit(pid int, timeout time.Duration) bool {
 		}
 
 		// Check if process is alive using signal 0
-		if err := proc.Signal(os.Signal(nil)); err != nil {
+		if err := proc.Signal(syscall.Signal(0)); err != nil {
 			// Process doesn't exist or we don't have permission
 			return true
 		}
@@ -152,6 +153,6 @@ func isProcessRunning(pid int) bool {
 	}
 
 	// On Unix, signal 0 checks if process exists
-	err = proc.Signal(os.Signal(nil))
+	err = proc.Signal(syscall.Signal(0))
 	return err == nil
 }

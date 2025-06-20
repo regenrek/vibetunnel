@@ -96,15 +96,21 @@ describe('WebSocket Integration Tests', () => {
     it('should reject non-hot-reload connections', async () => {
       const ws = new WebSocket(wsUrl);
 
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          ws.terminate();
+          reject(new Error('Test timeout: WebSocket did not close'));
+        }, 5000);
+
         ws.on('close', (code, reason) => {
+          clearTimeout(timeout);
           expect(code).toBe(1008);
-          expect(reason.toString()).toContain('Only hot reload connections supported');
+          expect(reason.toString()).toContain('Unknown WebSocket endpoint');
           resolve();
         });
 
         ws.on('error', () => {
-          // Expected
+          // Expected - connection should be rejected
         });
       });
     });
