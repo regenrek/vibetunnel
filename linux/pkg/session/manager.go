@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,7 +29,8 @@ func NewManager(controlPath string) *Manager {
 	}
 	
 	// Start background cleanup goroutine
-	go m.backgroundCleanup()
+	// Disabled automatic cleanup to match Rust behavior
+	// go m.backgroundCleanup()
 	
 	return m
 }
@@ -124,10 +126,16 @@ func (m *Manager) ListSessions() ([]*Info, error) {
 
 		session, err := loadSession(m.controlPath, entry.Name())
 		if err != nil {
+			// Log the error when we can't load a session
+			if os.Getenv("VIBETUNNEL_DEBUG") != "" {
+				log.Printf("[DEBUG] Failed to load session %s: %v", entry.Name(), err)
+			}
 			continue
 		}
 
-		// Return cached status for faster response - background updates will keep it current
+		// Update status on-demand like Rust implementation
+		session.UpdateStatus()
+		
 		sessions = append(sessions, session.info)
 	}
 
@@ -138,7 +146,15 @@ func (m *Manager) ListSessions() ([]*Info, error) {
 	return sessions, nil
 }
 
+// CleanupExitedSessions now only updates session status to match Rust behavior
+// Use RemoveExitedSessions for actual cleanup
 func (m *Manager) CleanupExitedSessions() error {
+	// This method now just updates statuses to match Rust implementation
+	return m.UpdateAllSessionStatuses()
+}
+
+// RemoveExitedSessions actually removes dead sessions from disk (manual cleanup)
+func (m *Manager) RemoveExitedSessions() error {
 	sessions, err := m.ListSessions()
 	if err != nil {
 		return err

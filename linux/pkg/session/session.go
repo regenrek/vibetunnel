@@ -442,15 +442,82 @@ func (i *Info) Save(sessionPath string) error {
 	return os.WriteFile(filepath.Join(sessionPath, "session.json"), data, 0644)
 }
 
+// RustSessionInfo represents the session format used by the Rust server
+type RustSessionInfo struct {
+	ID        string            `json:"id,omitempty"`
+	Name      string            `json:"name"`
+	Cmdline   []string          `json:"cmdline"`
+	Cwd       string            `json:"cwd"`
+	Pid       *int              `json:"pid,omitempty"`
+	Status    string            `json:"status"`
+	ExitCode  *int              `json:"exit_code,omitempty"`
+	StartedAt *time.Time        `json:"started_at,omitempty"`
+	Term      string            `json:"term"`
+	SpawnType string            `json:"spawn_type,omitempty"`
+	Cols      *int              `json:"cols,omitempty"`
+	Rows      *int              `json:"rows,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+}
+
 func LoadInfo(sessionPath string) (*Info, error) {
 	data, err := os.ReadFile(filepath.Join(sessionPath, "session.json"))
 	if err != nil {
 		return nil, err
 	}
 
+	// First try to unmarshal as Go format
 	var info Info
-	if err := json.Unmarshal(data, &info); err != nil {
-		return nil, err
+	if err := json.Unmarshal(data, &info); err == nil {
+		// Successfully parsed as Go format
+		return &info, nil
+	}
+
+	// If that fails, try Rust format
+	var rustInfo RustSessionInfo
+	if err := json.Unmarshal(data, &rustInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse session.json: %w", err)
+	}
+
+	// Convert Rust format to Go format
+	info = Info{
+		ID:        rustInfo.ID,
+		Name:      rustInfo.Name,
+		Cmdline:   strings.Join(rustInfo.Cmdline, " "),
+		Cwd:       rustInfo.Cwd,
+		Status:    rustInfo.Status,
+		ExitCode:  rustInfo.ExitCode,
+		Term:      rustInfo.Term,
+		Args:      rustInfo.Cmdline,
+		Env:       rustInfo.Env,
+	}
+
+	// Handle PID conversion
+	if rustInfo.Pid != nil {
+		info.Pid = *rustInfo.Pid
+	}
+
+	// Handle dimensions: use cols/rows if available, otherwise defaults
+	if rustInfo.Cols != nil {
+		info.Width = *rustInfo.Cols
+	} else {
+		info.Width = 120
+	}
+	if rustInfo.Rows != nil {
+		info.Height = *rustInfo.Rows
+	} else {
+		info.Height = 30
+	}
+
+	// Handle timestamp
+	if rustInfo.StartedAt != nil {
+		info.StartedAt = *rustInfo.StartedAt
+	} else {
+		info.StartedAt = time.Now()
+	}
+
+	// If ID is empty (Rust doesn't store it in JSON), derive it from directory name
+	if info.ID == "" {
+		info.ID = filepath.Base(sessionPath)
 	}
 
 	return &info, nil

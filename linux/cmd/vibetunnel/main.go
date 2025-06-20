@@ -71,6 +71,10 @@ var rootCmd = &cobra.Command{
 	Long: `VibeTunnel allows you to access your Linux terminal from any web browser.
 This is the Linux implementation compatible with the macOS VibeTunnel app.`,
 	RunE: run,
+	// Allow passing through unknown flags to the command being executed
+	FParseErrWhitelist: cobra.FParseErrWhitelist{
+		UnknownFlags: true,
+	},
 }
 
 func init() {
@@ -171,9 +175,10 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Handle cleanup on startup if enabled
 	if cfg.Advanced.CleanupStartup || cleanupStartup {
-		fmt.Println("Cleaning up sessions on startup...")
-		if err := manager.CleanupExitedSessions(); err != nil {
-			fmt.Printf("Warning: cleanup failed: %v\n", err)
+		fmt.Println("Updating session statuses on startup...")
+		// Only update statuses, don't remove sessions (matching Rust behavior)
+		if err := manager.UpdateAllSessionStatuses(); err != nil {
+			fmt.Printf("Warning: status update failed: %v\n", err)
 		}
 	}
 
@@ -191,7 +196,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	if cleanupExited {
-		return manager.CleanupExitedSessions()
+		// Match Rust behavior: actually remove dead sessions on manual cleanup
+		return manager.RemoveExitedSessions()
 	}
 
 	// Handle session input/control operations
@@ -442,45 +448,77 @@ func main() {
 		return
 	}
 	
-	// Simple argument forwarding like the old Rust binary
-	// If no flags are present and we're just passing commands, forward them directly
-	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") && os.Args[1] != "version" && os.Args[1] != "config" {
-		// Check if this looks like a direct command execution (no flags)
-		hasFlags := false
-		for _, arg := range os.Args[1:] {
-			if strings.HasPrefix(arg, "-") {
-				hasFlags = true
-				break
-			}
-		}
+	// Check for special case: if we have args but no recognized VibeTunnel flags,
+	// treat everything as a command to execute (compatible with old Rust behavior)
+	if len(os.Args) > 1 {
+		// Parse flags without executing to check what we have
+		rootCmd.DisableFlagParsing = true
+		rootCmd.ParseFlags(os.Args[1:])
+		rootCmd.DisableFlagParsing = false
 		
-		if !hasFlags {
-			// Direct command execution - create a session and run it
-			// This mimics the old behavior where "vt command args" would just run the command
-			homeDir, _ := os.UserHomeDir()
-			defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
-			cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
-			if cfg.ControlPath != "" {
-				defaultControlPath = cfg.ControlPath
+		// Get the command and check if first arg is a subcommand
+		args := os.Args[1:]
+		if len(args) > 0 && (args[0] == "version" || args[0] == "config") {
+			// This is a subcommand, let Cobra handle it normally
+		} else {
+			// Check if any args look like VibeTunnel flags
+			hasVibeTunnelFlags := false
+			for _, arg := range args {
+				if strings.HasPrefix(arg, "-") {
+					// Check if this is one of our known flags
+					flag := strings.TrimLeft(arg, "-")
+					flag = strings.Split(flag, "=")[0] // Handle --flag=value format
+					
+					knownFlags := []string{
+						"serve", "port", "p", "bind", "localhost", "network",
+						"password", "password-enabled", "tls", "tls-port", "tls-domain",
+						"tls-self-signed", "tls-cert", "tls-key", "tls-redirect",
+						"ngrok", "ngrok-token", "debug", "cleanup-startup",
+						"server-mode", "update-channel", "config", "c",
+						"control-path", "session-name", "list-sessions",
+						"send-key", "send-text", "signal", "stop", "kill",
+						"cleanup-exited", "detached-session", "static-path", "help", "h",
+					}
+					
+					for _, known := range knownFlags {
+						if flag == known {
+							hasVibeTunnelFlags = true
+							break
+						}
+					}
+					if hasVibeTunnelFlags {
+						break
+					}
+				}
 			}
 			
-			manager := session.NewManager(defaultControlPath)
-			sess, err := manager.CreateSession(session.Config{
-				Name:    "",
-				Cmdline: os.Args[1:],
-				Cwd:     ".",
-			})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+			// If no VibeTunnel flags found, treat everything as a command
+			if !hasVibeTunnelFlags && len(args) > 0 {
+				homeDir, _ := os.UserHomeDir()
+				defaultControlPath := filepath.Join(homeDir, ".vibetunnel", "control")
+				cfg := config.LoadConfig(filepath.Join(homeDir, ".vibetunnel", "config.yaml"))
+				if cfg.ControlPath != "" {
+					defaultControlPath = cfg.ControlPath
+				}
+				
+				manager := session.NewManager(defaultControlPath)
+				sess, err := manager.CreateSession(session.Config{
+					Name:    "",
+					Cmdline: args,
+					Cwd:     ".",
+				})
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+					os.Exit(1)
+				}
+				
+				// Attach to the session
+				if err := sess.Attach(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+					os.Exit(1)
+				}
+				return
 			}
-			
-			// Attach to the session
-			if err := sess.Attach(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
-			}
-			return
 		}
 	}
 	

@@ -224,8 +224,50 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert to Rust-compatible format
+	type RustSessionInfo struct {
+		ID           string    `json:"id"`
+		Name         string    `json:"name"`
+		Command      string    `json:"command"`      // Changed from cmdline array to command string
+		WorkingDir   string    `json:"workingDir"`   // Changed from cwd to workingDir
+		Pid          *int      `json:"pid,omitempty"`
+		Status       string    `json:"status"`
+		ExitCode     *int      `json:"exitCode,omitempty"`     // Changed from exit_code to exitCode
+		StartedAt    time.Time `json:"startedAt"`               // Changed from started_at to startedAt
+		Term         string    `json:"term"`
+		Width        int       `json:"width"`
+		Height       int       `json:"height"`
+		Env          map[string]string `json:"env,omitempty"`
+		LastModified time.Time `json:"lastModified"`           // Added to match Rust
+	}
+
+	rustSessions := make([]RustSessionInfo, len(sessions))
+	for i, s := range sessions {
+		// Convert PID to pointer for omitempty behavior
+		var pid *int
+		if s.Pid > 0 {
+			pid = &s.Pid
+		}
+		
+		rustSessions[i] = RustSessionInfo{
+			ID:           s.ID,
+			Name:         s.Name,
+			Command:      s.Cmdline,  // Already a string
+			WorkingDir:   s.Cwd,
+			Pid:          pid,
+			Status:       s.Status,
+			ExitCode:     s.ExitCode,
+			StartedAt:    s.StartedAt,
+			Term:         s.Term,
+			Width:        s.Width,
+			Height:       s.Height,
+			Env:          s.Env,
+			LastModified: s.StartedAt, // Use StartedAt as LastModified for now
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	json.NewEncoder(w).Encode(rustSessions)
 }
 
 func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
