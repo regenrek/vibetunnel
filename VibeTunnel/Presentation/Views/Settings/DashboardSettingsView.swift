@@ -37,7 +37,7 @@ struct DashboardSettingsView: View {
 
     private let dashboardKeychain = DashboardKeychain.shared
     private let ngrokService = NgrokService.shared
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "DashboardSettings")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "DashboardSettings")
 
     private var accessMode: DashboardAccessMode {
         DashboardAccessMode(rawValue: accessModeString) ?? .localhost
@@ -609,7 +609,7 @@ private struct PortConfigurationView: View {
     @State private var alternativePorts: [Int] = []
 
     private let serverManager = ServerManager.shared
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "PortConfiguration")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "PortConfiguration")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -879,7 +879,7 @@ private struct NgrokToggleView: View {
     let checkAndStartNgrok: () -> Void
     let stopNgrok: () -> Void
 
-    private let logger = Logger(subsystem: "com.steipete.VibeTunnel", category: "NgrokToggle")
+    private let logger = Logger(subsystem: "sh.vibetunnel.vibetunnel", category: "NgrokToggle")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
