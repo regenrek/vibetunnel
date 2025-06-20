@@ -11,11 +11,14 @@ export interface RemoteServer {
 
 export class RemoteRegistry {
   private remotes: Map<string, RemoteServer> = new Map();
-  private heartbeatInterval: NodeJS.Timeout | null = null;
-  private readonly HEARTBEAT_TIMEOUT = 30000; // 30 seconds
+  private healthCheckInterval: NodeJS.Timeout | null = null;
+  private readonly HEALTH_CHECK_INTERVAL = 15000; // Check every 15 seconds
+  private readonly HEALTH_CHECK_TIMEOUT = 5000; // 5 second timeout per check
+  private password: string | null;
 
-  constructor() {
-    this.startHeartbeatChecker();
+  constructor(password: string | null = null) {
+    this.password = password;
+    this.startHealthChecker();
   }
 
   register(remote: Omit<RemoteServer, 'registeredAt' | 'lastHeartbeat' | 'status'>): RemoteServer {
@@ -30,6 +33,9 @@ export class RemoteRegistry {
     this.remotes.set(remote.id, registeredRemote);
     console.log(`Remote registered: ${remote.name} (${remote.id}) from ${remote.url}`);
 
+    // Immediately check health of new remote
+    this.checkRemoteHealth(registeredRemote);
+
     return registeredRemote;
   }
 
@@ -38,17 +44,6 @@ export class RemoteRegistry {
     if (remote) {
       console.log(`Remote unregistered: ${remote.name} (${remoteId})`);
       return this.remotes.delete(remoteId);
-    }
-    return false;
-  }
-
-  updateHeartbeat(remoteId: string, sessionCount: number): boolean {
-    const remote = this.remotes.get(remoteId);
-    if (remote) {
-      remote.lastHeartbeat = new Date();
-      remote.sessionCount = sessionCount;
-      remote.status = 'online';
-      return true;
     }
     return false;
   }
@@ -69,24 +64,60 @@ export class RemoteRegistry {
     return this.getAllRemotes().filter((r) => r.status === 'online');
   }
 
-  private startHeartbeatChecker() {
-    this.heartbeatInterval = setInterval(() => {
-      const now = Date.now();
+  private async checkRemoteHealth(remote: RemoteServer): Promise<void> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.HEALTH_CHECK_TIMEOUT);
 
-      for (const remote of this.remotes.values()) {
-        const timeSinceLastHeartbeat = now - remote.lastHeartbeat.getTime();
-
-        if (timeSinceLastHeartbeat > this.HEARTBEAT_TIMEOUT && remote.status === 'online') {
-          remote.status = 'offline';
-          console.log(`Remote went offline: ${remote.name} (${remote.id})`);
-        }
+      const headers: Record<string, string> = {};
+      if (this.password) {
+        headers['Authorization'] =
+          `Basic ${Buffer.from(`user:${this.password}`).toString('base64')}`;
       }
-    }, 10000); // Check every 10 seconds
+
+      const response = await fetch(`${remote.url}/api/sessions`, {
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const sessions = await response.json();
+        remote.lastHeartbeat = new Date();
+        remote.sessionCount = Array.isArray(sessions) ? sessions.length : 0;
+
+        if (remote.status !== 'online') {
+          remote.status = 'online';
+          console.log(`Remote came online: ${remote.name} (${remote.id})`);
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      if (remote.status !== 'offline') {
+        remote.status = 'offline';
+        console.log(`Remote went offline: ${remote.name} (${remote.id}) - ${error}`);
+      }
+    }
+  }
+
+  private startHealthChecker() {
+    this.healthCheckInterval = setInterval(() => {
+      // Check all remotes in parallel
+      const healthChecks = Array.from(this.remotes.values()).map((remote) =>
+        this.checkRemoteHealth(remote)
+      );
+
+      Promise.all(healthChecks).catch((err) => {
+        console.error('Error in health checks:', err);
+      });
+    }, this.HEALTH_CHECK_INTERVAL);
   }
 
   destroy() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
     }
   }
 }

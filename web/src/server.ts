@@ -114,7 +114,7 @@ let remoteRegistry: RemoteRegistry | null = null;
 let hqClient: HQClient | null = null;
 
 if (isHQMode) {
-  remoteRegistry = new RemoteRegistry();
+  remoteRegistry = new RemoteRegistry(basicAuthPassword);
   console.log(`${GREEN}Running in HQ mode${RESET}`);
 }
 
@@ -446,40 +446,6 @@ app.post('/api/remotes/register', (req, res) => {
   });
 
   res.json({ success: true, remote: { id: remote.id, name: remote.name } });
-});
-
-// Heartbeat from remote server
-app.post('/api/remotes/:remoteId/heartbeat', (req, res) => {
-  if (!isHQMode || !remoteRegistry) {
-    return res.status(404).json({ error: 'HQ mode not enabled' });
-  }
-
-  const { remoteId } = req.params;
-  const { sessionCount } = req.body;
-  const authHeader = req.headers.authorization;
-
-  // Verify token
-  const remote = remoteRegistry.getRemote(remoteId);
-  if (!remote) {
-    return res.status(404).json({ error: 'Remote not found' });
-  }
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization' });
-  }
-
-  const token = authHeader.slice(7);
-  if (token !== remote.token) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
-  const success = remoteRegistry.updateHeartbeat(remoteId, sessionCount || 0);
-
-  if (success) {
-    res.json({ success: true });
-  } else {
-    res.status(404).json({ error: 'Remote not found' });
-  }
 });
 
 // Unregister remote
