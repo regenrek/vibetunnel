@@ -40,8 +40,13 @@ final class CLIInstaller {
     /// Checks if the CLI tool is installed
     func checkInstallationStatus() {
         Task { @MainActor in
-            let targetPath = "/usr/local/bin/vt"
-            let installed = FileManager.default.fileExists(atPath: targetPath)
+            let vtPath = "/usr/local/bin/vt"
+            let vibetunnelPath = "/usr/local/bin/vibetunnel"
+            
+            // Both tools must be installed
+            let vtInstalled = FileManager.default.fileExists(atPath: vtPath)
+            let vibetunnelInstalled = FileManager.default.fileExists(atPath: vibetunnelPath)
+            let installed = vtInstalled && vibetunnelInstalled
 
             // Update state without animation
             isInstalled = installed
@@ -52,7 +57,7 @@ final class CLIInstaller {
                 var bundledVer: String?
 
                 if installed {
-                    // Check version of installed tool
+                    // Check version of installed tools
                     installedVer = await self.getInstalledVersionAsync()
                 }
 
@@ -69,7 +74,7 @@ final class CLIInstaller {
 
                     self.logger
                         .info(
-                            "CLIInstaller: CLI tool installed: \(self.isInstalled), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)"
+                            "CLIInstaller: CLI tools installed: \(self.isInstalled) (vt: \(vtInstalled), vibetunnel: \(vibetunnelInstalled)), installed version: \(self.installedVersion ?? "unknown"), bundled version: \(self.bundledVersion ?? "unknown"), needs update: \(self.needsUpdate)"
                         )
                 }
             }
@@ -78,136 +83,298 @@ final class CLIInstaller {
 
     /// Gets the version of the installed vt tool
     private func getInstalledVersion() -> String? {
-        let task = Process()
-        task.launchPath = "/usr/local/bin/vt"
-        task.arguments = ["--version"]
+        // Get vt version
+        var vtVersion: String?
+        let vtTask = Process()
+        vtTask.launchPath = "/usr/local/bin/vt"
+        vtTask.arguments = ["--version"]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+        let vtPipe = Pipe()
+        vtTask.standardOutput = vtPipe
+        vtTask.standardError = vtPipe
 
         do {
-            try task.run()
-            task.waitUntilExit()
+            try vtTask.run()
+            vtTask.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let data = vtPipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Parse version from output like "vt version 2.0.0"
             if let output, output.contains("version") {
                 let components = output.components(separatedBy: " ")
                 if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
-                    return components[versionIndex + 1]
+                    vtVersion = components[versionIndex + 1]
                 }
             }
-
-            return output
         } catch {
             logger.error("Failed to get installed vt version: \(error)")
-            return nil
+            vtVersion = nil
         }
+        
+        // Get vibetunnel version
+        var vibetunnelVersion: String?
+        let vibetunnelTask = Process()
+        vibetunnelTask.launchPath = "/usr/local/bin/vibetunnel"
+        vibetunnelTask.arguments = ["version"]
+
+        let vibetunnelPipe = Pipe()
+        vibetunnelTask.standardOutput = vibetunnelPipe
+        vibetunnelTask.standardError = vibetunnelPipe
+
+        do {
+            try vibetunnelTask.run()
+            vibetunnelTask.waitUntilExit()
+
+            let data = vibetunnelPipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Parse version from output like "VibeTunnel Linux v1.0.3"
+            if let output, output.contains("v") {
+                if let range = output.range(of: #"v(\d+\.\d+\.\d+)"#, options: .regularExpression) {
+                    vibetunnelVersion = String(output[range]).dropFirst(1).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        } catch {
+            logger.error("Failed to get installed vibetunnel version: \(error)")
+            vibetunnelVersion = nil
+        }
+        
+        // Return the lowest version or "unknown" if either is missing
+        if let vtVer = vtVersion, let vibetunnelVer = vibetunnelVersion {
+            // Compare versions and return the lower one
+            if vtVer.compare(vibetunnelVer, options: .numeric) == .orderedAscending {
+                return vtVer
+            } else {
+                return vibetunnelVer
+            }
+        }
+        
+        // If either version is missing, return "unknown"
+        return vtVersion ?? vibetunnelVersion ?? "unknown"
     }
 
     /// Gets the version of the bundled vt tool
     private func getBundledVersion() -> String? {
-        guard let vtPath = Bundle.main.path(forResource: "vt", ofType: nil) else {
-            return nil
-        }
+        // Get vt version
+        var vtVersion: String?
+        if let vtPath = Bundle.main.path(forResource: "vt", ofType: nil) {
+            let vtTask = Process()
+            vtTask.launchPath = vtPath
+            vtTask.arguments = ["--version"]
 
-        let task = Process()
-        task.launchPath = vtPath
-        task.arguments = ["--version"]
+            let vtPipe = Pipe()
+            vtTask.standardOutput = vtPipe
+            vtTask.standardError = vtPipe
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+            do {
+                try vtTask.run()
+                vtTask.waitUntilExit()
 
-        do {
-            try task.run()
-            task.waitUntilExit()
+                let data = vtPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Parse version from output like "vt version 2.0.0"
-            if let output, output.contains("version") {
-                let components = output.components(separatedBy: " ")
-                if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
-                    return components[versionIndex + 1]
+                // Parse version from output like "vt version 2.0.0"
+                if let output, output.contains("version") {
+                    let components = output.components(separatedBy: " ")
+                    if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
+                        vtVersion = components[versionIndex + 1]
+                    }
                 }
+            } catch {
+                logger.error("Failed to get bundled vt version: \(error)")
+                vtVersion = nil
             }
-
-            return output
-        } catch {
-            logger.error("Failed to get bundled vt version: \(error)")
-            return nil
         }
+        
+        // Get vibetunnel version
+        var vibetunnelVersion: String?
+        if let vibetunnelPath = Bundle.main.path(forResource: "vibetunnel", ofType: nil) {
+            let vibetunnelTask = Process()
+            vibetunnelTask.launchPath = vibetunnelPath
+            vibetunnelTask.arguments = ["version"]
+
+            let vibetunnelPipe = Pipe()
+            vibetunnelTask.standardOutput = vibetunnelPipe
+            vibetunnelTask.standardError = vibetunnelPipe
+
+            do {
+                try vibetunnelTask.run()
+                vibetunnelTask.waitUntilExit()
+
+                let data = vibetunnelPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Parse version from output like "VibeTunnel Linux v1.0.3"
+                if let output, output.contains("v") {
+                    if let range = output.range(of: #"v(\d+\.\d+\.\d+)"#, options: .regularExpression) {
+                        vibetunnelVersion = String(output[range]).dropFirst(1).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            } catch {
+                logger.error("Failed to get bundled vibetunnel version: \(error)")
+                vibetunnelVersion = nil
+            }
+        }
+        
+        // Return the lowest version or "unknown" if either is missing
+        if let vtVer = vtVersion, let vibetunnelVer = vibetunnelVersion {
+            // Compare versions and return the lower one
+            if vtVer.compare(vibetunnelVer, options: .numeric) == .orderedAscending {
+                return vtVer
+            } else {
+                return vibetunnelVer
+            }
+        }
+        
+        // If either version is missing, return "unknown"
+        return vtVersion ?? vibetunnelVersion ?? "unknown"
     }
 
     /// Gets the version of the installed vt tool (async version for background execution)
     private nonisolated func getInstalledVersionAsync() async -> String? {
-        let task = Process()
-        task.launchPath = "/usr/local/bin/vt"
-        task.arguments = ["--version"]
+        // Get vt version
+        var vtVersion: String?
+        let vtTask = Process()
+        vtTask.launchPath = "/usr/local/bin/vt"
+        vtTask.arguments = ["--version"]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+        let vtPipe = Pipe()
+        vtTask.standardOutput = vtPipe
+        vtTask.standardError = vtPipe
 
         do {
-            try task.run()
-            task.waitUntilExit()
+            try vtTask.run()
+            vtTask.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let data = vtPipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Parse version from output like "vt version 2.0.0"
             if let output, output.contains("version") {
                 let components = output.components(separatedBy: " ")
                 if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
-                    return components[versionIndex + 1]
+                    vtVersion = components[versionIndex + 1]
                 }
             }
-
-            return output
         } catch {
-            return nil
+            vtVersion = nil
         }
+        
+        // Get vibetunnel version
+        var vibetunnelVersion: String?
+        let vibetunnelTask = Process()
+        vibetunnelTask.launchPath = "/usr/local/bin/vibetunnel"
+        vibetunnelTask.arguments = ["version"]
+
+        let vibetunnelPipe = Pipe()
+        vibetunnelTask.standardOutput = vibetunnelPipe
+        vibetunnelTask.standardError = vibetunnelPipe
+
+        do {
+            try vibetunnelTask.run()
+            vibetunnelTask.waitUntilExit()
+
+            let data = vibetunnelPipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Parse version from output like "VibeTunnel Linux v1.0.3"
+            if let output, output.contains("v") {
+                if let range = output.range(of: #"v(\d+\.\d+\.\d+)"#, options: .regularExpression) {
+                    vibetunnelVersion = String(output[range]).dropFirst(1).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        } catch {
+            vibetunnelVersion = nil
+        }
+        
+        // Return the lowest version or "unknown" if either is missing
+        if let vtVer = vtVersion, let vibetunnelVer = vibetunnelVersion {
+            // Compare versions and return the lower one
+            if vtVer.compare(vibetunnelVer, options: .numeric) == .orderedAscending {
+                return vtVer
+            } else {
+                return vibetunnelVer
+            }
+        }
+        
+        // If either version is missing, return "unknown"
+        return vtVersion ?? vibetunnelVersion ?? "unknown"
     }
 
     /// Gets the version of the bundled vt tool (async version for background execution)
     private nonisolated func getBundledVersionAsync() async -> String? {
-        guard let vtPath = Bundle.main.path(forResource: "vt", ofType: nil) else {
-            return nil
-        }
+        // Get vt version
+        var vtVersion: String?
+        if let vtPath = Bundle.main.path(forResource: "vt", ofType: nil) {
+            let vtTask = Process()
+            vtTask.launchPath = vtPath
+            vtTask.arguments = ["--version"]
 
-        let task = Process()
-        task.launchPath = vtPath
-        task.arguments = ["--version"]
+            let vtPipe = Pipe()
+            vtTask.standardOutput = vtPipe
+            vtTask.standardError = vtPipe
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+            do {
+                try vtTask.run()
+                vtTask.waitUntilExit()
 
-        do {
-            try task.run()
-            task.waitUntilExit()
+                let data = vtPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Parse version from output like "vt version 2.0.0"
-            if let output, output.contains("version") {
-                let components = output.components(separatedBy: " ")
-                if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
-                    return components[versionIndex + 1]
+                // Parse version from output like "vt version 2.0.0"
+                if let output, output.contains("version") {
+                    let components = output.components(separatedBy: " ")
+                    if let versionIndex = components.firstIndex(of: "version"), versionIndex + 1 < components.count {
+                        vtVersion = components[versionIndex + 1]
+                    }
                 }
+            } catch {
+                vtVersion = nil
             }
-
-            return output
-        } catch {
-            return nil
         }
+        
+        // Get vibetunnel version
+        var vibetunnelVersion: String?
+        if let vibetunnelPath = Bundle.main.path(forResource: "vibetunnel", ofType: nil) {
+            let vibetunnelTask = Process()
+            vibetunnelTask.launchPath = vibetunnelPath
+            vibetunnelTask.arguments = ["version"]
+
+            let vibetunnelPipe = Pipe()
+            vibetunnelTask.standardOutput = vibetunnelPipe
+            vibetunnelTask.standardError = vibetunnelPipe
+
+            do {
+                try vibetunnelTask.run()
+                vibetunnelTask.waitUntilExit()
+
+                let data = vibetunnelPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Parse version from output like "VibeTunnel Linux v1.0.3"
+                if let output, output.contains("v") {
+                    if let range = output.range(of: #"v(\d+\.\d+\.\d+)"#, options: .regularExpression) {
+                        vibetunnelVersion = String(output[range]).dropFirst(1).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            } catch {
+                vibetunnelVersion = nil
+            }
+        }
+        
+        // Return the lowest version or "unknown" if either is missing
+        if let vtVer = vtVersion, let vibetunnelVer = vibetunnelVersion {
+            // Compare versions and return the lower one
+            if vtVer.compare(vibetunnelVer, options: .numeric) == .orderedAscending {
+                return vtVer
+            } else {
+                return vibetunnelVer
+            }
+        }
+        
+        // If either version is missing, return "unknown"
+        return vtVersion ?? vibetunnelVersion ?? "unknown"
     }
 
     /// Installs the CLI tool (async version for WelcomeView)
@@ -223,14 +390,14 @@ final class CLIInstaller {
 
         // Show update confirmation dialog
         let alert = NSAlert()
-        alert.messageText = "Update VT Command Line Tool"
+        alert.messageText = "Update VT Command Line Tools"
         alert.informativeText = """
-        A newer version of the 'vt' command line tool is available.
+        A newer version of the VibeTunnel command line tools is available.
 
         Installed version: \(installedVersion ?? "unknown")
         Available version: \(bundledVersion ?? "unknown")
 
-        Would you like to update it now? Administrator privileges will be required.
+        Would you like to update now? Administrator privileges will be required.
         """
         alert.addButton(withTitle: "Update")
         alert.addButton(withTitle: "Cancel")
@@ -253,45 +420,36 @@ final class CLIInstaller {
         isInstalling = true
         lastError = nil
 
-        guard let resourcePath = Bundle.main.path(forResource: "vt", ofType: nil) else {
+        guard let vtResourcePath = Bundle.main.path(forResource: "vt", ofType: nil) else {
             logger.error("CLIInstaller: Could not find vt binary in app bundle")
             lastError = "The vt command line tool could not be found in the application bundle."
             showError("The vt command line tool could not be found in the application bundle.")
             isInstalling = false
             return
         }
-
-        let targetPath = "/usr/local/bin/vt"
-        logger.info("CLIInstaller: Resource path: \(resourcePath)")
-        logger.info("CLIInstaller: Target path: \(targetPath)")
-
-        // Check if symlink already exists
-        if FileManager.default.fileExists(atPath: targetPath) {
-            let alert = NSAlert()
-            alert.messageText = "CLI Tool Already Installed"
-            alert
-                .informativeText =
-                "The 'vt' command line tool is already installed at \(targetPath). Would you like to replace it?"
-            alert.addButton(withTitle: "Replace")
-            alert.addButton(withTitle: "Cancel")
-            alert.alertStyle = .informational
-
-            let response = alert.runModal()
-            if response != .alertFirstButtonReturn {
-                logger.info("CLIInstaller: User cancelled replacement")
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isInstalling = false
-                }
-                return
-            }
+        
+        guard let vibetunnelResourcePath = Bundle.main.path(forResource: "vibetunnel", ofType: nil) else {
+            logger.error("CLIInstaller: Could not find vibetunnel binary in app bundle")
+            lastError = "The vibetunnel binary could not be found in the application bundle."
+            showError("The vibetunnel binary could not be found in the application bundle.")
+            isInstalling = false
+            return
         }
 
-        // Show confirmation dialog
+        let vtTargetPath = "/usr/local/bin/vt"
+        let vibetunnelTargetPath = "/usr/local/bin/vibetunnel"
+        
+        logger.info("CLIInstaller: vt resource path: \(vtResourcePath)")
+        logger.info("CLIInstaller: vibetunnel resource path: \(vibetunnelResourcePath)")
+        logger.info("CLIInstaller: vt target path: \(vtTargetPath)")
+        logger.info("CLIInstaller: vibetunnel target path: \(vibetunnelTargetPath)")
+
+        // Show confirmation dialog (removed duplicate replacement dialog)
         let confirmAlert = NSAlert()
-        confirmAlert.messageText = "Install CLI Tool"
+        confirmAlert.messageText = "Install CLI Tools"
         confirmAlert
             .informativeText =
-            "This will create a symlink to the 'vt' command line tool in /usr/local/bin, allowing you to use it from the terminal. Administrator privileges are required."
+            "This will install the 'vt' command and 'vibetunnel' binary to /usr/local/bin, allowing you to use VibeTunnel from the terminal. Administrator privileges are required."
         confirmAlert.addButton(withTitle: "Install")
         confirmAlert.addButton(withTitle: "Cancel")
         confirmAlert.alertStyle = .informational
@@ -305,15 +463,18 @@ final class CLIInstaller {
         }
 
         // Perform the installation
-        performInstallation(from: resourcePath, to: targetPath)
+        performInstallation(vtPath: vtResourcePath, vibetunnelPath: vibetunnelResourcePath)
     }
 
     // MARK: - Private Implementation
 
     /// Performs the actual symlink creation with sudo privileges
-    private func performInstallation(from sourcePath: String, to targetPath: String) {
-        logger.info("CLIInstaller: Performing installation from \(sourcePath) to \(targetPath)")
+    private func performInstallation(vtPath: String, vibetunnelPath: String) {
+        logger.info("CLIInstaller: Performing installation of vt and vibetunnel")
 
+        let vtTargetPath = "/usr/local/bin/vt"
+        let vibetunnelTargetPath = "/usr/local/bin/vibetunnel"
+        
         // Create the /usr/local/bin directory if it doesn't exist
         let binDirectory = "/usr/local/bin"
         let script = """
@@ -326,19 +487,33 @@ final class CLIInstaller {
             echo "Created directory \(binDirectory)"
         fi
 
-        # Remove existing symlink if it exists
-        if [ -L "\(targetPath)" ] || [ -f "\(targetPath)" ]; then
-            rm -f "\(targetPath)"
-            echo "Removed existing file at \(targetPath)"
+        # Remove existing vt symlink if it exists
+        if [ -L "\(vtTargetPath)" ] || [ -f "\(vtTargetPath)" ]; then
+            rm -f "\(vtTargetPath)"
+            echo "Removed existing file at \(vtTargetPath)"
         fi
 
-        # Create the symlink
-        ln -s "\(sourcePath)" "\(targetPath)"
-        echo "Created symlink from \(sourcePath) to \(targetPath)"
+        # Create the vt symlink
+        ln -s "\(vtPath)" "\(vtTargetPath)"
+        echo "Created symlink from \(vtPath) to \(vtTargetPath)"
 
-        # Make sure the symlink is executable
-        chmod +x "\(targetPath)"
-        echo "Set executable permissions on \(targetPath)"
+        # Make sure the vt symlink is executable
+        chmod +x "\(vtTargetPath)"
+        echo "Set executable permissions on \(vtTargetPath)"
+        
+        # Remove existing vibetunnel if it exists
+        if [ -L "\(vibetunnelTargetPath)" ] || [ -f "\(vibetunnelTargetPath)" ]; then
+            rm -f "\(vibetunnelTargetPath)"
+            echo "Removed existing file at \(vibetunnelTargetPath)"
+        fi
+
+        # Copy vibetunnel binary (not symlink, actual copy)
+        cp "\(vibetunnelPath)" "\(vibetunnelTargetPath)"
+        echo "Copied \(vibetunnelPath) to \(vibetunnelTargetPath)"
+
+        # Make sure vibetunnel is executable
+        chmod +x "\(vibetunnelTargetPath)"
+        echo "Set executable permissions on \(vibetunnelTargetPath)"
         """
 
         // Write the script to a temporary file
@@ -379,6 +554,8 @@ final class CLIInstaller {
                 isInstalled = true
                 isInstalling = false
                 showSuccess()
+                // Refresh installation status to update version info and clear needsUpdate flag
+                checkInstallationStatus()
             } else {
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
@@ -398,8 +575,8 @@ final class CLIInstaller {
     /// Shows success message after installation
     private func showSuccess() {
         let alert = NSAlert()
-        alert.messageText = "CLI Tool Installed Successfully"
-        alert.informativeText = "The 'vt' command line tool has been installed. You can now use 'vt' from the terminal."
+        alert.messageText = "CLI Tools Installed Successfully"
+        alert.informativeText = "The 'vt' command and 'vibetunnel' binary have been installed. You can now use 'vt' from the terminal."
         alert.addButton(withTitle: "OK")
         alert.alertStyle = .informational
         alert.icon = NSApp.applicationIconImage

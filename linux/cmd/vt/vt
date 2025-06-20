@@ -11,14 +11,15 @@ if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
 fi
 
 # Find vibetunnel binary (prefer Go implementation)
-if [ -x "/usr/local/bin/vibetunnel" ]; then
+# First check if vibetunnel is in PATH (most common after installation)
+if command -v vibetunnel >/dev/null 2>&1; then
+    VIBETUNNEL="vibetunnel"
+elif [ -x "/usr/local/bin/vibetunnel" ]; then
     VIBETUNNEL="/usr/local/bin/vibetunnel"
 elif [ -x "/Users/steipete/Projects/vibetunnel/linux/build/vibetunnel" ]; then
     VIBETUNNEL="/Users/steipete/Projects/vibetunnel/linux/build/vibetunnel"
 elif [ -x "./vibetunnel" ]; then
     VIBETUNNEL="./vibetunnel"
-elif command -v vibetunnel >/dev/null 2>&1; then
-    VIBETUNNEL="vibetunnel"
 elif [ -x "/Applications/VibeTunnel.app/Contents/Resources/tty-fwd" ]; then
     # Fallback to Rust implementation if Go version not found
     VIBETUNNEL="/Applications/VibeTunnel.app/Contents/Resources/tty-fwd"
