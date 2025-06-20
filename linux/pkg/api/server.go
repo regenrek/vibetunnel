@@ -1,14 +1,19 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/vibetunnel/linux/pkg/ngrok"
@@ -44,7 +49,42 @@ func NewServer(manager *session.Manager, staticPath, password string, port int) 
 
 func (s *Server) Start(addr string) error {
 	handler := s.createHandler()
-	return http.ListenAndServe(addr, handler)
+	
+	// Setup graceful shutdown
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+	
+	// Handle shutdown signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	go func() {
+		<-sigChan
+		fmt.Println("\nShutting down server...")
+		
+		// Mark all running sessions as exited
+		if sessions, err := s.manager.ListSessions(); err == nil {
+			for _, session := range sessions {
+				if session.Status == "running" || session.Status == "starting" {
+					if sess, err := s.manager.GetSession(session.ID); err == nil {
+						sess.UpdateStatus()
+					}
+				}
+			}
+		}
+		
+		// Stop the manager's background tasks
+		s.manager.Stop()
+		
+		// Shutdown HTTP server
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		srv.Shutdown(ctx)
+	}()
+	
+	return srv.ListenAndServe()
 }
 
 func (s *Server) createHandler() http.Handler {
@@ -245,15 +285,20 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			// Generate a session ID
 			sessionID := session.GenerateID()
 
-			// Get vibetunnel path
-			vibetunnelPath, _ := os.Executable()
+			// Get vt binary path (not vibetunnel)
+			vtPath := findVTBinary()
+			if vtPath == "" {
+				log.Printf("[ERROR] vt binary not found")
+				http.Error(w, "vt binary not found", http.StatusInternalServerError)
+				return
+			}
 
 			// Format spawn request - this will be sent to the Mac app
 			spawnReq := &termsocket.SpawnRequest{
-				Command:    termsocket.FormatCommand(sessionID, vibetunnelPath, cmdline),
+				Command:    termsocket.FormatCommand(sessionID, vtPath, cmdline),
 				WorkingDir: cwd,
 				SessionID:  sessionID,
-				TTYFwdPath: vibetunnelPath,
+				TTYFwdPath: vtPath,
 				Terminal:   req.Term,
 			}
 
@@ -322,11 +367,17 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Get vibetunnel path
-			vibetunnelPath, _ := os.Executable()
+			// Get vt binary path (not vibetunnel)
+			vtPath := findVTBinary()
+			if vtPath == "" {
+				log.Printf("[ERROR] vt binary not found for native terminal spawn")
+				s.manager.RemoveSession(sess.ID)
+				http.Error(w, "vt binary not found", http.StatusInternalServerError)
+				return
+			}
 
 			// Spawn terminal using native method
-			if err := terminal.SpawnInTerminal(sess.ID, vibetunnelPath, cmdline, cwd); err != nil {
+			if err := terminal.SpawnInTerminal(sess.ID, vtPath, cmdline, cwd); err != nil {
 				log.Printf("[ERROR] Failed to spawn native terminal: %v", err)
 				// Clean up the session since terminal spawn failed
 				s.manager.RemoveSession(sess.ID)
@@ -694,4 +745,44 @@ func (s *Server) StopNgrok() error {
 // GetNgrokStatus returns the current ngrok status
 func (s *Server) GetNgrokStatus() ngrok.StatusResponse {
 	return s.ngrokService.GetStatus()
+}
+
+// findVTBinary locates the vt binary in common locations
+func findVTBinary() string {
+	// Get the directory of the current executable (vibetunnel)
+	execPath, err := os.Executable()
+	if err == nil {
+		execDir := filepath.Dir(execPath)
+		// Check if vt is in the same directory as vibetunnel
+		vtPath := filepath.Join(execDir, "vt")
+		if _, err := os.Stat(vtPath); err == nil {
+			return vtPath
+		}
+	}
+
+	// Check common locations
+	paths := []string{
+		// App bundle location
+		"/Applications/VibeTunnel.app/Contents/Resources/vt",
+		// Development locations
+		"./vt",
+		"../vt",
+		"../../linux/vt",
+		// Installed location
+		"/usr/local/bin/vt",
+	}
+
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			absPath, _ := filepath.Abs(path)
+			return absPath
+		}
+	}
+
+	// Try to find in PATH
+	if path, err := exec.LookPath("vt"); err == nil {
+		return path
+	}
+
+	return ""
 }
