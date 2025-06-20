@@ -53,10 +53,17 @@ func NewPTY(session *Session) (*PTY, error) {
 		// If just launching the shell itself, don't use -c
 		cmd = exec.Command(shell)
 	} else {
-		// Execute command through shell for proper environment handling
+		// Execute command through interactive login shell for proper environment handling
+		// This ensures aliases and functions from .zshrc/.bashrc are loaded
 		shellCmd := strings.Join(cmdline, " ")
-		cmd = exec.Command(shell, "-c", shellCmd)
-		debugLog("[DEBUG] NewPTY: Executing through shell: %s -c %q", shell, shellCmd)
+		// Use interactive login shell to load user's configuration
+		cmd = exec.Command(shell, "-i", "-l", "-c", shellCmd)
+		debugLog("[DEBUG] NewPTY: Executing through interactive login shell: %s -i -l -c %q", shell, shellCmd)
+		
+		// Add some debugging to understand what's happening
+		debugLog("[DEBUG] NewPTY: Shell: %s", shell)
+		debugLog("[DEBUG] NewPTY: Command: %v", cmdline)
+		debugLog("[DEBUG] NewPTY: Shell command: %s", shellCmd)
 	}
 
 	// Set working directory, ensuring it's valid
@@ -96,8 +103,15 @@ func NewPTY(session *Session) (*PTY, error) {
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		log.Printf("[ERROR] NewPTY: Failed to start PTY: %v", err)
-		return nil, ErrPTYCreationError(session.ID, err)
+		// Provide more helpful error message for common failures
+		errorMsg := fmt.Sprintf("Failed to start PTY for command '%s'", strings.Join(cmdline, " "))
+		if strings.Contains(err.Error(), "no such file or directory") || strings.Contains(err.Error(), "not found") {
+			errorMsg = fmt.Sprintf("Command '%s' not found. Make sure it's installed and in your PATH, or is a valid shell alias/function.", cmdline[0])
+		} else if strings.Contains(err.Error(), "permission denied") {
+			errorMsg = fmt.Sprintf("Permission denied executing '%s'", strings.Join(cmdline, " "))
+		}
+		log.Printf("[ERROR] NewPTY: %s: %v", errorMsg, err)
+		return nil, NewSessionErrorWithCause(errorMsg, ErrPTYCreationFailed, session.ID, err)
 	}
 
 	debugLog("[DEBUG] NewPTY: PTY started successfully, PID: %d", cmd.Process.Pid)
