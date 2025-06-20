@@ -8,11 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,12 +31,13 @@ const (
 )
 
 type Config struct {
-	Name    string
-	Cmdline []string
-	Cwd     string
-	Env     []string
-	Width   int
-	Height  int
+	Name      string
+	Cmdline   []string
+	Cwd       string
+	Env       []string
+	Width     int
+	Height    int
+	IsSpawned bool // Whether this session was spawned in a terminal
 }
 
 type Info struct {
@@ -53,7 +53,8 @@ type Info struct {
 	Width     int               `json:"width"`
 	Height    int               `json:"height"`
 	Env       map[string]string `json:"env,omitempty"`
-	Args      []string          `json:"-"` // Internal use only
+	Args      []string          `json:"-"`    // Internal use only
+	IsSpawned bool              `json:"is_spawned"` // Whether session was spawned in terminal
 }
 
 type Session struct {
@@ -142,6 +143,7 @@ func newSessionWithID(controlPath string, id string, config Config) (*Session, e
 		Width:     width,
 		Height:    height,
 		Args:      config.Cmdline,
+		IsSpawned: config.IsSpawned,
 	}
 
 	if err := info.Save(sessionPath); err != nil {
@@ -434,42 +436,56 @@ func (s *Session) Resize(width, height int) error {
 }
 
 func (s *Session) IsAlive() bool {
-	if s.info.Pid == 0 {
+	s.mu.RLock()
+	pid := s.info.Pid
+	status := s.info.Status
+	s.mu.RUnlock()
+	
+	if pid == 0 {
 		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
 			log.Printf("[DEBUG] IsAlive: PID is 0 for session %s", s.ID[:8])
 		}
 		return false
 	}
 
-	// Use ps command to check process status (portable across Unix systems)
-	// This matches the Rust implementation
-	cmd := exec.Command("ps", "-p", strconv.Itoa(s.info.Pid), "-o", "stat=")
-	output, err := cmd.Output()
-	
+	// If already marked as exited, don't check again
+	if status == string(StatusExited) {
+		return false
+	}
+
+	// Use kill(pid, 0) instead of ps command for better performance
+	// This is more efficient than spawning ps process
+	process, err := os.FindProcess(pid)
 	if err != nil {
-		// Process doesn't exist
 		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
-			log.Printf("[DEBUG] IsAlive: ps command failed for PID %d: %v", s.info.Pid, err)
+			log.Printf("[DEBUG] IsAlive: FindProcess failed for PID %d: %v", pid, err)
 		}
 		return false
 	}
 	
-	// Check if it's a zombie process (status starts with 'Z')
-	stat := strings.TrimSpace(string(output))
-	if strings.HasPrefix(stat, "Z") {
+	// Send signal 0 to check if process exists
+	err = process.Signal(syscall.Signal(0))
+	if err != nil {
+		// Process doesn't exist or we don't have permission
 		if os.Getenv("VIBETUNNEL_DEBUG") != "" {
-			log.Printf("[DEBUG] IsAlive: Process %d is zombie (stat=%s) for session %s", s.info.Pid, stat, s.ID[:8])
+			log.Printf("[DEBUG] IsAlive: Signal(0) failed for PID %d: %v", pid, err)
 		}
 		return false
 	}
-	
+
 	if os.Getenv("VIBETUNNEL_DEBUG") != "" {
-		log.Printf("[DEBUG] IsAlive: Process %d is alive (stat=%s) for session %s", s.info.Pid, stat, s.ID[:8])
+		log.Printf("[DEBUG] IsAlive: Process %d is alive for session %s", pid, s.ID[:8])
 	}
 	
 	return true
 }
 
+// IsSpawned returns whether this session was spawned in a terminal
+func (s *Session) IsSpawned() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.info.IsSpawned
+}
 
 func (s *Session) UpdateStatus() error {
 	if s.info.Status == string(StatusExited) {
