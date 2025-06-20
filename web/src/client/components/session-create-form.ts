@@ -180,9 +180,11 @@ export class SessionCreateForm extends LitElement {
         );
       } else {
         const error = await response.json();
+        // Use the detailed error message if available, otherwise fall back to the error field
+        const errorMessage = error.details || error.error || 'Unknown error';
         this.dispatchEvent(
           new CustomEvent('error', {
-            detail: `Failed to create session: ${error.error}`,
+            detail: errorMessage,
           })
         );
       }
