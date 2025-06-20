@@ -5,7 +5,7 @@
 
 # Variables
 APP_NAME := vibetunnel
-VERSION := 1.0.3
+VERSION := 1.0.6
 BUILD_DIR := build
 WEB_DIR := ../web
 DIST_DIR := $(WEB_DIR)/dist

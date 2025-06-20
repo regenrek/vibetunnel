@@ -132,4 +132,3 @@ final class ScreenRecordingPermissionManager {
 }
 
 // MARK: - WindowTracker Extension
-
