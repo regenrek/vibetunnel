@@ -27,6 +27,7 @@ export class SessionCard extends LitElement {
   @property({ type: Object }) session!: Session;
   @state() private killing = false;
   @state() private killingFrame = 0;
+  @state() private hasEscPrompt = false;
 
   private killingInterval: number | null = null;
 
@@ -45,6 +46,10 @@ export class SessionCard extends LitElement {
         composed: true,
       })
     );
+  }
+
+  private handleEscPromptChange(event: CustomEvent) {
+    this.hasEscPrompt = event.detail.hasEscPrompt;
   }
 
   private async handleKillClick(e: Event) {
@@ -151,10 +156,9 @@ export class SessionCard extends LitElement {
   render() {
     return html`
       <div
-        class="bg-vs-bg border border-vs-border rounded shadow cursor-pointer overflow-hidden ${this
-          .killing
+        class="bg-vs-bg rounded shadow cursor-pointer overflow-hidden ${this.killing
           ? 'opacity-60'
-          : ''}"
+          : ''} ${this.hasEscPrompt ? 'border-2 border-orange-500' : 'border border-vs-border'}"
         @click=${this.handleCardClick}
       >
         <!-- Compact Header -->
@@ -211,6 +215,7 @@ export class SessionCard extends LitElement {
                   .sessionId=${this.session.id}
                   class="w-full h-full"
                   style="pointer-events: none;"
+                  @esc-prompt-change=${this.handleEscPromptChange}
                 ></vibe-terminal-buffer>
               `}
         </div>

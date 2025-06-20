@@ -25,6 +25,7 @@ export class VibeTerminalBuffer extends LitElement {
   @state() private error: string | null = null;
   @state() private displayedFontSize = 14;
   @state() private visibleRows = 0;
+  @state() private containsEscPrompt = false;
 
   private container: HTMLElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -122,12 +123,44 @@ export class VibeTerminalBuffer extends LitElement {
       this.buffer = snapshot;
       this.error = null;
 
+      // Check if buffer contains "esc to interrupt" text
+      this.checkForEscPrompt();
+
       // Recalculate dimensions now that we have the actual cols
       this.calculateDimensions();
 
       // Request update which will trigger updated() lifecycle
       this.requestUpdate();
     });
+  }
+
+  private checkForEscPrompt() {
+    if (!this.buffer) {
+      this.containsEscPrompt = false;
+      return;
+    }
+
+    // Check if any line contains "esc to interrupt" (case insensitive)
+    const searchText = 'esc to interrupt';
+    const found = this.buffer.cells.some((row) => {
+      const lineText = row
+        .map((cell) => cell.char)
+        .join('')
+        .toLowerCase();
+      return lineText.includes(searchText);
+    });
+
+    if (found !== this.containsEscPrompt) {
+      this.containsEscPrompt = found;
+      // Dispatch event to notify parent
+      this.dispatchEvent(
+        new CustomEvent('esc-prompt-change', {
+          detail: { hasEscPrompt: found },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
   }
 
   private unsubscribeFromBuffer() {
